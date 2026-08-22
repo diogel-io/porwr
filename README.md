@@ -43,12 +43,18 @@ See [DEVELOPING.md](./DEVELOPING.md) for the build and reload loop, the Node ver
 
 #### Icon generation (BEX)
 
-- Use the project-local IconGenie CLI (installed in `devDependencies`):
-  - `npm install`
-  - `npm run icons:bex`
-- This avoids version drift with globally installed `@quasar/icongenie` binaries.
-- Use the project Node version before generating icons:
-  - `nvm use`
+The generated icons are committed (`src-bex/icons/`, `public/icons/`) and referenced by
+`src-bex/manifest.json`, so nothing needs to generate them to build or run the extension.
+
+Regenerate only when the source artwork changes:
+
+```bash
+nvm use
+npx --yes @quasar/icongenie generate -m bex -i public/images/light/diogel.png
+```
+
+IconGenie is deliberately not a dependency. It was the root of 25 of 39 audit advisories, including
+the only critical one, for a tool last needed in May (threenine/diogel#204).
 
 ### Deployment
 

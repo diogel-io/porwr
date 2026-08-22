@@ -24,7 +24,7 @@ management) is built with Vue 3 + Pinia + Quasar components.
 - Tests (coverage): `npm run test:coverage`
 - Single test file: `npx vitest run tests/unit/services/auto-lock.test.ts`
 - Single test by name: `npx vitest run -t "test name pattern"`
-- Generate BEX icons: `npm run icons:bex` (use `nvm use` first to match Node version)
+- BEX icons are committed and need no build step. Regenerate only if the source artwork changes; see README.
 
 Use a Node version from `engines.node` in `package.json` (`^20 || ^22 || ^24 || ^25 || ^26 || ^28`).
 
