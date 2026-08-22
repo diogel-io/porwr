@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.1.0](https://github.com/threenine/diogel/compare/v0.0.32...v0.1.0) (2026-08-22)
+
+
+### Features
+
+* **approvals:** replace the singleton approval with a durable request queue ([#138](https://github.com/threenine/diogel/issues/138)) ([3d53908](https://github.com/threenine/diogel/commit/3d53908ff92453c077256e44804a3154708ce6e2))
+* **dashboard:** show and revoke what each site holds ([#178](https://github.com/threenine/diogel/issues/178)) ([32cc860](https://github.com/threenine/diogel/commit/32cc86030866f387097065fba436130ad1662390)), closes [#116](https://github.com/threenine/diogel/issues/116)
+* **security:** act as the bound account in encryption and zap handlers ([#165](https://github.com/threenine/diogel/issues/165)) ([2a52b48](https://github.com/threenine/diogel/commit/2a52b485798dbc5f60838e7384863b48ccd0a71e)), closes [#116](https://github.com/threenine/diogel/issues/116)
+* **security:** key permission grants by account ([#166](https://github.com/threenine/diogel/issues/166)) ([1fd49b1](https://github.com/threenine/diogel/commit/1fd49b100ea2b2c6e449d63daeb8342bbbe302be)), closes [#116](https://github.com/threenine/diogel/issues/116)
+* **security:** sign as the account a site is bound to ([#164](https://github.com/threenine/diogel/issues/164)) ([b48ea58](https://github.com/threenine/diogel/commit/b48ea58a423b7900f5fefeff71e9f7bbc9ad462d))
+* **sidebar:** add panel presence, the toolbar badge, and page-gone handling ([#157](https://github.com/threenine/diogel/issues/157)) ([bb1d630](https://github.com/threenine/diogel/commit/bb1d6308d640a2fa0c83d2ab4143a89b2c0def38)), closes [#113](https://github.com/threenine/diogel/issues/113)
+* **sidebar:** add the account switcher and fix the approved-clients count ([#179](https://github.com/threenine/diogel/issues/179)) ([8ef9c65](https://github.com/threenine/diogel/commit/8ef9c65589bfa9cb2cf896621220db25115eee6a)), closes [#116](https://github.com/threenine/diogel/issues/116)
+* **sidebar:** build the cross-browser panel foundation ([#137](https://github.com/threenine/diogel/issues/137)) ([a248a43](https://github.com/threenine/diogel/commit/a248a432bc0a7a3d7d87b8529e424303ed408ca7))
+* **sidebar:** complete the panel header with lock and pending count ([#150](https://github.com/threenine/diogel/issues/150)) ([f135527](https://github.com/threenine/diogel/commit/f13552735b4a4df1df0291fa9ca9c4bbfd5c0690)), closes [#147](https://github.com/threenine/diogel/issues/147)
+* **sidebar:** create the vault in the panel, and hide the footer while locked ([#199](https://github.com/threenine/diogel/issues/199)) ([d026d6f](https://github.com/threenine/diogel/commit/d026d6f2e759ef251b408d7f55f007ab01ad1532))
+* **sidebar:** cross-check panel presence against the browser ([#174](https://github.com/threenine/diogel/issues/174)) ([22c89c0](https://github.com/threenine/diogel/commit/22c89c037be2b3ffb65b26ab25d4dba9abe8cd78)), closes [#113](https://github.com/threenine/diogel/issues/113)
+* **sidebar:** deliver signing approvals and vault unlock in the panel ([#139](https://github.com/threenine/diogel/issues/139)) ([d849b01](https://github.com/threenine/diogel/commit/d849b01405c7943c235fc0423f188f8f8c8c0259))
+* **sidebar:** push queue state to the panel instead of polling ([#167](https://github.com/threenine/diogel/issues/167)) ([37d9f8d](https://github.com/threenine/diogel/commit/37d9f8d423fdd30e14091ef102431c533e27fd3e)), closes [#140](https://github.com/threenine/diogel/issues/140)
+* **sidebar:** show the footer as icons with the label on hover and focus ([#187](https://github.com/threenine/diogel/issues/187)) ([979d787](https://github.com/threenine/diogel/commit/979d7875ead8039dcf900b341584ddc7282696bf)), closes [#184](https://github.com/threenine/diogel/issues/184)
+* **sidebar:** show the full profile in the panel, and keep it current ([#202](https://github.com/threenine/diogel/issues/202)) ([211fa24](https://github.com/threenine/diogel/commit/211fa24fda0d43cdbd8757892b9cc0d65dd9c266)), closes [#201](https://github.com/threenine/diogel/issues/201)
+* **theme:** take slate-200 for the light header and invert the badge ([#156](https://github.com/threenine/diogel/issues/156)) ([6cfe983](https://github.com/threenine/diogel/commit/6cfe98310f6348d7ff65c98e6670aa60c05ad801)), closes [#153](https://github.com/threenine/diogel/issues/153)
+* **types:** add Pubkey and RelayUrl branded value objects ([#129](https://github.com/threenine/diogel/issues/129)) ([5e173b7](https://github.com/threenine/diogel/commit/5e173b727a3c83dab2608df150b242702703b85b))
+
+
+### Bug Fixes
+
+* **bex:** answer null instead of withholding the reply ([#197](https://github.com/threenine/diogel/issues/197)) ([742911a](https://github.com/threenine/diogel/commit/742911ac0436fa0d8d8f9b5888f9a99116dec641)), closes [#195](https://github.com/threenine/diogel/issues/195)
+* **bex:** route the panel's own actions through the dispatcher ([#186](https://github.com/threenine/diogel/issues/186)) ([429b6c8](https://github.com/threenine/diogel/commit/429b6c82f7f646313da2915fc66bf8cb90d61872)), closes [#177](https://github.com/threenine/diogel/issues/177) [#113](https://github.com/threenine/diogel/issues/113)
+* **build:** declare the Node range the toolchain will accept, and pin 24.19.0 ([#205](https://github.com/threenine/diogel/issues/205)) ([518aa19](https://github.com/threenine/diogel/commit/518aa19b7eb657ad6eab86246395d4f837aaf2f5))
+* **porwr:** key permission grants on the normalised origin ([#190](https://github.com/threenine/diogel/issues/190)) ([c2fc8d8](https://github.com/threenine/diogel/commit/c2fc8d85fd4601cccc92f00b4d6326e26e596899))
+* **security:** split the no-kind and any-kind meanings in permission grants ([#163](https://github.com/threenine/diogel/issues/163)) ([32d0a91](https://github.com/threenine/diogel/commit/32d0a917de5f54ad19ba89333d7513846c10cce5)), closes [#136](https://github.com/threenine/diogel/issues/136)
+* **sidebar:** inset the panel column once ([#151](https://github.com/threenine/diogel/issues/151)) ([07f5220](https://github.com/threenine/diogel/commit/07f5220024393394419fe6c866fa87ff7a80441a))
+* **sidebar:** reduce the footer to Dashboard, Keys and Settings ([#183](https://github.com/threenine/diogel/issues/183)) ([3d3d6bc](https://github.com/threenine/diogel/commit/3d3d6bca1af379fd0068223ccf25bf30df5e322c)), closes [#182](https://github.com/threenine/diogel/issues/182)
+* **sidebar:** settle the panel boot and stop offering to unlock nothing ([#160](https://github.com/threenine/diogel/issues/160)) ([0f693f6](https://github.com/threenine/diogel/commit/0f693f6c2bd7fd7f376b96348c48815aad789180)), closes [#158](https://github.com/threenine/diogel/issues/158)
+* **sidebar:** source the active tab origin from the content script ([#155](https://github.com/threenine/diogel/issues/155)) ([50b367f](https://github.com/threenine/diogel/commit/50b367f07d6af0604af9f780d2a1a1a783a37d14)), closes [#154](https://github.com/threenine/diogel/issues/154)
+* **sidebar:** stop the header squeezing the account identity ([#189](https://github.com/threenine/diogel/issues/189)) ([be243cd](https://github.com/threenine/diogel/commit/be243cd50ef8fe3f827eb3eee372cc80b5344c01)), closes [#188](https://github.com/threenine/diogel/issues/188)
+* **sidebar:** stop vault actions navigating the panel to the dashboard ([#181](https://github.com/threenine/diogel/issues/181)) ([74541b0](https://github.com/threenine/diogel/commit/74541b03a0c005af4864f3dd4c950bcf4fb21520)), closes [#116](https://github.com/threenine/diogel/issues/116)
+* **theme:** interpolate --header-bg so application chrome renders a background ([#149](https://github.com/threenine/diogel/issues/149)) ([6c7881e](https://github.com/threenine/diogel/commit/6c7881e02f6505c8fa0e871fc10f66626b2f6d44))
+
 ## v0.0.32
 
 [compare changes](https://github.com/threenine/diogel/compare/v0.0.31...v0.0.32)
