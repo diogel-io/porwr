@@ -58,11 +58,15 @@ async function sendPresent(id: string): Promise<void> {
   await refresh();
 }
 
-const activeStoredKey = computed(() => {
-  const activeAlias = accountStore.activeKey;
-  if (!activeAlias) return undefined;
-  return Array.from(accountStore.storedKeys).find((key) => key.alias === activeAlias);
-});
+const activeStoredKey = computed(() => accountStore.activeAccount);
+
+/**
+ * S16 is a vault that was read and holds no accounts. Until the vault has been read there is
+ * nothing to say, and saying S16 anyway is what #211 reported: the panel mounts while the vault is
+ * locked, so it hydrated from a locked vault and announced "no active account" to users who had
+ * one.
+ */
+const showNoAccount = computed(() => accountStore.hasNoAccounts);
 
 function openInTab(path: string): void {
   const url = chrome.runtime.getURL(`www/index.html#${path}`);
@@ -117,7 +121,7 @@ onMounted(async () => {
       <ProfileView :stored-key="activeStoredKey" />
     </div>
 
-    <div v-else class="sidebar-home__empty">
+    <div v-else-if="showNoAccount" class="sidebar-home__empty">
       <q-icon color="grey-5" name="account_circle" size="3em" />
       <div class="text-subtitle1 text-grey-7 q-mt-sm">{{ t('account.noActiveAccount') }}</div>
       <p class="text-grey-6">{{ t('account.noActiveAccountDesc') }}</p>
@@ -127,6 +131,12 @@ onMounted(async () => {
         :label="t('sidebar.links.keys')"
         @click="openInTab('/keys')"
       />
+    </div>
+
+    <!-- The vault has not been read yet, which is not the same as holding no accounts (#211). -->
+    <div v-else class="sidebar-home__empty" role="status">
+      <q-spinner color="grey-5" size="2em" />
+      <div class="text-subtitle1 text-grey-7 q-mt-sm">{{ t('account.loading') }}</div>
     </div>
     </template>
   </q-page>

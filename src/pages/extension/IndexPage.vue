@@ -3,7 +3,7 @@
     <div v-if="activeStoredKey" class="full-width">
       <ProfileView :stored-key="activeStoredKey" />
     </div>
-    <div v-else class="q-pa-md">
+    <div v-else-if="showNoAccount" class="q-pa-md">
       <div class="text-center">
         <q-icon color="grey-5" name="account_circle" size="4em" />
         <div class="text-h6 text-grey-7 q-mt-md">{{ $t('account.noAccountsAvailable') }}</div>
@@ -13,6 +13,14 @@
           :label="$t('account.create')"
           @click="openKeyManagement"
         />
+      </div>
+    </div>
+
+    <!-- Not yet read from the vault, which is not the same as holding no accounts (#211). -->
+    <div v-else class="q-pa-md">
+      <div class="text-center" role="status">
+        <q-spinner color="grey-5" size="3em" />
+        <div class="text-h6 text-grey-7 q-mt-md">{{ $t('account.loading') }}</div>
       </div>
     </div>
   </q-page>
@@ -27,11 +35,8 @@ import ProfileView from 'components/shared/ProfileView.vue';
 const accountStore = useAccountStore();
 const router = useRouter();
 
-const activeStoredKey = computed(() => {
-  const activeAlias = accountStore.activeKey;
-  if (!activeAlias) return undefined;
-  return Array.from(accountStore.storedKeys).find((k) => k.alias === activeAlias);
-});
+const activeStoredKey = computed(() => accountStore.activeAccount);
+const showNoAccount = computed(() => accountStore.hasNoAccounts);
 
 onMounted(async () => {
   await accountStore.getKeys();

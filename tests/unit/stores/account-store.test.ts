@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { nextTick } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import useAccountStore from 'src/stores/account-store';
+import useVaultStore from 'src/stores/vault-store';
 import type { StoredKey } from 'src/types';
 
 const { mockSave, mockGet, mockGetActive, mockSetActive, mockRenameAlias, mockOnChanged } = vi.hoisted(() => ({
@@ -22,8 +24,21 @@ vi.mock('src/services/dexie-storage', () => ({
 
 vi.mock('src/services/storage-service', () => ({
   NOSTR_ACTIVE: 'NOSTR_ACTIVE',
-  storageService: { onChanged: mockOnChanged },
+  VAULT_UNLOCKED: 'VAULT_UNLOCKED',
+  storageService: { onChanged: mockOnChanged, get: vi.fn(), set: vi.fn() },
 }));
+
+vi.mock('src/services/vault-service', () => ({
+  createVault: vi.fn(),
+  hasVault: vi.fn(),
+  lockVault: vi.fn(),
+  unlockVault: vi.fn(),
+}));
+
+/** Puts the vault in the state `getKeys` now requires before it will read anything. */
+function unlockVault(): void {
+  useVaultStore().isUnlocked = true;
+}
 
 function buildKey(overrides: Partial<StoredKey> = {}): StoredKey {
   return {
@@ -75,6 +90,7 @@ describe('account-store', () => {
       const beta = buildKey({ id: 'pubkey-hex-2', alias: 'beta' });
       mockGet.mockResolvedValue({ alpha, beta });
       mockGetActive.mockResolvedValue('alpha');
+      unlockVault();
 
       const store = useAccountStore();
       await store.getKeys();
@@ -102,6 +118,7 @@ describe('account-store', () => {
       const renamed = buildKey({ alias: 'beta' });
       mockGet.mockResolvedValue({ beta: renamed });
       mockGetActive.mockResolvedValue('beta');
+      unlockVault();
 
       const store = useAccountStore();
       store.activeKey = 'alpha';
@@ -117,6 +134,7 @@ describe('account-store', () => {
       mockRenameAlias.mockResolvedValue(undefined);
       mockGet.mockResolvedValue({});
       mockGetActive.mockResolvedValue('gamma');
+      unlockVault();
 
       const store = useAccountStore();
       store.activeKey = 'gamma';
@@ -140,6 +158,7 @@ describe('account-store', () => {
     it('reloads keys when NOSTR_ACTIVE changes in local storage', () => {
       mockGet.mockResolvedValue({});
       mockGetActive.mockResolvedValue(undefined);
+      unlockVault();
       const store = useAccountStore();
 
       store.listenToStorageChanges();
@@ -163,6 +182,165 @@ describe('account-store', () => {
       listener({ NOSTR_ACTIVE: { newValue: 'alpha' } }, 'session');
 
       expect(mockGet).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * #211.
+   *
+   * `dexie-storage.get()` answers `{}` for a locked vault rather than refusing, so reading one
+   * records a confident and wrong "this vault holds no accounts". Nine surfaces call `getKeys` on
+   * mount and several can be reached while locked, so the guard lives here rather than at each of
+   * them.
+   */
+  describe('reading a locked vault', () => {
+    it('does not read the vault at all', async () => {
+      mockGetActive.mockResolvedValue('alpha');
+      const store = useAccountStore();
+
+      await store.getKeys();
+
+      expect(mockGet).not.toHaveBeenCalled();
+    });
+
+    it('reports the accounts as unread rather than as an empty vault', async () => {
+      mockGetActive.mockResolvedValue('alpha');
+      const store = useAccountStore();
+
+      await store.getKeys();
+
+      expect(store.hydration).toBe('empty');
+      expect(store.hasNoAccounts).toBe(false);
+      expect(store.isHydrated).toBe(false);
+    });
+
+    it('still reads the active alias, which lives outside the vault', async () => {
+      mockGetActive.mockResolvedValue('alpha');
+      const store = useAccountStore();
+
+      await store.getKeys();
+
+      expect(store.activeKey).toBe('alpha');
+      expect(store.activeAccount).toBeUndefined();
+    });
+  });
+
+  describe('an unlocked vault holding no accounts', () => {
+    it('is reported as configured with no accounts, which S16 is entitled to say', async () => {
+      mockGet.mockResolvedValue({});
+      mockGetActive.mockResolvedValue(undefined);
+      unlockVault();
+      const store = useAccountStore();
+
+      await store.getKeys();
+
+      expect(store.hydration).toBe('ready');
+      expect(store.hasNoAccounts).toBe(true);
+    });
+  });
+
+  describe('activeAccount', () => {
+    it('resolves the alias in activeKey against the stored keys', async () => {
+      const alpha = buildKey({ alias: 'alpha' });
+      mockGet.mockResolvedValue({ alpha });
+      mockGetActive.mockResolvedValue('alpha');
+      unlockVault();
+      const store = useAccountStore();
+
+      await store.getKeys();
+
+      expect(store.activeAccount).toStrictEqual(alpha);
+    });
+
+    it('does not fall back to another account when the active alias resolves to nothing', async () => {
+      const beta = buildKey({ alias: 'beta' });
+      mockGet.mockResolvedValue({ beta });
+      mockGetActive.mockResolvedValue('alpha');
+      unlockVault();
+      const store = useAccountStore();
+
+      await store.getKeys();
+
+      // The panel must never present an account the user did not select as the active one.
+      expect(store.activeAccount).toBeUndefined();
+      expect(store.activeAccountOrFirst).toStrictEqual(beta);
+    });
+  });
+
+  /**
+   * The reported failure, end to end at the store.
+   *
+   * The panel mounts while the vault is locked — `App.vue` exempts it from the redirect to login
+   * because it owns a view for every vault state — so it hydrated from a locked vault and never
+   * looked again. Unlocking re-rendered the branch and left the accounts exactly as they were.
+   */
+  describe('followVaultLockState', () => {
+    it('hydrates when the vault unlocks with the surface already open', async () => {
+      const alpha = buildKey({ alias: 'alpha' });
+      mockGet.mockResolvedValue({ alpha });
+      mockGetActive.mockResolvedValue('alpha');
+
+      const store = useAccountStore();
+      store.followVaultLockState();
+
+      // Mounted against a locked vault: nothing known, and nothing claimed.
+      expect(store.hasNoAccounts).toBe(false);
+
+      useVaultStore().isUnlocked = true;
+      await nextTick();
+      await vi.waitFor(() => expect(store.isHydrated).toBe(true));
+
+      expect(store.activeAccount).toStrictEqual(alpha);
+    });
+
+    it('drops the accounts when the vault locks', async () => {
+      const alpha = buildKey({ alias: 'alpha' });
+      mockGet.mockResolvedValue({ alpha });
+      mockGetActive.mockResolvedValue('alpha');
+      unlockVault();
+
+      const store = useAccountStore();
+      store.followVaultLockState();
+      await vi.waitFor(() => expect(store.isHydrated).toBe(true));
+
+      useVaultStore().isUnlocked = false;
+      await nextTick();
+
+      // Vault-derived material must not outlive the lock that was supposed to protect it.
+      expect(store.storedKeys.size).toBe(0);
+      expect(store.hydration).toBe('empty');
+      expect(store.hasNoAccounts).toBe(false);
+    });
+
+    it('re-hydrates after a lock and a second unlock', async () => {
+      const alpha = buildKey({ alias: 'alpha' });
+      mockGet.mockResolvedValue({ alpha });
+      mockGetActive.mockResolvedValue('alpha');
+      unlockVault();
+
+      const store = useAccountStore();
+      store.followVaultLockState();
+      await vi.waitFor(() => expect(store.isHydrated).toBe(true));
+
+      useVaultStore().isUnlocked = false;
+      await nextTick();
+      useVaultStore().isUnlocked = true;
+      await vi.waitFor(() => expect(store.isHydrated).toBe(true));
+
+      expect(store.activeAccount).toStrictEqual(alpha);
+    });
+
+    it('watches the vault only once', async () => {
+      mockGet.mockResolvedValue({});
+      mockGetActive.mockResolvedValue(undefined);
+      const store = useAccountStore();
+
+      store.followVaultLockState();
+      store.followVaultLockState();
+      useVaultStore().isUnlocked = true;
+      await vi.waitFor(() => expect(mockGet).toHaveBeenCalled());
+
+      expect(mockGet).toHaveBeenCalledTimes(1);
     });
   });
 });

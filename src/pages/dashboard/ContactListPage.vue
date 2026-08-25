@@ -33,15 +33,7 @@ const searchResults = ref<ContactSearchResult[]>([]);
 const searchingContacts = ref(false);
 const formError = ref('');
 
-const activeStoredKey = computed<StoredKey | undefined>(() => {
-  const activeAlias = accountStore.activeKey;
-  const keys = Array.from(accountStore.storedKeys);
-  if (!activeAlias) {
-    return keys[0];
-  }
-
-  return keys.find((key) => key.alias === activeAlias) ?? keys[0];
-});
+const activeStoredKey = computed<StoredKey | undefined>(() => accountStore.activeAccountOrFirst);
 
 const sortedContacts = computed(() => contacts.value);
 

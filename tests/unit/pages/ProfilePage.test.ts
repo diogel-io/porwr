@@ -31,6 +31,11 @@ vi.mock('src/stores/account-store', () => ({
     get storedKeys() {
       return storeState.storedKeys;
     },
+    // The page reads the store's getter rather than repeating the lookup itself (#211).
+    get activeAccount() {
+      if (!storeState.activeKey) return undefined;
+      return storeState.storedKeys.find((key) => key.alias === storeState.activeKey);
+    },
   }),
 }));
 

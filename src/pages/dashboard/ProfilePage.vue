@@ -28,11 +28,7 @@ function clearLegacyTabQuery() {
   void router.replace({ query: queryWithoutTab });
 }
 
-const activeStoredKey = computed(() => {
-  const activeAlias = accountStore.activeKey;
-  if (!activeAlias) return undefined;
-  return Array.from(accountStore.storedKeys).find((k) => k.alias === activeAlias);
-});
+const activeStoredKey = computed(() => accountStore.activeAccount);
 
 onMounted(async () => {
   await accountStore.getKeys();

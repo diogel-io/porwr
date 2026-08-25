@@ -7,15 +7,8 @@ import RelayEditor from 'components/dashboard/RelayEditor.vue';
 const { t } = useI18n();
 const accountStore = useAccountStore();
 
-const activeStoredKey = computed(() => {
-  const activeAlias = accountStore.activeKey;
-  const keys = Array.from(accountStore.storedKeys);
-  if (!activeAlias) {
-    return keys[0];
-  }
-
-  return keys.find((k) => k.alias === activeAlias) ?? keys[0];
-});
+const activeStoredKey = computed(() => accountStore.activeAccountOrFirst);
+const showNoAccount = computed(() => accountStore.hasNoAccounts);
 
 onMounted(async () => {
   await accountStore.getKeys();
@@ -37,7 +30,7 @@ onMounted(async () => {
       <div v-if="activeStoredKey">
         <RelayEditor :stored-key="activeStoredKey" />
       </div>
-      <div v-else class="text-center q-pa-xl">
+      <div v-else-if="showNoAccount" class="text-center q-pa-xl">
         <q-icon color="grey-5" name="account_circle" size="4em" />
         <div class="text-h6 text-grey-7 q-mt-md">{{ t('account.noAccounts') }}</div>
         <p class="text-grey-6">{{ t('account.noAccountDesc') }}</p>
@@ -46,6 +39,12 @@ onMounted(async () => {
           :label="t('account.create')"
           :to="{ name: 'add-new-key' }"
         />
+      </div>
+
+      <!-- Not yet read from the vault, which is not the same as holding no accounts (#211). -->
+      <div v-else class="text-center q-pa-xl" role="status">
+        <q-spinner color="grey-5" size="3em" />
+        <div class="text-h6 text-grey-7 q-mt-md">{{ t('account.loading') }}</div>
       </div>
     </q-card>
   </q-page>

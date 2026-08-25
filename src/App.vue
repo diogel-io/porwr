@@ -128,6 +128,9 @@ onMounted(async () => {
   });
   try {
     accountStore.listenToStorageChanges();
+    // Armed before `checkVaultStatus` resolves the lock state below, so the first unlock is a
+    // transition this watcher sees rather than one it starts after (#211).
+    accountStore.followVaultLockState();
     addLog('Loading settings...');
     // We don't await settings if they take too long, they'll update via listener anyway
     try {
