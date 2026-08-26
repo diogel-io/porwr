@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures/extension';
-import { createVault, lockVault, VAULT_PASSWORD } from './fixtures/vault';
+import { createVault, lockVault, seedAccount, VAULT_PASSWORD } from './fixtures/vault';
 
 /**
  * Answers the question that could not be asked before this harness existed: what does the panel
@@ -92,6 +92,32 @@ test.describe('the panel keeps itself', () => {
     await expect(page.locator('.sidebar-root')).toBeVisible();
     await expect(page.locator('.sidebar-unlock')).toHaveCount(0);
     expect(page.url()).toContain('#/sidebar');
+  });
+
+  /**
+   * #211.
+   *
+   * These are the steps the test above already performed, and it asserted only that the unlock view
+   * had gone — which it had. What it never checked was the screen that replaced it, and against a
+   * vault with no accounts in it "no active account" was the right answer anyway, so the assertion
+   * could not have failed even in principle. The account is seeded here for that reason.
+   */
+  test('shows the account after unlocking with the panel already open', async ({ openPage }) => {
+    const page = await openPage('/login');
+    await createVault(page);
+    await seedAccount(page);
+    await lockVault(page);
+
+    await page.goto(page.url().replace(/#.*$/, '#/sidebar'));
+    await page.locator('.sidebar-unlock').waitFor({ state: 'visible' });
+
+    await page.getByLabel('Password', { exact: true }).fill(VAULT_PASSWORD);
+    await page.getByRole('button', { name: 'Unlock', exact: true }).click();
+
+    // The panel hydrated its accounts from a locked vault and never looked again, so it told a user
+    // with an account that they had none.
+    await expect(page.locator('.sidebar-home__account')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('No active account')).toHaveCount(0);
   });
 
   test('never renders a dashboard surface inside the panel', async ({ openPage }) => {
