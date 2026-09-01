@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/threenine/diogel/compare/v0.1.0...v0.1.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **accounts:** follow the vault's lock state instead of hydrating once ([#213](https://github.com/threenine/diogel/issues/213)) ([c07847d](https://github.com/threenine/diogel/commit/c07847da796631ec67c13af9f0762a864d3ac0f9)), closes [#211](https://github.com/threenine/diogel/issues/211)
+
 ## [0.1.0](https://github.com/threenine/diogel/compare/v0.0.32...v0.1.0) (2026-08-22)
 
 
