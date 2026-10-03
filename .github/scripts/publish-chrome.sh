@@ -28,8 +28,24 @@ POLL_SECONDS="${POLL_SECONDS:-10}"
 PUBLISH_ONLY="${PUBLISH_ONLY:-false}"
 
 for name in CWS_CLIENT_ID CWS_CLIENT_SECRET CWS_REFRESH_TOKEN CWS_PUBLISHER_ID CWS_EXTENSION_ID VERSION; do
-  if [ -z "${!name:-}" ]; then
+  # Secrets pasted into GitHub often carry a trailing newline or spaces. The action this replaced
+  # trimmed its inputs, so the existing secrets were never checked; untrimmed, an ID in the URL
+  # made curl refuse it as malformed before anything reached the store (workspace#25).
+  value="${!name:-}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf -v "$name" '%s' "$value"
+  if [ -z "$value" ]; then
     echo "::error::$name is not set. See DEPLOYMENT.md, Deploying to the Chrome Web Store."
+    exit 1
+  fi
+done
+
+# The two IDs go into the URL, so anything but letters, digits, '-' and '_' is a pasting mistake.
+# Named, never printed: they are secrets.
+for name in CWS_PUBLISHER_ID CWS_EXTENSION_ID; do
+  if [[ ! "${!name}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    echo "::error::$name contains characters an ID cannot (such as a space or a line break inside it). Set the secret again with only the ID."
     exit 1
   fi
 done
