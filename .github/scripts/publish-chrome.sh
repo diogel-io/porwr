@@ -17,13 +17,15 @@
 #   ZIP                  The package to upload. Required unless PUBLISH_ONLY is true.
 #   PUBLISH_ONLY=true    Skip the upload and submit the package already uploaded, for when an
 #                        upload succeeded and the publish did not.
-#   CWS_API, CWS_UPLOAD_API, CWS_TOKEN_URL, POLL_SECONDS   Overridable for tests.
+#   CWS_API, CWS_UPLOAD_API, CWS_TOKEN_URL, CWS_V1_API, POLL_SECONDS   Overridable for tests.
 
 set -euo pipefail
 
 CWS_API="${CWS_API:-https://chromewebstore.googleapis.com/v2}"
 CWS_UPLOAD_API="${CWS_UPLOAD_API:-https://chromewebstore.googleapis.com/upload/v2}"
 CWS_TOKEN_URL="${CWS_TOKEN_URL:-https://oauth2.googleapis.com/token}"
+# Only used to diagnose a refused v2 request; see diagnose_access.
+CWS_V1_API="${CWS_V1_API:-https://www.googleapis.com/chromewebstore/v1.1}"
 POLL_SECONDS="${POLL_SECONDS:-10}"
 PUBLISH_ONLY="${PUBLISH_ONLY:-false}"
 
@@ -86,9 +88,40 @@ TOKEN="$(jq -r '.access_token // empty' "$BODY")"
 echo "::add-mask::$TOKEN"
 AUTH=(--header "Authorization: Bearer $TOKEN")
 
+# Says which secret to fix when v2 refuses the item (workspace#26).
+#
+# v2's "permission denied (or it might not exist)" fits a wrong publisher ID, a token from the
+# wrong account, and a wrong extension ID alike. v1.1 addresses the item by its ID alone, so asking
+# it with the same token separates the publisher from the other two. The IDs are never printed.
+diagnose_access() {
+  local v2_body code
+  v2_body="$(cat "$BODY")"
+  code="$(request "${AUTH[@]}" --header 'x-goog-api-version: 2' \
+    "$CWS_V1_API/items/$CWS_EXTENSION_ID?projection=DRAFT")"
+  echo "::group::What the v1.1 API says about the same item, with the same token (HTTP $code)"
+  cat "$BODY"
+  echo
+  echo "::endgroup::"
+  case "$code" in
+    200)
+      echo "::error::The token can read the item, so CWS_EXTENSION_ID and the account behind CWS_REFRESH_TOKEN are right. CWS_PUBLISHER_ID is not the publisher that owns this item: in the Developer Dashboard, switch to the publisher that lists the extension and copy its ID from Publisher > Settings."
+      ;;
+    401 | 403 | 404)
+      echo "::error::The token cannot read this item through either API, so the publisher ID is not the only problem. Either CWS_REFRESH_TOKEN belongs to a Google account that cannot manage the item (make a new one while signed in as an account that can: DEPLOYMENT.md, section C), or CWS_EXTENSION_ID is not the item's ID."
+      ;;
+    *)
+      echo "::warning::The v1.1 check was inconclusive (HTTP $code), so it cannot say which secret is wrong. Check all three: CWS_PUBLISHER_ID, CWS_EXTENSION_ID, and the account behind CWS_REFRESH_TOKEN."
+      ;;
+  esac
+  printf '%s' "$v2_body" > "$BODY"
+}
+
 fetch_status() {
   local code
   code="$(request "${AUTH[@]}" "$CWS_API/$ITEM:fetchStatus")"
+  if [ "$code" = "403" ] || [ "$code" = "404" ]; then
+    diagnose_access
+  fi
   [ "$code" = "200" ] || fail_with_body "Reading the item's status" "$code"
 }
 
