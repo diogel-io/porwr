@@ -17,6 +17,13 @@ on:
         required: false
         type: boolean
         default: false
+      chrome_publish_only:
+        description: >-
+          Chrome Web Store: skip the upload and submit the package already uploaded for this
+          version. For when an upload succeeded and the publish did not.
+        required: false
+        type: boolean
+        default: false
 
 # Only one release pipeline may run at a time, repo-wide. Simultaneous merges to
 # master, manual dispatches, and reruns are queued rather than run in parallel so
@@ -222,6 +229,14 @@ jobs:
     permissions:
       contents: read
     steps:
+      # The script comes from this workflow's own commit, not the release tag, so a manual run
+      # for an older tag still publishes with the current script.
+      - name: Checkout the publish script
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          path: workflow
+
       - name: Download Chrome archive artifact
         uses: actions/download-artifact@v4
         with:
@@ -231,24 +246,31 @@ jobs:
         id: locate
         run: echo "zip=$(ls diogel-chrome-*.zip)" >> "$GITHUB_OUTPUT"
 
-      - name: Upload & Publish to Chrome Web Store
-        uses: mnao305/chrome-extension-upload@fdfe79400af990f5145a319e834aee64907ccff4 # v6.0.0
-        with:
-          file-path: ${{ steps.locate.outputs.zip }}
-          extension-id: ${{ secrets.CWS_EXTENSION_ID }}
-          client-id: ${{ secrets.CWS_CLIENT_ID }}
-          client-secret: ${{ secrets.CWS_CLIENT_SECRET }}
-          refresh-token: ${{ secrets.CWS_REFRESH_TOKEN }}
-          publish: true
+      # Chrome Web Store API v2, with Google's own error on any failure (workspace#25). It
+      # replaced mnao305/chrome-extension-upload, whose publish failed with a bare HTTP 400 on
+      # every release from 0.1.0 to 0.2.0.
+      - name: Upload & publish to Chrome Web Store
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+          ZIP: ${{ steps.locate.outputs.zip }}
+          PUBLISH_ONLY: ${{ inputs.chrome_publish_only == true }}
+        run: bash workflow/.github/scripts/publish-chrome.sh
 
   # Publishes the validated Firefox archive. Independent of publish-chrome for the
   # same reason: partial store failures must never block or duplicate a release.
   publish-firefox:
     needs: [resolve, build]
     # Only after a successful build; `always()` for the same skipped-release-please reason.
+    # Not on a Chrome-only retry (chrome_publish_only): AMO would refuse the same version again.
     if: |
       always() && needs.build.result == 'success' &&
-      needs.resolve.outputs.run == 'true' && needs.resolve.outputs.publish == 'true'
+      needs.resolve.outputs.run == 'true' && needs.resolve.outputs.publish == 'true' &&
+      inputs.chrome_publish_only != true
     runs-on: ubuntu-latest
     permissions:
       contents: read

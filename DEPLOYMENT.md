@@ -75,7 +75,7 @@ Actions). The release workflow does not introduce any new secret names.
 
 | Secret | Used by |
 | --- | --- |
-| `CWS_EXTENSION_ID`, `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN` | `publish-chrome` job — see [Chrome Web Store credentials](#deploying-to-the-chrome-web-store) below |
+| `CWS_EXTENSION_ID`, `CWS_PUBLISHER_ID`, `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN` | `publish-chrome` job — see [Chrome Web Store credentials](#deploying-to-the-chrome-web-store) below |
 | `AMO_ADDON_ID`, `AMO_API_ISSUER`, `AMO_API_SECRET` | `publish-firefox` job — see [Firefox Add-ons credentials](#deploying-to-firefox-add-ons-amo) below |
 | `GITHUB_TOKEN` (built-in) | Release Please, tag/release creation, attaching archives to the release |
 
@@ -158,11 +158,12 @@ To automate the publishing of the **diogel** extension to the Chrome Web Store u
 Navigate to your repository on GitHub:
 **Settings** > **Secrets and variables** > **Actions** > **New repository secret**
 
-Add the following four secrets:
+Add the following five secrets:
 
 | Secret Name | Description |
 | :--- | :--- |
 | `CWS_EXTENSION_ID` | The 32-character ID of your extension in the Chrome Web Store. |
+| `CWS_PUBLISHER_ID` | Your publisher ID, from the Developer Dashboard's **Publisher > Settings**. The API v2 addresses items as `publishers/<publisher ID>/items/<extension ID>`. |
 | `CWS_CLIENT_ID` | OAuth2 Client ID from the Google Cloud Console. |
 | `CWS_CLIENT_SECRET` | OAuth2 Client Secret from the Google Cloud Console. |
 | `CWS_REFRESH_TOKEN` | OAuth2 Refresh Token used to generate access tokens for the API. |
@@ -224,9 +225,37 @@ curl "https://accounts.google.com/o/oauth2/token" \
 
 ---
 
+#### 3. How the workflow publishes
+
+The `publish-chrome` job runs `.github/scripts/publish-chrome.sh`, which uses the
+[Chrome Web Store API v2](https://developer.chrome.com/docs/webstore/using-api):
+
+1. It gets an access token from the refresh token.
+2. It reads the item's status. If this version is already published, or already submitted
+   (pending review or staged), it stops there, so a re-run never submits twice.
+3. It uploads the archive, waits while the store processes it, and checks the store read the
+   released version from it.
+4. It submits the item for review. The store publishes it once it passes review.
+
+**Any failure prints the Chrome Web Store's own response**, which says what is wrong. The
+earlier action printed only `Response code 400`, which is why every release from 0.1.0 to
+0.2.0 had to be submitted by hand without anyone knowing why (workspace#25).
+`.github/scripts/test-publish-chrome.sh` tests the script against a stand-in for the API, and
+CI runs it.
+
+**If the upload succeeded and the publish didn't,** fix the cause, then run **Release** by hand
+with `tag` set to the release, `publish` on, and `chrome_publish_only` on. That submits the
+package already uploaded, and skips the Firefox job, since AMO already has that version.
+
+Google's documentation names two causes of a publish that's refused while the upload works:
+
+- The Google account that owns the item must have **2-step verification** turned on.
+- **If visibility was changed in the Developer Dashboard**, the API can't publish until a version
+  has been published there by hand with the new visibility.
+
 #### 4. Troubleshooting 401 Unauthorized Errors
 
-If the GitHub Action fails with `HTTPError: Response code 401 (Unauthorized)`, check the following:
+If the publish step fails with HTTP 401 (Unauthorized), or the token request is refused, check the following:
 
 1.  **Refresh Token Expired**: If your Google Cloud project is in "Testing" mode, the refresh token expires every 7 days. Set it to **"In production"** on the OAuth Consent Screen.
 2.  **Incorrect Scopes**: Ensure the token was generated with the `https://www.googleapis.com/auth/chromewebstore` scope.
