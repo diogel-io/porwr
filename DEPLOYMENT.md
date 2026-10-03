@@ -247,6 +247,15 @@ CI runs it.
 with `tag` set to the release, `publish` on, and `chrome_publish_only` on. That submits the
 package already uploaded, and skips the Firefox job, since AMO already has that version.
 
+**If the store refuses access to the item** (HTTP 403 `PERMISSION_DENIED … (or it might not
+exist)`), the job asks the older v1.1 API whether the same token can read the item by its ID
+alone, and says which secret to fix (workspace#26):
+
+- **v1.1 can read it:** `CWS_PUBLISHER_ID` is not the publisher that owns the item. Switch to the
+  publisher that lists the extension in the Developer Dashboard and copy its ID.
+- **v1.1 refuses too:** the account behind `CWS_REFRESH_TOKEN` can't manage the item, or
+  `CWS_EXTENSION_ID` is wrong.
+
 Google's documentation names two causes of a publish that's refused while the upload works:
 
 - The Google account that owns the item must have **2-step verification** turned on.

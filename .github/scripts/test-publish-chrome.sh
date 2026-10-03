@@ -28,6 +28,7 @@ case "$url" in
   *:fetchStatus) key=status ;;
   *upload/v2*:upload) key=upload ;;
   *:publish) key=publish ;;
+  */v1.1/items/*) key=v1item ;;
   *) key=unknown ;;
 esac
 echo "$key" >> "$FAKE_DIR/calls"
@@ -151,6 +152,42 @@ run env CWS_PUBLISHER_ID=$'pub\n123'
 check "refuses an ID with a line break inside it, without printing it" 1 "" "CWS_PUBLISHER_ID contains characters"
 if grep -qF 'pub' <(grep -v 'CWS_PUBLISHER_ID' "$FAKE_DIR/output"); then
   failed=$((failed + 1)); echo "FAIL the broken ID was printed"
+fi
+
+DENIED='{"error":{"code":403,"status":"PERMISSION_DENIED","message":"Permission denied on resource (or it might not exist)."}}'
+
+setup wrong-publisher
+answer status 403 "$DENIED"
+answer v1item 200 '{"kind":"chromewebstore#item","uploadState":"SUCCESS"}'
+run env
+check "a refused item that v1.1 can read points at the publisher ID" 1 "token,status,v1item" "CWS_PUBLISHER_ID is not the publisher that owns this item"
+grep -qF 'PERMISSION_DENIED' "$FAKE_DIR/output" || { failed=$((failed + 1)); echo "FAIL the v2 error was not printed after the diagnosis"; }
+
+setup wrong-account
+answer status 403 "$DENIED"
+answer v1item 403 '{"error":{"code":403,"message":"The caller does not have permission"}}'
+run env
+check "a refused item that v1.1 refuses too points at the account or extension ID" 1 "token,status,v1item" "Either CWS_REFRESH_TOKEN belongs to a Google account"
+
+setup inconclusive
+answer status 404 "$DENIED"
+answer v1item 500 '{"error":{"code":500}}'
+run env
+check "says so when the check is inconclusive" 1 "token,status,v1item" "inconclusive (HTTP 500)"
+
+setup no-diagnosis-for-other-errors
+answer status 500 '{"error":{"code":500,"message":"backend error"}}'
+run env
+check "does not diagnose an error that is not about access" 1 "token,status" "backend error"
+
+setup ids-not-printed
+answer status 403 "$DENIED"
+answer v1item 200 '{"kind":"chromewebstore#item"}'
+run env CWS_PUBLISHER_ID=pub-secret-123 CWS_EXTENSION_ID=extsecretid
+if grep -qE 'pub-secret-123|extsecretid' "$FAKE_DIR/output"; then
+  failed=$((failed + 1)); echo "FAIL the diagnosis printed an ID"
+else
+  passed=$((passed + 1)); echo "ok   the diagnosis never prints the IDs"
 fi
 
 echo "$passed passed, $failed failed"
