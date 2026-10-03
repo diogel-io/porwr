@@ -42,7 +42,9 @@ A re-run against a release that is already published uploads nothing and says so
 fixed. A failed build leaves the draft unpublished: fix the cause and re-run the failed jobs.
 
 To rebuild a release, or publish it to the stores, without touching its GitHub release, run
-**Release** by hand with `tag` set to the existing tag (and `publish` on for the stores).
+**Release** by hand with `tag` set to the existing tag (and `publish` on for the stores). The
+jobs after `resolve` use `always()` in their conditions because release-please is skipped on a
+manual run; without it they were skipped too, and a manual run built nothing.
 
 Ordinary commits to `master` that are not conventional-commit qualifying (e.g. `chore`, `docs`,
 `refactor` alone) update or leave the release PR alone; they never trigger a build or a
