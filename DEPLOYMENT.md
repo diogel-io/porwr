@@ -18,17 +18,31 @@ removed so a developer cannot accidentally run the superseded push-and-tag proce
 3. Merging the release PR (a normal, reviewed, code-owner-approved PR against `master`, exactly
    like any other change) is the action that triggers a release. On that merge, the same
    `release.yml` workflow:
-   - creates the Git tag and GitHub release for the release commit,
+   - creates the Git tag and a **draft** GitHub release for the release commit,
    - checks out that exact commit and builds it with the Node version pinned in `.nvmrc`,
    - builds the default Quasar app and the Chrome and Firefox extension bundles,
    - validates that both built `manifest.json` files report the released version,
    - packages deterministic `diogel-chrome-v<version>.zip` / `diogel-firefox-v<version>.zip`
-     archives, uploads them as workflow artifacts, and attaches both to the GitHub release,
+     archives, uploads them as workflow artifacts, attaches both to the draft release, and
+     then publishes it,
    - publishes the Chrome archive to the Chrome Web Store and the Firefox archive to Firefox
      Add-ons (AMO) in two independent jobs.
 4. A workflow-level `concurrency` group (`porwr-release`) serializes every run of this
    workflow — pushes, manual dispatches, and reruns all queue rather than run in parallel — so
    simultaneous merges or reruns cannot create duplicate tags, releases, or store submissions.
+
+### Immutable releases
+
+The repository has GitHub's immutable releases on: once a release is published, its assets and
+tag cannot change. That's why Release Please creates a draft (`"draft": true`) and the build job
+publishes it only after the archives are attached. `"force-tag-creation": true` creates the tag
+with the draft; without it a draft has no tag, and the next run cannot find the previous release.
+
+A re-run against a release that is already published uploads nothing and says so. Its assets are
+fixed. A failed build leaves the draft unpublished: fix the cause and re-run the failed jobs.
+
+To rebuild a release, or publish it to the stores, without touching its GitHub release, run
+**Release** by hand with `tag` set to the existing tag (and `publish` on for the stores).
 
 Ordinary commits to `master` that are not conventional-commit qualifying (e.g. `chore`, `docs`,
 `refactor` alone) update or leave the release PR alone; they never trigger a build or a

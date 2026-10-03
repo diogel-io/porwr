@@ -32,7 +32,8 @@ permissions:
 
 jobs:
   # Maintains the release-please PR (version bump + CHANGELOG.md) against master and,
-  # when a release PR is merged, creates the tag and GitHub release for that commit.
+  # when a release PR is merged, creates the tag and a draft GitHub release for that commit.
+  # The build job attaches the archives and publishes the draft.
   release-please:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -193,8 +194,19 @@ jobs:
           TAG: ${{ needs.resolve.outputs.tag }}
           CHROME_ZIP: ${{ steps.package.outputs.chrome_zip }}
           FIREFOX_ZIP: ${{ steps.package.outputs.firefox_zip }}
+        # The repository has immutable releases: once published, a release cannot gain assets.
+        # release-please therefore creates a draft (release-please-config.json), the archives are
+        # attached here, and only then is it published, which is what makes it immutable.
         run: |
-          gh release upload "$TAG" "$CHROME_ZIP" "$FIREFOX_ZIP" --clobber
+          set -euo pipefail
+          IS_DRAFT="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
+          if [ "$IS_DRAFT" != "true" ]; then
+            # A re-run after the release was published. Its assets are fixed; uploading would fail.
+            echo "::notice::Release $TAG is already published; its assets cannot change, so nothing is uploaded."
+            exit 0
+          fi
+          gh release upload "$TAG" "$CHROME_ZIP" "$FIREFOX_ZIP" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
 
   # Publishes the validated Chrome archive. Runs independently of the Firefox job so
   # a store-side failure on one side never blocks or duplicates the other.
