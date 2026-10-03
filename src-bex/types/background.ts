@@ -121,6 +121,12 @@ export interface ApprovalRequestRecord {
   eventKind: number;
   accountAlias: string | null;
   accountPubkey: string | null;
+  /**
+   * The account active in Porwr when the site asked. It differs from `accountPubkey` when the site
+   * is connected as another account, which the prompt has to say (diogel-io/workspace#23).
+   */
+  activeAccountAlias: string | null;
+  activeAccountPubkey: string | null;
   createdAt: number;
   expiresAt: number;
   state: ApprovalRequestState;

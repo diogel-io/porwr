@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   grantPermission: vi.fn(),
   enqueueRequest: vi.fn(),
   resolveSigningAccount: vi.fn(),
+  getActiveAccount: vi.fn(),
   log: vi.fn(),
   logApproval: vi.fn(),
 }));
@@ -16,6 +17,7 @@ vi.mock('app/src-bex/handlers/permission-handler', () => ({
 vi.mock('app/src-bex/services/request-queue', () => ({ enqueueRequest: mocks.enqueueRequest }));
 vi.mock('app/src-bex/services/signing-account', () => ({
   resolveSigningAccount: mocks.resolveSigningAccount,
+  getActiveAccount: mocks.getActiveAccount,
 }));
 vi.mock('src/services/log-service', () => ({
   LogLevel: { ERROR: 'error' },
@@ -29,6 +31,7 @@ import {
 } from 'app/src-bex/services/approval-flow';
 
 const ALICE = { id: 'a'.repeat(64), alias: 'alice', account: { privkey: '11'.repeat(32) } };
+const BOB = { id: 'b'.repeat(64), alias: 'bob', account: { privkey: '22'.repeat(32) } };
 const ORIGIN = 'https://example.com';
 
 /** Enqueue returns the stored record plus a promise that settles on the user's decision. */
@@ -45,6 +48,7 @@ const enqueueResolving = (
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.resolveSigningAccount.mockResolvedValue({ account: ALICE });
+  mocks.getActiveAccount.mockResolvedValue(ALICE);
   mocks.checkPermission.mockResolvedValue({ granted: false });
   mocks.grantPermission.mockResolvedValue(undefined);
   enqueueResolving({ approved: true, duration: 'once' });
@@ -94,13 +98,34 @@ describe('deciding a site request', () => {
       );
     });
 
+    it('carries the active account too, so the prompt can say the site is connected as another (workspace#23)', async () => {
+      mocks.getActiveAccount.mockResolvedValue(BOB);
+
+      await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+      expect(mocks.enqueueRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accountAlias: 'alice',
+          accountPubkey: ALICE.id,
+          activeAccountAlias: 'bob',
+          activeAccountPubkey: BOB.id,
+        }),
+        expect.anything(),
+      );
+    });
+
     it('carries no account when none can act', async () => {
       mocks.resolveSigningAccount.mockResolvedValue({ error: 'No active account', code: 'X' });
 
       await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
 
       expect(mocks.enqueueRequest).toHaveBeenCalledWith(
-        expect.objectContaining({ accountAlias: null, accountPubkey: null }),
+        expect.objectContaining({
+          accountAlias: null,
+          accountPubkey: null,
+          activeAccountAlias: null,
+          activeAccountPubkey: null,
+        }),
         expect.anything(),
       );
     });

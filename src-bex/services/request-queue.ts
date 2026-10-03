@@ -29,6 +29,9 @@ export interface EnqueueRequestInput {
   eventKind: number;
   accountAlias: string | null;
   accountPubkey: string | null;
+  /** Absent for a request that acts for no account, such as one refused before it could bind. */
+  activeAccountAlias?: string | null;
+  activeAccountPubkey?: string | null;
 }
 
 interface PendingCallback {
@@ -103,6 +106,9 @@ const toDurableRecord = (record: ApprovalRequestRecord): ApprovalRequestRecord =
   eventKind: record.eventKind,
   accountAlias: record.accountAlias,
   accountPubkey: record.accountPubkey,
+  // Records written before these fields existed read back without them.
+  activeAccountAlias: record.activeAccountAlias ?? null,
+  activeAccountPubkey: record.activeAccountPubkey ?? null,
   createdAt: record.createdAt,
   expiresAt: record.expiresAt,
   state: record.state,
@@ -222,6 +228,8 @@ export const enqueueRequest = async (
     eventKind: input.eventKind,
     accountAlias: input.accountAlias,
     accountPubkey: input.accountPubkey,
+    activeAccountAlias: input.activeAccountAlias ?? null,
+    activeAccountPubkey: input.activeAccountPubkey ?? null,
     createdAt: now,
     // Stamped at creation: a later settings change must not move an existing request (D8).
     expiresAt: now + expiryMinutes * 60 * 1000,

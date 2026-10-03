@@ -26,7 +26,7 @@ export type SigningAccountResult =
 export const BOUND_ACCOUNT_GONE =
   'The account this site is connected to is no longer available';
 
-async function listAccounts(): Promise<StoredKey[]> {
+export async function listAccounts(): Promise<StoredKey[]> {
   const vaultDataRes = await getVaultData();
   if (!vaultDataRes.success || !vaultDataRes.vaultData) return [];
 

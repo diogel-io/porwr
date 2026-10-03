@@ -4,7 +4,12 @@ const { sendBexMessage } = vi.hoisted(() => ({ sendBexMessage: vi.fn() }));
 
 vi.mock('src/services/bridge-client', () => ({ sendBexMessage }));
 
-import { disconnectSite, listConnectedSites } from 'src/services/connected-sites-service';
+import {
+  disconnectSite,
+  getSiteAccount,
+  listConnectedSites,
+  switchSiteToActiveAccount,
+} from 'src/services/connected-sites-service';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -43,5 +48,39 @@ describe('disconnecting through the background', () => {
     sendBexMessage.mockResolvedValue(undefined);
 
     await expect(disconnectSite('https://example.com')).resolves.toBe(false);
+  });
+});
+
+describe('the account a site is connected as (workspace#23)', () => {
+  it('asks the background for the site’s binding', async () => {
+    sendBexMessage.mockResolvedValue({ origin: 'https://example.com', mismatch: true });
+
+    await expect(getSiteAccount('https://example.com')).resolves.toMatchObject({ mismatch: true });
+    expect(sendBexMessage).toHaveBeenCalledWith('sites.binding', { origin: 'https://example.com' });
+  });
+
+  it('reads no answer as not connected', async () => {
+    sendBexMessage.mockResolvedValue(undefined);
+
+    await expect(getSiteAccount('https://example.com')).resolves.toBeNull();
+  });
+
+  it('asks the background to connect the site as the active account', async () => {
+    sendBexMessage.mockResolvedValue({ success: true, site: {} });
+
+    await expect(switchSiteToActiveAccount('https://example.com')).resolves.toMatchObject({
+      success: true,
+    });
+    expect(sendBexMessage).toHaveBeenCalledWith('sites.useActiveAccount', {
+      origin: 'https://example.com',
+    });
+  });
+
+  it('reports failure rather than assuming the switch happened', async () => {
+    sendBexMessage.mockResolvedValue(undefined);
+
+    await expect(switchSiteToActiveAccount('https://example.com')).resolves.toMatchObject({
+      success: false,
+    });
   });
 });

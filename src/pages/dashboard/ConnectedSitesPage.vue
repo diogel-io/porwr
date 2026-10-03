@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
+import useAccountStore from 'src/stores/account-store';
 import { getEventKindLabel, getRequestTypeLabel } from 'src/services/approval-preview';
 import {
   disconnectSite,
@@ -14,6 +15,7 @@ defineOptions({ name: 'ConnectedSitesPage' });
 
 const $q = useQuasar();
 const { t, d } = useI18n();
+const accountStore = useAccountStore();
 
 const sites = ref<ConnectedSite[]>([]);
 const loading = ref(true);
@@ -72,6 +74,19 @@ async function disconnect(site: ConnectedSite): Promise<void> {
   }
 }
 
+/** The bound account's alias, when it is still in the vault. Bindings are keyed by key, not alias. */
+const aliasFor = (pubkey: string): string | null =>
+  Array.from(accountStore.storedKeys).find((key) => key.id === pubkey)?.alias ?? null;
+
+/**
+ * A site keeps the account it connected with, whichever account is active (#116). Saying when that
+ * is not the active one is what makes "it signed as the wrong user" explicable (workspace#23).
+ */
+const isNotActive = (pubkey: string): boolean => {
+  const active = accountStore.activeAccount;
+  return active !== undefined && active.id !== pubkey;
+};
+
 /** Public keys are shown truncated: enough to tell two identities apart, not enough to swamp a row. */
 const shortPubkey = (pubkey: string): string => `${pubkey.slice(0, 8)}…${pubkey.slice(-8)}`;
 
@@ -83,6 +98,7 @@ const grantLabel = (requestType: string, eventKind: number | 'any' | null): stri
 
 onMounted(() => {
   void refresh();
+  void accountStore.getKeys();
 });
 </script>
 
@@ -110,7 +126,18 @@ onMounted(() => {
             <div class="connected-sites__identity">
               <template v-if="site.boundPubkey">
                 {{ t('dashboard.connectedSites.signsAs') }}
+                <strong v-if="aliasFor(site.boundPubkey)" data-testid="bound-alias">
+                  {{ aliasFor(site.boundPubkey) }}
+                </strong>
                 <code>{{ shortPubkey(site.boundPubkey) }}</code>
+                <q-badge
+                  v-if="isNotActive(site.boundPubkey)"
+                  outline
+                  color="warning"
+                  class="q-ml-xs"
+                  data-testid="not-active"
+                  :label="t('dashboard.connectedSites.notActive')"
+                />
               </template>
               <span v-else class="text-grey-6">
                 {{ t('dashboard.connectedSites.unbound') }}
