@@ -23,6 +23,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Against a stand-in for curl: nothing reaches the Chrome Web Store.
+      - name: Test the Chrome Web Store publish script
+        run: bash .github/scripts/test-publish-chrome.sh
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
