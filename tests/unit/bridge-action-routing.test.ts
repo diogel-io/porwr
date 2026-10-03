@@ -59,6 +59,8 @@ const SURFACE_ACTIONS = [
   'pages.originForTab',
   'sites.list',
   'sites.revoke',
+  'sites.binding',
+  'sites.useActiveAccount',
   'sites.countForAccount',
 ];
 

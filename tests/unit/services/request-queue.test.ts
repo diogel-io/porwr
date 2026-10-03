@@ -287,6 +287,8 @@ describe('request queue', () => {
         'eventKind',
         'accountAlias',
         'accountPubkey',
+        'activeAccountAlias',
+        'activeAccountPubkey',
         'createdAt',
         'expiresAt',
         'state',

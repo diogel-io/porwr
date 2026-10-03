@@ -48,6 +48,7 @@ import {
   disconnectSite,
   listConnectedSites,
 } from './services/connected-sites';
+import { getSiteAccount, switchSiteToActiveAccount } from './services/site-account';
 import {
   getPageOrigin,
   observePageConnections,
@@ -158,6 +159,8 @@ declare module '@quasar/app-vite' {
     'pages.originForTab': [{ tabId: number }, BridgeResponsePayload<'pages.originForTab'>];
     'sites.list': [undefined, BridgeResponsePayload<'sites.list'>];
     'sites.revoke': [{ origin: string }, BridgeResponsePayload<'sites.revoke'>];
+    'sites.binding': [{ origin: string }, BridgeResponsePayload<'sites.binding'>];
+    'sites.useActiveAccount': [{ origin: string }, BridgeResponsePayload<'sites.useActiveAccount'>];
     'sites.countForAccount': [
       { accountPubkey: string },
       BridgeResponsePayload<'sites.countForAccount'>,
@@ -295,6 +298,18 @@ bridge.on('sites.list', () => {
 
 bridge.on('sites.revoke', ({ payload }) => {
   return disconnectSite(payload.origin) as unknown as BridgeResponsePayload<'sites.revoke'>;
+});
+
+// Which account a site is connected as, and moving it to the active one. Only Porwr's own panel and
+// dashboard send these: a site never moves itself (diogel-io/workspace#23).
+bridge.on('sites.binding', ({ payload }) => {
+  return getSiteAccount(payload.origin) as unknown as BridgeResponsePayload<'sites.binding'>;
+});
+
+bridge.on('sites.useActiveAccount', ({ payload }) => {
+  return switchSiteToActiveAccount(
+    payload.origin,
+  ) as unknown as BridgeResponsePayload<'sites.useActiveAccount'>;
 });
 
 bridge.on('sites.countForAccount', ({ payload }) => {

@@ -19,7 +19,7 @@ import { LogLevel, logService } from 'src/services/log-service';
 import { checkPermission, grantPermission } from '../handlers/permission-handler';
 import { enqueueRequest } from './request-queue';
 import { originHostname } from './origin';
-import { resolveSigningAccount } from './signing-account';
+import { getActiveAccount, resolveSigningAccount } from './signing-account';
 import type { ApprovalDuration, UnsignedEvent } from '../types/background';
 
 export interface ApprovalRequestDetails {
@@ -68,6 +68,10 @@ export async function requestApproval(
     if (permission.granted) return true;
   }
 
+  // The site keeps the account it connected with; the prompt says so when that is not the active
+  // one, rather than letting the user approve thinking it is (diogel-io/workspace#23).
+  const activeAccount = actingAccount ? await getActiveAccount() : null;
+
   const { record, decision } = await enqueueRequest(
     {
       origin,
@@ -76,6 +80,8 @@ export async function requestApproval(
       accountAlias: actingAccount?.alias ?? null,
       // The identity the user is deciding for, shown on the approval and recorded on the grant.
       accountPubkey: actingAccount?.id ?? null,
+      activeAccountAlias: activeAccount?.alias ?? null,
+      activeAccountPubkey: activeAccount?.id ?? null,
     },
     {
       // Reviewable detail stays in worker memory for the life of the request.

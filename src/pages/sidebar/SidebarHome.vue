@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue';
+import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
 import useAccountStore from 'src/stores/account-store';
@@ -8,13 +9,16 @@ import CurrentRequest from 'components/sidebar/CurrentRequest.vue';
 import PendingRequestList from 'components/sidebar/PendingRequestList.vue';
 import SidebarSetup from 'components/sidebar/SidebarSetup.vue';
 import SidebarUnlock from 'components/sidebar/SidebarUnlock.vue';
+import SiteAccountNotice from 'components/sidebar/SiteAccountNotice.vue';
 import { useActiveTab } from 'src/composables/useActiveTab';
 import { useApprovalQueue } from 'src/composables/useApprovalQueue';
 import useVaultStore from 'src/stores/vault-store';
-import type { ApprovalDuration } from 'app/src-bex/types/background';
+import { switchSiteToActiveAccount } from 'src/services/connected-sites-service';
+import type { ApprovalDuration, ApprovalRequestRecord } from 'app/src-bex/types/background';
 
 defineOptions({ name: 'SidebarHome' });
 
+const $q = useQuasar();
 const { t } = useI18n();
 const accountStore = useAccountStore();
 const { activeOrigin } = useActiveTab();
@@ -42,6 +46,35 @@ async function onDecide(id: string, approved: boolean, duration: ApprovalDuratio
   busy.value = true;
   try {
     await decide(id, approved, duration);
+  } finally {
+    busy.value = false;
+  }
+}
+
+/**
+ * Reject the request, then connect its site as the active account.
+ *
+ * Never the other way round, and never approving: the request named the account it would act as,
+ * and nothing is signed with any other (diogel-io/workspace#23). The site's next request, such as
+ * signing in again, comes from the active account.
+ */
+async function onRejectAndSwitch(request: ApprovalRequestRecord): Promise<void> {
+  const names = { origin: request.origin, active: request.activeAccountAlias ?? '' };
+  busy.value = true;
+  try {
+    await decide(request.id, false, 'once');
+    const result = await switchSiteToActiveAccount(request.origin);
+    $q.notify(
+      result.success
+        ? {
+            type: 'positive',
+            message: t('request.account.switched', {
+              ...names,
+              active: result.site.boundAlias ?? names.active,
+            }),
+          }
+        : { type: 'negative', message: t('request.account.switchFailed', names) },
+    );
   } finally {
     busy.value = false;
   }
@@ -101,6 +134,7 @@ onMounted(async () => {
         :content="content"
         :busy="busy"
         @decide="onDecide"
+        @reject-and-switch="onRejectAndSwitch"
       />
       <PendingRequestList
         :requests="pending"
@@ -114,6 +148,7 @@ onMounted(async () => {
     <section v-if="activeOrigin" class="sidebar-home__context" :aria-label="t('sidebar.activeSite.ariaLabel')">
       <div class="sidebar-home__context-label">{{ t('sidebar.activeSite.label') }}</div>
       <div class="sidebar-home__context-origin">{{ activeOrigin }}</div>
+      <SiteAccountNotice :origin="activeOrigin" :active-pubkey="activeStoredKey?.id ?? null" />
     </section>
 
     <!-- The lock action lives in the header, so it stays reachable once a request is presented. -->

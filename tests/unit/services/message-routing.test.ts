@@ -76,6 +76,13 @@ describe('routing a raw runtime message', () => {
   });
 
   describe('everything else', () => {
+    it('never treats the site-account messages as a site acting for itself', () => {
+      // Moving a site to another account is the user's decision, made in Porwr's own UI. A site
+      // that could send it would choose its own identity (diogel-io/workspace#23).
+      expect(ORIGIN_SCOPED_ACTIONS.has('sites.binding')).toBe(false);
+      expect(ORIGIN_SCOPED_ACTIONS.has('sites.useActiveAccount')).toBe(false);
+    });
+
     it('dispatches an extension-surface action with no origin', () => {
       // Panel and vault actions come from Porwr's own surfaces, which have no site origin to give.
       const decision = decideRouting({ type: 'vault.lock', payload: {} });

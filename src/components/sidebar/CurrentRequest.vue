@@ -27,6 +27,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'decide', id: string, approved: boolean, duration: ApprovalDuration): void;
+  (event: 'rejectAndSwitch', request: ApprovalRequestRecord): void;
 }>();
 
 const { t } = useI18n();
@@ -40,6 +41,17 @@ const requestTypeLabel = computed(() => getRequestTypeLabel(props.request.reques
 const kindLabel = computed(() =>
   props.request.eventKind >= 0 ? getEventKindLabel(props.request.eventKind) : null,
 );
+
+/**
+ * The site is connected as one account and another is active (#116, workspace#23).
+ *
+ * Only shown when both are known: a request that acts for no account has nothing to compare.
+ */
+const notActiveAlias = computed(() => {
+  const { accountPubkey, activeAccountPubkey, activeAccountAlias } = props.request;
+  if (!accountPubkey || !activeAccountPubkey || accountPubkey === activeAccountPubkey) return null;
+  return activeAccountAlias;
+});
 
 const isTerminal = computed(() =>
   props.request.state === 'expired' || props.request.state === 'interrupted',
@@ -62,7 +74,11 @@ watch(
       {{ requestTypeLabel }}
     </h2>
 
-    <RequestOriginHeader :origin="request.origin" :account-alias="request.accountAlias" />
+    <RequestOriginHeader
+      :origin="request.origin"
+      :account-alias="request.accountAlias"
+      :active-account-alias="notActiveAlias"
+    />
 
     <div v-if="kindLabel" class="current-request__kind">
       <span class="current-request__kind-label">{{ t('request.kind') }}</span>
@@ -88,11 +104,40 @@ watch(
         :busy="busy"
         @decide="(approved, duration) => emit('decide', request.id, approved, duration)"
       />
+      <!-- Rejects, then switches. It never approves: nothing signs as an account this prompt did
+           not name. -->
+      <div v-if="notActiveAlias" class="current-request__switch">
+        <q-btn
+          no-caps
+          flat
+          size="sm"
+          color="primary"
+          data-testid="reject-and-switch"
+          :disable="busy"
+          :label="t('request.account.rejectAndSwitch', { active: notActiveAlias })"
+          @click="emit('rejectAndSwitch', request)"
+        />
+        <div class="current-request__switch-hint">
+          {{ t('request.account.rejectAndSwitchHint', { active: notActiveAlias }) }}
+        </div>
+      </div>
     </template>
   </article>
 </template>
 
 <style scoped>
+.current-request__switch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.current-request__switch-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted, #888);
+}
+
 /* The column inset belongs to the page, once. See SidebarHome. */
 .current-request {
   display: flex;

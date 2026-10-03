@@ -33,6 +33,9 @@ vi.mock('app/src-bex/services/page-origin-registry', () => ({ getPageOrigin: vi.
 vi.mock('app/src-bex/services/connected-sites', () => ({
   countSitesHoldingGrantsFor: vi.fn(), disconnectSite: vi.fn(), listConnectedSites: vi.fn(),
 }));
+vi.mock('app/src-bex/services/site-account', () => ({
+  getSiteAccount: vi.fn(), switchSiteToActiveAccount: vi.fn(),
+}));
 vi.mock('app/src-bex/handlers/blossom-handler', () => ({ handleBlossomUpload: vi.fn() }));
 vi.mock('app/src-bex/handlers/nip04', () => ({ handleNip04Encrypt: vi.fn(), handleNip04Decrypt: vi.fn() }));
 vi.mock('app/src-bex/handlers/nip44', () => ({ handleNip44Encrypt: vi.fn(), handleNip44Decrypt: vi.fn() }));
@@ -59,6 +62,7 @@ import * as nip07 from 'app/src-bex/handlers/nip07';
 import * as queue from 'app/src-bex/services/request-queue';
 import * as pages from 'app/src-bex/services/page-origin-registry';
 import * as sites from 'app/src-bex/services/connected-sites';
+import * as siteAccount from 'app/src-bex/services/site-account';
 import * as blossom from 'app/src-bex/handlers/blossom-handler';
 import * as nip04 from 'app/src-bex/handlers/nip04';
 import * as nip44 from 'app/src-bex/handlers/nip44';
@@ -73,7 +77,7 @@ type Mock = ReturnType<typeof vi.fn>;
 
 /** Every mocked handler, so a case reaching the wrong one can be detected. */
 const allMocks = (): Array<[string, Mock]> =>
-  Object.entries({ ...vault, ...nip07, ...queue, ...pages, ...sites, ...blossom, ...nip04,
+  Object.entries({ ...vault, ...nip07, ...queue, ...pages, ...sites, ...siteAccount, ...blossom, ...nip04,
     ...nip44, ...relays, ...nip47, ...nip57, ...webln })
     .filter(([, value]) => typeof value === 'function') as Array<[string, Mock]>;
 
@@ -140,6 +144,11 @@ const cases: Case[] = [
     resolves: [{ origin: ORIGIN }], expected: [{ origin: ORIGIN }] },
   { action: 'sites.revoke', payload: { origin: ORIGIN }, handler: vi.mocked(sites.disconnectSite),
     name: 'disconnectSite', resolves: true, expected: true, expectArgs: [ORIGIN] },
+  { action: 'sites.binding', payload: { origin: ORIGIN }, handler: vi.mocked(siteAccount.getSiteAccount),
+    name: 'getSiteAccount', resolves: { origin: ORIGIN }, expected: { origin: ORIGIN }, expectArgs: [ORIGIN] },
+  { action: 'sites.useActiveAccount', payload: { origin: ORIGIN },
+    handler: vi.mocked(siteAccount.switchSiteToActiveAccount), name: 'switchSiteToActiveAccount',
+    resolves: { success: true }, expected: { success: true }, expectArgs: [ORIGIN] },
   { action: 'sites.countForAccount', payload: { accountPubkey: 'a' },
     handler: vi.mocked(sites.countSitesHoldingGrantsFor), name: 'countSitesHoldingGrantsFor',
     resolves: 2, expected: 2, expectArgs: ['a'] },

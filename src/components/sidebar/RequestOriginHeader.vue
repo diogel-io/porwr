@@ -7,6 +7,8 @@ defineOptions({ name: 'RequestOriginHeader' });
 const props = defineProps<{
   origin: string;
   accountAlias: string | null;
+  /** The active account, when it is not the one this site is connected as (workspace#23). */
+  activeAccountAlias?: string | null;
 }>();
 
 const { t } = useI18n();
@@ -42,6 +44,15 @@ const initials = computed(() => hostname.value.replace(/^www\./, '').slice(0, 2)
       <div class="request-origin__label q-mt-sm">{{ t('request.account.label') }}</div>
       <div class="request-origin__value">
         {{ accountAlias ?? t('request.account.none') }}
+      </div>
+      <div
+        v-if="activeAccountAlias && accountAlias"
+        class="request-origin__not-active"
+        role="alert"
+        data-testid="request-not-active"
+      >
+        <q-icon name="warning" size="xs" />
+        {{ t('request.account.notActive', { active: activeAccountAlias, bound: accountAlias }) }}
       </div>
     </div>
   </section>
@@ -85,7 +96,8 @@ const initials = computed(() => hostname.value.replace(/^www\./, '').slice(0, 2)
   overflow-wrap: anywhere;
 }
 
-.request-origin__insecure {
+.request-origin__insecure,
+.request-origin__not-active {
   display: flex;
   align-items: center;
   gap: 4px;

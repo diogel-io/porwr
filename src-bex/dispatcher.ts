@@ -35,6 +35,7 @@ import {
   disconnectSite,
   listConnectedSites,
 } from './services/connected-sites';
+import { getSiteAccount, switchSiteToActiveAccount } from './services/site-account';
 import { handleBlossomUpload } from './handlers/blossom-handler';
 import { handleNip04Encrypt, handleNip04Decrypt } from './handlers/nip04';
 import { handleNip44Encrypt, handleNip44Decrypt } from './handlers/nip44';
@@ -218,6 +219,16 @@ export async function dispatchMessage<K extends BridgeAction>(
     case 'sites.revoke': {
       const revokePayload = payload as BridgeRequestMap['sites.revoke'];
       return (await disconnectSite(revokePayload.origin)) as BridgeResponsePayload<K>;
+    }
+
+    case 'sites.binding': {
+      const bindingPayload = payload as BridgeRequestMap['sites.binding'];
+      return (await getSiteAccount(bindingPayload.origin)) as BridgeResponsePayload<K>;
+    }
+
+    case 'sites.useActiveAccount': {
+      const switchPayload = payload as BridgeRequestMap['sites.useActiveAccount'];
+      return (await switchSiteToActiveAccount(switchPayload.origin)) as BridgeResponsePayload<K>;
     }
 
     case 'sites.countForAccount': {

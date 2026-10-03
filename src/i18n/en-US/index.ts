@@ -157,6 +157,7 @@ export default {
       empty: 'No site has connected yet.',
       emptyHint: 'A site appears here once it asks to use one of your keys.',
       signsAs: 'Signs as',
+      notActive: 'Not your active account',
       unbound: 'Not bound to an account',
       grants: 'Standing permissions',
       noGrants: 'Asks every time',
@@ -554,6 +555,12 @@ export default {
     account: {
       label: 'Signing account',
       none: 'No active account',
+      notActive: 'Not your active account ({active}). This site is connected as {bound}.',
+      rejectAndSwitch: 'Reject and use {active}',
+      rejectAndSwitchHint:
+        'Rejects this request and connects the site as {active}. Its standing permissions are removed, and it will ask again.',
+      switched: '{origin} is now connected as {active}. Sign out of the site and sign in again.',
+      switchFailed: 'Could not connect {origin} as {active}',
     },
     preview: {
       ariaLabel: 'What you are being asked to sign',
@@ -591,6 +598,16 @@ export default {
     activeSite: {
       label: 'Current tab',
       ariaLabel: 'Site in the active tab',
+      connectedAs: 'Connected as {account}',
+      unknownAccount: 'an account no longer in this vault',
+      mismatch:
+        '{origin} is connected as {bound}, not {active}. It will keep signing as {bound} until you switch it.',
+      useActive: 'Use {active} for this site',
+      useActiveTitle: 'Use {active} for {origin}?',
+      useActiveBody:
+        '{origin} will be disconnected and connected as {active}. Its standing permissions are removed. Sign out of {origin} and sign in again for it to notice.',
+      useActiveConfirm: 'Use {active}',
+      useActiveCancel: 'Cancel',
     },
     links: {
       ariaLabel: 'Porwr management surfaces',
