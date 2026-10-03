@@ -31,6 +31,7 @@ case "$url" in
   *) key=unknown ;;
 esac
 echo "$key" >> "$FAKE_DIR/calls"
+echo "$url" >> "$FAKE_DIR/urls"
 # A key may answer differently on later calls (status.2, status.3, ...).
 n=$(grep -cx "$key" "$FAKE_DIR/calls")
 file="$FAKE_DIR/$key.$n"; [ -f "$file" ] || file="$FAKE_DIR/$key"
@@ -132,6 +133,25 @@ check "says why the token was refused" 1 "token" "Token has been expired or revo
 setup missing-publisher
 run env CWS_PUBLISHER_ID=
 check "names a missing secret before calling anything" 1 "" "CWS_PUBLISHER_ID is not set"
+
+setup padded-ids
+run env CWS_PUBLISHER_ID=$'  pub-123\n' CWS_EXTENSION_ID=$'abcdefghijklmnopabcdefghijklmnop\n' CWS_REFRESH_TOKEN=$'r\n'
+check "trims the whitespace a pasted secret carries" 0 "token,status,upload,publish" "PENDING_REVIEW"
+
+setup url-of-the-padded-ids
+run env CWS_PUBLISHER_ID=$'pub-123\n' CWS_EXTENSION_ID=$' ext\n'
+if grep -qx 'status' "$FAKE_DIR/calls" && grep -qxF 'https://chromewebstore.googleapis.com/v2/publishers/pub-123/items/ext:fetchStatus' "$FAKE_DIR/urls"; then
+  passed=$((passed + 1)); echo "ok   builds the item URL from the trimmed IDs"
+else
+  failed=$((failed + 1)); echo "FAIL builds the item URL from the trimmed IDs"; cat "$FAKE_DIR/urls"
+fi
+
+setup broken-id
+run env CWS_PUBLISHER_ID=$'pub\n123'
+check "refuses an ID with a line break inside it, without printing it" 1 "" "CWS_PUBLISHER_ID contains characters"
+if grep -qF 'pub' <(grep -v 'CWS_PUBLISHER_ID' "$FAKE_DIR/output"); then
+  failed=$((failed + 1)); echo "FAIL the broken ID was printed"
+fi
 
 echo "$passed passed, $failed failed"
 [ "$failed" -eq 0 ]
