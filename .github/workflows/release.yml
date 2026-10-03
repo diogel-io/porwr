@@ -91,7 +91,9 @@ jobs:
   # release, attaches them to the GitHub release).
   build:
     needs: [release-please, resolve]
-    if: needs.resolve.outputs.run == 'true'
+    # `always()` because on a manual run release-please is skipped, and a job that needs a skipped
+    # job is skipped too unless its condition says otherwise. Without it a manual run built nothing.
+    if: always() && needs.resolve.result == 'success' && needs.resolve.outputs.run == 'true'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -212,7 +214,10 @@ jobs:
   # a store-side failure on one side never blocks or duplicates the other.
   publish-chrome:
     needs: [resolve, build]
-    if: needs.resolve.outputs.run == 'true' && needs.resolve.outputs.publish == 'true'
+    # Only after a successful build; `always()` for the same skipped-release-please reason.
+    if: |
+      always() && needs.build.result == 'success' &&
+      needs.resolve.outputs.run == 'true' && needs.resolve.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -240,7 +245,10 @@ jobs:
   # same reason: partial store failures must never block or duplicate a release.
   publish-firefox:
     needs: [resolve, build]
-    if: needs.resolve.outputs.run == 'true' && needs.resolve.outputs.publish == 'true'
+    # Only after a successful build; `always()` for the same skipped-release-please reason.
+    if: |
+      always() && needs.build.result == 'success' &&
+      needs.resolve.outputs.run == 'true' && needs.resolve.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
