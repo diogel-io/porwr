@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/diogel-io/porwr/compare/v0.1.1...v0.2.0) (2026-10-03)
+
+
+### Features
+
+* **sites:** say when a site is connected as another account, and offer to switch ([#216](https://github.com/diogel-io/porwr/issues/216)) ([192f91e](https://github.com/diogel-io/porwr/commit/192f91ee79aaa53e9a3f1335a81b239ff7413f10))
+
 ## [0.1.1](https://github.com/threenine/diogel/compare/v0.1.0...v0.1.1) (2026-08-26)
 
 
