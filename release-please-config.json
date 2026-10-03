@@ -4,7 +4,8 @@
   "include-component-in-tag": false,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": false,
-  "draft": false,
+  "draft": true,
+  "force-tag-creation": true,
   "prerelease": false,
   "pull-request-title-pattern": "chore(release): ${version}",
   "changelog-sections": [
