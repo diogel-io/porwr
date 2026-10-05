@@ -562,6 +562,11 @@ export default {
       switched: '{origin} is now connected as {active}. Sign out of the site and sign in again.',
       switchFailed: 'Could not connect {origin} as {active}',
     },
+    httpAuth: {
+      otherOrigin:
+        'This authorises a request to {target}, not to {site}. ' +
+        'Only approve if you expect {site} to sign you in there.',
+    },
     preview: {
       ariaLabel: 'What you are being asked to sign',
       formatted: 'Summary',

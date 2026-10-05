@@ -10,6 +10,7 @@ import {
   classifyRequest,
   getEventKindLabel,
   getRequestTypeLabel,
+  httpAuthOtherOrigin,
 } from 'src/services/approval-preview';
 import type {
   ApprovalDuration,
@@ -40,6 +41,14 @@ const requestTypeLabel = computed(() => getRequestTypeLabel(props.request.reques
 
 const kindLabel = computed(() =>
   props.request.eventKind >= 0 ? getEventKindLabel(props.request.eventKind) : null,
+);
+
+/**
+ * The server an HTTP authentication event would prove the user's identity to, when it is not the
+ * site asking (#215). Warned about, not refused: an app may call its own API on another host.
+ */
+const otherOrigin = computed(() =>
+  httpAuthOtherOrigin(props.content?.event, props.request.origin),
 );
 
 /**
@@ -87,6 +96,13 @@ watch(
 
     <RequestRiskWarning :risk-class="riskClass" :event-kind="request.eventKind" />
 
+    <div v-if="otherOrigin" class="current-request__other-origin" role="alert">
+      <q-icon name="gpp_maybe" size="sm" aria-hidden="true" />
+      <span>
+        {{ t('request.httpAuth.otherOrigin', { target: otherOrigin, site: request.origin }) }}
+      </span>
+    </div>
+
     <!-- A terminal request shows why it cannot be acted on, and offers no approval control. -->
     <div v-if="isTerminal" class="current-request__terminal" role="status">
       {{
@@ -97,7 +113,7 @@ watch(
     </div>
 
     <template v-else>
-      <RequestPreview :content="content" :risk-class="riskClass" />
+      <RequestPreview :content="content" :risk-class="riskClass" :open-full="!!otherOrigin" />
       <RequestDecisionBar
         :risk-class="riskClass"
         :allow-remember="content?.allowRemember ?? false"
@@ -150,6 +166,19 @@ watch(
   margin: 0;
   font-size: 1rem;
   outline: none;
+}
+
+/* Stronger than the elevated warning: the site is asking for access somewhere else (#215). */
+.current-request__other-origin {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--q-negative, #c10015);
+  font-size: 0.8rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .current-request__kind {
