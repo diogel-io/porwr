@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 
-import type { ApprovalRequestRecord } from 'app/src-bex/types/background';
+import type {
+  ApprovalRequestContent,
+  ApprovalRequestRecord,
+} from 'app/src-bex/types/background';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -26,9 +29,12 @@ const request = (over: Partial<ApprovalRequestRecord> = {}): ApprovalRequestReco
     ...over,
   }) as ApprovalRequestRecord;
 
-const mountRequest = (record: ApprovalRequestRecord) =>
+const mountRequest = (
+  record: ApprovalRequestRecord,
+  content: ApprovalRequestContent = { allowRemember: true },
+) =>
   mount(CurrentRequest, {
-    props: { request: record, content: { allowRemember: true }, busy: false },
+    props: { request: record, content, busy: false },
     global: {
       stubs: {
         RequestOriginHeader: {
@@ -41,7 +47,10 @@ const mountRequest = (record: ApprovalRequestRecord) =>
           props: ['label', 'disable'],
         },
         RequestRiskWarning: true,
-        RequestPreview: { template: '<div class="request-preview" />' },
+        RequestPreview: {
+          template: '<div class="request-preview" :data-open-full="String(!!openFull)" />',
+          props: ['openFull'],
+        },
         RequestDecisionBar: { template: '<div class="request-decision-bar" />' },
       },
     },
@@ -142,5 +151,50 @@ describe('a request from a site connected as another account', () => {
     const wrapper = mountRequest(mismatched({ state: 'expired' }));
 
     expect(wrapper.find('[data-testid="reject-and-switch"]').exists()).toBe(false);
+  });
+});
+
+/**
+ * HTTP authentication for another server (#215): a site asking you to prove your identity to
+ * someone else's server is warned about prominently, and the full event is shown.
+ */
+describe('an HTTP authentication request', () => {
+  const httpAuth = (url: string): ApprovalRequestContent =>
+    ({
+      allowRemember: true,
+      event: {
+        kind: 27235,
+        content: '',
+        created_at: 1_700_000_000,
+        tags: [
+          ['u', url],
+          ['method', 'POST'],
+        ],
+      },
+    }) as ApprovalRequestContent;
+  const fromBancwr = request({ origin: 'https://bancwr.example', eventKind: 27235 });
+
+  it('warns when it authorises another origin, naming both, and opens the full event', () => {
+    const wrapper = mountRequest(
+      request({ origin: 'https://evil.example', eventKind: 27235 }),
+      httpAuth('https://bancwr.example/api/auth/login'),
+    );
+
+    const warning = wrapper.find('.current-request__other-origin');
+    expect(warning.exists()).toBe(true);
+    expect(warning.attributes('role')).toBe('alert');
+    expect(warning.text()).toBe(
+      'request.httpAuth.otherOrigin:https://bancwr.example,https://evil.example',
+    );
+    expect(wrapper.find('.request-preview').attributes('data-open-full')).toBe('true');
+    // Warned, not refused: the decision is still the user's.
+    expect(wrapper.find('.request-decision-bar').exists()).toBe(true);
+  });
+
+  it('says nothing more when it authorises the site asking', () => {
+    const wrapper = mountRequest(fromBancwr, httpAuth('https://bancwr.example/api/auth/login'));
+
+    expect(wrapper.find('.current-request__other-origin').exists()).toBe(false);
+    expect(wrapper.find('.request-preview').attributes('data-open-full')).toBe('false');
   });
 });

@@ -15,6 +15,8 @@ defineOptions({ name: 'RequestPreview' });
 const props = defineProps<{
   content: ApprovalRequestContent | null;
   riskClass: RequestRiskClass;
+  /** Open on the full event whatever the class: HTTP authentication for another site (#215). */
+  openFull?: boolean;
 }>();
 
 const { t } = useI18n();
@@ -27,9 +29,9 @@ const expanded = ref(false);
 // Unknown kinds open on the full event, because the formatted view cannot explain something
 // Porwr does not recognise (ADR D12).
 watch(
-  () => props.riskClass,
-  (riskClass) => {
-    mode.value = shouldDefaultToFullEvent(riskClass) ? 'full' : 'formatted';
+  () => [props.riskClass, props.openFull] as const,
+  ([riskClass, openFull]) => {
+    mode.value = openFull || shouldDefaultToFullEvent(riskClass) ? 'full' : 'formatted';
   },
   { immediate: true },
 );

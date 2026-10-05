@@ -8,6 +8,9 @@ import {
   getEventKindLabel,
   getRequestTypeLabel,
   getRiskWarning,
+  HTTP_AUTH_KIND,
+  httpAuthOtherOrigin,
+  httpAuthTarget,
   shouldDefaultToFullEvent,
   truncateForPreview,
 } from 'src/services/approval-preview';
@@ -129,6 +132,96 @@ describe('approval preview rules', () => {
       expect(labels).toContain('Mentions');
       expect(labels).toContain('References events');
       expect(JSON.stringify(fields)).not.toContain('hello world');
+    });
+  });
+
+  // NIP-98: Bancwr signs its users in with one, bound to its login URL (#215).
+  describe('HTTP authentication (kind 27235)', () => {
+    const httpAuth = (tags: string[][]) => ({
+      kind: HTTP_AUTH_KIND,
+      content: '',
+      created_at: 1_700_000_000,
+      tags,
+    });
+    const login = httpAuth([
+      ['u', 'https://bancwr.example/api/auth/login'],
+      ['method', 'post'],
+    ]);
+
+    it('is recognised, labelled and elevated, so it is never an unrecognised kind', () => {
+      expect(getEventKindLabel(27235)).toBe('HTTP authentication (27235)');
+      expect(classifyRequest('sign_event', 27235)).toBe('elevated');
+      expect(getRiskWarning('elevated', 27235)).toBe(
+        "Approving this lets the site prove your identity to this site's server.",
+      );
+      expect(shouldDefaultToFullEvent('elevated')).toBe(false);
+    });
+
+    it('is never offered always, as an elevated kind', () => {
+      expect(getAllowedDurations(classifyRequest('sign_event', 27235), true)).toEqual([
+        'once',
+        '8h',
+      ]);
+    });
+
+    it('shows the URL and method it authorises, the method upper-cased', () => {
+      const fields = formatEventFields(login);
+      expect(fields).toContainEqual({ label: 'URL', value: 'https://bancwr.example/api/auth/login' });
+      expect(fields).toContainEqual({ label: 'Method', value: 'POST' });
+    });
+
+    it('says a missing URL or method is missing rather than leaving it out', () => {
+      const fields = formatEventFields(httpAuth([['u', 'https://bancwr.example/login']]));
+      expect(fields).toContainEqual({
+        label: 'Method',
+        value: 'Missing (not a valid HTTP authentication event)',
+      });
+    });
+
+    it('adds no URL or method to other kinds', () => {
+      const labels = formatEventFields({ ...login, kind: 1 }).map((field) => field.label);
+      expect(labels).not.toContain('URL');
+      expect(labels).not.toContain('Method');
+    });
+
+    it('reads the target, or why there is none', () => {
+      expect(httpAuthTarget(login)).toEqual({
+        valid: true,
+        url: 'https://bancwr.example/api/auth/login',
+        method: 'POST',
+        origin: 'https://bancwr.example',
+      });
+      expect(httpAuthTarget(httpAuth([['method', 'GET']]))).toEqual({
+        valid: false,
+        reason: 'missing-url',
+      });
+      expect(httpAuthTarget(httpAuth([['u', 'https://a.example']]))).toEqual({
+        valid: false,
+        reason: 'missing-method',
+      });
+      expect(
+        httpAuthTarget(httpAuth([
+          ['u', 'not a url'],
+          ['method', 'GET'],
+        ])),
+      ).toEqual({ valid: false, reason: 'invalid-url' });
+    });
+
+    it('names the other server only when the site asks for access somewhere else', () => {
+      expect(httpAuthOtherOrigin(login, 'https://bancwr.example')).toBeUndefined();
+      // A trailing path or slash on the requesting origin is still the same site.
+      expect(httpAuthOtherOrigin(login, 'https://bancwr.example/')).toBeUndefined();
+      expect(httpAuthOtherOrigin(login, 'https://evil.example')).toBe('https://bancwr.example');
+      // Another port is another origin.
+      expect(httpAuthOtherOrigin(login, 'https://bancwr.example:8443')).toBe(
+        'https://bancwr.example',
+      );
+    });
+
+    it('raises nothing for other kinds, malformed events or no event', () => {
+      expect(httpAuthOtherOrigin({ ...login, kind: 1 }, 'https://evil.example')).toBeUndefined();
+      expect(httpAuthOtherOrigin(httpAuth([]), 'https://evil.example')).toBeUndefined();
+      expect(httpAuthOtherOrigin(null, 'https://evil.example')).toBeUndefined();
     });
   });
 });

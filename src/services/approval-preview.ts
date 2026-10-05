@@ -49,6 +49,7 @@ export const NOSTR_KIND_LABELS: Readonly<Record<number, string>> = {
   9735: 'Zap receipt',
   10002: 'Relay list metadata',
   22242: 'Client authentication',
+  27235: 'HTTP authentication',
   30023: 'Long-form content',
 };
 
@@ -58,7 +59,7 @@ export const NOSTR_KIND_LABELS: Readonly<Record<number, string>> = {
  * These are not the kinds users see most often; they are the ones where a standing grant does
  * the most damage.
  */
-export const ELEVATED_EVENT_KINDS: readonly number[] = [3, 5, 9734, 10002, 22242];
+export const ELEVATED_EVENT_KINDS: readonly number[] = [3, 5, 9734, 10002, 22242, 27235];
 
 const PAYMENT_REQUEST_TYPES: readonly string[] = ['webln_send_payment', 'send_zap'];
 
@@ -69,6 +70,8 @@ const ELEVATED_KIND_EFFECTS: Readonly<Record<number, string>> = {
   9734: 'authorise a Lightning payment',
   10002: 'replace the list of relays your identity advertises',
   22242: 'prove your identity to this site for a session',
+  // NIP-98 (#215): Bancwr signs its users in with one, bound to its login URL.
+  27235: "prove your identity to this site's server",
 };
 
 export const isKnownEventKind = (kind: number): boolean =>
@@ -140,6 +143,14 @@ export const formatEventFields = (event: UnsignedEventPreview): FormattedEventFi
     { label: 'Created', value: new Date(event.created_at * 1000).toLocaleString() },
   ];
 
+  // The URL and method are what bind an HTTP authentication event to one request (NIP-98), so
+  // they come first, and a missing one is said rather than left out (#215).
+  if (event.kind === HTTP_AUTH_KIND) {
+    const missing = 'Missing (not a valid HTTP authentication event)';
+    fields.push({ label: 'URL', value: tagValue(event, 'u') ?? missing });
+    fields.push({ label: 'Method', value: tagValue(event, 'method')?.toUpperCase() ?? missing });
+  }
+
   const mentions = event.tags.filter((tag) => tag[0] === 'p').length;
   if (mentions > 0) fields.push({ label: 'Mentions', value: String(mentions) });
 
@@ -169,4 +180,57 @@ export const truncateForPreview = (
     return { text: normalized, truncated: false, fullLength: normalized.length };
   }
   return { text: normalized.slice(0, limit), truncated: true, fullLength: normalized.length };
+};
+
+/** NIP-98 HTTP Auth. */
+export const HTTP_AUTH_KIND = 27235;
+
+/** The first value of the first tag with this name, if it has a non-empty one. */
+const tagValue = (event: UnsignedEventPreview, name: string): string | undefined => {
+  const value = event.tags.find((tag) => tag[0] === name)?.[1]?.trim();
+  return value ? value : undefined;
+};
+
+export type HttpAuthTarget =
+  | { readonly valid: true; readonly url: string; readonly method: string; readonly origin: string }
+  | { readonly valid: false; readonly reason: 'missing-url' | 'missing-method' | 'invalid-url' };
+
+/**
+ * What a NIP-98 HTTP authentication event authorises: the request URL (`u`), its method, and the
+ * URL's origin, which the panel compares with the site asking (#215).
+ */
+export const httpAuthTarget = (event: UnsignedEventPreview): HttpAuthTarget => {
+  const url = tagValue(event, 'u');
+  if (!url) return { valid: false, reason: 'missing-url' };
+  const method = tagValue(event, 'method');
+  if (!method) return { valid: false, reason: 'missing-method' };
+  let origin: string;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    return { valid: false, reason: 'invalid-url' };
+  }
+  if (origin === 'null') return { valid: false, reason: 'invalid-url' };
+  return { valid: true, url, method: method.toUpperCase(), origin };
+};
+
+/**
+ * The origin an HTTP authentication event authorises, when it is not the site asking for it:
+ * a site asking you to prove your identity to someone else's server (#215). Undefined when the
+ * event is not HTTP authentication, is malformed, or targets the asking site.
+ */
+export const httpAuthOtherOrigin = (
+  event: UnsignedEventPreview | null | undefined,
+  requestOrigin: string,
+): string | undefined => {
+  if (!event || event.kind !== HTTP_AUTH_KIND) return undefined;
+  const target = httpAuthTarget(event);
+  if (!target.valid) return undefined;
+  let site: string;
+  try {
+    site = new URL(requestOrigin).origin;
+  } catch {
+    return target.origin;
+  }
+  return target.origin === site ? undefined : target.origin;
 };
