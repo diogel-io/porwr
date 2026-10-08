@@ -204,4 +204,20 @@ describe('GenerateKeyForm.vue', () => {
     );
     expect(pushMock).toHaveBeenCalledWith({ name: 'view-key', params: { alias: 'alice' } });
   });
+
+  it('keeps inner spaces in the profile name while trimming the ends (#230)', async () => {
+    const wrapper = mount(GenerateKeyForm, {
+      global: {
+        stubs: globalStubs,
+      },
+    });
+
+    await wrapper.find('button[data-label="createAccount.generateKeys"]').trigger('click');
+    await requiredInput(wrapper).setValue('  Anne Mous  ');
+    await wrapper.find('button[data-label="createAccount.save"]').trigger('click');
+    await flushComponent();
+
+    expect(saveKeyMock).toHaveBeenCalledWith(expect.objectContaining({ alias: 'Anne Mous' }));
+    expect(pushMock).toHaveBeenCalledWith({ name: 'view-key', params: { alias: 'Anne Mous' } });
+  });
 });
