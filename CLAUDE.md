@@ -26,7 +26,7 @@ management) is built with Vue 3 + Pinia + Quasar components.
 - Single test by name: `npx vitest run -t "test name pattern"`
 - BEX icons are committed and need no build step. Regenerate only if the source artwork changes; see README.
 
-Use a Node version from `engines.node` in `package.json` (`^20 || ^22 || ^24 || ^25 || ^26 || ^28`).
+Use a Node version from `engines.node` in `package.json` (`^22.22 || ^24 || ^26 || ^28`).
 
 ## Architecture
 
@@ -105,21 +105,29 @@ provider-side call in `nostr-provider.js`.
 - Pages in `src/pages/` are grouped by the surface they belong to, and every page sits in
   exactly one of them: `pages/sidebar/` (the panel), `pages/dashboard/` (the full-tab
   management surfaces), and `pages/extension/` (the entry point, vault login, and 404).
-- Import shared code by alias, not by a relative path: `components/`, `src/stores/`,
-  `src/services/`, `src/composables/`. A page that reaches out with `../` breaks the next
-  time it moves between surface directories.
+- Import shared code by the `@` alias, not by a relative path: `@/components/`, `@/stores/`,
+  `@/services/`, `@/composables/`. `@/` maps to `src/`; it is the only alias
+  `@quasar/app-vite` 3 injects, so the old `src/`, `components/`, `layouts/`, `pages/` and
+  `app/` shortcuts no longer resolve. Reach extension code as `@/../src-bex/...`. A page that
+  reaches out with `../` breaks the next time it moves between surface directories.
 - Components in `src/components/` follow the same surface split, one convention throughout:
   `sidebar/`, `dashboard/` (with `dashboard/key-management/` for that feature group),
   `extension/`, and `shared/` for the three components more than one surface reaches
   (`DiogelLogo`, `AccountDropdown`, `ProfileView`). No component sits at the top level.
   A component used by a second surface moves to `shared/` rather than being imported across
   surface directories.
-- Import components by alias — `components/<surface>/<Name>.vue` — never by a relative path.
+- Import components by alias — `@/components/<surface>/<Name>.vue` — never by a relative path.
   Tests live in `tests/`, not beside the component.
 - Boot files (`src/boot/i18n`, `src/boot/axios`) are auto-registered by Quasar; don't
   import them directly elsewhere. Centralize HTTP via `src/boot/axios`.
 - i18n messages live under `src/i18n/en-US`; the unplugin only picks up files under
   `src/i18n/`.
+- Read environment values as `import.meta.env.*`, never `process.env`. App values are
+  declared in `build.defineEnv` in `quasar.config.ts` (e.g. `import.meta.env.APP_VERSION`);
+  Quasar's own constants carry the `QUASAR_` prefix (e.g. `import.meta.env.QUASAR_VUE_ROUTER_MODE`).
+- `src-bex/package.json` exists because Quasar v3 requires it. Anything listed in its
+  `dependencies` is **not** bundled into the background or content scripts, so runtime
+  dependencies belong in the root `package.json`.
 
 ## TypeScript conventions and testing
 
