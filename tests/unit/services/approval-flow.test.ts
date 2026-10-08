@@ -10,16 +10,16 @@ const mocks = vi.hoisted(() => ({
   logApproval: vi.fn(),
 }));
 
-vi.mock('app/src-bex/handlers/permission-handler', () => ({
+vi.mock('@/../src-bex/handlers/permission-handler', () => ({
   checkPermission: mocks.checkPermission,
   grantPermission: mocks.grantPermission,
 }));
-vi.mock('app/src-bex/services/request-queue', () => ({ enqueueRequest: mocks.enqueueRequest }));
-vi.mock('app/src-bex/services/signing-account', () => ({
+vi.mock('@/../src-bex/services/request-queue', () => ({ enqueueRequest: mocks.enqueueRequest }));
+vi.mock('@/../src-bex/services/signing-account', () => ({
   resolveSigningAccount: mocks.resolveSigningAccount,
   getActiveAccount: mocks.getActiveAccount,
 }));
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { ERROR: 'error' },
   logService: { log: mocks.log, logApproval: mocks.logApproval },
 }));
@@ -28,7 +28,7 @@ import {
   requestApproval,
   toPermissionKind,
   trimApprovalContentDescription,
-} from 'app/src-bex/services/approval-flow';
+} from '@/../src-bex/services/approval-flow';
 
 const ALICE = { id: 'a'.repeat(64), alias: 'alice', account: { privkey: '11'.repeat(32) } };
 const BOB = { id: 'b'.repeat(64), alias: 'bob', account: { privkey: '22'.repeat(32) } };

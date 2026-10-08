@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseBolt11AmountMsat, previewInvoice } from 'src/services/nip47-invoice';
+import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 
 describe('parseBolt11AmountMsat', () => {
   it('parses milli-bitcoin amounts', () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
-import GenerateKeyForm from 'components/dashboard/key-management/GenerateKeyForm.vue';
+import GenerateKeyForm from '@/components/dashboard/key-management/GenerateKeyForm.vue';
 
 const { saveKeyMock, pushMock, notifyMock, generateKeyMock } = vi.hoisted(() => ({
   saveKeyMock: vi.fn(),
@@ -11,13 +11,13 @@ const { saveKeyMock, pushMock, notifyMock, generateKeyMock } = vi.hoisted(() => 
   generateKeyMock: vi.fn(),
 }));
 
-vi.mock('src/stores/account-store', () => ({
+vi.mock('@/stores/account-store', () => ({
   default: () => ({
     saveKey: saveKeyMock,
   }),
 }));
 
-vi.mock('src/services/generate-key', () => ({
+vi.mock('@/services/generate-key', () => ({
   generateKey: generateKeyMock,
 }));
 

@@ -6,9 +6,9 @@
  */
 
 import { sendBexMessage } from './bridge-client';
-import type { ConnectedSite } from 'app/src-bex/services/connected-sites';
-import type { SiteAccount, SwitchSiteAccountResult } from 'app/src-bex/services/site-account';
-import { ErrorCode } from 'src/types/error-codes.d';
+import type { ConnectedSite } from '@/../src-bex/services/connected-sites';
+import type { SiteAccount, SwitchSiteAccountResult } from '@/../src-bex/services/site-account';
+import { ErrorCode } from '@/types/error-codes.d';
 
 export type { ConnectedSite, SiteAccount, SwitchSiteAccountResult };
 

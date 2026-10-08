@@ -9,7 +9,7 @@
  * still holds it. Anything less would interrupt a request another live tab is still waiting on.
  */
 
-import { LogLevel, logService } from 'src/services/log-service';
+import { LogLevel, logService } from '@/services/log-service';
 import { listPageOrigins } from './page-origin-registry';
 import { interruptRequestsForOrigin, listPendingRequests } from './request-queue';
 

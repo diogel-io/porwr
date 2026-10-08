@@ -1,11 +1,11 @@
 import type { Event as NostrEvent, UnsignedEvent } from 'nostr-tools';
-import type { ErrorCode } from 'src/types/error-codes';
-import type { QuickSignSupportedKind, QuickSignTagType } from 'src/services/quick-sign-service';
+import type { ErrorCode } from '@/types/error-codes';
+import type { QuickSignSupportedKind, QuickSignTagType } from '@/services/quick-sign-service';
 import type {
   ConnectedRelaysDataState,
   DashboardActivityItem,
   DashboardDataState,
-} from 'src/services/dashboard-service';
+} from '@/services/dashboard-service';
 
 export interface DropdownItem<T = string | number> {
   label: string;

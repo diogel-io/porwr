@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { storageService, NOSTR_ACTIVE } from 'src/services/storage-service';
+import { storageService, NOSTR_ACTIVE } from '@/services/storage-service';
 
 // Mock chrome API
 const chromeMock = {

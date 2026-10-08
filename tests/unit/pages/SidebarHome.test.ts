@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({ vaultExists: true, isUnlocked: true }));
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 
-vi.mock('src/stores/vault-store', () => ({
+vi.mock('@/stores/vault-store', () => ({
   default: () => ({
     get vaultExists() {
       return state.vaultExists;
@@ -28,7 +28,7 @@ const accounts = vi.hoisted(() => ({
   hydration: 'ready' as 'empty' | 'loading' | 'ready',
 }));
 
-vi.mock('src/stores/account-store', () => ({
+vi.mock('@/stores/account-store', () => ({
   default: () => ({
     get activeKey() {
       return accounts.activeKey;
@@ -50,9 +50,9 @@ vi.mock('src/stores/account-store', () => ({
   }),
 }));
 
-vi.mock('src/composables/useActiveTab', () => ({ useActiveTab: () => ({ activeOrigin: ref('') }) }));
+vi.mock('@/composables/useActiveTab', () => ({ useActiveTab: () => ({ activeOrigin: ref('') }) }));
 
-vi.mock('src/composables/useApprovalQueue', () => ({
+vi.mock('@/composables/useApprovalQueue', () => ({
   useApprovalQueue: () => ({
     pending: ref([]),
     current: ref(null),
@@ -63,7 +63,7 @@ vi.mock('src/composables/useApprovalQueue', () => ({
 }));
 
 const mountPage = async () => {
-  const SidebarHome = (await import('src/pages/sidebar/SidebarHome.vue')).default;
+  const SidebarHome = (await import('@/pages/sidebar/SidebarHome.vue')).default;
   return mount(SidebarHome, {
     global: {
       stubs: {

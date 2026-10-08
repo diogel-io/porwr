@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleBlossomUpload } from 'app/src-bex/handlers/blossom-handler';
-import { handleVaultGetData, handleVaultIsUnlocked } from 'app/src-bex/handlers/vault-handler';
-import { storageService, NOSTR_ACTIVE, BLOSSOM_UPLOAD_STATUS } from 'src/services/storage-service';
+import { handleBlossomUpload } from '@/../src-bex/handlers/blossom-handler';
+import { handleVaultGetData, handleVaultIsUnlocked } from '@/../src-bex/handlers/vault-handler';
+import { storageService, NOSTR_ACTIVE, BLOSSOM_UPLOAD_STATUS } from '@/services/storage-service';
 import { finalizeEvent, getPublicKey } from 'nostr-tools';
 
 // Mock dependencies
-vi.mock('app/src-bex/handlers/vault-handler', () => ({
+vi.mock('@/../src-bex/handlers/vault-handler', () => ({
   handleVaultIsUnlocked: vi.fn(),
   handleVaultGetData: vi.fn(),
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   storageService: {
     get: vi.fn(),
     set: vi.fn(),
@@ -32,8 +32,8 @@ vi.mock('@noble/hashes/sha2.js', () => ({
   sha256: vi.fn(() => new Uint8Array(32)),
 }));
 
-vi.mock('src/services/log-service', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('src/services/log-service')>();
+vi.mock('@/services/log-service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/log-service')>();
   return {
     ...actual,
     logService: {

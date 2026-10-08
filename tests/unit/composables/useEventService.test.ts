@@ -31,7 +31,7 @@ describe('useEventService', () => {
       return { close: subClose };
     });
 
-    const { useEventService } = await import('src/composables/useEventService');
+    const { useEventService } = await import('@/composables/useEventService');
     const service = useEventService(['wss://relay.damus.io']);
 
     const resultPromise = service.getEvents({ kinds: [0] });
@@ -53,7 +53,7 @@ describe('useEventService', () => {
       return { close: subClose };
     });
 
-    const { useEventService } = await import('src/composables/useEventService');
+    const { useEventService } = await import('@/composables/useEventService');
     const service = useEventService(['wss://relay.damus.io']);
 
     const resultPromise = service.getEvents({ kinds: [0] }, 1000);
@@ -73,7 +73,7 @@ describe('useEventService', () => {
       return { close: subClose };
     });
 
-    const { useEventService } = await import('src/composables/useEventService');
+    const { useEventService } = await import('@/composables/useEventService');
     const service = useEventService(['wss://relay.damus.io']);
 
     const resultPromise = service.getEvents({ kinds: [0] }, 1000);
@@ -85,7 +85,7 @@ describe('useEventService', () => {
   });
 
   it('closes the pool for the configured relay URLs', async () => {
-    const { useEventService } = await import('src/composables/useEventService');
+    const { useEventService } = await import('@/composables/useEventService');
     const service = useEventService(['wss://relay.damus.io', 'wss://relay.snort.social']);
 
     service.close();

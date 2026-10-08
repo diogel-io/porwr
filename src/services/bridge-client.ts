@@ -1,5 +1,5 @@
 import { LogLevel, logService } from './log-service';
-import type { BridgeAction, BridgeRequestMap, BridgeResponsePayload } from 'src/types/bridge';
+import type { BridgeAction, BridgeRequestMap, BridgeResponsePayload } from '@/types/bridge';
 
 /**
  * Background messaging client.

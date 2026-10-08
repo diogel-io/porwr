@@ -16,7 +16,7 @@ interface MockVault {
 const mockVaultsTable = new Map<string, MockVault>();
 
 // Mock Dexie
-vi.mock('src/services/database', () => {
+vi.mock('@/services/database', () => {
   const vaultsMock = {
     get: vi.fn(async (id: string) =>  Promise.resolve(mockVaultsTable.get(id))),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,15 +50,15 @@ import {
   updateVaultData,
   getVaultData,
   importVault,
-} from 'app/src-bex/vault';
+} from '@/../src-bex/vault';
 
 import {
   encryptWithKey,
   decryptWithKey,
   deriveNewKey,
   deriveKeyFromEncryptedVault,
-} from 'src/services/crypto';
-import type { VaultData } from 'src/types/bridge';
+} from '@/services/crypto';
+import type { VaultData } from '@/types/bridge';
 
 
 // Mock chrome storage

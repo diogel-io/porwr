@@ -12,7 +12,7 @@ import {
   type Nip47PayInvoiceResponse,
   type Nip47RpcRequest,
   type Nip47RpcResponse,
-} from 'src/types/nip47';
+} from '@/types/nip47';
 
 function parseJsonRecord(value: string): Record<string, unknown> {
   const parsed = JSON.parse(value) as unknown;

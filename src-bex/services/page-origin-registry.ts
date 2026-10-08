@@ -17,7 +17,7 @@
  * what #113 needs for reconciling requests whose page has gone.
  */
 
-import { LogLevel, logService } from 'src/services/log-service';
+import { LogLevel, logService } from '@/services/log-service';
 
 /** Survives a service-worker restart; `storage` is already granted, `session` adds no permission. */
 const SESSION_KEY = 'porwr.pageOrigins';

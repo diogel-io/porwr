@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { BridgeAction } from 'src/types/bridge';
+import type { BridgeAction } from '@/types/bridge';
 
 /**
  * Executes every case in the dispatcher's switch, one per declared action.
@@ -16,60 +16,60 @@ import type { BridgeAction } from 'src/types/bridge';
  * (#173).
  */
 
-vi.mock('app/src-bex/handlers/vault-handler', () => ({
+vi.mock('@/../src-bex/handlers/vault-handler', () => ({
   handleVaultUnlock: vi.fn(), handleVaultLock: vi.fn(), handleVaultIsUnlocked: vi.fn(),
   handleVaultCreate: vi.fn(), handleVaultGetData: vi.fn(), handleVaultUpdateData: vi.fn(),
   handleVaultExport: vi.fn(), handleVaultImport: vi.fn(),
 }));
-vi.mock('app/src-bex/services/auto-lock', () => ({
+vi.mock('@/../src-bex/services/auto-lock', () => ({
   resetAutoLockTimer: vi.fn(), startAutoLockTimer: vi.fn(), stopAutoLockTimer: vi.fn(),
 }));
-vi.mock('app/src-bex/handlers/nip07', () => ({ handleGetPublicKey: vi.fn(), handleSignEvent: vi.fn() }));
-vi.mock('app/src-bex/services/request-queue', () => ({
+vi.mock('@/../src-bex/handlers/nip07', () => ({ handleGetPublicKey: vi.fn(), handleSignEvent: vi.fn() }));
+vi.mock('@/../src-bex/services/request-queue', () => ({
   getCurrentRequest: vi.fn(), getPendingCount: vi.fn(), getRequestContent: vi.fn(),
   listPendingRequests: vi.fn(), markPresented: vi.fn(), requeuePresented: vi.fn(), submitDecision: vi.fn(),
 }));
-vi.mock('app/src-bex/services/page-origin-registry', () => ({ getPageOrigin: vi.fn() }));
-vi.mock('app/src-bex/services/connected-sites', () => ({
+vi.mock('@/../src-bex/services/page-origin-registry', () => ({ getPageOrigin: vi.fn() }));
+vi.mock('@/../src-bex/services/connected-sites', () => ({
   countSitesHoldingGrantsFor: vi.fn(), disconnectSite: vi.fn(), listConnectedSites: vi.fn(),
 }));
-vi.mock('app/src-bex/services/site-account', () => ({
+vi.mock('@/../src-bex/services/site-account', () => ({
   getSiteAccount: vi.fn(), switchSiteToActiveAccount: vi.fn(),
 }));
-vi.mock('app/src-bex/handlers/blossom-handler', () => ({ handleBlossomUpload: vi.fn() }));
-vi.mock('app/src-bex/handlers/nip04', () => ({ handleNip04Encrypt: vi.fn(), handleNip04Decrypt: vi.fn() }));
-vi.mock('app/src-bex/handlers/nip44', () => ({ handleNip44Encrypt: vi.fn(), handleNip44Decrypt: vi.fn() }));
-vi.mock('app/src-bex/handlers/relay-browser-handler', () => ({
+vi.mock('@/../src-bex/handlers/blossom-handler', () => ({ handleBlossomUpload: vi.fn() }));
+vi.mock('@/../src-bex/handlers/nip04', () => ({ handleNip04Encrypt: vi.fn(), handleNip04Decrypt: vi.fn() }));
+vi.mock('@/../src-bex/handlers/nip44', () => ({ handleNip44Encrypt: vi.fn(), handleNip44Decrypt: vi.fn() }));
+vi.mock('@/../src-bex/handlers/relay-browser-handler', () => ({
   handleRelayBrowserList: vi.fn(), handleRelayBrowserGetStatus: vi.fn(), handleRelayBrowserRefresh: vi.fn(),
 }));
-vi.mock('app/src-bex/handlers/nip47', () => ({
+vi.mock('@/../src-bex/handlers/nip47', () => ({
   handleNip47ConnectionImport: vi.fn(), handleNip47ConnectionRemove: vi.fn(),
   handleNip47ConnectionSetActive: vi.fn(), handleNip47ConnectionsList: vi.fn(),
   handleNip47GetBalance: vi.fn(), handleNip47GetInfo: vi.fn(),
   handleNip47PayInvoice: vi.fn(), handleNip47PaymentHistoryList: vi.fn(),
 }));
-vi.mock('app/src-bex/handlers/nip57', () => ({
+vi.mock('@/../src-bex/handlers/nip57', () => ({
   handleNip57GetCapabilities: vi.fn(), handleNip57SendZap: vi.fn(), handleNip57ZapHistoryList: vi.fn(),
 }));
-vi.mock('app/src-bex/handlers/webln', () => ({
+vi.mock('@/../src-bex/handlers/webln', () => ({
   handleWebLnEnable: vi.fn(), handleWebLnGetInfo: vi.fn(), handleWebLnSendPayment: vi.fn(),
 }));
 
-import { dispatchMessage } from 'app/src-bex/dispatcher';
-import * as vault from 'app/src-bex/handlers/vault-handler';
-import * as autoLock from 'app/src-bex/services/auto-lock';
-import * as nip07 from 'app/src-bex/handlers/nip07';
-import * as queue from 'app/src-bex/services/request-queue';
-import * as pages from 'app/src-bex/services/page-origin-registry';
-import * as sites from 'app/src-bex/services/connected-sites';
-import * as siteAccount from 'app/src-bex/services/site-account';
-import * as blossom from 'app/src-bex/handlers/blossom-handler';
-import * as nip04 from 'app/src-bex/handlers/nip04';
-import * as nip44 from 'app/src-bex/handlers/nip44';
-import * as relays from 'app/src-bex/handlers/relay-browser-handler';
-import * as nip47 from 'app/src-bex/handlers/nip47';
-import * as nip57 from 'app/src-bex/handlers/nip57';
-import * as webln from 'app/src-bex/handlers/webln';
+import { dispatchMessage } from '@/../src-bex/dispatcher';
+import * as vault from '@/../src-bex/handlers/vault-handler';
+import * as autoLock from '@/../src-bex/services/auto-lock';
+import * as nip07 from '@/../src-bex/handlers/nip07';
+import * as queue from '@/../src-bex/services/request-queue';
+import * as pages from '@/../src-bex/services/page-origin-registry';
+import * as sites from '@/../src-bex/services/connected-sites';
+import * as siteAccount from '@/../src-bex/services/site-account';
+import * as blossom from '@/../src-bex/handlers/blossom-handler';
+import * as nip04 from '@/../src-bex/handlers/nip04';
+import * as nip44 from '@/../src-bex/handlers/nip44';
+import * as relays from '@/../src-bex/handlers/relay-browser-handler';
+import * as nip47 from '@/../src-bex/handlers/nip47';
+import * as nip57 from '@/../src-bex/handlers/nip57';
+import * as webln from '@/../src-bex/handlers/webln';
 
 const ORIGIN = 'https://example.com';
 

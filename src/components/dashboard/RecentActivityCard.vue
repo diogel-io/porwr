@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { DashboardActivityItem } from 'src/services/dashboard-service';
+import type { DashboardActivityItem } from '@/services/dashboard-service';
 import { nip19 } from 'nostr-tools';
-import type { DashboardSummary, DataActivityRow } from 'src/types';
+import type { DashboardSummary, DataActivityRow } from '@/types';
 
 const props = withDefaults(
   defineProps<{

@@ -3,11 +3,11 @@ import {
   deriveKeyFromEncryptedVault,
   deriveNewKey,
   encryptWithKey,
-} from 'src/services/crypto';
-import { db } from 'src/services/database';
-import { LogLevel, logService } from 'src/services/log-service';
-import { storageService, VAULT_UNLOCKED } from 'src/services/storage-service';
-import { ErrorCode } from 'src/types/error-codes.d';
+} from '@/services/crypto';
+import { db } from '@/services/database';
+import { LogLevel, logService } from '@/services/log-service';
+import { storageService, VAULT_UNLOCKED } from '@/services/storage-service';
+import { ErrorCode } from '@/types/error-codes.d';
 
 let vaultKey: CryptoKey | null = null;
 let vaultSalt: Uint8Array | null = null;

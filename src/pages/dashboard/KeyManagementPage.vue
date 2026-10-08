@@ -1,9 +1,9 @@
 <script lang="ts" setup>
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import useAccountStore from 'src/stores/account-store';
-import KeyManagementTable from 'components/dashboard/key-management/KeyManagementTable.vue';
-import SecurityWarning from 'components/dashboard/SecurityWarning.vue';
+import useAccountStore from '@/stores/account-store';
+import KeyManagementTable from '@/components/dashboard/key-management/KeyManagementTable.vue';
+import SecurityWarning from '@/components/dashboard/SecurityWarning.vue';
 
 const { t } = useI18n();
 const accountStore = useAccountStore();

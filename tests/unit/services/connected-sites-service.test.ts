@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { sendBexMessage } = vi.hoisted(() => ({ sendBexMessage: vi.fn() }));
 
-vi.mock('src/services/bridge-client', () => ({ sendBexMessage }));
+vi.mock('@/services/bridge-client', () => ({ sendBexMessage }));
 
 import {
   disconnectSite,
   getSiteAccount,
   listConnectedSites,
   switchSiteToActiveAccount,
-} from 'src/services/connected-sites-service';
+} from '@/services/connected-sites-service';
 
 beforeEach(() => {
   vi.clearAllMocks();

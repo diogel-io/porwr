@@ -1,4 +1,4 @@
-import type { RelayCatalogEntry, RelayDiscoveryState } from 'src/types/relay';
+import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
 import { logService, LogLevel } from './log-service';
 import { sendBexMessage } from './vault-service';
 

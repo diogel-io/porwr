@@ -5,11 +5,11 @@ const { sendBexMessageMock, getSettingsMock } = vi.hoisted(() => ({
   getSettingsMock: vi.fn(),
 }));
 
-vi.mock('src/services/vault-service', () => ({
+vi.mock('@/services/vault-service', () => ({
   sendBexMessage: sendBexMessageMock,
 }));
 
-vi.mock('src/stores/settings-store', () => ({
+vi.mock('@/stores/settings-store', () => ({
   default: vi.fn(() => ({
     blossomServer: 'https://blossom.default.example.com',
     getSettings: getSettingsMock,
@@ -17,7 +17,7 @@ vi.mock('src/stores/settings-store', () => ({
 }));
 
 describe('blossom-upload-service', () => {
-  let uploadImageToBlossom: typeof import('src/services/blossom-upload-service').uploadImageToBlossom;
+  let uploadImageToBlossom: typeof import('@/services/blossom-upload-service').uploadImageToBlossom;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -25,7 +25,7 @@ describe('blossom-upload-service', () => {
     sendBexMessageMock.mockReset();
 
     // Re-import to get fresh module with reset mocks
-    const module = await import('src/services/blossom-upload-service');
+    const module = await import('@/services/blossom-upload-service');
     uploadImageToBlossom = module.uploadImageToBlossom;
   });
 

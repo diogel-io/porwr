@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils';
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 
-import SidebarFooterLinks from 'components/sidebar/SidebarFooterLinks.vue';
+import SidebarFooterLinks from '@/components/sidebar/SidebarFooterLinks.vue';
 
 const createTab = vi.fn();
 

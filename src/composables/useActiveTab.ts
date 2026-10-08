@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, ref, type Ref } from 'vue';
 
-import { sendBexMessage } from 'src/services/bridge-client';
-import { LogLevel, logService } from 'src/services/log-service';
+import { sendBexMessage } from '@/services/bridge-client';
+import { LogLevel, logService } from '@/services/log-service';
 
 export interface UseActiveTabResult {
   /** Origin of the active tab in this window, or an empty string when there is none. */

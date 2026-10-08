@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
-import type { DashboardSummary } from 'src/types';
-import RecentActivityCard from 'components/dashboard/RecentActivityCard.vue';
+import type { DashboardSummary } from '@/types';
+import RecentActivityCard from '@/components/dashboard/RecentActivityCard.vue';
 
 const { getDashboardSummaryMock, dateFormatterMock } = vi.hoisted(() => ({
   getDashboardSummaryMock: vi.fn(),
   dateFormatterMock: vi.fn((value: Date) => `formatted:${value.toISOString()}`),
 }));
 
-vi.mock('src/services/dashboard-service', () => ({
+vi.mock('@/services/dashboard-service', () => ({
   getDashboardSummary: getDashboardSummaryMock,
 }));
 

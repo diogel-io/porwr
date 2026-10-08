@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { RelayCatalogEntry, RelayDiscoveryState } from 'src/types/relay';
+import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
 
 // Mock the database since we can't run a real IndexedDB in this environment
 const mockRelayCatalog = new Map<string, RelayCatalogEntry>();
@@ -8,7 +8,7 @@ const mockVaults = new Map<string, any>();
 const mockExceptions: any[] = [];
 const mockApprovals: any[] = [];
 
-vi.mock('src/services/database', () => {
+vi.mock('@/services/database', () => {
   return {
     DiogelDatabase: class {
       relayCatalog = {
@@ -61,7 +61,7 @@ vi.mock('src/services/database', () => {
   };
 });
 
-import { DiogelDatabase } from 'src/services/database';
+import { DiogelDatabase } from '@/services/database';
 
 describe('Relay Database Schema', () => {
   let db: DiogelDatabase;

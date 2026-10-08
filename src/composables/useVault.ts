@@ -1,8 +1,8 @@
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
-import useVaultStore from 'src/stores/vault-store';
-import { type ErrorCode, formatErrorForUser } from 'src/types/error-codes.d';
+import useVaultStore from '@/stores/vault-store';
+import { type ErrorCode, formatErrorForUser } from '@/types/error-codes.d';
 
 type LoginContext = 'dashboard' | 'extension';
 type PostLoginRouteName = 'dashboard' | 'home';

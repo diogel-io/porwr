@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
-import ImportKeyForm from 'components/dashboard/key-management/ImportKeyForm.vue';
+import ImportKeyForm from '@/components/dashboard/key-management/ImportKeyForm.vue';
 
 const { t } = useI18n();
 </script>

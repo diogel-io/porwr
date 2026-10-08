@@ -4,7 +4,7 @@
  */
 
 import type { HandlerResult } from '../types/background';
-import type { VaultData } from 'src/types/bridge';
+import type { VaultData } from '@/types/bridge';
 import {
   unlockVault as unlock,
   lockVault as lock,
@@ -16,7 +16,7 @@ import {
   updateVaultData,
   restoreVaultState,
 } from '../vault';
-import { logService } from 'src/services/log-service';
+import { logService } from '@/services/log-service';
 
 // Re-export restoreVaultState for use by background.ts
 export { restoreVaultState };

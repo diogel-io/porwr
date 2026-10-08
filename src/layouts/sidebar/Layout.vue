@@ -2,12 +2,12 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import DiogelLogo from 'components/shared/DiogelLogo.vue';
-import SidebarFooterLinks from 'components/sidebar/SidebarFooterLinks.vue';
-import AccountSwitcher from 'components/sidebar/AccountSwitcher.vue';
-import { useApprovalQueue } from 'src/composables/useApprovalQueue';
-import { useVault } from 'src/composables/useVault';
-import useVaultStore from 'src/stores/vault-store';
+import DiogelLogo from '@/components/shared/DiogelLogo.vue';
+import SidebarFooterLinks from '@/components/sidebar/SidebarFooterLinks.vue';
+import AccountSwitcher from '@/components/sidebar/AccountSwitcher.vue';
+import { useApprovalQueue } from '@/composables/useApprovalQueue';
+import { useVault } from '@/composables/useVault';
+import useVaultStore from '@/stores/vault-store';
 
 defineOptions({ name: 'SidebarLayout' });
 

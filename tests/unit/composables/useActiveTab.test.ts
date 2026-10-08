@@ -4,13 +4,13 @@ import { defineComponent, nextTick } from 'vue';
 
 const { sendBexMessage } = vi.hoisted(() => ({ sendBexMessage: vi.fn() }));
 
-vi.mock('src/services/bridge-client', () => ({ sendBexMessage }));
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/bridge-client', () => ({ sendBexMessage }));
+vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 'debug' },
   logService: { log: vi.fn() },
 }));
 
-import { useActiveTab } from 'src/composables/useActiveTab';
+import { useActiveTab } from '@/composables/useActiveTab';
 
 const Harness = defineComponent({
   name: 'ActiveTabHarness',

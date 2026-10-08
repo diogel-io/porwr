@@ -1,5 +1,5 @@
-import type { VaultData } from 'src/types/bridge';
-import type { Nip57ZapHistoryEntry } from 'src/types/nip57';
+import type { VaultData } from '@/types/bridge';
+import type { Nip57ZapHistoryEntry } from '@/types/nip57';
 
 export function listNip57ZapHistory(vaultData?: VaultData | null): Nip57ZapHistoryEntry[] {
   return vaultData?.nip57ZapHistory ?? [];

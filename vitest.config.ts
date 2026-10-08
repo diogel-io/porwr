@@ -89,20 +89,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      'src': fileURLToPath(new URL('./src', import.meta.url)),
-      'src/*': fileURLToPath(new URL('./src/*', import.meta.url)),
-      'components': fileURLToPath(new URL('./src/components', import.meta.url)),
-      'components/*': fileURLToPath(new URL('./src/components/*', import.meta.url)),
-      // Quasar supplies these at build time. Tests need them to reach the router, which is the
-      // only place the panel and the management surfaces are described together.
-      'layouts': fileURLToPath(new URL('./src/layouts', import.meta.url)),
-      'layouts/*': fileURLToPath(new URL('./src/layouts/*', import.meta.url)),
-      'pages': fileURLToPath(new URL('./src/pages', import.meta.url)),
-      'pages/*': fileURLToPath(new URL('./src/pages/*', import.meta.url)),
-      'app': fileURLToPath(new URL('./', import.meta.url)),
-      'app/*': fileURLToPath(new URL('./*', import.meta.url)),
-      'src-bex': fileURLToPath(new URL('./src-bex', import.meta.url)),
-      'src-bex/*': fileURLToPath(new URL('./src-bex/*', import.meta.url)),
+      // Quasar supplies `@` (-> src/) at build time; extension code is reached as `@/../src-bex/`.
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
 });

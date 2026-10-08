@@ -2,8 +2,8 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { getAllowedDurations, type RequestRiskClass } from 'src/services/approval-preview';
-import type { ApprovalDuration } from 'app/src-bex/types/background';
+import { getAllowedDurations, type RequestRiskClass } from '@/services/approval-preview';
+import type { ApprovalDuration } from '@/../src-bex/types/background';
 
 defineOptions({ name: 'RequestDecisionBar' });
 

@@ -14,7 +14,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-vi.mock('src/stores/account-store', () => ({
+vi.mock('@/stores/account-store', () => ({
   default: () => ({
     get activeKey() {
       return state.activeKey;
@@ -26,7 +26,7 @@ vi.mock('src/stores/account-store', () => ({
   }),
 }));
 
-import AccountSwitcher from 'components/sidebar/AccountSwitcher.vue';
+import AccountSwitcher from '@/components/sidebar/AccountSwitcher.vue';
 
 const createTab = vi.fn();
 

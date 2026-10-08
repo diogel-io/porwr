@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { useVault } from 'src/composables/useVault';
-import { useNavigation } from 'src/composables/useNavigation';
-import DiogelLogo from 'components/shared/DiogelLogo.vue';
-import type { NavigationItem, UtilityLinkItem } from 'src/types/navigation';
+import { useVault } from '@/composables/useVault';
+import { useNavigation } from '@/composables/useNavigation';
+import DiogelLogo from '@/components/shared/DiogelLogo.vue';
+import type { NavigationItem, UtilityLinkItem } from '@/types/navigation';
 
 const { handleLock } = useVault();
 const { t } = useI18n();

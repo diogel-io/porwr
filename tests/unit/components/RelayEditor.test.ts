@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createTestingPinia } from '@pinia/testing';
-import RelayEditor from 'components/dashboard/RelayEditor.vue';
-import RelayBrowserModal from 'components/dashboard/RelayBrowserModal.vue';
-import useSettingsStore from 'src/stores/settings-store';
+import RelayEditor from '@/components/dashboard/RelayEditor.vue';
+import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
+import useSettingsStore from '@/stores/settings-store';
 
 // Mock chrome API
 const chromeMock = {

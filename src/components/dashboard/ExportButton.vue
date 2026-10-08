@@ -2,9 +2,9 @@
 import { ref } from 'vue';
 import { exportFile, useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import type { StoredKey } from 'src/types';
-import ExportDialog from 'components/dashboard/ExportDialog.vue';
-import { createEncryptedZipBytes, ZIP_MIME_TYPE } from 'src/services/compressor';
+import type { StoredKey } from '@/types';
+import ExportDialog from '@/components/dashboard/ExportDialog.vue';
+import { createEncryptedZipBytes, ZIP_MIME_TYPE } from '@/services/compressor';
 
 defineOptions({ name: 'ExportButton' });
 

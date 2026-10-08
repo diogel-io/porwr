@@ -3,7 +3,7 @@ import { relayDiscoveryService } from './relay-discovery';
 import { fetchRelayMetadata } from './relay-metadata';
 import { normalizeRelayUrl } from './relay-url';
 import { logService, LogLevel } from './log-service';
-import type { RelayCatalogEntry } from 'src/types/relay';
+import type { RelayCatalogEntry } from '@/types/relay';
 
 /**
  * Orchestrates the relay browser refresh flow:

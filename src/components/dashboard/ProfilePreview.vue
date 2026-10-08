@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { NostrProfile, StoredKey } from 'src/types';
-import { profileService } from 'src/services/profile-service';
+import type { NostrProfile, StoredKey } from '@/types';
+import { profileService } from '@/services/profile-service';
 
 defineOptions({ name: 'ProfilePreview' });
 

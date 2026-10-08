@@ -4,7 +4,7 @@ import { get, getActive } from './dexie-storage';
 import { LogLevel, logService } from './log-service';
 import { isVaultUnlocked } from './vault-service';
 import { extractWritePreferredRelayUrls, fetchAccountRelayListEvent } from './relay-discovery';
-import { ErrorCode } from 'src/types/error-codes.d';
+import { ErrorCode } from '@/types/error-codes.d';
 import type {
   QuickSignAccountOption,
   QuickSignAvailabilityResult,
@@ -18,7 +18,7 @@ import type {
   QuickSignSanitizedInput,
   QuickSignValidationResult,
   StoredKey
-} from 'src/types/bridge';
+} from '@/types/bridge';
 
 export const QUICK_SIGN_SUPPORTED_KINDS = [1, 30023] as const;
 export type QuickSignSupportedKind = (typeof QUICK_SIGN_SUPPORTED_KINDS)[number];

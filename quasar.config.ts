@@ -59,14 +59,6 @@ export default defineConfig((ctx) => {
       defineEnv: {
         APP_VERSION: pkg.version,
       },
-      // TEMPORARY: the import shortcuts @quasar/app-vite 2 provided, removed in the next commit (#210).
-      alias: {
-        src: ctx.appPaths.srcDir,
-        app: ctx.appPaths.appDir,
-        components: ctx.appPaths.resolve.src('components'),
-        layouts: ctx.appPaths.resolve.src('layouts'),
-        pages: ctx.appPaths.resolve.src('pages'),
-      },
       // ignorePublicFolder: true,
       // minify: false,
       // distDir

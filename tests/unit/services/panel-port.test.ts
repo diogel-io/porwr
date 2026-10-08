@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 'debug' },
   logService: { log: vi.fn() },
 }));
 
-import { PANEL_PORT_NAME, connectPanelPort } from 'src/services/panel-port';
+import { PANEL_PORT_NAME, connectPanelPort } from '@/services/panel-port';
 
 const connect = vi.fn();
 const disconnect = vi.fn();

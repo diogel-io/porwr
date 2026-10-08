@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
 
-import { useVault } from 'src/composables/useVault';
-import type { ApprovalRequestRecord } from 'app/src-bex/types/background';
+import { useVault } from '@/composables/useVault';
+import type { ApprovalRequestRecord } from '@/../src-bex/types/background';
 
 defineOptions({ name: 'SidebarUnlock' });
 

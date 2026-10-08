@@ -2,13 +2,13 @@
 import { onMounted, ref, watch, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import type { NostrProfile, StoredKey } from 'src/types';
+import type { NostrProfile, StoredKey } from '@/types';
 import { finalizeEvent, getPublicKey, SimplePool } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
-import useSettingsStore from 'src/stores/settings-store';
-import { notifyProfileChanged } from 'src/services/profile-service';
-import BannerEditor from 'components/dashboard/BannerEditor.vue';
-import AvatarEditor from 'components/dashboard/AvatarEditor.vue';
+import useSettingsStore from '@/stores/settings-store';
+import { notifyProfileChanged } from '@/services/profile-service';
+import BannerEditor from '@/components/dashboard/BannerEditor.vue';
+import AvatarEditor from '@/components/dashboard/AvatarEditor.vue';
 
 defineOptions({ name: 'ProfileImage' });
 

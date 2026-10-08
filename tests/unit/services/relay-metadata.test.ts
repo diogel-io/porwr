@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getNip11Url, fetchRelayMetadata } from 'src/services/relay-metadata';
+import { getNip11Url, fetchRelayMetadata } from '@/services/relay-metadata';
 
 describe('Relay Metadata Service', () => {
   describe('getNip11Url', () => {

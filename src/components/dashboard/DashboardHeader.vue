@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import AccountDropdown from 'components/shared/AccountDropdown.vue';
+import AccountDropdown from '@/components/shared/AccountDropdown.vue';
 
 
 const route = useRoute();

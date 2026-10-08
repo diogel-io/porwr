@@ -7,7 +7,7 @@ import {
   getSiteAccount,
   switchSiteToActiveAccount,
   type SiteAccount,
-} from 'src/services/connected-sites-service';
+} from '@/services/connected-sites-service';
 
 defineOptions({ name: 'SiteAccountNotice' });
 

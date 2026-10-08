@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 
-import ProfilePage from 'src/pages/dashboard/ProfilePage.vue';
-import type { StoredKey } from 'src/types';
+import ProfilePage from '@/pages/dashboard/ProfilePage.vue';
+import type { StoredKey } from '@/types';
 
 const getKeysMock = vi.fn(() => Promise.resolve());
 const replaceMock = vi.fn(() => Promise.resolve());
@@ -22,7 +22,7 @@ const routeState = reactive<{
   query: {},
 });
 
-vi.mock('src/stores/account-store', () => ({
+vi.mock('@/stores/account-store', () => ({
   default: () => ({
     getKeys: getKeysMock,
     get activeKey() {

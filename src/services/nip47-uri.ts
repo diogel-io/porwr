@@ -1,6 +1,6 @@
 import { getPublicKey } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
-import type { ParsedNwcUri } from 'src/types/nip47';
+import type { ParsedNwcUri } from '@/types/nip47';
 
 const HEX_64 = /^[0-9a-fA-F]{64}$/;
 

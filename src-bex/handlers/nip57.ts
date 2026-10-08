@@ -1,21 +1,21 @@
 import type { HandlerResult } from '../types/background';
-import type { StoredKey } from 'src/types';
+import type { StoredKey } from '@/types';
 import { resolveSigningAccount } from '../services/signing-account';
-import type { VaultData } from 'src/types/bridge';
+import type { VaultData } from '@/types/bridge';
 import type {
   Nip57ZapHistoryEntry,
   SendZapErrorCode,
   SendZapRequest,
   SendZapResult,
   ZapCapabilities,
-} from 'src/types/nip57';
+} from '@/types/nip57';
 import { getVaultData, updateVaultData } from '../vault';
 import { findNip47Connection, listNip47Connections } from '../services/nip47-connection-store';
 import { nip47Client } from '../services/nip47-client';
 import { appendNip57ZapHistory, listNip57ZapHistory } from '../services/nip57-zap-history-store';
-import { assertLnurlAmount, fetchLnurlPayTarget, requestZapInvoice } from 'src/services/nip57-lnurl';
-import { signZapRequest } from 'src/services/nip57-zap-request';
-import { parseBolt11AmountMsat, previewInvoice } from 'src/services/nip47-invoice';
+import { assertLnurlAmount, fetchLnurlPayTarget, requestZapInvoice } from '@/services/nip57-lnurl';
+import { signZapRequest } from '@/services/nip57-zap-request';
+import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 
 async function requireUnlockedVaultData(): Promise<VaultData> {
   const result = await getVaultData();

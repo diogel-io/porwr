@@ -60,7 +60,7 @@
 
 <script lang="ts" setup>
 import { watch } from 'vue';
-import { useAccounts } from 'src/composables/useAccounts';
+import { useAccounts } from '@/composables/useAccounts';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

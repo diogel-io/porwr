@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { StoredKey } from 'src/types';
+import type { StoredKey } from '@/types';
 
 const mockIsVaultUnlocked = vi.fn();
 const mockGetVaultData = vi.fn();
@@ -10,13 +10,13 @@ const mockStorageSet = vi.fn();
 const mockApprovalModify = vi.fn();
 const mockExceptionModify = vi.fn();
 
-vi.mock('src/services/vault-service', () => ({
+vi.mock('@/services/vault-service', () => ({
   isVaultUnlocked: mockIsVaultUnlocked,
   getVaultData: mockGetVaultData,
   updateVaultData: mockUpdateVaultData,
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   NOSTR_ACTIVE: 'NOSTR_ACTIVE',
   storageService: {
     get: mockStorageGet,
@@ -24,7 +24,7 @@ vi.mock('src/services/storage-service', () => ({
   },
 }));
 
-vi.mock('src/services/database', () => ({
+vi.mock('@/services/database', () => ({
   db: {
     approvals: {
       where: vi.fn().mockReturnThis(),
@@ -62,7 +62,7 @@ describe('dexie-storage renameAlias', () => {
   });
 
   it('renames alias, keeps key material unchanged, updates active alias, and migrates logs', async () => {
-    const { renameAlias } = await import('src/services/dexie-storage');
+    const { renameAlias } = await import('@/services/dexie-storage');
 
     await renameAlias('alpha', '  beta  ');
 
@@ -83,14 +83,14 @@ describe('dexie-storage renameAlias', () => {
   });
 
   it('rejects empty aliases after trimming', async () => {
-    const { renameAlias } = await import('src/services/dexie-storage');
+    const { renameAlias } = await import('@/services/dexie-storage');
 
     await expect(renameAlias('alpha', '   ')).rejects.toThrow('Alias is required.');
     expect(mockUpdateVaultData).not.toHaveBeenCalled();
   });
 
   it('rejects reserved alias', async () => {
-    const { renameAlias } = await import('src/services/dexie-storage');
+    const { renameAlias } = await import('@/services/dexie-storage');
 
     await expect(renameAlias('alpha', 'Main Account')).rejects.toThrow('Alias "Main Account" is reserved.');
     expect(mockUpdateVaultData).not.toHaveBeenCalled();
@@ -112,7 +112,7 @@ describe('dexie-storage renameAlias', () => {
       },
     });
 
-    const { renameAlias } = await import('src/services/dexie-storage');
+    const { renameAlias } = await import('@/services/dexie-storage');
 
     await expect(renameAlias('alpha', 'beta')).rejects.toThrow('Key with the same alias already exists.');
     expect(mockUpdateVaultData).not.toHaveBeenCalled();
@@ -134,7 +134,7 @@ describe('dexie-storage get', () => {
   it('returns an empty object when the vault is locked', async () => {
     mockIsVaultUnlocked.mockResolvedValue(false);
 
-    const { get } = await import('src/services/dexie-storage');
+    const { get } = await import('@/services/dexie-storage');
 
     await expect(get()).resolves.toEqual({});
     expect(mockGetVaultData).not.toHaveBeenCalled();
@@ -144,7 +144,7 @@ describe('dexie-storage get', () => {
     mockIsVaultUnlocked.mockResolvedValue(true);
     mockGetVaultData.mockResolvedValue({ success: true, vaultData: { accounts: [baseKey] } });
 
-    const { get } = await import('src/services/dexie-storage');
+    const { get } = await import('@/services/dexie-storage');
 
     await expect(get()).resolves.toEqual({ alpha: baseKey });
   });
@@ -153,7 +153,7 @@ describe('dexie-storage get', () => {
     mockIsVaultUnlocked.mockResolvedValue(true);
     mockGetVaultData.mockResolvedValue({ success: false });
 
-    const { get } = await import('src/services/dexie-storage');
+    const { get } = await import('@/services/dexie-storage');
 
     await expect(get()).resolves.toEqual({});
   });
@@ -167,14 +167,14 @@ describe('dexie-storage getActive / setActive', () => {
   it('getActive reads the active alias from storage', async () => {
     mockStorageGet.mockResolvedValue('alpha');
 
-    const { getActive } = await import('src/services/dexie-storage');
+    const { getActive } = await import('@/services/dexie-storage');
 
     await expect(getActive()).resolves.toBe('alpha');
     expect(mockStorageGet).toHaveBeenCalledWith('NOSTR_ACTIVE');
   });
 
   it('setActive writes the alias to storage', async () => {
-    const { setActive } = await import('src/services/dexie-storage');
+    const { setActive } = await import('@/services/dexie-storage');
 
     await setActive('beta');
 
@@ -199,7 +199,7 @@ describe('dexie-storage save', () => {
   it('rejects when the vault is locked', async () => {
     mockIsVaultUnlocked.mockResolvedValue(false);
 
-    const { save } = await import('src/services/dexie-storage');
+    const { save } = await import('@/services/dexie-storage');
 
     await expect(save(baseKey)).rejects.toThrow('Vault is locked. Cannot save key.');
     expect(mockUpdateVaultData).not.toHaveBeenCalled();
@@ -208,7 +208,7 @@ describe('dexie-storage save', () => {
   it('rejects a duplicate alias', async () => {
     mockGetVaultData.mockResolvedValue({ success: true, vaultData: { accounts: [structuredClone(baseKey)] } });
 
-    const { save } = await import('src/services/dexie-storage');
+    const { save } = await import('@/services/dexie-storage');
 
     await expect(save({ ...baseKey, id: 'different-id' })).rejects.toThrow(
       'Key with the same alias already exists.',
@@ -218,7 +218,7 @@ describe('dexie-storage save', () => {
   it('rejects a duplicate id (npub)', async () => {
     mockGetVaultData.mockResolvedValue({ success: true, vaultData: { accounts: [structuredClone(baseKey)] } });
 
-    const { save } = await import('src/services/dexie-storage');
+    const { save } = await import('@/services/dexie-storage');
 
     await expect(save({ ...baseKey, alias: 'different-alias' })).rejects.toThrow(
       'Key with the same npub already exists.',
@@ -228,7 +228,7 @@ describe('dexie-storage save', () => {
   it('appends the new key and sets it active', async () => {
     mockGetVaultData.mockResolvedValue({ success: true, vaultData: { accounts: [] } });
 
-    const { save } = await import('src/services/dexie-storage');
+    const { save } = await import('@/services/dexie-storage');
     await save(baseKey);
 
     expect(mockUpdateVaultData).toHaveBeenCalledWith({ accounts: [baseKey] });
@@ -252,7 +252,7 @@ describe('dexie-storage remove', () => {
   it('rejects when the vault is locked', async () => {
     mockIsVaultUnlocked.mockResolvedValue(false);
 
-    const { remove } = await import('src/services/dexie-storage');
+    const { remove } = await import('@/services/dexie-storage');
 
     await expect(remove('pubkey-hex')).rejects.toThrow('Vault is locked. Cannot remove key.');
   });
@@ -260,7 +260,7 @@ describe('dexie-storage remove', () => {
   it('removes the matching account by id', async () => {
     mockGetVaultData.mockResolvedValue({ success: true, vaultData: { accounts: [structuredClone(baseKey)] } });
 
-    const { remove } = await import('src/services/dexie-storage');
+    const { remove } = await import('@/services/dexie-storage');
     await remove('pubkey-hex');
 
     expect(mockUpdateVaultData).toHaveBeenCalledWith({ accounts: [] });
@@ -269,7 +269,7 @@ describe('dexie-storage remove', () => {
   it('is a no-op when the id is not found', async () => {
     mockGetVaultData.mockResolvedValue({ success: true, vaultData: { accounts: [structuredClone(baseKey)] } });
 
-    const { remove } = await import('src/services/dexie-storage');
+    const { remove } = await import('@/services/dexie-storage');
     await remove('does-not-exist');
 
     expect(mockUpdateVaultData).not.toHaveBeenCalled();

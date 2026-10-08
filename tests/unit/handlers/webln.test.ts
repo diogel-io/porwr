@@ -4,18 +4,18 @@ import {
   handleWebLnEnable,
   handleWebLnGetInfo,
   handleWebLnSendPayment,
-} from 'app/src-bex/handlers/webln';
-import { getVaultData, updateVaultData } from 'app/src-bex/vault';
-import { handleNip47PayInvoice } from 'app/src-bex/handlers/nip47';
-import type { VaultData } from 'src/types/bridge';
-import type { Nip47Connection } from 'src/types/nip47';
+} from '@/../src-bex/handlers/webln';
+import { getVaultData, updateVaultData } from '@/../src-bex/vault';
+import { handleNip47PayInvoice } from '@/../src-bex/handlers/nip47';
+import type { VaultData } from '@/types/bridge';
+import type { Nip47Connection } from '@/types/nip47';
 
-vi.mock('app/src-bex/vault', () => ({
+vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(),
   updateVaultData: vi.fn(),
 }));
 
-vi.mock('app/src-bex/handlers/nip47', () => ({
+vi.mock('@/../src-bex/handlers/nip47', () => ({
   handleNip47PayInvoice: vi.fn(),
 }));
 

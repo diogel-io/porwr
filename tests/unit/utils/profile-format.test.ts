@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { formatBirthday, normalizeWebsiteUrl } from 'src/utils/profile-format';
+import { formatBirthday, normalizeWebsiteUrl } from '@/utils/profile-format';
 
 /**
  * Shared profile formatting (#201).

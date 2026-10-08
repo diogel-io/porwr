@@ -7,11 +7,11 @@ const mocks = vi.hoisted(() => ({
   removeBinding: vi.fn(),
 }));
 
-vi.mock('app/src-bex/handlers/permission-handler', () => ({
+vi.mock('@/../src-bex/handlers/permission-handler', () => ({
   getGrantedPermissions: mocks.getGrantedPermissions,
   revokePermission: mocks.revokePermission,
 }));
-vi.mock('app/src-bex/services/site-binding-store', () => ({
+vi.mock('@/../src-bex/services/site-binding-store', () => ({
   listBindings: mocks.listBindings,
   removeBinding: mocks.removeBinding,
 }));
@@ -20,7 +20,7 @@ import {
   countSitesHoldingGrantsFor,
   disconnectSite,
   listConnectedSites,
-} from 'app/src-bex/services/connected-sites';
+} from '@/../src-bex/services/connected-sites';
 
 const ALICE = 'a'.repeat(64);
 const BOB = 'b'.repeat(64);

@@ -1,29 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('app/src-bex/vault', () => ({
+vi.mock('@/../src-bex/vault', () => ({
   isVaultUnlocked: vi.fn(() => true),
   getVaultData: vi.fn(),
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   storageService: { get: vi.fn(), set: vi.fn(() => Promise.resolve()) },
   NOSTR_ACTIVE: 'nostr_active_account',
   SITE_BINDINGS_KEY: 'nostr:site-bindings',
 }));
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { INFO: 'info' },
   logService: { log: vi.fn() },
 }));
 
-import { getVaultData, isVaultUnlocked } from 'app/src-bex/vault';
-import { storageService } from 'src/services/storage-service';
-import { clearSiteBindingCache } from 'app/src-bex/services/site-binding-store';
+import { getVaultData, isVaultUnlocked } from '@/../src-bex/vault';
+import { storageService } from '@/services/storage-service';
+import { clearSiteBindingCache } from '@/../src-bex/services/site-binding-store';
 import {
   resolveSigningAccount,
   resolveSigningSecretKey,
-} from 'app/src-bex/services/signing-account';
-import { ErrorCode } from 'src/types/error-codes.d';
+} from '@/../src-bex/services/signing-account';
+import { ErrorCode } from '@/types/error-codes.d';
 
 const alice = { id: 'a'.repeat(64), alias: 'alice', account: { privkey: '11'.repeat(32) } };
 const bob = { id: 'b'.repeat(64), alias: 'bob', account: { privkey: '22'.repeat(32) } };

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { get, getActive } from 'src/services/dexie-storage';
-import { LogLevel, logService } from 'src/services/log-service';
-import { isVaultUnlocked, sendBexMessage } from 'src/services/vault-service';
+import { get, getActive } from '@/services/dexie-storage';
+import { LogLevel, logService } from '@/services/log-service';
+import { isVaultUnlocked, sendBexMessage } from '@/services/vault-service';
 import {
   buildQuickSignPreviewEvent,
   getQuickSignAvailability,
@@ -11,14 +11,14 @@ import {
   quickSignEvent,
   validateQuickSignContent,
   validateQuickSignInput,
-} from 'src/services/quick-sign-service';
+} from '@/services/quick-sign-service';
 
-vi.mock('src/services/dexie-storage', () => ({
+vi.mock('@/services/dexie-storage', () => ({
   get: vi.fn(),
   getActive: vi.fn(),
 }));
 
-vi.mock('src/services/vault-service', () => ({
+vi.mock('@/services/vault-service', () => ({
   isVaultUnlocked: vi.fn(),
   sendBexMessage: vi.fn(),
 }));
@@ -39,7 +39,7 @@ const { settingsStoreMock } = vi.hoisted(() => {
   return { settingsStoreMock: mock };
 });
 
-vi.mock('src/stores/settings-store', () => ({
+vi.mock('@/stores/settings-store', () => ({
   default: () => settingsStoreMock,
 }));
 

@@ -2,9 +2,9 @@
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
-import useAccountStore from 'src/stores/account-store';
-import type { ContactProfile, ContactSearchResult, Nip02Contact } from 'src/types/contact-list';
-import type { StoredKey } from 'src/types';
+import useAccountStore from '@/stores/account-store';
+import type { ContactProfile, ContactSearchResult, Nip02Contact } from '@/types/contact-list';
+import type { StoredKey } from '@/types';
 import {
   fetchContactList,
   fetchContactProfiles,
@@ -12,7 +12,7 @@ import {
   getContactDisplayName,
   publishContactList,
   searchContacts,
-} from 'src/services/contact-list-service';
+} from '@/services/contact-list-service';
 
 const { t } = useI18n();
 const $q = useQuasar();

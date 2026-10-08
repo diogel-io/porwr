@@ -1,13 +1,13 @@
 import { acceptHMRUpdate, defineStore } from 'pinia';
-import type { StoredKey, VaultData } from 'src/types/bridge';
-import { logService, LogLevel } from 'src/services/log-service';
-import { storageService, VAULT_UNLOCKED } from 'src/services/storage-service';
+import type { StoredKey, VaultData } from '@/types/bridge';
+import { logService, LogLevel } from '@/services/log-service';
+import { storageService, VAULT_UNLOCKED } from '@/services/storage-service';
 import {
   createVault as createVaultBex,
   hasVault as hasVaultBex,
   lockVault as lockVaultBex,
   unlockVault as unlockVaultBex,
-} from 'src/services/vault-service';
+} from '@/services/vault-service';
 
 const useVaultStore = defineStore('vault', {
   state: () => ({

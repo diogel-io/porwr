@@ -18,14 +18,14 @@ vi.mock('nostr-tools', async (importActual) => {
   };
 });
 
-vi.mock('src/stores/settings-store', () => ({
+vi.mock('@/stores/settings-store', () => ({
   default: () => ({
     getFallbackRelays: vi.fn(() => Promise.resolve(['wss://relay.test'])),
     getProfileSearchRelays: vi.fn(() => Promise.resolve(['wss://profile-search.test'])),
   }),
 }));
 
-import { searchContacts } from 'src/services/contact-list-service';
+import { searchContacts } from '@/services/contact-list-service';
 
 const pubkeyOne = '0'.repeat(63) + '1';
 const pubkeyTwo = '0'.repeat(63) + '2';

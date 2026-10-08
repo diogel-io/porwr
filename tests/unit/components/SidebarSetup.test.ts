@@ -21,11 +21,11 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('src/composables/useVault', () => ({
+vi.mock('@/composables/useVault', () => ({
   useVault: () => holder.vault,
 }));
 
-import SidebarSetup from 'components/sidebar/SidebarSetup.vue';
+import SidebarSetup from '@/components/sidebar/SidebarSetup.vue';
 
 const mountForm = () =>
   mount(SidebarSetup, {

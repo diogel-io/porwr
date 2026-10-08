@@ -1,71 +1,71 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { VaultData } from 'src/types/bridge';
-import type { Nip47Connection } from 'src/types/nip47';
-import type { SendZapRequest } from 'src/types/nip57';
-import { ErrorCode } from 'src/types/error-codes.d';
+import type { VaultData } from '@/types/bridge';
+import type { Nip47Connection } from '@/types/nip47';
+import type { SendZapRequest } from '@/types/nip57';
+import { ErrorCode } from '@/types/error-codes.d';
 
 /* eslint-disable @typescript-eslint/unbound-method */
 
-vi.mock('app/src-bex/vault', () => ({
+vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(),
   updateVaultData: vi.fn(),
   isVaultUnlocked: vi.fn(() => true),
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   NOSTR_ACTIVE: 'NOSTR_ACTIVE',
   SITE_BINDINGS_KEY: 'nostr:site-bindings',
   storageService: { get: vi.fn(), set: vi.fn(() => Promise.resolve()) },
 }));
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { INFO: 'info' },
   logService: { log: vi.fn() },
 }));
 
-vi.mock('app/src-bex/services/nip47-connection-store', () => ({
+vi.mock('@/../src-bex/services/nip47-connection-store', () => ({
   findNip47Connection: vi.fn(),
   listNip47Connections: vi.fn(),
 }));
 
-vi.mock('app/src-bex/services/nip47-client', () => ({
+vi.mock('@/../src-bex/services/nip47-client', () => ({
   nip47Client: { payInvoice: vi.fn() },
 }));
 
-vi.mock('app/src-bex/services/nip57-zap-history-store', () => ({
+vi.mock('@/../src-bex/services/nip57-zap-history-store', () => ({
   appendNip57ZapHistory: vi.fn((vaultData: VaultData) => vaultData),
   listNip57ZapHistory: vi.fn(),
 }));
 
-vi.mock('src/services/nip57-lnurl', () => ({
+vi.mock('@/services/nip57-lnurl', () => ({
   assertLnurlAmount: vi.fn(),
   fetchLnurlPayTarget: vi.fn(),
   requestZapInvoice: vi.fn(),
 }));
 
-vi.mock('src/services/nip57-zap-request', () => ({
+vi.mock('@/services/nip57-zap-request', () => ({
   signZapRequest: vi.fn(),
 }));
 
-vi.mock('src/services/nip47-invoice', () => ({
+vi.mock('@/services/nip47-invoice', () => ({
   parseBolt11AmountMsat: vi.fn(),
   previewInvoice: vi.fn((invoice: string) => `preview:${invoice}`),
 }));
 
-import { getVaultData, updateVaultData } from 'app/src-bex/vault';
-import { storageService } from 'src/services/storage-service';
-import { clearSiteBindingCache } from 'app/src-bex/services/site-binding-store';
-import { findNip47Connection, listNip47Connections } from 'app/src-bex/services/nip47-connection-store';
-import { nip47Client } from 'app/src-bex/services/nip47-client';
-import { appendNip57ZapHistory, listNip57ZapHistory } from 'app/src-bex/services/nip57-zap-history-store';
-import { assertLnurlAmount, fetchLnurlPayTarget, requestZapInvoice } from 'src/services/nip57-lnurl';
-import { signZapRequest } from 'src/services/nip57-zap-request';
-import { parseBolt11AmountMsat } from 'src/services/nip47-invoice';
+import { getVaultData, updateVaultData } from '@/../src-bex/vault';
+import { storageService } from '@/services/storage-service';
+import { clearSiteBindingCache } from '@/../src-bex/services/site-binding-store';
+import { findNip47Connection, listNip47Connections } from '@/../src-bex/services/nip47-connection-store';
+import { nip47Client } from '@/../src-bex/services/nip47-client';
+import { appendNip57ZapHistory, listNip57ZapHistory } from '@/../src-bex/services/nip57-zap-history-store';
+import { assertLnurlAmount, fetchLnurlPayTarget, requestZapInvoice } from '@/services/nip57-lnurl';
+import { signZapRequest } from '@/services/nip57-zap-request';
+import { parseBolt11AmountMsat } from '@/services/nip47-invoice';
 import {
   handleNip57GetCapabilities,
   handleNip57SendZap,
   handleNip57ZapHistoryList,
-} from 'app/src-bex/handlers/nip57';
+} from '@/../src-bex/handlers/nip57';
 
 function buildConnection(overrides: Partial<Nip47Connection> = {}): Nip47Connection {
   return {

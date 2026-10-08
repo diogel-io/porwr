@@ -1,7 +1,7 @@
 import { db } from './database';
-import { ErrorCode } from 'src/types/error-codes.d';
+import { ErrorCode } from '@/types/error-codes.d';
 import { LogLevel, logService } from './log-service';
-import type { VaultData } from 'src/types/bridge';
+import type { VaultData } from '@/types/bridge';
 import { sendBexMessage } from './bridge-client';
 
 // Re-exported for existing callers; the implementation moved to `bridge-client.ts` when the

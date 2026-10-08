@@ -7,7 +7,7 @@ import type {
   Nip47InfoResponse,
   Nip47PayInvoiceResponse,
   Nip47PaymentHistoryEntry,
-} from 'src/types/nip47';
+} from '@/types/nip47';
 
 function isErrorResponse(value: unknown): value is { success: false; error: string } {
   return Boolean(

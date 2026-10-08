@@ -2,7 +2,7 @@ import {
   REQUEST_EXPIRY_DEFAULT_MINUTES,
   REQUEST_EXPIRY_MAX_MINUTES,
   REQUEST_EXPIRY_MIN_MINUTES,
-} from 'src/services/request-expiry';
+} from '@/services/request-expiry';
 
 export const REQUEST_TIMEOUT_MS = 60000;
 

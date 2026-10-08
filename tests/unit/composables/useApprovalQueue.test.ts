@@ -9,17 +9,17 @@ const { sendBexMessage, connectPanelPort, disconnect, portOptions } = vi.hoisted
   portOptions: { current: undefined as { onQueueChanged?: () => void; onReconnect?: () => void } | undefined },
 }));
 
-vi.mock('src/services/bridge-client', () => ({ sendBexMessage }));
-vi.mock('src/services/panel-port', () => ({
+vi.mock('@/services/bridge-client', () => ({ sendBexMessage }));
+vi.mock('@/services/panel-port', () => ({
   PANEL_PORT_NAME: 'porwr-panel',
   connectPanelPort,
 }));
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 'debug' },
   logService: { log: vi.fn() },
 }));
 
-import { resetApprovalQueue, useApprovalQueue } from 'src/composables/useApprovalQueue';
+import { resetApprovalQueue, useApprovalQueue } from '@/composables/useApprovalQueue';
 
 const Consumer = defineComponent({
   name: 'QueueConsumer',

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 
-import { getRiskWarning, type RequestRiskClass } from 'src/services/approval-preview';
+import { getRiskWarning, type RequestRiskClass } from '@/services/approval-preview';
 
 defineOptions({ name: 'RequestRiskWarning' });
 

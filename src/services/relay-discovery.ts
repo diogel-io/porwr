@@ -1,6 +1,6 @@
 import { SimplePool, type Event } from 'nostr-tools';
 import { normalizeRelayUrl } from './relay-url';
-import useSettingsStore from 'src/stores/settings-store';
+import useSettingsStore from '@/stores/settings-store';
 
 export interface RelayListEntry {
   url: string;

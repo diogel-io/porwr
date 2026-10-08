@@ -19,11 +19,11 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-vi.mock('src/composables/useVault', () => ({
+vi.mock('@/composables/useVault', () => ({
   useVault: () => ({ handleLock: testState.handleLock }),
 }));
 
-vi.mock('src/stores/vault-store', () => ({
+vi.mock('@/stores/vault-store', () => ({
   default: () => ({
     get isUnlocked() {
       return testState.isUnlocked;
@@ -33,12 +33,12 @@ vi.mock('src/stores/vault-store', () => ({
 
 const pendingCount = ref(0);
 
-vi.mock('src/composables/useApprovalQueue', () => ({
+vi.mock('@/composables/useApprovalQueue', () => ({
   useApprovalQueue: () => ({ pendingCount: computed(() => pendingCount.value) }),
 }));
 
 const mountLayout = async () => {
-  const SidebarLayout = (await import('src/layouts/sidebar/Layout.vue')).default;
+  const SidebarLayout = (await import('@/layouts/sidebar/Layout.vue')).default;
 
   return mount(SidebarLayout, {
     global: {

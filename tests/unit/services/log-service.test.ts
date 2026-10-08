@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { logService, LogLevel } from 'src/services/log-service';
-import { db } from 'src/services/database';
+import { logService, LogLevel } from '@/services/log-service';
+import { db } from '@/services/database';
 
 // Mock the database
-vi.mock('src/services/database', () => ({
+vi.mock('@/services/database', () => ({
   db: {
     exceptions: {
       add: vi.fn().mockResolvedValue(1),

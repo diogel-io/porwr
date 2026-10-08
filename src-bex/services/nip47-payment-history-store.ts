@@ -1,5 +1,5 @@
-import type { Nip47PaymentHistoryEntry } from 'src/types/nip47';
-import type { VaultData } from 'src/types/bridge';
+import type { Nip47PaymentHistoryEntry } from '@/types/nip47';
+import type { VaultData } from '@/types/bridge';
 
 const MAX_PAYMENT_HISTORY_ENTRIES = 100;
 

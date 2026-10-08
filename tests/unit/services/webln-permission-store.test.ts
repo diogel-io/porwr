@@ -4,8 +4,8 @@ import {
   hasWebLnPermission,
   listWebLnPermissions,
   upsertWebLnPermission,
-} from 'app/src-bex/services/webln-permission-store';
-import type { VaultData } from 'src/types/bridge';
+} from '@/../src-bex/services/webln-permission-store';
+import type { VaultData } from '@/types/bridge';
 
 describe('webln-permission-store', () => {
   it('lists empty permissions for vaults without WebLN grants', () => {

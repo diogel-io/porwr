@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
-import useSettingsStore from 'src/stores/settings-store';
-import ThemeSwitch from 'components/dashboard/ThemeSwitch.vue';
+import useSettingsStore from '@/stores/settings-store';
+import ThemeSwitch from '@/components/dashboard/ThemeSwitch.vue';
 import type * as Quasar from 'quasar';
 
 type QuasarModule = typeof Quasar;
