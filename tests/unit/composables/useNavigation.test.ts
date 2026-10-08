@@ -46,6 +46,7 @@ describe('useNavigation', () => {
       'relays',
       'connected-sites',
       'contacts',
+      'messaging',
       'media-management',
       'wallet-connections',
       'event-history',
