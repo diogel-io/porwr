@@ -28,10 +28,11 @@ function fakePool(events: { relayList?: Partial<Event> | null; dmList?: Partial<
     if (kind === 10050) return Promise.resolve(events.dmList ?? null);
     return Promise.resolve(null);
   });
-  const publish = vi.fn((relays: string[]) =>
+  const publish = vi.fn((relays: string[], _event?: Event, _params?: { onauth?: unknown }) =>
     relays.map((url) => (url.includes('down') ? Promise.reject(new Error('connection failed')) : Promise.resolve('ok'))),
   );
-  return { pool: { get, publish } as unknown as SimplePool, get, publish };
+  const destroy = vi.fn();
+  return { pool: { get, publish, destroy } as unknown as SimplePool, get, publish, destroy };
 }
 
 beforeEach(() => {
@@ -117,7 +118,7 @@ describe('MessagingRelays', () => {
       dmList: { created_at: 1_700_000_000, tags: [['relay', 'wss://inbox.example']] },
     });
 
-    await expect(new MessagingRelays(pool).fetchDmRelays('a'.repeat(64))).resolves.toEqual({
+    await expect(new MessagingRelays(() => pool).fetchDmRelays('a'.repeat(64))).resolves.toEqual({
       relays: ['wss://inbox.example'],
       updatedAt: 1_700_000_000,
     });
@@ -129,7 +130,7 @@ describe('MessagingRelays', () => {
 
   it('reports no list when the user has never published one', async () => {
     const { pool } = fakePool();
-    await expect(new MessagingRelays(pool).fetchDmRelays('a'.repeat(64))).resolves.toEqual({
+    await expect(new MessagingRelays(() => pool).fetchDmRelays('a'.repeat(64))).resolves.toEqual({
       relays: [],
       updatedAt: null,
     });
@@ -137,9 +138,9 @@ describe('MessagingRelays', () => {
 
   it('signs a kind 10050 with the given key and spreads it to every relay that should hold it', async () => {
     const secretKey = generateSecretKey();
-    const { pool, publish } = fakePool({ relayList: { tags: [['r', 'wss://write.example']] } });
+    const { pool, publish, destroy } = fakePool({ relayList: { tags: [['r', 'wss://write.example']] } });
 
-    const result = await new MessagingRelays(pool).publishDmRelays(secretKey, [
+    const result = await new MessagingRelays(() => pool).publishDmRelays(secretKey, [
       'wss://inbox.example',
       'wss://down.example',
     ]);
@@ -157,5 +158,25 @@ describe('MessagingRelays', () => {
     expect(result.relays).toEqual(['wss://inbox.example', 'wss://down.example']);
     expect(result.accepted).toEqual([...FALLBACK, 'wss://write.example', 'wss://inbox.example']);
     expect(result.rejected).toEqual([{ url: 'wss://down.example', reason: 'connection failed' }]);
+
+    // Inbox relays may want NIP-42 AUTH; the connection that authenticates is closed afterwards.
+    const params = publish.mock.calls[0]![2] as unknown as { onauth: (t: object) => Promise<Event> };
+    const auth = await params.onauth({ kind: 22242, created_at: 1, tags: [], content: '' });
+    expect(auth.pubkey).toBe(getPublicKey(secretKey));
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses a looked-up list for a while, then looks again', async () => {
+    let clock = 0;
+    const { pool, get } = fakePool({ dmList: { created_at: 1, tags: [['relay', 'wss://inbox.example']] } });
+    const relays = new MessagingRelays(() => pool, () => clock);
+
+    await relays.lookupDmRelays('a'.repeat(64));
+    await relays.lookupDmRelays('a'.repeat(64));
+    expect(get.mock.calls.filter(([, f]) => f.kinds?.[0] === 10050)).toHaveLength(1);
+
+    clock = 11 * 60 * 1000;
+    await relays.lookupDmRelays('a'.repeat(64));
+    expect(get.mock.calls.filter(([, f]) => f.kinds?.[0] === 10050)).toHaveLength(2);
   });
 });

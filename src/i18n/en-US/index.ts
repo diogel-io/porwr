@@ -418,6 +418,10 @@ export default {
       label: 'Contact Management',
       caption: 'Browse and edit your NIP-02 follow list',
     },
+    messaging: {
+      label: 'Messaging',
+      caption: 'Private messages with your contacts',
+    },
     mediaManagement: {
       label: 'Media Management',
       caption: 'Choose where images are uploaded',
@@ -447,6 +451,36 @@ export default {
       caption: 'Lock the vault immediately',
     },
     newSignature: 'New Signature',
+  },
+  messaging: {
+    title: 'Messaging',
+    dashboardCaption: 'Private, end-to-end encrypted messages with your contacts (NIP-17).',
+    noInbox:
+      'You have no direct message relays, so nobody can send you private messages. Add one to start receiving.',
+    noInboxAction: 'Set up relays',
+    loadError: 'Could not check for new messages. Porwr will try again shortly.',
+    selectPrompt: 'Choose a conversation to start messaging.',
+    list: {
+      label: 'Conversations',
+      contacts: 'Contacts',
+      requests: 'Message requests',
+      noMessages: 'No messages yet',
+      unread: '{count} unread',
+      empty: 'No contacts or messages yet. Add contacts in Contact Management.',
+    },
+    view: {
+      label: 'Conversation with {name}',
+      empty: 'No messages yet. Say hello.',
+      sending: 'Sending…',
+      failed: 'Not sent.',
+      retry: 'Retry',
+      recipientNotReady: "{name} can't receive private messages yet: they have not published direct message relays.",
+    },
+    composer: {
+      label: 'Message',
+      placeholder: 'Write a message. Enter sends, Shift+Enter adds a line.',
+      send: 'Send message',
+    },
   },
   mediaManagement: {
     title: 'Media Management',

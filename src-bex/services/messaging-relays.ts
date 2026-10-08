@@ -5,6 +5,7 @@ import { FALLBACK_RELAYS, storageService } from '@/services/storage-service';
 import { normalizeRelayUrl } from '@/services/relay-url';
 import { RELAY_SEEDS } from '@/data/relay-seeds';
 import { DM_RELAY_LIST_KIND } from '@/types/messaging';
+import { authSigner } from './relay-auth';
 import type { DmRelayList, DmRelayPublishResult } from '@/types/messaging';
 
 const RELAY_LIST_KIND = 10002;
@@ -16,6 +17,12 @@ const RELAY_LIST_KIND = 10002;
  */
 const FETCH_WAIT_MS = 1_500;
 const PUBLISH_WAIT_MS = 2_500;
+
+/**
+ * How long a looked-up DM relay list is reused when sending. A kind 10050 rarely changes, and
+ * sending needs both the sender's and the recipient's list inside one 5 s round trip.
+ */
+const DM_RELAY_CACHE_MS = 10 * 60 * 1000;
 
 function normalizeAll(urls: readonly string[]): string[] {
   const seen = new Set<string>();
@@ -88,7 +95,34 @@ function reasonOf(error: unknown): string {
 }
 
 export class MessagingRelays {
-  constructor(private readonly pool: SimplePool = new SimplePool()) {}
+  private readonly dmRelayCache = new Map<string, { list: DmRelayList; at: number }>();
+
+  /** Unauthenticated reads of public lists only. Never given an AUTH signer, so it is safe to share. */
+  private readonly pool: SimplePool;
+
+  constructor(
+    private readonly createPool: () => SimplePool = () => new SimplePool(),
+    private readonly now: () => number = Date.now,
+  ) {
+    this.pool = createPool();
+  }
+
+  /**
+   * A DM relay list for sending or reading messages, reused for a few minutes.
+   *
+   * The Relays page uses `fetchDmRelays` instead, so what it shows is never stale.
+   */
+  async lookupDmRelays(pubkey: string): Promise<DmRelayList> {
+    const cached = this.dmRelayCache.get(pubkey);
+    if (cached && this.now() - cached.at < DM_RELAY_CACHE_MS) {
+      return cached.list;
+    }
+    return this.fetchDmRelays(pubkey);
+  }
+
+  clearCache(): void {
+    this.dmRelayCache.clear();
+  }
 
   async fetchDmRelays(pubkey: string): Promise<DmRelayList> {
     const fallback = await getFallbackRelays();
@@ -98,14 +132,20 @@ export class MessagingRelays {
       { kinds: [DM_RELAY_LIST_KIND], authors: [pubkey] },
       { maxWait: FETCH_WAIT_MS },
     );
-    return event ? { relays: parseDmRelayList(event), updatedAt: event.created_at } : { relays: [], updatedAt: null };
+    const list: DmRelayList = event
+      ? { relays: parseDmRelayList(event), updatedAt: event.created_at }
+      : { relays: [], updatedAt: null };
+    this.dmRelayCache.set(pubkey, { list, at: this.now() });
+    return list;
   }
 
   /**
    * Signs and publishes the user's kind 10050.
    *
    * NIP-17 asks for the list to be spread as widely as is viable, so it goes to the fallback
-   * relays, the user's NIP-65 write relays, and the DM relays themselves.
+   * relays, the user's NIP-65 write relays, and the DM relays themselves. Inbox relays often require
+   * NIP-42 AUTH before accepting an event, so this authenticates as the account, on a pool opened
+   * for this publish alone and closed afterwards.
    */
   async publishDmRelays(secretKey: Uint8Array, relays: readonly string[]): Promise<DmRelayPublishResult> {
     const pubkey = getPublicKey(secretKey);
@@ -114,7 +154,15 @@ export class MessagingRelays {
     const targets = normalizeAll([...fallback, ...ownWriteRelays, ...relays]);
 
     const event = finalizeEvent(buildDmRelayListTemplate(relays, Math.floor(Date.now() / 1000)), secretKey);
-    const outcomes = await Promise.allSettled(this.pool.publish(targets, event, { maxWait: PUBLISH_WAIT_MS }));
+    const publishPool = this.createPool();
+    let outcomes: PromiseSettledResult<string>[];
+    try {
+      outcomes = await Promise.allSettled(
+        publishPool.publish(targets, event, { maxWait: PUBLISH_WAIT_MS, onauth: authSigner(secretKey) }),
+      );
+    } finally {
+      publishPool.destroy();
+    }
 
     const accepted: string[] = [];
     const rejected: { url: string; reason: string }[] = [];
@@ -124,6 +172,9 @@ export class MessagingRelays {
       else rejected.push({ url, reason: reasonOf(outcome.reason) });
     });
 
+    if (accepted.length > 0) {
+      this.dmRelayCache.set(pubkey, { list: { relays: [...relays], updatedAt: event.created_at }, at: this.now() });
+    }
     return { relays: [...relays], accepted, rejected };
   }
 

@@ -83,6 +83,14 @@ export function useNavigation(): UseNavigationResult {
       isActive: () => routeName.value === 'contacts',
     },
     {
+      id: 'messaging',
+      icon: 'chat',
+      label: t('navigation.messaging.label'),
+      caption: t('navigation.messaging.caption'),
+      target: { name: 'messaging' },
+      isActive: () => routeName.value === 'messaging',
+    },
+    {
       id: 'media-management',
       icon: 'perm_media',
       label: t('navigation.mediaManagement.label'),
