@@ -1,5 +1,5 @@
 import { onBeforeUnmount, onMounted } from 'vue';
-import useVaultStore from 'src/stores/vault-store';
+import useVaultStore from '@/stores/vault-store';
 
 const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
   'mousemove',

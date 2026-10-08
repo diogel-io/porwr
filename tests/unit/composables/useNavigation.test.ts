@@ -1,8 +1,8 @@
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useNavigation } from 'src/composables/useNavigation';
-import type { NavigationItem, UtilityLinkItem } from 'src/types/navigation';
+import { useNavigation } from '@/composables/useNavigation';
+import type { NavigationItem, UtilityLinkItem } from '@/types/navigation';
 
 const testState = vi.hoisted(() => ({
   route: { name: 'dashboard' as string },

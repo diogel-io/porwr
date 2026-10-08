@@ -10,7 +10,7 @@
  * happens because the active account changed.
  */
 
-import { ErrorCode } from 'src/types/error-codes.d';
+import { ErrorCode } from '@/types/error-codes.d';
 import { isVaultUnlocked } from '../vault';
 import { disconnectSite } from './connected-sites';
 import { normalizeOrigin } from './origin';

@@ -1,7 +1,7 @@
-import { relayCatalogService } from 'src/services/relay-catalog';
-import { relayBrowserOrchestrator } from 'src/services/relay-browser-orchestrator';
-import { logService, LogLevel } from 'src/services/log-service';
-import type { RelayCatalogEntry, RelayDiscoveryState } from 'src/types/relay';
+import { relayCatalogService } from '@/services/relay-catalog';
+import { relayBrowserOrchestrator } from '@/services/relay-browser-orchestrator';
+import { logService, LogLevel } from '@/services/log-service';
+import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
 import type { HandlerResult } from '../types/background';
 
 /**

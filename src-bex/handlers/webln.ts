@@ -1,12 +1,12 @@
 import type { HandlerResult } from '../types/background';
-import type { VaultData } from 'src/types/bridge';
+import type { VaultData } from '@/types/bridge';
 import type {
   WebLnEnableRequest,
   WebLnGetInfoRequest,
   WebLnGetInfoResponse,
   WebLnSendPaymentRequest,
   WebLnSendPaymentResponse,
-} from 'src/types/webln';
+} from '@/types/webln';
 import { getVaultData, updateVaultData } from '../vault';
 import { listNip47Connections } from '../services/nip47-connection-store';
 import { handleNip47PayInvoice } from './nip47';

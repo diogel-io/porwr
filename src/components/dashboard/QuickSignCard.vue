@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { get, getActive } from 'src/services/dexie-storage';
+import { get, getActive } from '@/services/dexie-storage';
 import {
   buildQuickSignPreviewEvent,
   getQuickSignAvailability,
@@ -10,13 +10,13 @@ import {
   quickSignEvent,
   type QuickSignSupportedKind,
   type QuickSignTagType,
-} from 'src/services/quick-sign-service';
+} from '@/services/quick-sign-service';
 import type {
   QuickSignAccountOption,
   QuickSignFormInput,
   QuickSignPreparedEvent,
   QuickSignTagInput,
-} from 'src/types';
+} from '@/types';
 
 const { t } = useI18n();
 

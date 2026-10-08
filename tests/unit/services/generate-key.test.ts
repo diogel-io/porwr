@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { getPublicKey } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
-import { generateKey } from 'src/services/generate-key';
-import { createPubkey } from 'src/types/pubkey';
+import { generateKey } from '@/services/generate-key';
+import { createPubkey } from '@/types/pubkey';
 
 describe('generateKey', () => {
   it('returns a stored key whose id is a valid pubkey derived from its own privkey', () => {

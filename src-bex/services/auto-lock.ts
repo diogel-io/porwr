@@ -7,8 +7,8 @@ import {
   storageService,
   VAULT_AUTO_LOCK_MINUTES,
   VAULT_LAST_ACTIVITY,
-} from 'src/services/storage-service';
-import { LogLevel, logService } from 'src/services/log-service';
+} from '@/services/storage-service';
+import { LogLevel, logService } from '@/services/log-service';
 import { lockVault } from '../vault';
 
 let autoLockTimer: ReturnType<typeof setInterval> | null = null;

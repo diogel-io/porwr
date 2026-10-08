@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildUnsignedZapRequest } from 'src/services/nip57-zap-request';
+import { buildUnsignedZapRequest } from '@/services/nip57-zap-request';
 
 const SENDER = 'a'.repeat(64);
 const RECIPIENT = 'b'.repeat(64);

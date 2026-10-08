@@ -1,28 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleNip44Encrypt, handleNip44Decrypt } from 'app/src-bex/handlers/nip44';
-import { handleVaultGetData, handleVaultIsUnlocked } from 'app/src-bex/handlers/vault-handler';
-import { storageService } from 'src/services/storage-service';
-import { isVaultUnlocked, getVaultData } from 'app/src-bex/vault';
-import { clearSiteBindingCache } from 'app/src-bex/services/site-binding-store';
+import { handleNip44Encrypt, handleNip44Decrypt } from '@/../src-bex/handlers/nip44';
+import { handleVaultGetData, handleVaultIsUnlocked } from '@/../src-bex/handlers/vault-handler';
+import { storageService } from '@/services/storage-service';
+import { isVaultUnlocked, getVaultData } from '@/../src-bex/vault';
+import { clearSiteBindingCache } from '@/../src-bex/services/site-binding-store';
 import { nip44 } from 'nostr-tools';
-import { resetAutoLockTimer } from 'app/src-bex/services/auto-lock';
+import { resetAutoLockTimer } from '@/../src-bex/services/auto-lock';
 
-vi.mock('app/src-bex/handlers/vault-handler', () => ({
+vi.mock('@/../src-bex/handlers/vault-handler', () => ({
   handleVaultIsUnlocked: vi.fn(),
   handleVaultGetData: vi.fn(),
 }));
 
-vi.mock('app/src-bex/vault', () => ({
+vi.mock('@/../src-bex/vault', () => ({
   isVaultUnlocked: vi.fn(),
   getVaultData: vi.fn(),
 }));
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { INFO: 'info' },
   logService: { log: vi.fn() },
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   storageService: {
     get: vi.fn(),
     set: vi.fn(() => Promise.resolve()),
@@ -43,7 +43,7 @@ vi.mock('@noble/hashes/utils', () => ({
   hexToBytes: vi.fn((hex: string) => Buffer.from(hex, 'hex')),
 }));
 
-vi.mock('app/src-bex/services/auto-lock', () => ({
+vi.mock('@/../src-bex/services/auto-lock', () => ({
   resetAutoLockTimer: vi.fn(),
 }));
 

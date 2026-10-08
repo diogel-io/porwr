@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import ActiveKeysCard from 'components/dashboard/ActiveKeysCard.vue';
-import ConnectedRelaysCard from 'components/dashboard/ConnectedRelaysCard.vue';
-import QuickSignCard from 'components/dashboard/QuickSignCard.vue';
-import RecentActivityCard from 'components/dashboard/RecentActivityCard.vue';
-import ApprovedClientsCard from 'components/dashboard/ApprovedClientsCard.vue';
+import ActiveKeysCard from '@/components/dashboard/ActiveKeysCard.vue';
+import ConnectedRelaysCard from '@/components/dashboard/ConnectedRelaysCard.vue';
+import QuickSignCard from '@/components/dashboard/QuickSignCard.vue';
+import RecentActivityCard from '@/components/dashboard/RecentActivityCard.vue';
+import ApprovedClientsCard from '@/components/dashboard/ApprovedClientsCard.vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { getDashboardSummary } from 'src/services/dashboard-service';
-import { type DashboardSummary } from 'src/types';
+import { getDashboardSummary } from '@/services/dashboard-service';
+import { type DashboardSummary } from '@/types';
 
 const { t } = useI18n();
 const router = useRouter();

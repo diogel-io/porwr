@@ -29,9 +29,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useQuasar } from 'quasar';
-import DashboardHeader from 'components/dashboard/DashboardHeader.vue';
-import DashboardNavigation from 'components/dashboard/DashboardNavigation.vue';
-import DashboardFooter from 'components/dashboard/DashboardFooter.vue';
+import DashboardHeader from '@/components/dashboard/DashboardHeader.vue';
+import DashboardNavigation from '@/components/dashboard/DashboardNavigation.vue';
+import DashboardFooter from '@/components/dashboard/DashboardFooter.vue';
 
 defineOptions({ name: 'DashboardLayout' });
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
-import type { DashboardSummary } from 'src/types';
-import ApprovedClientsCard from 'components/dashboard/ApprovedClientsCard.vue';
+import type { DashboardSummary } from '@/types';
+import ApprovedClientsCard from '@/components/dashboard/ApprovedClientsCard.vue';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({

@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { loadSeedRelays, relayCatalogService } from 'src/services/relay-catalog';
-import { FALLBACK_RELAYS } from 'src/services/storage-service';
-import type { RelayCatalogEntry } from 'src/types/relay';
+import { loadSeedRelays, relayCatalogService } from '@/services/relay-catalog';
+import { FALLBACK_RELAYS } from '@/services/storage-service';
+import type { RelayCatalogEntry } from '@/types/relay';
 
 
 // Mock the database
 const mockRelayCatalog = new Map<string, RelayCatalogEntry>();
 
-vi.mock('src/services/database', () => {
+vi.mock('@/services/database', () => {
   return {
     db: {
       relayCatalog: {
@@ -34,7 +34,7 @@ vi.mock('src/services/database', () => {
 
 // Mock Storage Service
 const mockStorage = new Map<string, unknown>();
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   FALLBACK_RELAYS: 'nostr:fallback-relays',
   storageService: {
     get: vi.fn((key: string) => Promise.resolve(mockStorage.get(key))),
@@ -42,7 +42,7 @@ vi.mock('src/services/storage-service', () => ({
 }));
 
 // Mock RELAY_SEEDS to have a controlled set for testing, including an invalid one
-vi.mock('src/data/relay-seeds', () => ({
+vi.mock('@/data/relay-seeds', () => ({
   RELAY_SEEDS: [
     'wss://relay.damus.io',
     'wss://nos.lol',

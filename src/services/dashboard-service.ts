@@ -4,12 +4,12 @@ import {
   normalizeAndDeduplicateRelays,
   parseRelayListEvent,
 } from './relay-discovery';
-import useSettingsStore from 'src/stores/settings-store';
+import useSettingsStore from '@/stores/settings-store';
 import type { Event } from 'nostr-tools';
 import { isVaultUnlocked } from './vault-service';
-import { useEventService } from 'src/composables/useEventService';
+import { useEventService } from '@/composables/useEventService';
 import { countSitesHoldingGrantsFor } from './connected-sites-service';
-import type { DashboardActivityType, DashboardSummary } from 'src/types';
+import type { DashboardActivityType, DashboardSummary } from '@/types';
 
 export type DashboardActivityStatus = 'approved' | 'exception' | 'rejected' | 'signed';
 

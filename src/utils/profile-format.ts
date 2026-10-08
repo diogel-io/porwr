@@ -1,4 +1,4 @@
-import type { NostrProfile } from 'src/types';
+import type { NostrProfile } from '@/types';
 
 /**
  * Formatting shared between the surfaces that render a profile.

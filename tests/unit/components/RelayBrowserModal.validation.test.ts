@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import RelayBrowserModal from 'components/dashboard/RelayBrowserModal.vue';
-import { listRelayCatalog, refreshRelayCatalog, getRelayDiscoveryStatus } from 'src/services/relay-service';
-import type { RelayDiscoveryState, RelayCatalogEntry } from 'src/types/relay';
+import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
+import { listRelayCatalog, refreshRelayCatalog, getRelayDiscoveryStatus } from '@/services/relay-service';
+import type { RelayDiscoveryState, RelayCatalogEntry } from '@/types/relay';
 
 // Mock i18n
 const i18nMock = {
@@ -14,7 +14,7 @@ vi.mock('vue-i18n', () => ({
 }));
 
 // Mock relay-service
-vi.mock('src/services/relay-service', () => ({
+vi.mock('@/services/relay-service', () => ({
   listRelayCatalog: vi.fn(),
   refreshRelayCatalog: vi.fn(),
   getRelayDiscoveryStatus: vi.fn(),

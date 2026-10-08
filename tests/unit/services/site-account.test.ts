@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('app/src-bex/vault', () => ({
+vi.mock('@/../src-bex/vault', () => ({
   isVaultUnlocked: vi.fn(() => true),
   getVaultData: vi.fn(),
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   storageService: { get: vi.fn(), set: vi.fn(() => Promise.resolve()) },
   NOSTR_ACTIVE: 'nostr_active_account',
   SITE_BINDINGS_KEY: 'nostr:site-bindings',
 }));
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { INFO: 'info', WARN: 'warn' },
   logService: { log: vi.fn() },
 }));
@@ -22,21 +22,21 @@ const mocks = vi.hoisted(() => ({
   interruptRequestsForOrigin: vi.fn(),
 }));
 
-vi.mock('app/src-bex/handlers/permission-handler', () => ({
+vi.mock('@/../src-bex/handlers/permission-handler', () => ({
   getGrantedPermissions: mocks.getGrantedPermissions,
   revokePermission: mocks.revokePermission,
 }));
 
-vi.mock('app/src-bex/services/request-queue', () => ({
+vi.mock('@/../src-bex/services/request-queue', () => ({
   interruptRequestsForOrigin: mocks.interruptRequestsForOrigin,
 }));
 
-import { getVaultData, isVaultUnlocked } from 'app/src-bex/vault';
-import { storageService } from 'src/services/storage-service';
-import { clearSiteBindingCache, getBinding } from 'app/src-bex/services/site-binding-store';
-import { resolveSigningAccount } from 'app/src-bex/services/signing-account';
-import { getSiteAccount, switchSiteToActiveAccount } from 'app/src-bex/services/site-account';
-import { ErrorCode } from 'src/types/error-codes.d';
+import { getVaultData, isVaultUnlocked } from '@/../src-bex/vault';
+import { storageService } from '@/services/storage-service';
+import { clearSiteBindingCache, getBinding } from '@/../src-bex/services/site-binding-store';
+import { resolveSigningAccount } from '@/../src-bex/services/signing-account';
+import { getSiteAccount, switchSiteToActiveAccount } from '@/../src-bex/services/site-account';
+import { ErrorCode } from '@/types/error-codes.d';
 
 const alice = { id: 'a'.repeat(64), alias: 'alice', account: { privkey: '11'.repeat(32) } };
 const bob = { id: 'b'.repeat(64), alias: 'bob', account: { privkey: '22'.repeat(32) } };

@@ -1,7 +1,7 @@
 import { finalizeEvent } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import type { Event, UnsignedEvent } from 'nostr-tools';
-import { NIP57_ZAP_REQUEST_KIND, type BuildZapRequestInput, type SignedZapRequest } from 'src/types/nip57';
+import { NIP57_ZAP_REQUEST_KIND, type BuildZapRequestInput, type SignedZapRequest } from '@/types/nip57';
 
 function uniqueRelays(relays: string[]): string[] {
   return [...new Set(relays.map((relay) => relay.trim()).filter((relay) => relay.length > 0))];

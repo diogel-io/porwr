@@ -3,18 +3,18 @@ import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
-import useAccountStore from 'src/stores/account-store';
-import ProfileView from 'components/shared/ProfileView.vue';
-import CurrentRequest from 'components/sidebar/CurrentRequest.vue';
-import PendingRequestList from 'components/sidebar/PendingRequestList.vue';
-import SidebarSetup from 'components/sidebar/SidebarSetup.vue';
-import SidebarUnlock from 'components/sidebar/SidebarUnlock.vue';
-import SiteAccountNotice from 'components/sidebar/SiteAccountNotice.vue';
-import { useActiveTab } from 'src/composables/useActiveTab';
-import { useApprovalQueue } from 'src/composables/useApprovalQueue';
-import useVaultStore from 'src/stores/vault-store';
-import { switchSiteToActiveAccount } from 'src/services/connected-sites-service';
-import type { ApprovalDuration, ApprovalRequestRecord } from 'app/src-bex/types/background';
+import useAccountStore from '@/stores/account-store';
+import ProfileView from '@/components/shared/ProfileView.vue';
+import CurrentRequest from '@/components/sidebar/CurrentRequest.vue';
+import PendingRequestList from '@/components/sidebar/PendingRequestList.vue';
+import SidebarSetup from '@/components/sidebar/SidebarSetup.vue';
+import SidebarUnlock from '@/components/sidebar/SidebarUnlock.vue';
+import SiteAccountNotice from '@/components/sidebar/SiteAccountNotice.vue';
+import { useActiveTab } from '@/composables/useActiveTab';
+import { useApprovalQueue } from '@/composables/useApprovalQueue';
+import useVaultStore from '@/stores/vault-store';
+import { switchSiteToActiveAccount } from '@/services/connected-sites-service';
+import type { ApprovalDuration, ApprovalRequestRecord } from '@/../src-bex/types/background';
 
 defineOptions({ name: 'SidebarHome' });
 

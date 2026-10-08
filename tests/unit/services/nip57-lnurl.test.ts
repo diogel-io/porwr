@@ -9,7 +9,7 @@ import {
   parseLnurlPayMetadata,
   requestZapInvoice,
   resolveLnurlPayUrl,
-} from 'src/services/nip57-lnurl';
+} from '@/services/nip57-lnurl';
 
 const PUBKEY = 'a'.repeat(64);
 

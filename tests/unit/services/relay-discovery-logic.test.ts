@@ -5,7 +5,7 @@ import {
   parseRelayListEvent,
   normalizeAndDeduplicateRelays,
   relayDiscoveryService,
-} from 'src/services/relay-discovery';
+} from '@/services/relay-discovery';
 import type { Event } from 'nostr-tools';
 
 // Mock nostr-tools

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
-import useAccountStore from 'src/stores/account-store';
-import useVaultStore from 'src/stores/vault-store';
-import type { StoredKey } from 'src/types';
+import useAccountStore from '@/stores/account-store';
+import useVaultStore from '@/stores/vault-store';
+import type { StoredKey } from '@/types';
 
 const { mockSave, mockGet, mockGetActive, mockSetActive, mockRenameAlias, mockOnChanged } = vi.hoisted(() => ({
   mockSave: vi.fn(),
@@ -14,7 +14,7 @@ const { mockSave, mockGet, mockGetActive, mockSetActive, mockRenameAlias, mockOn
   mockOnChanged: vi.fn(),
 }));
 
-vi.mock('src/services/dexie-storage', () => ({
+vi.mock('@/services/dexie-storage', () => ({
   save: mockSave,
   get: mockGet,
   getActive: mockGetActive,
@@ -22,13 +22,13 @@ vi.mock('src/services/dexie-storage', () => ({
   renameAlias: mockRenameAlias,
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   NOSTR_ACTIVE: 'NOSTR_ACTIVE',
   VAULT_UNLOCKED: 'VAULT_UNLOCKED',
   storageService: { onChanged: mockOnChanged, get: vi.fn(), set: vi.fn() },
 }));
 
-vi.mock('src/services/vault-service', () => ({
+vi.mock('@/services/vault-service', () => ({
   createVault: vi.fn(),
   hasVault: vi.fn(),
   lockVault: vi.fn(),

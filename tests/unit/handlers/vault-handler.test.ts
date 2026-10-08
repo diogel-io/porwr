@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { VaultData } from 'src/types/bridge';
+import type { VaultData } from '@/types/bridge';
 
 const mockUnlockVault = vi.fn();
 const mockLockVault = vi.fn();
@@ -11,7 +11,7 @@ const mockGetVaultData = vi.fn();
 const mockUpdateVaultData = vi.fn();
 const mockRestoreVaultState = vi.fn();
 
-vi.mock('app/src-bex/vault', () => ({
+vi.mock('@/../src-bex/vault', () => ({
   unlockVault: mockUnlockVault,
   lockVault: mockLockVault,
   isVaultUnlocked: mockIsVaultUnlocked,
@@ -33,7 +33,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultUnlock returns vaultData on success', async () => {
-    const { handleVaultUnlock } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultUnlock } = await import('@/../src-bex/handlers/vault-handler');
     mockUnlockVault.mockResolvedValue({ success: true, vaultData });
 
     const result = await handleVaultUnlock({ password: 'pw' }, '');
@@ -43,7 +43,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultUnlock surfaces the failure error and code', async () => {
-    const { handleVaultUnlock } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultUnlock } = await import('@/../src-bex/handlers/vault-handler');
     mockUnlockVault.mockResolvedValue({ success: false, error: 'Invalid password', errorCode: 'VLT_INVALID_PASSWORD' });
 
     const result = await handleVaultUnlock({ password: 'wrong' }, '');
@@ -52,7 +52,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultLock always succeeds and calls lock()', async () => {
-    const { handleVaultLock } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultLock } = await import('@/../src-bex/handlers/vault-handler');
 
     const result = await handleVaultLock(undefined, '');
 
@@ -61,7 +61,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultIsUnlocked reflects the underlying vault state', async () => {
-    const { handleVaultIsUnlocked } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultIsUnlocked } = await import('@/../src-bex/handlers/vault-handler');
     mockIsVaultUnlocked.mockReturnValue(true);
 
     const result = await handleVaultIsUnlocked(undefined, '');
@@ -70,7 +70,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultCreate returns the encrypted vault on success', async () => {
-    const { handleVaultCreate } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
     mockCreateNewVault.mockResolvedValue({ success: true, encryptedVault: 'v2:abc' });
 
     const result = await handleVaultCreate({ password: 'pw', vaultData }, '');
@@ -80,7 +80,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultCreate surfaces failure', async () => {
-    const { handleVaultCreate } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
     mockCreateNewVault.mockResolvedValue({ success: false, error: 'boom', errorCode: 'GEN_UNKNOWN' });
 
     const result = await handleVaultCreate({ password: 'pw', vaultData }, '');
@@ -89,7 +89,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultGetData returns vaultData on success', async () => {
-    const { handleVaultGetData } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultGetData } = await import('@/../src-bex/handlers/vault-handler');
     mockGetVaultData.mockResolvedValue({ success: true, vaultData });
 
     const result = await handleVaultGetData(undefined, '');
@@ -98,7 +98,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultUpdateData delegates and succeeds', async () => {
-    const { handleVaultUpdateData } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultUpdateData } = await import('@/../src-bex/handlers/vault-handler');
     mockUpdateVaultData.mockResolvedValue({ success: true });
 
     const result = await handleVaultUpdateData({ vaultData }, '');
@@ -108,7 +108,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultExport returns encryptedData on success', async () => {
-    const { handleVaultExport } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultExport } = await import('@/../src-bex/handlers/vault-handler');
     mockExportVault.mockResolvedValue({ success: true, encryptedData: 'v2:xyz' });
 
     const result = await handleVaultExport(undefined, '');
@@ -117,7 +117,7 @@ describe('vault-handler', () => {
   });
 
   it('handleVaultImport delegates and succeeds', async () => {
-    const { handleVaultImport } = await import('app/src-bex/handlers/vault-handler');
+    const { handleVaultImport } = await import('@/../src-bex/handlers/vault-handler');
     mockImportVault.mockResolvedValue({ success: true });
 
     const result = await handleVaultImport({ encryptedData: 'v2:xyz' }, '');
@@ -127,7 +127,7 @@ describe('vault-handler', () => {
   });
 
   it('re-exports restoreVaultState from ../vault', async () => {
-    const { restoreVaultState } = await import('app/src-bex/handlers/vault-handler');
+    const { restoreVaultState } = await import('@/../src-bex/handlers/vault-handler');
     mockRestoreVaultState.mockResolvedValue(true);
 
     await expect(restoreVaultState()).resolves.toBe(true);

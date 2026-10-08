@@ -4,9 +4,9 @@ import {
   initializePanelSurface,
   resolvePanelSurface,
   type PanelSurface,
-} from 'app/src-bex/services/panel-surface';
+} from '@/../src-bex/services/panel-surface';
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 },
   logService: { log: vi.fn() },
 }));

@@ -3,9 +3,9 @@ import { nip19, generateSecretKey, getPublicKey } from 'nostr-tools';
 import { bytesToHex } from '@noble/hashes/utils';
 import { Blob as NodeBlob } from 'node:buffer';
 import { BlobReader, TextWriter, ZipReader } from '@zip.js/zip.js';
-import type { StoredKey } from 'src/types';
-import { createEncryptedZipBytes, formatKeyBackupText } from 'src/services/compressor';
-import generateKeyExportText from 'src/services/compressor';
+import type { StoredKey } from '@/types';
+import { createEncryptedZipBytes, formatKeyBackupText } from '@/services/compressor';
+import generateKeyExportText from '@/services/compressor';
 
 // jsdom's Blob polyfill in this test environment doesn't implement
 // arrayBuffer(), which @zip.js/zip.js relies on internally. Swap in Node's

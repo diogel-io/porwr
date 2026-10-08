@@ -7,14 +7,14 @@ const mocks = vi.hoisted(() => ({
   log: vi.fn(),
 }));
 
-vi.mock('app/src-bex/services/page-origin-registry', () => ({
+vi.mock('@/../src-bex/services/page-origin-registry', () => ({
   listPageOrigins: mocks.listPageOrigins,
 }));
-vi.mock('app/src-bex/services/request-queue', () => ({
+vi.mock('@/../src-bex/services/request-queue', () => ({
   listPendingRequests: mocks.listPendingRequests,
   interruptRequestsForOrigin: mocks.interruptRequestsForOrigin,
 }));
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { ERROR: 'error' },
   logService: { log: mocks.log },
 }));
@@ -22,7 +22,7 @@ vi.mock('src/services/log-service', () => ({
 import {
   findAbandonedOrigins,
   reconcileAbandonedRequests,
-} from 'app/src-bex/services/page-reconciliation';
+} from '@/../src-bex/services/page-reconciliation';
 
 const held = (...origins: string[]): Map<number, { origin: string; windowId: number }> =>
   new Map(origins.map((origin, index) => [index, { origin, windowId: 1 }]));

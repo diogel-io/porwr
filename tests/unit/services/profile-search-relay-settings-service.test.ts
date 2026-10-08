@@ -5,7 +5,7 @@ const databaseMocks = vi.hoisted(() => ({
   put: vi.fn(),
 }));
 
-vi.mock('src/services/database', () => ({
+vi.mock('@/services/database', () => ({
   db: {
     appSettings: {
       get: databaseMocks.get,
@@ -18,7 +18,7 @@ const {
   PROFILE_SEARCH_RELAYS_SETTING_KEY,
   getStoredProfileSearchRelays,
   setStoredProfileSearchRelays,
-} = await import('src/services/profile-search-relay-settings-service');
+} = await import('@/services/profile-search-relay-settings-service');
 
 describe('profile-search-relay-settings-service', () => {
   beforeEach(() => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import { backfillApprovalOutcome } from 'src/services/database';
-import type { ApprovalLog } from 'src/services/database';
+import { backfillApprovalOutcome } from '@/services/database';
+import type { ApprovalLog } from '@/services/database';
 
 /**
  * Approval logging moved from request time to the terminal decision, so the approvals table

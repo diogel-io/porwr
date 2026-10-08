@@ -5,7 +5,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { useQuasar } from 'quasar';
-import useSettingsStore from 'src/stores/settings-store';
+import useSettingsStore from '@/stores/settings-store';
 
 const $q = useQuasar();
 const settingsStore = useSettingsStore();

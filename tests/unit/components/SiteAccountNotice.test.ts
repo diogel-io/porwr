@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   dialog: vi.fn(),
 }));
 
-vi.mock('src/services/connected-sites-service', () => ({
+vi.mock('@/services/connected-sites-service', () => ({
   getSiteAccount: mocks.getSiteAccount,
   switchSiteToActiveAccount: mocks.switchSiteToActiveAccount,
 }));
@@ -24,7 +24,7 @@ vi.mock('quasar', () => ({
   useQuasar: () => ({ notify: mocks.notify, dialog: mocks.dialog }),
 }));
 
-import SiteAccountNotice from 'components/sidebar/SiteAccountNotice.vue';
+import SiteAccountNotice from '@/components/sidebar/SiteAccountNotice.vue';
 
 const ORIGIN = 'https://example.com';
 const ALICE = 'a'.repeat(64);

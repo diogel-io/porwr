@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { sendBexMessage } from 'src/services/bridge-client';
+import { sendBexMessage } from '@/services/bridge-client';
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 },
   logService: { log: vi.fn() },
 }));

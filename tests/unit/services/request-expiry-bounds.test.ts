@@ -6,7 +6,7 @@ import {
   REQUEST_EXPIRY_MAX_MINUTES,
   REQUEST_EXPIRY_MIN_MINUTES,
   REQUEST_EXPIRY_OPTION_MINUTES,
-} from 'src/services/request-expiry';
+} from '@/services/request-expiry';
 
 describe('request expiry bounds', () => {
   it('keeps supported values unchanged', () => {

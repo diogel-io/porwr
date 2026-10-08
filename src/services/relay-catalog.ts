@@ -1,9 +1,9 @@
-import { db } from 'src/services/database';
-import { normalizeRelayUrl, isRestrictedHostname } from 'src/services/relay-url';
-import { logService, LogLevel } from 'src/services/log-service';
-import { FALLBACK_RELAYS, storageService } from 'src/services/storage-service';
-import type { RelayCatalogEntry, RelayDiscoveryState } from 'src/types/relay';
-import { RELAY_SEEDS } from 'src/data/relay-seeds';
+import { db } from '@/services/database';
+import { normalizeRelayUrl, isRestrictedHostname } from '@/services/relay-url';
+import { logService, LogLevel } from '@/services/log-service';
+import { FALLBACK_RELAYS, storageService } from '@/services/storage-service';
+import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
+import { RELAY_SEEDS } from '@/data/relay-seeds';
 
 /**
  * Constants for relay discovery and metadata staleness thresholds (in milliseconds).

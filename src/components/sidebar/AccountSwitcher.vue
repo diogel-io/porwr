@@ -2,8 +2,8 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import useAccountStore from 'src/stores/account-store';
-import type { StoredKey } from 'src/types';
+import useAccountStore from '@/stores/account-store';
+import type { StoredKey } from '@/types';
 
 defineOptions({ name: 'AccountSwitcher' });
 

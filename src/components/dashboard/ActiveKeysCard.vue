@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { type DashboardSummary } from 'src/types';
+import { type DashboardSummary } from '@/types';
 
 const props = withDefaults(
   defineProps<{

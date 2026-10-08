@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
 import { bytesToHex } from '@noble/hashes/utils';
-import { buildNip47ConnectionId, parseNwcUri } from 'src/services/nip47-uri';
+import { buildNip47ConnectionId, parseNwcUri } from '@/services/nip47-uri';
 
 describe('parseNwcUri', () => {
   it('parses a valid NWC URI', () => {

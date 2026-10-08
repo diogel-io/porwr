@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RelayCatalogEntry, RelayDiscoveryState } from 'src/types/relay';
+import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
 
 const mockSendBexMessage = vi.fn();
 
-vi.mock('src/services/vault-service', () => ({
+vi.mock('@/services/vault-service', () => ({
   sendBexMessage: mockSendBexMessage,
 }));
 
@@ -17,7 +17,7 @@ describe('relay-service', () => {
       const entries = [{ url: 'wss://relay.damus.io', hostname: 'relay.damus.io' }] as RelayCatalogEntry[];
       mockSendBexMessage.mockResolvedValue(entries);
 
-      const { listRelayCatalog } = await import('src/services/relay-service');
+      const { listRelayCatalog } = await import('@/services/relay-service');
       await expect(listRelayCatalog()).resolves.toEqual(entries);
       expect(mockSendBexMessage).toHaveBeenCalledWith('relay.browser.list');
     });
@@ -25,14 +25,14 @@ describe('relay-service', () => {
     it('returns an empty array when the background responds with nothing', async () => {
       mockSendBexMessage.mockResolvedValue(undefined);
 
-      const { listRelayCatalog } = await import('src/services/relay-service');
+      const { listRelayCatalog } = await import('@/services/relay-service');
       await expect(listRelayCatalog()).resolves.toEqual([]);
     });
 
     it('returns an empty array when the bridge call throws', async () => {
       mockSendBexMessage.mockRejectedValue(new Error('bridge down'));
 
-      const { listRelayCatalog } = await import('src/services/relay-service');
+      const { listRelayCatalog } = await import('@/services/relay-service');
       await expect(listRelayCatalog()).resolves.toEqual([]);
     });
   });
@@ -41,7 +41,7 @@ describe('relay-service', () => {
     it('forwards the force flag to the background', async () => {
       mockSendBexMessage.mockResolvedValue(undefined);
 
-      const { refreshRelayCatalog } = await import('src/services/relay-service');
+      const { refreshRelayCatalog } = await import('@/services/relay-service');
       await refreshRelayCatalog(true);
 
       expect(mockSendBexMessage).toHaveBeenCalledWith('relay.browser.refresh', { force: true });
@@ -50,7 +50,7 @@ describe('relay-service', () => {
     it('defaults force to false', async () => {
       mockSendBexMessage.mockResolvedValue(undefined);
 
-      const { refreshRelayCatalog } = await import('src/services/relay-service');
+      const { refreshRelayCatalog } = await import('@/services/relay-service');
       await refreshRelayCatalog();
 
       expect(mockSendBexMessage).toHaveBeenCalledWith('relay.browser.refresh', { force: false });
@@ -59,7 +59,7 @@ describe('relay-service', () => {
     it('swallows errors from the bridge without throwing', async () => {
       mockSendBexMessage.mockRejectedValue(new Error('bridge down'));
 
-      const { refreshRelayCatalog } = await import('src/services/relay-service');
+      const { refreshRelayCatalog } = await import('@/services/relay-service');
       await expect(refreshRelayCatalog()).resolves.toBeUndefined();
     });
   });
@@ -69,21 +69,21 @@ describe('relay-service', () => {
       const status = { id: 'global', lastGlobalDiscoveryAt: 1, isDiscoveryInProgress: false, updatedAt: 1 } as RelayDiscoveryState;
       mockSendBexMessage.mockResolvedValue(status);
 
-      const { getRelayDiscoveryStatus } = await import('src/services/relay-service');
+      const { getRelayDiscoveryStatus } = await import('@/services/relay-service');
       await expect(getRelayDiscoveryStatus()).resolves.toEqual(status);
     });
 
     it('returns null when the background responds with nothing', async () => {
       mockSendBexMessage.mockResolvedValue(undefined);
 
-      const { getRelayDiscoveryStatus } = await import('src/services/relay-service');
+      const { getRelayDiscoveryStatus } = await import('@/services/relay-service');
       await expect(getRelayDiscoveryStatus()).resolves.toBeNull();
     });
 
     it('returns null when the bridge call throws', async () => {
       mockSendBexMessage.mockRejectedValue(new Error('bridge down'));
 
-      const { getRelayDiscoveryStatus } = await import('src/services/relay-service');
+      const { getRelayDiscoveryStatus } = await import('@/services/relay-service');
       await expect(getRelayDiscoveryStatus()).resolves.toBeNull();
     });
   });

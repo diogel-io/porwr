@@ -10,9 +10,9 @@ import type {
   Nip47PayInvoiceRequest,
   Nip47PayInvoiceResponse,
   Nip47PaymentHistoryEntry,
-} from 'src/types/nip47';
-import type { VaultData } from 'src/types/bridge';
-import { parseNwcUri, buildNip47ConnectionId } from 'src/services/nip47-uri';
+} from '@/types/nip47';
+import type { VaultData } from '@/types/bridge';
+import { parseNwcUri, buildNip47ConnectionId } from '@/services/nip47-uri';
 import { getVaultData, updateVaultData } from '../vault';
 import {
   findNip47Connection,
@@ -27,7 +27,7 @@ import {
   appendNip47PaymentHistory,
   listNip47PaymentHistory,
 } from '../services/nip47-payment-history-store';
-import { parseBolt11AmountMsat, previewInvoice } from 'src/services/nip47-invoice';
+import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 
 async function requireUnlockedVaultData(): Promise<VaultData> {
   const result = await getVaultData();

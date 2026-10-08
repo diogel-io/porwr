@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('app/src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   storageService: {
     get: vi.fn(),
     set: vi.fn(),
@@ -9,19 +9,19 @@ vi.mock('app/src/services/storage-service', () => ({
   VAULT_LAST_ACTIVITY: 'vault:last-activity',
 }));
 
-vi.mock('app/src-bex/vault', () => ({
+vi.mock('@/../src-bex/vault', () => ({
   isVaultUnlocked: vi.fn(),
   lockVault: vi.fn(),
 }));
 
-import { storageService, VAULT_LAST_ACTIVITY } from 'app/src/services/storage-service';
-import { isVaultUnlocked, lockVault } from 'app/src-bex/vault';
+import { storageService, VAULT_LAST_ACTIVITY } from '@/services/storage-service';
+import { isVaultUnlocked, lockVault } from '@/../src-bex/vault';
 import {
   checkAutoLock,
   resetAutoLockTimer,
   restoreLastActivity,
   updateLastActivity,
-} from 'app/src-bex/services/auto-lock';
+} from '@/../src-bex/services/auto-lock';
 
 describe('auto-lock service', () => {
   beforeEach(() => {

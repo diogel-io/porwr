@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   dialog: vi.fn(),
 }));
 
-vi.mock('src/services/connected-sites-service', () => ({
+vi.mock('@/services/connected-sites-service', () => ({
   listConnectedSites: mocks.listConnectedSites,
   disconnectSite: mocks.disconnectSite,
 }));
@@ -30,7 +30,7 @@ const accounts = vi.hoisted(() => ({
   activeId: undefined as string | undefined,
 }));
 
-vi.mock('src/stores/account-store', () => ({
+vi.mock('@/stores/account-store', () => ({
   default: () => ({
     get storedKeys() {
       return accounts.storedKeys;
@@ -42,7 +42,7 @@ vi.mock('src/stores/account-store', () => ({
   }),
 }));
 
-import ConnectedSitesPage from 'src/pages/dashboard/ConnectedSitesPage.vue';
+import ConnectedSitesPage from '@/pages/dashboard/ConnectedSitesPage.vue';
 
 const ALICE = 'a'.repeat(64);
 

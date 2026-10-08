@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { dispatchMessage } from 'app/src-bex/dispatcher';
-import { handleRelayBrowserList, handleRelayBrowserGetStatus } from 'app/src-bex/handlers/relay-browser-handler';
-import { handleVaultUnlock } from 'app/src-bex/handlers/vault-handler';
-import { handleBlossomUpload } from 'app/src-bex/handlers/blossom-handler';
-import { handleNip44Encrypt, handleNip44Decrypt } from 'app/src-bex/handlers/nip44';
-import { handleNip04Encrypt, handleNip04Decrypt } from 'app/src-bex/handlers/nip04';
-import { handleGetPublicKey, handleSignEvent } from 'app/src-bex/handlers/nip07';
-import { getPageOrigin } from 'app/src-bex/services/page-origin-registry';
-import type { RelayCatalogEntry, RelayDiscoveryState } from 'src/types/relay';
-import { createBridgeRequest } from 'src/types/bridge';
-import type { VaultData } from 'src/types/bridge';
+import { dispatchMessage } from '@/../src-bex/dispatcher';
+import { handleRelayBrowserList, handleRelayBrowserGetStatus } from '@/../src-bex/handlers/relay-browser-handler';
+import { handleVaultUnlock } from '@/../src-bex/handlers/vault-handler';
+import { handleBlossomUpload } from '@/../src-bex/handlers/blossom-handler';
+import { handleNip44Encrypt, handleNip44Decrypt } from '@/../src-bex/handlers/nip44';
+import { handleNip04Encrypt, handleNip04Decrypt } from '@/../src-bex/handlers/nip04';
+import { handleGetPublicKey, handleSignEvent } from '@/../src-bex/handlers/nip07';
+import { getPageOrigin } from '@/../src-bex/services/page-origin-registry';
+import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
+import { createBridgeRequest } from '@/types/bridge';
+import type { VaultData } from '@/types/bridge';
 
 // Mock handlers
-vi.mock('app/src-bex/handlers/vault-handler', () => ({
+vi.mock('@/../src-bex/handlers/vault-handler', () => ({
   handleVaultUnlock: vi.fn(),
   handleVaultLock: vi.fn(),
   handleVaultIsUnlocked: vi.fn(),
@@ -29,32 +29,32 @@ const autoLockMocks = vi.hoisted(() => ({
   stopAutoLockTimer: vi.fn(),
 }));
 
-vi.mock('app/src-bex/services/auto-lock', () => autoLockMocks);
+vi.mock('@/../src-bex/services/auto-lock', () => autoLockMocks);
 
-vi.mock('app/src-bex/handlers/nip07', () => ({
+vi.mock('@/../src-bex/handlers/nip07', () => ({
   handleGetPublicKey: vi.fn(),
   handleSignEvent: vi.fn(),
 }));
 
-vi.mock('app/src-bex/handlers/blossom-handler', () => ({
+vi.mock('@/../src-bex/handlers/blossom-handler', () => ({
   handleBlossomUpload: vi.fn(),
 }));
 
-vi.mock('app/src-bex/handlers/nip04', () => ({
+vi.mock('@/../src-bex/handlers/nip04', () => ({
   handleNip04Encrypt: vi.fn(),
   handleNip04Decrypt: vi.fn(),
 }));
 
-vi.mock('app/src-bex/handlers/nip44', () => ({
+vi.mock('@/../src-bex/handlers/nip44', () => ({
   handleNip44Encrypt: vi.fn(),
   handleNip44Decrypt: vi.fn(),
 }));
 
-vi.mock('app/src-bex/services/page-origin-registry', () => ({
+vi.mock('@/../src-bex/services/page-origin-registry', () => ({
   getPageOrigin: vi.fn(),
 }));
 
-vi.mock('app/src-bex/handlers/relay-browser-handler', () => ({
+vi.mock('@/../src-bex/handlers/relay-browser-handler', () => ({
   handleRelayBrowserList: vi.fn(),
   handleRelayBrowserGetStatus: vi.fn(),
 }));

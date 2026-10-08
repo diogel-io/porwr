@@ -13,7 +13,7 @@ import {
   httpAuthTarget,
   shouldDefaultToFullEvent,
   truncateForPreview,
-} from 'src/services/approval-preview';
+} from '@/services/approval-preview';
 
 describe('approval preview rules', () => {
   describe('classification (D12)', () => {

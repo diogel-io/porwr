@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
 
-import { getRequestTypeLabel } from 'src/services/approval-preview';
-import type { ApprovalRequestRecord } from 'app/src-bex/types/background';
+import { getRequestTypeLabel } from '@/services/approval-preview';
+import type { ApprovalRequestRecord } from '@/../src-bex/types/background';
 
 defineOptions({ name: 'PendingRequestList' });
 

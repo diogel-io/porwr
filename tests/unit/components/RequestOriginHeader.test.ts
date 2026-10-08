@@ -8,7 +8,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-import RequestOriginHeader from 'components/sidebar/RequestOriginHeader.vue';
+import RequestOriginHeader from '@/components/sidebar/RequestOriginHeader.vue';
 
 const mountHeader = (props: Record<string, unknown>) =>
   mount(RequestOriginHeader, {

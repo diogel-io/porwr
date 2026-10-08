@@ -1,7 +1,7 @@
 import { finalizeEvent, getPublicKey, nip19, SimplePool } from 'nostr-tools';
 import type { Event as NostrEvent } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
-import type { StoredKey } from 'src/types';
+import type { StoredKey } from '@/types';
 import type {
   ContactInputValidationResult,
   ContactListPublishResult,
@@ -10,10 +10,10 @@ import type {
   ContactProfile,
   ContactSearchResult,
   Nip02Contact,
-} from 'src/types/contact-list';
-import useSettingsStore from 'src/stores/settings-store';
-import { normalizeRelayUrl } from 'src/services/relay-url';
-import { parseNip05Identifier } from 'src/services/nip05-service';
+} from '@/types/contact-list';
+import useSettingsStore from '@/stores/settings-store';
+import { normalizeRelayUrl } from '@/services/relay-url';
+import { parseNip05Identifier } from '@/services/nip05-service';
 
 const CONTACT_LIST_KIND = 3;
 const PROFILE_METADATA_KIND = 0;

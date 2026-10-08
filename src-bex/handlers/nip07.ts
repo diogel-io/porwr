@@ -8,8 +8,8 @@ import { hexToBytes } from '@noble/hashes/utils';
 import { isVaultUnlocked } from '../vault';
 import { checkPermission } from './permission-handler';
 import { resolveSigningAccount } from '../services/signing-account';
-import { logService } from 'src/services/log-service';
-import { ErrorCode } from 'src/types/error-codes.d';
+import { logService } from '@/services/log-service';
+import { ErrorCode } from '@/types/error-codes.d';
 
 const logWrapper = <TArgs extends unknown[], TResult>(
   fn: (...args: TArgs) => Promise<TResult>,

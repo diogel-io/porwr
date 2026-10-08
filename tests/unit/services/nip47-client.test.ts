@@ -3,7 +3,7 @@ import { nip04 } from 'nostr-tools';
 
 /* eslint-disable @typescript-eslint/unbound-method */
 
-import type { Nip47Connection } from 'src/types/nip47';
+import type { Nip47Connection } from '@/types/nip47';
 
 const { mockPoolInstance } = vi.hoisted(() => ({
   mockPoolInstance: {
@@ -57,7 +57,7 @@ describe('Nip47Client.sendRequest', () => {
     publishFailure.catch(() => undefined);
     mockPoolInstance.publish.mockReturnValue([publishFailure]);
 
-    const { Nip47Client } = await import('app/src-bex/services/nip47-client');
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
     const client = new Nip47Client();
 
     await expect(client.sendRequest(buildConnection(), { method: 'get_balance', params: {} })).rejects.toThrow(
@@ -82,7 +82,7 @@ describe('Nip47Client.sendRequest', () => {
     mockPoolInstance.publish.mockReturnValue([Promise.resolve('ok')]);
     vi.mocked(nip04.decrypt).mockReturnValue(JSON.stringify({ result: { balance: 1000 } }));
 
-    const { Nip47Client } = await import('app/src-bex/services/nip47-client');
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
     const client = new Nip47Client();
 
     const requestPromise = client.sendRequest(buildConnection(), { method: 'get_balance', params: {} });

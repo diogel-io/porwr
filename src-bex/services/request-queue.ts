@@ -10,10 +10,10 @@
  * requirements forbid, so every read and every decision re-evaluates expiry first.
  */
 
-import { REQUEST_QUEUE_KEY, storageService } from 'src/services/storage-service';
-import { clampRequestExpiryMinutes } from 'src/services/request-expiry';
-import { REQUEST_EXPIRY_MINUTES } from 'src/services/storage-service';
-import { LogLevel, logService } from 'src/services/log-service';
+import { REQUEST_QUEUE_KEY, storageService } from '@/services/storage-service';
+import { clampRequestExpiryMinutes } from '@/services/request-expiry';
+import { REQUEST_EXPIRY_MINUTES } from '@/services/storage-service';
+import { LogLevel, logService } from '@/services/log-service';
 import {
   TERMINAL_REQUEST_STATES,
   type ApprovalRequestContent,

@@ -8,11 +8,11 @@
  * 3. Import it in your background service worker (if available for your target browser).
  */
 import { createBridge } from '#q-app/bex/background';
-import { LogLevel, logService } from 'src/services/log-service';
+import { LogLevel, logService } from '@/services/log-service';
 import {
   NOSTR_ACTIVE,
   storageService,
-} from 'src/services/storage-service';
+} from '@/services/storage-service';
 import {
   startAutoLockTimer,
   resetAutoLockTimer,
@@ -67,9 +67,9 @@ import type {
   SignEventResponse,
   BridgeError,
   StoredKey,
-} from 'src/types/bridge';
-import type { SendZapRequest } from 'src/types/nip57';
-import type { WebLnSendPaymentRequest } from 'src/types/webln';
+} from '@/types/bridge';
+import type { SendZapRequest } from '@/types/nip57';
+import type { WebLnSendPaymentRequest } from '@/types/webln';
 import {
   handleVaultIsUnlocked,
   handleVaultGetData,
@@ -81,10 +81,10 @@ import {
   handleGetPublicKey,
   handleSignEvent,
 } from './handlers/nip07';
-import { loadSeedRelays } from 'src/services/relay-catalog';
-import { parseBolt11AmountMsat, previewInvoice } from 'src/services/nip47-invoice';
+import { loadSeedRelays } from '@/services/relay-catalog';
+import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import { dispatchMessage } from './dispatcher';
-import { createBridgeRequest } from 'src/types/bridge';
+import { createBridgeRequest } from '@/types/bridge';
 
 class BackgroundBridgeError extends Error implements BridgeError {
   code: string;

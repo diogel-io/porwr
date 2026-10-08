@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { NostrProfile, StoredKey } from 'src/types';
-import { profileService } from 'src/services/profile-service';
-import { PROFILE_UPDATED_KEY, storageService } from 'src/services/storage-service';
-import { formatBirthday, normalizeWebsiteUrl } from 'src/utils/profile-format';
+import type { NostrProfile, StoredKey } from '@/types';
+import { profileService } from '@/services/profile-service';
+import { PROFILE_UPDATED_KEY, storageService } from '@/services/storage-service';
+import { formatBirthday, normalizeWebsiteUrl } from '@/utils/profile-format';
 
 defineOptions({ name: 'ProfileView' });
 

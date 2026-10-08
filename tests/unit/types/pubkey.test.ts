@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
-import { createPubkey, toNpub } from 'src/types/pubkey';
+import { createPubkey, toNpub } from '@/types/pubkey';
 
 const hexPubkey = getPublicKey(generateSecretKey());
 const npub = nip19.npubEncode(hexPubkey);

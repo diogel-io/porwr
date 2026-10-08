@@ -1,4 +1,4 @@
-import { normalizeRelayUrl } from 'src/services/relay-url';
+import { normalizeRelayUrl } from '@/services/relay-url';
 
 /**
  * A relay websocket URL, normalized and validated by `normalizeRelayUrl`

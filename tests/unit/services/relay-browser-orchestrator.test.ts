@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RelayBrowserOrchestrator } from 'src/services/relay-browser-orchestrator';
-import { relayCatalogService, loadSeedRelays } from 'src/services/relay-catalog';
-import { relayDiscoveryService } from 'src/services/relay-discovery';
-import { fetchRelayMetadata } from 'src/services/relay-metadata';
-import { logService, LogLevel } from 'src/services/log-service';
-import type { RelayCatalogEntry } from 'src/types/relay';
+import { RelayBrowserOrchestrator } from '@/services/relay-browser-orchestrator';
+import { relayCatalogService, loadSeedRelays } from '@/services/relay-catalog';
+import { relayDiscoveryService } from '@/services/relay-discovery';
+import { fetchRelayMetadata } from '@/services/relay-metadata';
+import { logService, LogLevel } from '@/services/log-service';
+import type { RelayCatalogEntry } from '@/types/relay';
 
 // Mock dependencies
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   logService: {
     log: vi.fn(),
   },
@@ -19,7 +19,7 @@ vi.mock('src/services/log-service', () => ({
   },
 }));
 
-vi.mock('src/services/relay-catalog', () => ({
+vi.mock('@/services/relay-catalog', () => ({
   relayCatalogService: {
     getEntries: vi.fn(),
     getDiscoveryState: vi.fn(),
@@ -31,13 +31,13 @@ vi.mock('src/services/relay-catalog', () => ({
   loadSeedRelays: vi.fn(),
 }));
 
-vi.mock('src/services/relay-discovery', () => ({
+vi.mock('@/services/relay-discovery', () => ({
   relayDiscoveryService: {
     discoverFromRelays: vi.fn(),
   },
 }));
 
-vi.mock('src/services/relay-metadata', () => ({
+vi.mock('@/services/relay-metadata', () => ({
   fetchRelayMetadata: vi.fn(),
 }));
 

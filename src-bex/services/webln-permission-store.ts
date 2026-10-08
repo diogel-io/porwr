@@ -1,5 +1,5 @@
-import type { VaultData } from 'src/types/bridge';
-import type { WebLnMethod, WebLnPermissionGrant } from 'src/types/webln';
+import type { VaultData } from '@/types/bridge';
+import type { WebLnMethod, WebLnPermissionGrant } from '@/types/webln';
 
 function nowMs(): number {
   return Date.now();

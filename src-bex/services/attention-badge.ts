@@ -10,7 +10,7 @@
  * it names the count in words rather than relying on the badge alone.
  */
 
-import { LogLevel, logService } from 'src/services/log-service';
+import { LogLevel, logService } from '@/services/log-service';
 import { getPendingCount } from './request-queue';
 
 const BADGE_BACKGROUND = '#f2c037';

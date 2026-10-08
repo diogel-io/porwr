@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { StoredKey } from 'src/types';
-import generateKeyExportText from 'src/services/compressor';
+import type { StoredKey } from '@/types';
+import generateKeyExportText from '@/services/compressor';
 
 describe('Compressor Service', () => {
   const mockKey: StoredKey = {

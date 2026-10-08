@@ -2,9 +2,9 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { QTableColumn } from 'quasar';
-import { logService } from 'src/services/log-service';
-import type { ApprovalLog, ExceptionLog } from 'src/services/database';
-import useAccountStore from 'src/stores/account-store';
+import { logService } from '@/services/log-service';
+import type { ApprovalLog, ExceptionLog } from '@/services/database';
+import useAccountStore from '@/stores/account-store';
 
 const { t } = useI18n();
 const accountStore = useAccountStore();

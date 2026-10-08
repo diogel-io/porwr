@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
-import ProfileEditor from 'components/dashboard/ProfileEditor.vue';
-import type { NostrProfile, StoredKey } from 'src/types';
+import ProfileEditor from '@/components/dashboard/ProfileEditor.vue';
+import type { NostrProfile, StoredKey } from '@/types';
 
 const { fetchProfileMock, saveProfileMock, verifyIdentifierMock, notifyMock } = vi.hoisted(() => ({
   fetchProfileMock: vi.fn(),
@@ -12,14 +12,14 @@ const { fetchProfileMock, saveProfileMock, verifyIdentifierMock, notifyMock } = 
   notifyMock: vi.fn(),
 }));
 
-vi.mock('src/services/profile-service', () => ({
+vi.mock('@/services/profile-service', () => ({
   profileService: {
     fetchProfile: fetchProfileMock,
     saveProfile: saveProfileMock,
   },
 }));
 
-vi.mock('src/services/nip05-service', () => ({
+vi.mock('@/services/nip05-service', () => ({
   parseNip05Identifier: (value: string) => {
     const normalized = value.trim();
     const match = normalized.match(/^([^@\s]+)@([^@\s]+)$/);
