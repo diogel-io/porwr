@@ -1,4 +1,4 @@
-import { db } from 'src/services/database';
+import { db } from '@/services/database';
 
 export const PROFILE_SEARCH_RELAYS_SETTING_KEY = 'nostr:profile-search-relays' as const;
 

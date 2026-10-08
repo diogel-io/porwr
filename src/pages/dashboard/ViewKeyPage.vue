@@ -4,11 +4,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { type QInput, useQuasar } from 'quasar';
 
-import type { StoredKey } from 'src/types';
-import useAccountStore from 'src/stores/account-store';
-import ViewStoredKey from 'components/dashboard/ViewStoredKey.vue';
-import ExportButton from 'components/dashboard/ExportButton.vue';
-import SecurityWarning from 'components/dashboard/SecurityWarning.vue';
+import type { StoredKey } from '@/types';
+import useAccountStore from '@/stores/account-store';
+import ViewStoredKey from '@/components/dashboard/ViewStoredKey.vue';
+import ExportButton from '@/components/dashboard/ExportButton.vue';
+import SecurityWarning from '@/components/dashboard/SecurityWarning.vue';
 
 const { t } = useI18n();
 const route = useRoute();

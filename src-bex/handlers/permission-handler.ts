@@ -18,8 +18,8 @@
  * have survived the user disconnecting that site.
  */
 
-import { PERMISSIONS_KEY, storageService } from 'src/services/storage-service';
-import { LogLevel, logService } from 'src/services/log-service';
+import { PERMISSIONS_KEY, storageService } from '@/services/storage-service';
+import { LogLevel, logService } from '@/services/log-service';
 import { normalizeOrigin } from '../services/origin';
 import type { PermissionEventKind, PermissionGrant } from '../types/background';
 

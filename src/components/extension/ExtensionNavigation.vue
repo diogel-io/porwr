@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { useVault } from 'src/composables/useVault';
-import { useNavigation } from 'src/composables/useNavigation';
-import type { NavigationItem, UtilityLinkItem } from 'src/types/navigation';
+import { useVault } from '@/composables/useVault';
+import { useNavigation } from '@/composables/useNavigation';
+import type { NavigationItem, UtilityLinkItem } from '@/types/navigation';
 
 const { t } = useI18n();
 const { handleLock } = useVault();

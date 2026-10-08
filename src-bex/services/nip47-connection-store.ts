@@ -1,5 +1,5 @@
-import type { Nip47Connection, Nip47ConnectionSummary } from 'src/types/nip47';
-import type { VaultData } from 'src/types/bridge';
+import type { Nip47Connection, Nip47ConnectionSummary } from '@/types/nip47';
+import type { VaultData } from '@/types/bridge';
 
 export function summarizeNip47Connection(connection: Nip47Connection): Nip47ConnectionSummary {
   const { clientSecret: _clientSecret, ...safeConnection } = connection;

@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { RelayCatalogEntry, RelayDiscoveryState } from 'src/types/relay';
+import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
 
 export interface Vault {
   id: string; // 'master' or some unique ID

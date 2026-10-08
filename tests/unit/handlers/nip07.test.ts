@@ -1,21 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { UnsignedEvent } from 'app/src-bex/types/background';
-import { handleGetPublicKey, handleSignEvent } from 'app/src-bex/handlers/nip07';
-import { isVaultUnlocked, getVaultData } from 'app/src-bex/vault';
-import { storageService } from 'src/services/storage-service';
-import { checkPermission } from 'app/src-bex/handlers/permission-handler';
-import { clearSiteBindingCache } from 'app/src-bex/services/site-binding-store';
-import { resetAutoLockTimer } from 'app/src-bex/services/auto-lock';
+import type { UnsignedEvent } from '@/../src-bex/types/background';
+import { handleGetPublicKey, handleSignEvent } from '@/../src-bex/handlers/nip07';
+import { isVaultUnlocked, getVaultData } from '@/../src-bex/vault';
+import { storageService } from '@/services/storage-service';
+import { checkPermission } from '@/../src-bex/handlers/permission-handler';
+import { clearSiteBindingCache } from '@/../src-bex/services/site-binding-store';
+import { resetAutoLockTimer } from '@/../src-bex/services/auto-lock';
 import { finalizeEvent } from 'nostr-tools';
-import { ErrorCode } from 'src/types/error-codes.d';
+import { ErrorCode } from '@/types/error-codes.d';
 
 // Mock dependencies
-vi.mock('app/src-bex/vault', () => ({
+vi.mock('@/../src-bex/vault', () => ({
   isVaultUnlocked: vi.fn(),
   getVaultData: vi.fn(),
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   storageService: {
     get: vi.fn(),
     set: vi.fn(() => Promise.resolve()),
@@ -24,11 +24,11 @@ vi.mock('src/services/storage-service', () => ({
   SITE_BINDINGS_KEY: 'nostr:site-bindings',
 }));
 
-vi.mock('app/src-bex/handlers/permission-handler', () => ({
+vi.mock('@/../src-bex/handlers/permission-handler', () => ({
   checkPermission: vi.fn(),
 }));
 
-vi.mock('app/src-bex/services/auto-lock', () => ({
+vi.mock('@/../src-bex/services/auto-lock', () => ({
   resetAutoLockTimer: vi.fn(),
 }));
 
@@ -41,7 +41,7 @@ vi.mock('@noble/hashes/utils', () => ({
 }));
 
 // Mock logService to avoid issues with wrapWithLogging
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 'debug', INFO: 'info', WARN: 'warn', ERROR: 'error' },
   logService: {
     log: vi.fn(),

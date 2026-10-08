@@ -1,23 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   storageService: { get: vi.fn(), set: vi.fn() },
   SITE_BINDINGS_KEY: 'nostr:site-bindings',
 }));
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { INFO: 'info' },
   logService: { log: vi.fn() },
 }));
 
-import { storageService } from 'src/services/storage-service';
+import { storageService } from '@/services/storage-service';
 import {
   bindOriginIfUnbound,
   clearSiteBindingCache,
   getBinding,
   listBindings,
   removeBinding,
-} from 'app/src-bex/services/site-binding-store';
+} from '@/../src-bex/services/site-binding-store';
 
 const ALICE = 'a'.repeat(64);
 const BOB = 'b'.repeat(64);

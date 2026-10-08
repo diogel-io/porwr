@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockDbVaultsGet = vi.fn();
 
-vi.mock('src/services/database', () => ({
+vi.mock('@/services/database', () => ({
   db: {
     vaults: {
       get: mockDbVaultsGet,
@@ -42,7 +42,7 @@ describe('vault-service (bridge messaging)', () => {
   it('unlockVault succeeds via the Quasar bridge when available', async () => {
     setBridge(async () => ({ data: { success: true, vaultData: { accounts: [] } } }));
 
-    const { unlockVault } = await import('src/services/vault-service');
+    const { unlockVault } = await import('@/services/vault-service');
     const result = await unlockVault('correct-password');
 
     expect(result).toEqual({ success: true, vaultData: { accounts: [] } });
@@ -53,14 +53,14 @@ describe('vault-service (bridge messaging)', () => {
       (callback as (response: unknown) => void)({ success: true, vaultData: { accounts: [] } });
     }) as typeof chrome.runtime.sendMessage);
 
-    const { unlockVault } = await import('src/services/vault-service');
+    const { unlockVault } = await import('@/services/vault-service');
     const result = await unlockVault('correct-password');
 
     expect(result).toEqual({ success: true, vaultData: { accounts: [] } });
   });
 
   it('unlockVault returns a failure result when neither bridge nor chrome.runtime exist', async () => {
-    const { unlockVault } = await import('src/services/vault-service');
+    const { unlockVault } = await import('@/services/vault-service');
     const result = await unlockVault('any-password');
 
     expect(result.success).toBe(false);
@@ -72,7 +72,7 @@ describe('vault-service (bridge messaging)', () => {
       throw new Error('bridge down');
     });
 
-    const { lockVault } = await import('src/services/vault-service');
+    const { lockVault } = await import('@/services/vault-service');
     await expect(lockVault()).resolves.toBeUndefined();
   });
 
@@ -80,7 +80,7 @@ describe('vault-service (bridge messaging)', () => {
     const send = vi.fn().mockResolvedValue({ data: { success: true, encryptedVault: 'v2:abc' } });
     setBridge(send);
 
-    const { createVault } = await import('src/services/vault-service');
+    const { createVault } = await import('@/services/vault-service');
     const result = await createVault('pw', { accounts: [] });
 
     expect(send).toHaveBeenCalledWith({
@@ -94,7 +94,7 @@ describe('vault-service (bridge messaging)', () => {
   it('isVaultUnlocked returns the bridge boolean response', async () => {
     setBridge(async () => ({ data: true }));
 
-    const { isVaultUnlocked } = await import('src/services/vault-service');
+    const { isVaultUnlocked } = await import('@/services/vault-service');
     await expect(isVaultUnlocked()).resolves.toBe(true);
   });
 
@@ -103,14 +103,14 @@ describe('vault-service (bridge messaging)', () => {
       throw new Error('bridge down');
     });
 
-    const { isVaultUnlocked } = await import('src/services/vault-service');
+    const { isVaultUnlocked } = await import('@/services/vault-service');
     await expect(isVaultUnlocked()).resolves.toBe(false);
   });
 
   it('getVaultData surfaces a failure response', async () => {
     setBridge(async () => ({ data: { success: false, error: 'Vault is locked' } }));
 
-    const { getVaultData } = await import('src/services/vault-service');
+    const { getVaultData } = await import('@/services/vault-service');
     await expect(getVaultData()).resolves.toEqual({ success: false, error: 'Vault is locked' });
   });
 
@@ -118,7 +118,7 @@ describe('vault-service (bridge messaging)', () => {
     const send = vi.fn().mockResolvedValue({ data: { success: true } });
     setBridge(send);
 
-    const { updateVaultData } = await import('src/services/vault-service');
+    const { updateVaultData } = await import('@/services/vault-service');
     const result = await updateVaultData({ accounts: [] });
 
     expect(send).toHaveBeenCalledWith({
@@ -132,7 +132,7 @@ describe('vault-service (bridge messaging)', () => {
   it('exportVault returns the encrypted payload on success', async () => {
     setBridge(async () => ({ data: { success: true, encryptedData: 'v2:xyz' } }));
 
-    const { exportVault } = await import('src/services/vault-service');
+    const { exportVault } = await import('@/services/vault-service');
     await expect(exportVault()).resolves.toEqual({ success: true, encryptedData: 'v2:xyz' });
   });
 
@@ -140,7 +140,7 @@ describe('vault-service (bridge messaging)', () => {
     const send = vi.fn().mockResolvedValue({ data: { success: true } });
     setBridge(send);
 
-    const { importVault } = await import('src/services/vault-service');
+    const { importVault } = await import('@/services/vault-service');
     const result = await importVault('v2:xyz');
 
     expect(send).toHaveBeenCalledWith({
@@ -160,21 +160,21 @@ describe('vault-service hasVault (direct DB access)', () => {
   it('returns true when a master vault record exists', async () => {
     mockDbVaultsGet.mockResolvedValue({ id: 'master', encryptedData: 'v2:abc', createdAt: '2026-01-01T00:00:00.000Z' });
 
-    const { hasVault } = await import('src/services/vault-service');
+    const { hasVault } = await import('@/services/vault-service');
     await expect(hasVault()).resolves.toBe(true);
   });
 
   it('returns false when no master vault record exists', async () => {
     mockDbVaultsGet.mockResolvedValue(undefined);
 
-    const { hasVault } = await import('src/services/vault-service');
+    const { hasVault } = await import('@/services/vault-service');
     await expect(hasVault()).resolves.toBe(false);
   });
 
   it('returns false when the database read rejects', async () => {
     mockDbVaultsGet.mockRejectedValue(new Error('db unavailable'));
 
-    const { hasVault } = await import('src/services/vault-service');
+    const { hasVault } = await import('@/services/vault-service');
     await expect(hasVault()).resolves.toBe(false);
   });
 });

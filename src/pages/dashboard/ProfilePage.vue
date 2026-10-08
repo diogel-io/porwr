@@ -2,10 +2,10 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import useAccountStore from 'src/stores/account-store';
-import ProfileImage from 'components/dashboard/ProfileImage.vue';
-import ProfileEditor from 'components/dashboard/ProfileEditor.vue';
-import ProfilePreview from 'components/dashboard/ProfilePreview.vue';
+import useAccountStore from '@/stores/account-store';
+import ProfileImage from '@/components/dashboard/ProfileImage.vue';
+import ProfileEditor from '@/components/dashboard/ProfileEditor.vue';
+import ProfilePreview from '@/components/dashboard/ProfilePreview.vue';
 
 
 const { t } = useI18n();

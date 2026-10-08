@@ -7,8 +7,8 @@ import {
   shouldDefaultToFullEvent,
   truncateForPreview,
   type RequestRiskClass,
-} from 'src/services/approval-preview';
-import type { ApprovalRequestContent } from 'app/src-bex/types/background';
+} from '@/services/approval-preview';
+import type { ApprovalRequestContent } from '@/../src-bex/types/background';
 
 defineOptions({ name: 'RequestPreview' });
 

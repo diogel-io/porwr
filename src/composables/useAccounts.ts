@@ -1,9 +1,9 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import useAccountStore from 'src/stores/account-store';
-import type { DropdownItem, StoredKey } from 'src/types';
+import useAccountStore from '@/stores/account-store';
+import type { DropdownItem, StoredKey } from '@/types';
 import { useI18n } from 'vue-i18n';
-import { profileService } from 'src/services/profile-service';
+import { profileService } from '@/services/profile-service';
 
 export interface AccountDropdownItem extends DropdownItem<string> {
   avatarUrl?: string;

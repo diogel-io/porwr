@@ -6,7 +6,7 @@
  * surface describe a request identically, and so the rules are testable on their own.
  */
 
-import type { ApprovalDuration } from 'app/src-bex/types/background';
+import type { ApprovalDuration } from '@/../src-bex/types/background';
 
 export type RequestRiskClass = 'standard' | 'elevated' | 'unknown' | 'payment';
 

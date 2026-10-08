@@ -39,16 +39,16 @@
     "nostr-tools": "^2.23.1",
     "pinia": "^3.0.1",
     "quasar": "^2.26.0",
-    "vue": "^3.5.22",
+    "vue": "^3.5.43",
     "vue-i18n": "^11.0.0",
-    "vue-router": "^4.0.12"
+    "vue-router": "^5.4.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@intlify/unplugin-vue-i18n": "^4.0.0",
     "@pinia/testing": "^1.0.3",
     "@playwright/test": "^1.62.1",
-    "@quasar/app-vite": "^2.4.1",
+    "@quasar/app-vite": "^3.10.2",
     "@types/crypto-js": "^4.2.2",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^25.3.0",
@@ -67,7 +67,7 @@
     "prettier": "^3.3.3",
     "selenium-webdriver": "^4.47.0",
     "typescript": "^5.9.2",
-    "vite-plugin-checker": "^0.12.0",
+    "vite-plugin-checker": "^0.14.5",
     "vitest": "^4.0.15",
     "vue-eslint-parser": "^10.4.0",
     "vue-tsc": "^3.2.4"

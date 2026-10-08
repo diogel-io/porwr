@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import useVaultStore from 'src/stores/vault-store';
+import useVaultStore from '@/stores/vault-store';
 
 const { mockCreateVault, mockHasVault, mockLockVault, mockUnlockVault, mockStorageGet, mockOnChanged } = vi.hoisted(
   () => ({
@@ -13,14 +13,14 @@ const { mockCreateVault, mockHasVault, mockLockVault, mockUnlockVault, mockStora
   }),
 );
 
-vi.mock('src/services/vault-service', () => ({
+vi.mock('@/services/vault-service', () => ({
   createVault: mockCreateVault,
   hasVault: mockHasVault,
   lockVault: mockLockVault,
   unlockVault: mockUnlockVault,
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   VAULT_UNLOCKED: 'VAULT_UNLOCKED',
   storageService: { get: mockStorageGet, onChanged: mockOnChanged },
 }));

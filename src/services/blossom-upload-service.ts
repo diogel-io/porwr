@@ -1,5 +1,5 @@
 import { sendBexMessage } from './vault-service';
-import useSettingsStore from 'src/stores/settings-store';
+import useSettingsStore from '@/stores/settings-store';
 
 export interface BlossomUploadInput {
   base64Data: string;

@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { useVault } from 'src/composables/useVault';
+import { useVault } from '@/composables/useVault';
 
 defineOptions({ name: 'SidebarSetup' });
 

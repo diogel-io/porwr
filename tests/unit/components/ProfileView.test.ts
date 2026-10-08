@@ -21,11 +21,11 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('src/services/profile-service', () => ({
+vi.mock('@/services/profile-service', () => ({
   profileService: { fetchProfile: state.fetchProfile },
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   PROFILE_UPDATED_KEY: 'profile:updated',
   storageService: {
     set: state.set,
@@ -36,7 +36,7 @@ vi.mock('src/services/storage-service', () => ({
   },
 }));
 
-import ProfileView from 'components/shared/ProfileView.vue';
+import ProfileView from '@/components/shared/ProfileView.vue';
 
 const STORED_KEY = {
   id: 'a'.repeat(64),

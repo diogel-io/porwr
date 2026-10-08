@@ -13,9 +13,9 @@
 
 import { hexToBytes } from '@noble/hashes/utils';
 
-import { NOSTR_ACTIVE, storageService } from 'src/services/storage-service';
-import type { StoredKey } from 'src/types';
-import { ErrorCode } from 'src/types/error-codes.d';
+import { NOSTR_ACTIVE, storageService } from '@/services/storage-service';
+import type { StoredKey } from '@/types';
+import { ErrorCode } from '@/types/error-codes.d';
 import { getVaultData, isVaultUnlocked } from '../vault';
 import { bindOriginIfUnbound, getBinding } from './site-binding-store';
 

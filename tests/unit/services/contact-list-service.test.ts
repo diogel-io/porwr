@@ -8,8 +8,8 @@ import {
   parseContactProfile,
   parseContactTags,
   validateContactInput,
-} from 'src/services/contact-list-service';
-import type { Nip02Contact } from 'src/types/contact-list';
+} from '@/services/contact-list-service';
+import type { Nip02Contact } from '@/types/contact-list';
 
 const pubkeyOne = '0'.repeat(63) + '1';
 const pubkeyTwo = '0'.repeat(63) + '2';

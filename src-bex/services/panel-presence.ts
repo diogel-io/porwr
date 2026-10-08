@@ -15,7 +15,7 @@
  * a notification does so by re-reading rather than by trusting a payload it was handed.
  */
 
-import { LogLevel, logService } from 'src/services/log-service';
+import { LogLevel, logService } from '@/services/log-service';
 import { resolvePanelSurface } from './panel-surface';
 import { requeuePresented } from './request-queue';
 

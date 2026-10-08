@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { requeuePresented } = vi.hoisted(() => ({ requeuePresented: vi.fn(async () => undefined) }));
 
-vi.mock('app/src-bex/services/request-queue', () => ({ requeuePresented }));
-vi.mock('app/src-bex/services/panel-surface', () => ({ resolvePanelSurface: vi.fn() }));
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/../src-bex/services/request-queue', () => ({ requeuePresented }));
+vi.mock('@/../src-bex/services/panel-surface', () => ({ resolvePanelSurface: vi.fn() }));
+vi.mock('@/services/log-service', () => ({
   LogLevel: { ERROR: 'error' },
   logService: { log: vi.fn() },
 }));
@@ -18,8 +18,8 @@ import {
   notifyPanelsOfQueueChange,
   onPanelPresenceChange,
   reconcilePanelPresence,
-} from 'app/src-bex/services/panel-presence';
-import { resolvePanelSurface } from 'app/src-bex/services/panel-surface';
+} from '@/../src-bex/services/panel-presence';
+import { resolvePanelSurface } from '@/../src-bex/services/panel-surface';
 
 type Connect = (port: chrome.runtime.Port) => void;
 

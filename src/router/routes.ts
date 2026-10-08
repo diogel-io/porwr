@@ -3,12 +3,12 @@ import type { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     path: '/sidebar',
-    component: () => import('layouts/sidebar/Layout.vue'),
+    component: () => import('@/layouts/sidebar/Layout.vue'),
     children: [
       {
         path: '',
         name: 'sidebar',
-        component: () => import('pages/sidebar/SidebarHome.vue'),
+        component: () => import('@/pages/sidebar/SidebarHome.vue'),
       },
     ],
   },
@@ -20,23 +20,23 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/login',
-    component: () => import('layouts/extension/LoginLayout.vue'),
+    component: () => import('@/layouts/extension/LoginLayout.vue'),
     children: [
       {
         path: '',
         name: 'login',
-        component: () => import('pages/extension/VaultLogin.vue'),
+        component: () => import('@/pages/extension/VaultLogin.vue'),
       },
     ],
   },
   {
     path: '/dashboard',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: '',
         name: 'dashboard',
-        component: () => import('pages/dashboard/DashboardPage.vue'),
+        component: () => import('@/pages/dashboard/DashboardPage.vue'),
       },
     ],
   },
@@ -53,105 +53,105 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/settings',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: '',
         name: 'settings',
-        component: () => import('pages/dashboard/ExtensionSettings.vue'),
+        component: () => import('@/pages/dashboard/ExtensionSettings.vue'),
       },
     ],
   },
   {
     path: '/profile',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: '',
         name: 'profile',
-        component: () => import('pages/dashboard/ProfilePage.vue'),
+        component: () => import('@/pages/dashboard/ProfilePage.vue'),
       },
     ],
   },
   {
     path: '/relays',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: '',
         name: 'relays',
-        component: () => import('pages/dashboard/RelayManagementPage.vue'),
+        component: () => import('@/pages/dashboard/RelayManagementPage.vue'),
       },
     ],
   },
   {
     path: '/contacts',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: '',
         name: 'contacts',
-        component: () => import('pages/dashboard/ContactListPage.vue'),
+        component: () => import('@/pages/dashboard/ContactListPage.vue'),
       },
     ],
   },
   {
     path: '/wallet-connections',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: '',
         name: 'wallet-connections',
-        component: () => import('pages/dashboard/WalletConnectionsPage.vue'),
+        component: () => import('@/pages/dashboard/WalletConnectionsPage.vue'),
       },
     ],
   },
   {
     path: '/keys',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: 'import',
         name: 'import-key',
-        component: () => import('pages/dashboard/ImportKeyPage.vue'),
+        component: () => import('@/pages/dashboard/ImportKeyPage.vue'),
       },
       {
         path: 'new',
         name: 'add-new-key',
-        component: () => import('pages/dashboard/AddNewKeyPage.vue'),
+        component: () => import('@/pages/dashboard/AddNewKeyPage.vue'),
       },
       {
         path: ':alias',
         name: 'view-key',
-        component: () => import('pages/dashboard/ViewKeyPage.vue'),
+        component: () => import('@/pages/dashboard/ViewKeyPage.vue'),
         props: true,
       },
       {
         path: '',
         name: 'keys',
-        component: () => import('pages/dashboard/KeyManagementPage.vue'),
+        component: () => import('@/pages/dashboard/KeyManagementPage.vue'),
       },
     ],
   },
   {
     path: '/connected-sites',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: '',
         name: 'connected-sites',
-        component: () => import('pages/dashboard/ConnectedSitesPage.vue'),
+        component: () => import('@/pages/dashboard/ConnectedSitesPage.vue'),
       },
     ],
   },
   {
     path: '/event-history',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: '',
         name: 'event-history',
-        component: () => import('pages/dashboard/ViewLogs.vue'),
+        component: () => import('@/pages/dashboard/ViewLogs.vue'),
       },
     ],
   },
@@ -177,12 +177,12 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/',
-    component: () => import('layouts/extension/Layout.vue'),
+    component: () => import('@/layouts/extension/Layout.vue'),
     children: [
       {
         path: '',
         name: 'home',
-        component: () => import('pages/extension/IndexPage.vue'),
+        component: () => import('@/pages/extension/IndexPage.vue'),
       },
     ],
   },
@@ -190,7 +190,7 @@ const routes: RouteRecordRaw[] = [
   // but you can also remove it
   {
     path: '/:catchAll(.*)*',
-    component: () => import('pages/extension/ErrorNotFound.vue'),
+    component: () => import('@/pages/extension/ErrorNotFound.vue'),
   },
 ];
 

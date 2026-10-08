@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import VaultLogin from 'src/pages/extension/VaultLogin.vue';
+import VaultLogin from '@/pages/extension/VaultLogin.vue';
 
 const testState = vi.hoisted(() => ({
   notifyMock: vi.fn(),
@@ -39,7 +39,7 @@ vi.mock('vue-router', () => ({
   }),
 }));
 
-vi.mock('src/composables/useVault', () => ({
+vi.mock('@/composables/useVault', () => ({
   useVault: () => ({
     vaultStore: testState.vaultStore,
     password: '',

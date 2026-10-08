@@ -12,7 +12,7 @@
 </template>
 
 <script lang="ts" setup>
-import ExtensionWindowHeader from 'components/extension/ExtensionWindowHeader.vue';
+import ExtensionWindowHeader from '@/components/extension/ExtensionWindowHeader.vue';
 
 defineOptions({ name: 'ExtensionLayout' });
 </script>

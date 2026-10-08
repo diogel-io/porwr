@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import type { VaultData } from 'src/types/bridge';
-import type { Nip47Command, Nip47Connection } from 'src/types/nip47';
+import type { VaultData } from '@/types/bridge';
+import type { Nip47Command, Nip47Connection } from '@/types/nip47';
 import {
   listNip47Connections,
   setActiveNip47Connection,
   upsertNip47Connection,
-} from 'app/src-bex/services/nip47-connection-store';
+} from '@/../src-bex/services/nip47-connection-store';
 
 function buildConnection(id: string, isActive: boolean): Nip47Connection {
   return {

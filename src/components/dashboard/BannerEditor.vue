@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
-import type { StoredKey } from 'src/types';
-import ImagePreview from 'components/dashboard/ImagePreview.vue';
-import ImageUploader from 'components/dashboard/ImageUploader.vue';
+import type { StoredKey } from '@/types';
+import ImagePreview from '@/components/dashboard/ImagePreview.vue';
+import ImageUploader from '@/components/dashboard/ImageUploader.vue';
 
 defineOptions({ name: 'BannerEditor' });
 

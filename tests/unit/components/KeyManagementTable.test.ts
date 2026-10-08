@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 
-import KeyManagementTable from 'components/dashboard/key-management/KeyManagementTable.vue';
-import type { StoredKey } from 'src/types';
+import KeyManagementTable from '@/components/dashboard/key-management/KeyManagementTable.vue';
+import type { StoredKey } from '@/types';
 
 const notifyMock = vi.fn();
 const clipboardWriteTextMock = vi.fn();

@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ORIGIN_SCOPED_ACTIONS,
   decideRouting,
-} from 'app/src-bex/services/message-routing';
+} from '@/../src-bex/services/message-routing';
 
 /**
  * An action scoped to an origin must never be dispatched without one.

@@ -1,6 +1,6 @@
 import { hexToBytes } from '@noble/hashes/utils';
-import { NOSTR_ACTIVE, storageService } from 'src/services/storage-service';
-import type { StoredKey, VaultData } from 'src/types/bridge';
+import { NOSTR_ACTIVE, storageService } from '@/services/storage-service';
+import type { StoredKey, VaultData } from '@/types/bridge';
 import { handleVaultGetData, handleVaultIsUnlocked } from './vault-handler';
 
 export async function getActiveStoredKey(): Promise<StoredKey> {

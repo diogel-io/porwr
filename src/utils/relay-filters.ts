@@ -1,4 +1,4 @@
-import type { RelayCatalogEntry } from 'src/types/relay';
+import type { RelayCatalogEntry } from '@/types/relay';
 
 export function filterRelays(
   relays: RelayCatalogEntry[],

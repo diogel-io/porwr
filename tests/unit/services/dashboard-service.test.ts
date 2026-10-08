@@ -1,24 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type * as DashboardService from 'src/services/dashboard-service';
-import type * as DexieStorage from 'src/services/dexie-storage';
-import type * as VaultService from 'src/services/vault-service';
-import { useEventService } from 'src/composables/useEventService';
+import type * as DashboardService from '@/services/dashboard-service';
+import type * as DexieStorage from '@/services/dexie-storage';
+import type * as VaultService from '@/services/vault-service';
+import { useEventService } from '@/composables/useEventService';
 
 const { countSitesHoldingGrantsFor } = vi.hoisted(() => ({
   countSitesHoldingGrantsFor: vi.fn(),
 }));
 
-vi.mock('src/services/connected-sites-service', () => ({ countSitesHoldingGrantsFor }));
+vi.mock('@/services/connected-sites-service', () => ({ countSitesHoldingGrantsFor }));
 
 const ALICE = 'a'.repeat(64);
 
-vi.mock('src/services/dexie-storage', () => ({
+vi.mock('@/services/dexie-storage', () => ({
   get: vi.fn(),
   getActive: vi.fn(),
 }));
 
-vi.mock('src/services/vault-service', () => ({
+vi.mock('@/services/vault-service', () => ({
   isVaultUnlocked: vi.fn(),
 }));
 
@@ -47,7 +47,7 @@ const {
   fetchAccountRelayListEventMock: vi.fn(),
 }));
 
-vi.mock('src/services/database', () => ({
+vi.mock('@/services/database', () => ({
   db: {
     approvals: {
       where: approvalsWhereMock.mockReturnValue({
@@ -66,7 +66,7 @@ vi.mock('src/services/database', () => ({
   },
 }));
 
-vi.mock('src/stores/settings-store', () => ({
+vi.mock('@/stores/settings-store', () => ({
   default: () => ({
     fallbackRelays,
     getSettings: getSettingsMock,
@@ -82,13 +82,13 @@ vi.mock('nostr-tools', () => ({
   },
 }));
 
-vi.mock('src/services/relay-discovery', () => ({
+vi.mock('@/services/relay-discovery', () => ({
   parseRelayListEvent: parseRelayListEventMock,
   normalizeAndDeduplicateRelays: normalizeAndDeduplicateRelaysMock,
   fetchAccountRelayListEvent: fetchAccountRelayListEventMock,
 }));
 
-vi.mock('src/composables/useEventService', () => ({
+vi.mock('@/composables/useEventService', () => ({
   useEventService: vi.fn(),
 }));
 
@@ -136,9 +136,9 @@ describe('dashboard-service', () => {
   });
 
   beforeEach(async () => {
-    dashboardService = await import('src/services/dashboard-service');
-    dexieStorage = await import('src/services/dexie-storage');
-    vaultService = await import('src/services/vault-service');
+    dashboardService = await import('@/services/dashboard-service');
+    dexieStorage = await import('@/services/dexie-storage');
+    vaultService = await import('@/services/vault-service');
 
     vi.mocked(vaultService.isVaultUnlocked).mockResolvedValue(true);
     vi.mocked(dexieStorage.get).mockResolvedValue({});

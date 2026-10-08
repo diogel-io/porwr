@@ -10,7 +10,7 @@
  * handler such as the toolbar action (ADR D4).
  */
 
-import { LogLevel, logService } from 'src/services/log-service';
+import { LogLevel, logService } from '@/services/log-service';
 
 export type PanelSurfaceKind = 'chromium' | 'firefox' | 'unsupported';
 

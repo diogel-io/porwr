@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { relayCatalogService, DISCOVERY_STALENESS_THRESHOLD, METADATA_STALENESS_THRESHOLD } from 'src/services/relay-catalog';
-import type { RelayDiscoveryState, RelayCatalogEntry } from 'src/types/relay';
+import { relayCatalogService, DISCOVERY_STALENESS_THRESHOLD, METADATA_STALENESS_THRESHOLD } from '@/services/relay-catalog';
+import type { RelayDiscoveryState, RelayCatalogEntry } from '@/types/relay';
 
 // Mock the database
 const mockRelayDiscoveryState = new Map<string, RelayDiscoveryState>();
 
-vi.mock('src/services/database', () => {
+vi.mock('@/services/database', () => {
   return {
     db: {
       relayDiscoveryState: {

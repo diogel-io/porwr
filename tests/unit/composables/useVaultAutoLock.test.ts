@@ -1,13 +1,13 @@
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useVaultAutoLock } from 'src/composables/useVaultAutoLock';
+import { useVaultAutoLock } from '@/composables/useVaultAutoLock';
 
 const testState = vi.hoisted(() => ({
   vaultStore: { isUnlocked: true },
 }));
 
-vi.mock('src/stores/vault-store', () => ({
+vi.mock('@/stores/vault-store', () => ({
   default: () => testState.vaultStore,
 }));
 

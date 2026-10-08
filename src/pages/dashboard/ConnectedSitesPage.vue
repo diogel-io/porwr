@@ -3,13 +3,13 @@ import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
-import useAccountStore from 'src/stores/account-store';
-import { getEventKindLabel, getRequestTypeLabel } from 'src/services/approval-preview';
+import useAccountStore from '@/stores/account-store';
+import { getEventKindLabel, getRequestTypeLabel } from '@/services/approval-preview';
 import {
   disconnectSite,
   listConnectedSites,
   type ConnectedSite,
-} from 'src/services/connected-sites-service';
+} from '@/services/connected-sites-service';
 
 defineOptions({ name: 'ConnectedSitesPage' });
 

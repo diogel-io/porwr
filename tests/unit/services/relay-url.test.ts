@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeRelayUrl, isRestrictedHostname } from 'src/services/relay-url';
+import { normalizeRelayUrl, isRestrictedHostname } from '@/services/relay-url';
 
 describe('normalizeRelayUrl', () => {
   it('should validate a valid wss:// URL', () => {

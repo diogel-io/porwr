@@ -6,18 +6,18 @@ import {
   REQUEST_EXPIRY_MINUTES,
   storageService,
   VAULT_AUTO_LOCK_MINUTES,
-} from 'src/services/storage-service';
+} from '@/services/storage-service';
 import {
   clampRequestExpiryMinutes,
   REQUEST_EXPIRY_DEFAULT_MINUTES,
-} from 'src/services/request-expiry';
-import { RELAY_SEEDS } from 'src/data/relay-seeds';
-import { PROFILE_SEARCH_RELAY_SEEDS } from 'src/data/profile-search-relay-seeds';
-import { normalizeRelayUrl } from 'src/services/relay-url';
+} from '@/services/request-expiry';
+import { RELAY_SEEDS } from '@/data/relay-seeds';
+import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
+import { normalizeRelayUrl } from '@/services/relay-url';
 import {
   getStoredProfileSearchRelays,
   setStoredProfileSearchRelays,
-} from 'src/services/profile-search-relay-settings-service';
+} from '@/services/profile-search-relay-settings-service';
 
 const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net/';
 const DEFAULT_VAULT_AUTO_LOCK_MINUTES = 15;

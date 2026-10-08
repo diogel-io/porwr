@@ -1,4 +1,4 @@
-import type { StoredKey } from 'src/types/bridge';
+import type { StoredKey } from '@/types/bridge';
 import { getVaultData, isVaultUnlocked, updateVaultData } from './vault-service';
 import { NOSTR_ACTIVE, storageService } from './storage-service';
 

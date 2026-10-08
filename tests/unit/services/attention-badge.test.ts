@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { getPendingCount } = vi.hoisted(() => ({ getPendingCount: vi.fn() }));
 
-vi.mock('app/src-bex/services/request-queue', () => ({ getPendingCount }));
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/../src-bex/services/request-queue', () => ({ getPendingCount }));
+vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 'debug' },
   logService: { log: vi.fn() },
 }));
 
-import { refreshAttention, renderAttention } from 'app/src-bex/services/attention-badge';
+import { refreshAttention, renderAttention } from '@/../src-bex/services/attention-badge';
 
 const setBadgeText = vi.fn(async (_details: { text: string }) => undefined);
 const setTitle = vi.fn(async (_details: { title: string }) => undefined);

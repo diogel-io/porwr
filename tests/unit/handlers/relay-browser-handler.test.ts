@@ -4,26 +4,26 @@ import {
   handleRelayBrowserList,
   handleRelayBrowserGetStatus,
   handleRelayBrowserRefresh,
-} from 'app/src-bex/handlers/relay-browser-handler';
-import { relayCatalogService } from 'src/services/relay-catalog';
-import { relayBrowserOrchestrator } from 'src/services/relay-browser-orchestrator';
-import type { RelayCatalogEntry } from 'src/types/relay';
+} from '@/../src-bex/handlers/relay-browser-handler';
+import { relayCatalogService } from '@/services/relay-catalog';
+import { relayBrowserOrchestrator } from '@/services/relay-browser-orchestrator';
+import type { RelayCatalogEntry } from '@/types/relay';
 
 // Mock dependencies
-vi.mock('src/services/relay-catalog', () => ({
+vi.mock('@/services/relay-catalog', () => ({
   relayCatalogService: {
     getEntries: vi.fn(),
     getDiscoveryState: vi.fn(),
   },
 }));
 
-vi.mock('src/services/relay-browser-orchestrator', () => ({
+vi.mock('@/services/relay-browser-orchestrator', () => ({
   relayBrowserOrchestrator: {
     refreshCatalog: vi.fn(),
   },
 }));
 
-vi.mock('src/services/database', () => ({
+vi.mock('@/services/database', () => ({
   db: {
     relayDiscoveryState: {
       get: vi.fn(),

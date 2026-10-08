@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import type { RouteRecordRaw } from 'vue-router';
 
-import routes from 'src/router/routes';
-import SidebarFooterLinks from 'components/sidebar/SidebarFooterLinks.vue';
+import routes from '@/router/routes';
+import SidebarFooterLinks from '@/components/sidebar/SidebarFooterLinks.vue';
 
 /**
  * Guards the sidebar surface boundary.

@@ -1,12 +1,12 @@
 <script lang="ts" setup>
 import { ref, onMounted } from 'vue';
-import ThemeSwitch from 'components/dashboard/ThemeSwitch.vue';
-import useSettingsStore from 'src/stores/settings-store';
+import ThemeSwitch from '@/components/dashboard/ThemeSwitch.vue';
+import useSettingsStore from '@/stores/settings-store';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
-import { useVaultManagement } from 'src/composables/useVaultManagement';
-import { normalizeRelayUrl } from 'src/services/relay-url';
-import { REQUEST_EXPIRY_OPTION_MINUTES } from 'src/services/request-expiry';
+import { useVaultManagement } from '@/composables/useVaultManagement';
+import { normalizeRelayUrl } from '@/services/relay-url';
+import { REQUEST_EXPIRY_OPTION_MINUTES } from '@/services/request-expiry';
 
 const { t } = useI18n();
 const $q = useQuasar();

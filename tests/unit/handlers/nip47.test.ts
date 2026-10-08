@@ -11,20 +11,20 @@ import {
   handleNip47GetInfo,
   handleNip47PayInvoice,
   handleNip47PaymentHistoryList,
-} from 'app/src-bex/handlers/nip47';
-import { getVaultData, updateVaultData } from 'app/src-bex/vault';
-import { nip47Client } from 'app/src-bex/services/nip47-client';
-import { parseNwcUri, buildNip47ConnectionId } from 'src/services/nip47-uri';
-import { listNip47PaymentHistory } from 'app/src-bex/services/nip47-payment-history-store';
-import type { VaultData } from 'src/types/bridge';
-import type { Nip47Connection } from 'src/types/nip47';
+} from '@/../src-bex/handlers/nip47';
+import { getVaultData, updateVaultData } from '@/../src-bex/vault';
+import { nip47Client } from '@/../src-bex/services/nip47-client';
+import { parseNwcUri, buildNip47ConnectionId } from '@/services/nip47-uri';
+import { listNip47PaymentHistory } from '@/../src-bex/services/nip47-payment-history-store';
+import type { VaultData } from '@/types/bridge';
+import type { Nip47Connection } from '@/types/nip47';
 
-vi.mock('app/src-bex/vault', () => ({
+vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(),
   updateVaultData: vi.fn(),
 }));
 
-vi.mock('app/src-bex/services/nip47-client', () => ({
+vi.mock('@/../src-bex/services/nip47-client', () => ({
   nip47Client: {
     payInvoice: vi.fn(),
     getInfo: vi.fn(),
@@ -32,13 +32,13 @@ vi.mock('app/src-bex/services/nip47-client', () => ({
   },
 }));
 
-vi.mock('src/services/nip47-uri', () => ({
+vi.mock('@/services/nip47-uri', () => ({
   parseNwcUri: vi.fn(),
   buildNip47ConnectionId: vi.fn(),
 }));
 
-vi.mock('app/src-bex/services/nip47-payment-history-store', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('app/src-bex/services/nip47-payment-history-store')>();
+vi.mock('@/../src-bex/services/nip47-payment-history-store', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/../src-bex/services/nip47-payment-history-store')>();
   return {
     ...actual,
     listNip47PaymentHistory: vi.fn(actual.listNip47PaymentHistory),

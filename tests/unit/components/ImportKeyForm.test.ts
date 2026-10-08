@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 
-import ImportKeyForm from 'components/dashboard/key-management/ImportKeyForm.vue';
+import ImportKeyForm from '@/components/dashboard/key-management/ImportKeyForm.vue';
 
 const { saveKeyMock, pushMock, notifyMock } = vi.hoisted(() => ({
   saveKeyMock: vi.fn(),
@@ -10,7 +10,7 @@ const { saveKeyMock, pushMock, notifyMock } = vi.hoisted(() => ({
   notifyMock: vi.fn(),
 }));
 
-vi.mock('src/stores/account-store', () => ({
+vi.mock('@/stores/account-store', () => ({
   default: () => ({
     saveKey: saveKeyMock,
   }),

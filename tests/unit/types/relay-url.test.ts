@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createRelayUrl } from 'src/types/relay-url';
+import { createRelayUrl } from '@/types/relay-url';
 
 describe('createRelayUrl', () => {
   it('accepts a valid wss:// URL', () => {

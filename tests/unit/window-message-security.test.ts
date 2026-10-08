@@ -1,16 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { MESSAGE_TYPE_REQUEST } from 'app/src-bex/constants';
-import { normalizeErrorMessage } from 'app/src-bex/error-normalizer';
+import { MESSAGE_TYPE_REQUEST } from '@/../src-bex/constants';
+import { normalizeErrorMessage } from '@/../src-bex/error-normalizer';
 import {
   handleDiogelWindowMessage,
   type WindowMessageBridge,
-} from 'app/src-bex/window-message-handler';
+} from '@/../src-bex/window-message-handler';
 import {
   getCurrentWindowOrigin,
   isDiogelWindowMessage,
   isSameWindowOrigin,
-} from 'app/src-bex/window-message-security';
+} from '@/../src-bex/window-message-security';
 
 const providerSource = readFileSync('src-bex/nostr-provider.js', 'utf8');
 const contentScriptSource = readFileSync('src-bex/content-script.ts', 'utf8');

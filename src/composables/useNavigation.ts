@@ -3,7 +3,7 @@ import { computed } from 'vue';
 
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import type { NavigationItem, UseNavigationResult, UtilityLinkItem } from 'src/types/navigation';
+import type { NavigationItem, UseNavigationResult, UtilityLinkItem } from '@/types/navigation';
 
 export function useNavigation(): UseNavigationResult {
   const { t } = useI18n();

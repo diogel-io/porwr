@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 'debug' },
   logService: { log: vi.fn() },
 }));
@@ -14,7 +14,7 @@ import {
   onPageOriginChange,
   recordPageOrigin,
   restorePageOrigins,
-} from 'app/src-bex/services/page-origin-registry';
+} from '@/../src-bex/services/page-origin-registry';
 
 type Sender = chrome.runtime.MessageSender;
 

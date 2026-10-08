@@ -14,8 +14,8 @@
  * must not orphan a binding or hand a site to a different identity.
  */
 
-import { SITE_BINDINGS_KEY, storageService } from 'src/services/storage-service';
-import { LogLevel, logService } from 'src/services/log-service';
+import { SITE_BINDINGS_KEY, storageService } from '@/services/storage-service';
+import { LogLevel, logService } from '@/services/log-service';
 import { normalizeOrigin } from './origin';
 
 export interface SiteBinding {

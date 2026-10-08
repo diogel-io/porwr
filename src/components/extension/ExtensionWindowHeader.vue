@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import AccountDropdown from 'components/shared/AccountDropdown.vue';
-import ExtensionNavigation from 'components/extension/ExtensionNavigation.vue';
-import useVaultStore from 'src/stores/vault-store';
+import AccountDropdown from '@/components/shared/AccountDropdown.vue';
+import ExtensionNavigation from '@/components/extension/ExtensionNavigation.vue';
+import useVaultStore from '@/stores/vault-store';
 
 const vaultStore = useVaultStore();
 

@@ -5,8 +5,8 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { useQuasar } from 'quasar';
-import darkLogoUrl from 'src/assets/images/dark/diogel.svg';
-import lightLogoUrl from 'src/assets/images/light/diogel.svg';
+import darkLogoUrl from '@/assets/images/dark/diogel.svg';
+import lightLogoUrl from '@/assets/images/light/diogel.svg';
 
 defineOptions({ name: 'DiogelLogo' });
 

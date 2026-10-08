@@ -4,10 +4,10 @@ import { type QInput, useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
-import type { StoredKey } from 'src/types';
-import useAccountStore from 'src/stores/account-store';
-import { generateKey } from 'src/services/generate-key';
-import ViewStoredKey from 'components/dashboard/ViewStoredKey.vue';
+import type { StoredKey } from '@/types';
+import useAccountStore from '@/stores/account-store';
+import { generateKey } from '@/services/generate-key';
+import ViewStoredKey from '@/components/dashboard/ViewStoredKey.vue';
 
 const { t } = useI18n();
 const $q = useQuasar();

@@ -4,7 +4,7 @@ import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import * as nip19 from 'nostr-tools/nip19';
 
-import type { StoredKey } from 'src/types';
+import type { StoredKey } from '@/types';
 
 const { t, d } = useI18n();
 const $q = useQuasar();

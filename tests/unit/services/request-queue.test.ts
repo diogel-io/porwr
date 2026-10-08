@@ -13,20 +13,20 @@ import {
   interruptRequestsForOrigin,
   onQueueChange,
   __resetLiveCallbacksForTests,
-} from 'app/src-bex/services/request-queue';
-import { REQUEST_EXPIRY_MINUTES, REQUEST_QUEUE_KEY } from 'src/services/storage-service';
-import type { ApprovalRequestRecord } from 'app/src-bex/types/background';
+} from '@/../src-bex/services/request-queue';
+import { REQUEST_EXPIRY_MINUTES, REQUEST_QUEUE_KEY } from '@/services/storage-service';
+import type { ApprovalRequestRecord } from '@/../src-bex/types/background';
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 },
   logService: { log: vi.fn() },
 }));
 
 const store = new Map<string, unknown>();
 
-vi.mock('src/services/storage-service', async () => {
-  const actual = await vi.importActual<typeof import('src/services/storage-service')>(
-    'src/services/storage-service',
+vi.mock('@/services/storage-service', async () => {
+  const actual = await vi.importActual<typeof import('@/services/storage-service')>(
+    '@/services/storage-service',
   );
   return {
     ...actual,

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import type { VaultData } from 'src/types/bridge';
-import type { Nip47PaymentHistoryEntry } from 'src/types/nip47';
+import type { VaultData } from '@/types/bridge';
+import type { Nip47PaymentHistoryEntry } from '@/types/nip47';
 import {
   appendNip47PaymentHistory,
   listNip47PaymentHistory,
-} from 'app/src-bex/services/nip47-payment-history-store';
+} from '@/../src-bex/services/nip47-payment-history-store';
 
 function buildEntry(id: string, createdAt: string): Nip47PaymentHistoryEntry {
   return {

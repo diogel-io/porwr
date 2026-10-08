@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
-import type { StoredKey } from 'src/types';
+import type { StoredKey } from '@/types';
 
 const uploadImageToBlossomMock = vi.hoisted(() => vi.fn());
 
-vi.mock('src/services/blossom-upload-service', () => ({
+vi.mock('@/services/blossom-upload-service', () => ({
   uploadImageToBlossom: uploadImageToBlossomMock,
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   storageService: {
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn(),
@@ -39,7 +39,7 @@ vi.mock('quasar', () => ({
 }));
 
 // Import after mocks
-import ImageUploader from 'components/dashboard/ImageUploader.vue';
+import ImageUploader from '@/components/dashboard/ImageUploader.vue';
 
 const mockStoredKey: StoredKey = {
   id: 'test-pubkey',

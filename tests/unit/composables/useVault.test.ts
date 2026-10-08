@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useVault } from 'src/composables/useVault';
+import { useVault } from '@/composables/useVault';
 
 const testState = vi.hoisted(() => ({
   notifyMock: vi.fn(),
@@ -30,7 +30,7 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: testState.pushMock }),
 }));
 
-vi.mock('src/stores/vault-store', () => ({
+vi.mock('@/stores/vault-store', () => ({
   default: () => testState.vaultStore,
 }));
 

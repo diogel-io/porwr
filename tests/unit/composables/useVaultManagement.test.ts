@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useVaultManagement } from 'src/composables/useVaultManagement';
+import { useVaultManagement } from '@/composables/useVaultManagement';
 
 const testState = vi.hoisted(() => ({
   notifyMock: vi.fn(),
@@ -38,7 +38,7 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('src/services/vault-service', () => ({
+vi.mock('@/services/vault-service', () => ({
   exportVault: testState.exportVaultMock,
   importVault: testState.importVaultMock,
 }));

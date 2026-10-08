@@ -3,7 +3,7 @@ import type {
   BridgeRequestMap,
   BridgeResponsePayload,
   VaultData,
-} from 'src/types/bridge';
+} from '@/types/bridge';
 import {
   handleVaultUnlock,
   handleVaultLock,

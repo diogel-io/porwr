@@ -25,15 +25,15 @@ vi.mock('vue-i18n', () => ({
 
 vi.mock('quasar', () => ({ useQuasar: () => ({ notify: mocks.notify }) }));
 
-vi.mock('src/stores/vault-store', () => ({
+vi.mock('@/stores/vault-store', () => ({
   default: () => ({ vaultExists: true, isUnlocked: true }),
 }));
 
-vi.mock('src/stores/account-store', () => ({
+vi.mock('@/stores/account-store', () => ({
   default: () => ({ activeAccount: undefined, hasNoAccounts: false, getKeys: vi.fn() }),
 }));
 
-vi.mock('src/composables/useActiveTab', () => ({
+vi.mock('@/composables/useActiveTab', () => ({
   useActiveTab: () => ({ activeOrigin: ref('') }),
 }));
 
@@ -51,7 +51,7 @@ const REQUEST = {
   expiresAt: 2,
 };
 
-vi.mock('src/composables/useApprovalQueue', () => ({
+vi.mock('@/composables/useApprovalQueue', () => ({
   useApprovalQueue: () => ({
     pending: ref([REQUEST]),
     current: ref(REQUEST),
@@ -61,7 +61,7 @@ vi.mock('src/composables/useApprovalQueue', () => ({
   }),
 }));
 
-vi.mock('src/services/connected-sites-service', () => ({
+vi.mock('@/services/connected-sites-service', () => ({
   switchSiteToActiveAccount: mocks.switchSiteToActiveAccount,
 }));
 
@@ -79,7 +79,7 @@ const CurrentRequestStub = defineComponent({
 });
 
 const mountPage = async () => {
-  const SidebarHome = (await import('src/pages/sidebar/SidebarHome.vue')).default;
+  const SidebarHome = (await import('@/pages/sidebar/SidebarHome.vue')).default;
   return mount(SidebarHome, {
     global: {
       stubs: {

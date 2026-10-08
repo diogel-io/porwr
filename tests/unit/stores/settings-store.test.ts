@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import useSettingsStore from 'src/stores/settings-store';
-import { FALLBACK_RELAYS, storageService } from 'src/services/storage-service';
+import useSettingsStore from '@/stores/settings-store';
+import { FALLBACK_RELAYS, storageService } from '@/services/storage-service';
 import {
   getStoredProfileSearchRelays,
   setStoredProfileSearchRelays,
-} from 'src/services/profile-search-relay-settings-service';
-import { RELAY_SEEDS } from 'src/data/relay-seeds';
-import { PROFILE_SEARCH_RELAY_SEEDS } from 'src/data/profile-search-relay-seeds';
+} from '@/services/profile-search-relay-settings-service';
+import { RELAY_SEEDS } from '@/data/relay-seeds';
+import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
 
 // Mock storage service
-vi.mock('src/services/storage-service', async (importOriginal) => {
+vi.mock('@/services/storage-service', async (importOriginal) => {
   const original = await importOriginal<Record<string, unknown>>();
   return {
     ...original,
@@ -22,7 +22,7 @@ vi.mock('src/services/storage-service', async (importOriginal) => {
   };
 });
 
-vi.mock('src/services/profile-search-relay-settings-service', () => ({
+vi.mock('@/services/profile-search-relay-settings-service', () => ({
   getStoredProfileSearchRelays: vi.fn(),
   setStoredProfileSearchRelays: vi.fn(),
 }));

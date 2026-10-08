@@ -15,7 +15,7 @@
  * 5. log the outcome on the terminal transition, so a rejection is never recorded as an approval
  */
 
-import { LogLevel, logService } from 'src/services/log-service';
+import { LogLevel, logService } from '@/services/log-service';
 import { checkPermission, grantPermission } from '../handlers/permission-handler';
 import { enqueueRequest } from './request-queue';
 import { originHostname } from './origin';

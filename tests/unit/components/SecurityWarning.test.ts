@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
-import SecurityWarning from 'components/dashboard/SecurityWarning.vue';
+import SecurityWarning from '@/components/dashboard/SecurityWarning.vue';
 
 describe('SecurityWarning.vue', () => {
   it('renders title and message correctly', () => {

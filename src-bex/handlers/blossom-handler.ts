@@ -1,9 +1,9 @@
 import { finalizeEvent, getPublicKey } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { storageService, NOSTR_ACTIVE, BLOSSOM_UPLOAD_STATUS } from 'src/services/storage-service';
-import { LogLevel, logService } from 'src/services/log-service';
-import type { VaultData, StoredKey } from 'src/types/bridge';
+import { storageService, NOSTR_ACTIVE, BLOSSOM_UPLOAD_STATUS } from '@/services/storage-service';
+import { LogLevel, logService } from '@/services/log-service';
+import type { VaultData, StoredKey } from '@/types/bridge';
 import type { HandlerResult } from '../types/background';
 import { handleVaultGetData, handleVaultIsUnlocked } from './vault-handler';
 

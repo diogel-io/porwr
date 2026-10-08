@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPublicKey } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
-import { storageService } from 'src/services/storage-service';
+import { storageService } from '@/services/storage-service';
 
 const { poolGetMock, poolPublishMock, fallbackRelays } = vi.hoisted(() => ({
   poolGetMock: vi.fn(),
@@ -9,12 +9,12 @@ const { poolGetMock, poolPublishMock, fallbackRelays } = vi.hoisted(() => ({
   fallbackRelays: ['wss://relay.damus.io'] as string[],
 }));
 
-vi.mock('src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   PROFILE_UPDATED_KEY: 'profile:updated',
   storageService: { set: vi.fn(() => Promise.resolve()) },
 }));
 
-vi.mock('src/stores/settings-store', () => ({
+vi.mock('@/stores/settings-store', () => ({
   default: () => ({
     getFallbackRelays: vi.fn(async () => fallbackRelays),
   }),
@@ -37,7 +37,7 @@ describe('profileService.fetchProfile', () => {
   });
 
   it('returns null without querying relays when the pubkey is empty', async () => {
-    const { profileService } = await import('src/services/profile-service');
+    const { profileService } = await import('@/services/profile-service');
 
     await expect(profileService.fetchProfile('')).resolves.toBeNull();
     expect(poolGetMock).not.toHaveBeenCalled();
@@ -46,7 +46,7 @@ describe('profileService.fetchProfile', () => {
   it('parses and returns the profile from a kind-0 metadata event', async () => {
     poolGetMock.mockResolvedValue({ content: JSON.stringify({ name: 'Alice' }) });
 
-    const { profileService } = await import('src/services/profile-service');
+    const { profileService } = await import('@/services/profile-service');
     const result = await profileService.fetchProfile('pubkey-a');
 
     expect(poolGetMock).toHaveBeenCalledWith(fallbackRelays, { authors: ['pubkey-a'], kinds: [0] });
@@ -56,14 +56,14 @@ describe('profileService.fetchProfile', () => {
   it('returns null when no metadata event is found', async () => {
     poolGetMock.mockResolvedValue(null);
 
-    const { profileService } = await import('src/services/profile-service');
+    const { profileService } = await import('@/services/profile-service');
     await expect(profileService.fetchProfile('pubkey-a')).resolves.toBeNull();
   });
 
   it('returns null when the relay query rejects', async () => {
     poolGetMock.mockRejectedValue(new Error('relay unreachable'));
 
-    const { profileService } = await import('src/services/profile-service');
+    const { profileService } = await import('@/services/profile-service');
     await expect(profileService.fetchProfile('pubkey-a')).resolves.toBeNull();
   });
 });
@@ -80,7 +80,7 @@ describe('profileService.saveProfile', () => {
     poolGetMock.mockResolvedValue({ content: JSON.stringify({ name: 'Old Name', picture: 'old.png' }) });
     poolPublishMock.mockReturnValue([Promise.resolve('relay-ack')]);
 
-    const { profileService } = await import('src/services/profile-service');
+    const { profileService } = await import('@/services/profile-service');
     await profileService.saveProfile(privkey, { name: 'New Name' });
 
     expect(poolGetMock).toHaveBeenCalledWith(fallbackRelays, { authors: [pubkey], kinds: [0] });
@@ -98,7 +98,7 @@ describe('profileService.saveProfile', () => {
     poolGetMock.mockResolvedValue(null);
     poolPublishMock.mockReturnValue([Promise.reject(new Error('relay rejected'))]);
 
-    const { profileService } = await import('src/services/profile-service');
+    const { profileService } = await import('@/services/profile-service');
     await expect(profileService.saveProfile(privkey, { name: 'New Name' })).rejects.toThrow();
   });
 });
@@ -130,7 +130,7 @@ describe('the profile-changed signal', () => {
       return [Promise.resolve('relay-ack')];
     });
 
-    const { profileService } = await import('src/services/profile-service');
+    const { profileService } = await import('@/services/profile-service');
     await profileService.saveProfile(privkey, { name: 'alice' });
 
     // Signalling first would tell every surface to re-read on the strength of a publish that had
@@ -141,7 +141,7 @@ describe('the profile-changed signal', () => {
   it('names the account whose profile changed', async () => {
     poolPublishMock.mockReturnValue([Promise.resolve('relay-ack')]);
 
-    const { profileService } = await import('src/services/profile-service');
+    const { profileService } = await import('@/services/profile-service');
     await profileService.saveProfile(privkey, { name: 'alice' });
 
     expect(storageService.set).toHaveBeenCalledWith(
@@ -153,7 +153,7 @@ describe('the profile-changed signal', () => {
   it('does not signal when every relay publish fails', async () => {
     poolPublishMock.mockReturnValue([Promise.reject(new Error('relay rejected'))]);
 
-    const { profileService } = await import('src/services/profile-service');
+    const { profileService } = await import('@/services/profile-service');
     await expect(profileService.saveProfile(privkey, { name: 'alice' })).rejects.toThrow();
 
     // A surface that re-read here would show what is on the relays, which is not what was saved.

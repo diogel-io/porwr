@@ -4,10 +4,10 @@ import type {
   ApprovalRequestContent,
   ApprovalRequestRecord,
   DecisionResult,
-} from 'app/src-bex/types/background';
+} from '@/../src-bex/types/background';
 import type { RelayCatalogEntry, RelayDiscoveryState } from './relay';
-import type { ConnectedSite } from 'app/src-bex/services/connected-sites';
-import type { SiteAccount, SwitchSiteAccountResult } from 'app/src-bex/services/site-account';
+import type { ConnectedSite } from '@/../src-bex/services/connected-sites';
+import type { SiteAccount, SwitchSiteAccountResult } from '@/../src-bex/services/site-account';
 import type {
   ImportNip47ConnectionRequest,
   Nip47BalanceResponse,

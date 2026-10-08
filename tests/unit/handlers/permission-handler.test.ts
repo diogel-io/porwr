@@ -6,16 +6,16 @@ import {
   getGrantedPermissions,
   grantPermission,
   revokePermission,
-} from 'app/src-bex/handlers/permission-handler';
-import { storageService } from 'app/src/services/storage-service';
-import type { PermissionGrant } from 'app/src-bex/types/background';
+} from '@/../src-bex/handlers/permission-handler';
+import { storageService } from '@/services/storage-service';
+import type { PermissionGrant } from '@/../src-bex/types/background';
 
-vi.mock('app/src/services/storage-service', () => ({
+vi.mock('@/services/storage-service', () => ({
   storageService: { get: vi.fn(), set: vi.fn() },
   PERMISSIONS_KEY: 'permissions',
 }));
 
-vi.mock('src/services/log-service', () => ({
+vi.mock('@/services/log-service', () => ({
   LogLevel: { WARN: 'warn' },
   logService: { log: vi.fn() },
 }));

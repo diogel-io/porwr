@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { RelayCatalogEntry } from 'src/types/relay';
-import { filterRelays } from 'src/utils/relay-filters';
+import type { RelayCatalogEntry } from '@/types/relay';
+import { filterRelays } from '@/utils/relay-filters';
 
 const mockRelays: RelayCatalogEntry[] = [
   {

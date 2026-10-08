@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { nip05Service, parseNip05Identifier } from 'src/services/nip05-service';
+import { nip05Service, parseNip05Identifier } from '@/services/nip05-service';
 
 describe('nip05-service', () => {
   beforeEach(() => {

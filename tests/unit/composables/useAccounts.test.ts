@@ -1,8 +1,8 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { defineComponent, nextTick } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useAccounts } from 'src/composables/useAccounts';
-import type { StoredKey } from 'src/types';
+import { useAccounts } from '@/composables/useAccounts';
+import type { StoredKey } from '@/types';
 
 interface MockAccountStore {
   storedKeys: Set<StoredKey>;
@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('src/stores/account-store', () => ({
+vi.mock('@/stores/account-store', () => ({
   default: () => mocks.accountStore,
 }));
 
@@ -43,7 +43,7 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('src/services/profile-service', () => ({
+vi.mock('@/services/profile-service', () => ({
   profileService: {
     fetchProfile: mocks.fetchProfile,
   },

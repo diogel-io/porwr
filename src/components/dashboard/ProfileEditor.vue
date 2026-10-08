@@ -2,9 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import type { NostrProfile, StoredKey } from 'src/types';
-import { profileService } from 'src/services/profile-service';
-import { nip05Service, parseNip05Identifier, type Nip05VerificationResult, type Nip05VerificationStatus } from 'src/services/nip05-service';
+import type { NostrProfile, StoredKey } from '@/types';
+import { profileService } from '@/services/profile-service';
+import { nip05Service, parseNip05Identifier, type Nip05VerificationResult, type Nip05VerificationStatus } from '@/services/nip05-service';
 
 defineOptions({ name: 'ProfileEditor' });
 

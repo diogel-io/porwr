@@ -1,5 +1,5 @@
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
-import type { Account, StoredKey } from 'src/types';
+import type { Account, StoredKey } from '@/types';
 import { bytesToHex } from '@noble/hashes/utils';
 
 export function generateKey(): StoredKey {

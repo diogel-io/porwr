@@ -1,5 +1,5 @@
 import { bech32 } from '@scure/base';
-import type { LnurlInvoiceResponse, LnurlPayMetadata, ResolvedLnurlPayTarget } from 'src/types/nip57';
+import type { LnurlInvoiceResponse, LnurlPayMetadata, ResolvedLnurlPayTarget } from '@/types/nip57';
 
 const HEX_PUBKEY_PATTERN = /^[0-9a-fA-F]{64}$/;
 

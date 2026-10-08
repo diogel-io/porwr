@@ -4,7 +4,7 @@ import { mount } from '@vue/test-utils';
 import type {
   ApprovalRequestContent,
   ApprovalRequestRecord,
-} from 'app/src-bex/types/background';
+} from '@/../src-bex/types/background';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -13,7 +13,7 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-import CurrentRequest from 'components/sidebar/CurrentRequest.vue';
+import CurrentRequest from '@/components/sidebar/CurrentRequest.vue';
 
 const request = (over: Partial<ApprovalRequestRecord> = {}): ApprovalRequestRecord =>
   ({

@@ -1,14 +1,14 @@
 import { computed, onMounted, onUnmounted, ref, type Ref } from 'vue';
 
-import { connectPanelPort, type PanelPortHandle } from 'src/services/panel-port';
-import { sendBexMessage } from 'src/services/bridge-client';
-import { LogLevel, logService } from 'src/services/log-service';
+import { connectPanelPort, type PanelPortHandle } from '@/services/panel-port';
+import { sendBexMessage } from '@/services/bridge-client';
+import { LogLevel, logService } from '@/services/log-service';
 import type {
   ApprovalDuration,
   ApprovalRequestContent,
   ApprovalRequestRecord,
   DecisionResult,
-} from 'app/src-bex/types/background';
+} from '@/../src-bex/types/background';
 
 /**
  * Panel-side view of the background request queue.

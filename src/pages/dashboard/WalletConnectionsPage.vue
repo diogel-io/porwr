@@ -11,9 +11,9 @@ import {
   payNip47Invoice,
   removeNip47Connection,
   setActiveNip47Connection,
-} from 'src/services/nip47-service';
-import { parseBolt11AmountMsat, previewInvoice } from 'src/services/nip47-invoice';
-import type { Nip47ConnectionSummary, Nip47PaymentHistoryEntry } from 'src/types/nip47';
+} from '@/services/nip47-service';
+import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
+import type { Nip47ConnectionSummary, Nip47PaymentHistoryEntry } from '@/types/nip47';
 
 const $q = useQuasar();
 const { t } = useI18n();
