@@ -88,3 +88,11 @@ export interface MarkReadRequest {
   peer: string;
   readAt: number;
 }
+
+/** A message a page is still sending, or failed to send and can retry with the same id. */
+export interface PendingMessage {
+  clientMessageId: string;
+  peer: string;
+  content: string;
+  status: 'sending' | 'failed';
+}
