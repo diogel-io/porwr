@@ -6,7 +6,7 @@
   >
     <div class="text-center" style="max-width: 90vw">
       <q-spinner color="primary" size="3em" />
-      <div class="q-mt-md text-h6 text-primary">Diogel</div>
+      <div class="q-mt-md text-h6 text-primary">Porwr</div>
       <div class="q-mt-sm text-body2 text-grey-8">Initializing secure environment...</div>
 
       <div

@@ -2,7 +2,7 @@
   "name": "diogel",
   "version": "0.2.0",
   "description": "Privacy focused nostr extension",
-  "productName": "Diogel",
+  "productName": "Porwr",
   "author": "threenine.io <support@threenine.co.uk>",
   "type": "module",
   "private": true,

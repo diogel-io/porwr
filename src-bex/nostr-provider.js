@@ -68,7 +68,7 @@ const callDiogelBridge = (type, payload) => {
 };
 
 const nostr = {
-  name: 'Diogel',
+  name: 'Porwr',
   getPublicKey: async () => {
     return nostr.call('getPublicKey', {});
   },
@@ -154,7 +154,7 @@ if (DEBUG) console.log('[BEX] Nostr provider ready and events dispatched');
 window.dispatchEvent(
   new CustomEvent('nostr:registration', {
     detail: {
-      name: 'Diogel',
+      name: 'Porwr',
       methods: [
         'getPublicKey',
         'signEvent',

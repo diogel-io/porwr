@@ -14,7 +14,7 @@ window.setTimeout(() => {
     container.style.zIndex = '9999';
 
     const title = document.createElement('h3');
-    title.textContent = 'Failed to load Diogel';
+    title.textContent = 'Failed to load Porwr';
 
     const message = document.createElement('p');
     message.textContent = 'Please check the background script logs or extension console for errors.';

@@ -15,7 +15,7 @@ import { hasWebLnPermission, upsertWebLnPermission } from '../services/webln-per
 async function requireUnlockedVaultData(): Promise<VaultData> {
   const result = await getVaultData();
   if (!result.success || !result.vaultData) {
-    throw new Error('Vault is locked. Unlock Diogel before using WebLN.');
+    throw new Error('Vault is locked. Unlock Porwr before using WebLN.');
   }
   return result.vaultData as VaultData;
 }
@@ -76,7 +76,7 @@ export async function handleWebLnGetInfo(payload: WebLnGetInfoRequest): Promise<
     success: true,
     data: {
       node: {
-        alias: connection.label || 'Diogel Wallet',
+        alias: connection.label || 'Porwr Wallet',
         pubkey: connection.walletServicePubkey,
       },
     },

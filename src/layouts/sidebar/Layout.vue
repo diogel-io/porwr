@@ -43,7 +43,7 @@ const pendingLabel = computed(() =>
     <header class="sidebar-header" :aria-label="t('sidebar.header.ariaLabel')">
       <div class="sidebar-brand">
         <DiogelLogo size="md" />
-        <span class="sidebar-brand__name">Diogel</span>
+        <span class="sidebar-brand__name">Porwr</span>
       </div>
 
       <div class="sidebar-header__actions">

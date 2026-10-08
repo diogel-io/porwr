@@ -1,5 +1,5 @@
 <template>
-  <img :src="logoSrc" alt="Diogel" :class="['diogel-logo', sizeClass]" />
+  <img :src="logoSrc" alt="Porwr" :class="['diogel-logo', sizeClass]" />
 </template>
 
 <script lang="ts" setup>

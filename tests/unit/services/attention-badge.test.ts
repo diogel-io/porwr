@@ -55,10 +55,10 @@ describe('toolbar attention (D4)', () => {
   describe('the title', () => {
     it('is the accessible carrier while the panel is closed, so it names the count in words', async () => {
       await renderAttention(1);
-      expect(lastTitle()).toBe('Diogel - 1 request waiting for your decision');
+      expect(lastTitle()).toBe('Porwr - 1 request waiting for your decision');
 
       await renderAttention(4);
-      expect(lastTitle()).toBe('Diogel - 4 requests waiting for your decision');
+      expect(lastTitle()).toBe('Porwr - 4 requests waiting for your decision');
     });
 
     it('carries the real number even when the badge is capped', async () => {
@@ -70,7 +70,7 @@ describe('toolbar attention (D4)', () => {
     it('returns to the plain name when nothing is waiting', async () => {
       await renderAttention(0);
 
-      expect(lastTitle()).toBe('Diogel');
+      expect(lastTitle()).toBe('Porwr');
     });
   });
 

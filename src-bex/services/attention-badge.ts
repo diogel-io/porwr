@@ -19,7 +19,7 @@ const BADGE_TEXT_COLOR = '#0b1220';
 /** Two digits is all the toolbar reliably shows; beyond that the title carries the real number. */
 const MAX_BADGE_COUNT = 99;
 
-const DEFAULT_TITLE = 'Diogel';
+const DEFAULT_TITLE = 'Porwr';
 
 const formatBadge = (count: number): string => {
   if (count <= 0) return '';
