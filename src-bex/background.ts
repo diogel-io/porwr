@@ -737,7 +737,7 @@ bridge.on('webln.enable', ({ payload }) => (
   (async () => {
     const approved = await requestApproval(payload.origin, -1, {
       requestType: 'webln_enable',
-      contentDescription: 'Allow this site to use Diogel as a WebLN wallet provider. Payments will still require separate approval.',
+      contentDescription: 'Allow this site to use Porwr as a WebLN wallet provider. Payments will still require separate approval.',
       allowRemember: true,
       skipPermissionCheck: true,
     });

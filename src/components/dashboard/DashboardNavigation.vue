@@ -39,7 +39,7 @@ function openUtilityLink(item: UtilityLinkItem) {
     <div class="main-navigation__brand">
       <DiogelLogo size="lg" />
       <div class="main-navigation__brand-content">
-        <p class="main-navigation__brand-title">Diogel</p>
+        <p class="main-navigation__brand-title">Porwr</p>
         <p class="main-navigation__brand-version">{{ t('footer.version') }} {{ appVersion }}</p>
       </div>
     </div>

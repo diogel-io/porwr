@@ -25,7 +25,7 @@ export default {
     noAccountDesc: 'Please select or create an account to manage your profile.',
     noAccountsAvailable: 'No accounts are currently available',
     noAccountsAvailableDesc:
-      'Create an account from Key Management before using Diogel as a signer.',
+      'Create an account from Key Management before using Porwr as a signer.',
     loading: 'Loading accounts...',
     noActiveAccount: 'No active account',
     noActiveAccountDesc: 'Please select or create an account in the Accounts tab.',
@@ -296,7 +296,7 @@ export default {
     import: {
       title: 'Import wallet connection',
       caption:
-        'Paste a Nostr Wallet Connect URI from your Lightning wallet. NWC secrets are stored inside your encrypted Diogel vault and are not exposed to websites in this MVP.',
+        'Paste a Nostr Wallet Connect URI from your Lightning wallet. NWC secrets are stored inside your encrypted Porwr vault and are not exposed to websites in this MVP.',
       connectionLabel: 'Connection label',
       connectionHint: 'Optional. Example: Alby, Mutiny, Home node',
       nwcUri: 'NWC URI',
@@ -387,7 +387,7 @@ export default {
     removeDialog: {
       title: 'Remove wallet connection?',
       message:
-        'Remove {label} from this encrypted vault? This does not affect the wallet itself, but Diogel will no longer be able to use this NWC connection.',
+        'Remove {label} from this encrypted vault? This does not affect the wallet itself, but Porwr will no longer be able to use this NWC connection.',
     },
     errors: {
       noWalletSelected: 'No wallet connection selected',

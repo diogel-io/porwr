@@ -32,7 +32,7 @@ import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice'
 async function requireUnlockedVaultData(): Promise<VaultData> {
   const result = await getVaultData();
   if (!result.success || !result.vaultData) {
-    throw new Error(result.error || 'Vault is locked. Unlock Diogel before managing wallet connections.');
+    throw new Error(result.error || 'Vault is locked. Unlock Porwr before managing wallet connections.');
   }
   return result.vaultData as VaultData;
 }

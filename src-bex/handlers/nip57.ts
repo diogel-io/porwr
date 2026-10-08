@@ -20,7 +20,7 @@ import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice'
 async function requireUnlockedVaultData(): Promise<VaultData> {
   const result = await getVaultData();
   if (!result.success || !result.vaultData) {
-    throw new Error('Vault is locked. Unlock Diogel before sending a zap.');
+    throw new Error('Vault is locked. Unlock Porwr before sending a zap.');
   }
   return result.vaultData as VaultData;
 }
