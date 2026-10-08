@@ -418,6 +418,10 @@ export default {
       label: 'Contact Management',
       caption: 'Browse and edit your NIP-02 follow list',
     },
+    mediaManagement: {
+      label: 'Media Management',
+      caption: 'Choose where images are uploaded',
+    },
     walletConnections: {
       label: 'Wallet Management',
       caption: 'Manage Nostr Wallet Connect links',
@@ -443,6 +447,10 @@ export default {
       caption: 'Lock the vault immediately',
     },
     newSignature: 'New Signature',
+  },
+  mediaManagement: {
+    title: 'Media Management',
+    dashboardCaption: 'Choose the Blossom server Porwr uploads your profile images to.',
   },
   settings: {
     profileSearchRelays: 'Profile Search Relays',
@@ -474,7 +482,7 @@ export default {
     exportDeny: 'Browser denied file download',
     title: 'Extension Settings',
     dashboardCaption:
-      'Configure extension preferences, vault locking, Blossom uploads, and vault import/export.',
+      'Configure extension preferences, vault locking, and vault import/export.',
     export: 'Export',
     import: 'Import',
     autoLockOptions: {

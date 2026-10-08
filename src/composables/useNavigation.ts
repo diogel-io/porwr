@@ -83,6 +83,14 @@ export function useNavigation(): UseNavigationResult {
       isActive: () => routeName.value === 'contacts',
     },
     {
+      id: 'media-management',
+      icon: 'perm_media',
+      label: t('navigation.mediaManagement.label'),
+      caption: t('navigation.mediaManagement.caption'),
+      target: { name: 'media-management' },
+      isActive: () => routeName.value === 'media-management',
+    },
+    {
       id: 'wallet-connections',
       icon: 'account_balance_wallet',
       label: t('navigation.walletConnections.label'),
