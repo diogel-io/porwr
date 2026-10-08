@@ -7,7 +7,7 @@ const store = vi.hoisted(() => ({
   setBlossomServer: vi.fn(),
 }));
 
-vi.mock('src/stores/settings-store', () => ({
+vi.mock('@/stores/settings-store', () => ({
   default: () => store,
 }));
 
@@ -15,7 +15,7 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-import MediaManagementPage from 'src/pages/dashboard/MediaManagementPage.vue';
+import MediaManagementPage from '@/pages/dashboard/MediaManagementPage.vue';
 
 const mountPage = async () => {
   const wrapper = mount(MediaManagementPage, {

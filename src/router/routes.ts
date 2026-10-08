@@ -42,12 +42,12 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/media',
-    component: () => import('layouts/dashboard/Layout.vue'),
+    component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [
       {
         path: '',
         name: 'media-management',
-        component: () => import('pages/dashboard/MediaManagementPage.vue'),
+        component: () => import('@/pages/dashboard/MediaManagementPage.vue'),
       },
     ],
   },

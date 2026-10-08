@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import useSettingsStore from 'src/stores/settings-store';
+import useSettingsStore from '@/stores/settings-store';
 
 const { t } = useI18n();
 const settingsStore = useSettingsStore();
