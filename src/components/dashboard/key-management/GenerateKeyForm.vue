@@ -92,7 +92,7 @@ async function saveKey() {
     class="q-pa-lg-lg full-width settings-form rounded-borders"
   >
     <q-list>
-      <q-item v-ripple tag="label">
+      <q-item>
         <q-item-section>
           <div class="q-gutter-lg">
             <q-input
