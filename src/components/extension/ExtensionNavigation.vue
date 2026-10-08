@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { useVault } from '@/composables/useVault';
 import { useNavigation } from '@/composables/useNavigation';
 import type { NavigationItem, UtilityLinkItem } from '@/types/navigation';
@@ -7,15 +8,19 @@ import type { NavigationItem, UtilityLinkItem } from '@/types/navigation';
 const { t } = useI18n();
 const { handleLock } = useVault();
 const { navigationItems, utilityLinks } = useNavigation();
+const router = useRouter();
 
 function openInTab(path: string) {
   const url = chrome.runtime.getURL(`www/index.html#${path}`);
   void chrome.tabs.create({ url });
 }
 
+/**
+ * Opens the item's page in a new tab. The path comes from the router, not the route name: names and
+ * paths differ (`messaging` lives at `/messages`, `media-management` at `/media`).
+ */
 function openNavigationItem(item: NavigationItem) {
-  const href = item.target.name === 'profile' ? '/profile?tab=profile' : `/${item.target.name}`;
-  openInTab(href);
+  openInTab(router.resolve(item.target).fullPath);
 }
 
 function openUtilityLink(item: UtilityLinkItem) {
