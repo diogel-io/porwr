@@ -12,7 +12,7 @@ Quasar + Vue 3 + TypeScript codebase and its Browser Extension (BEX) targets.
     successfully.
   - TypeScript is strict (`quasar.config.ts > build.typescript.strict: true`). Type-level errors surface in-editor and
     during dev via `vite-plugin-checker`.
-  - Node engines supported (package.json `engines.node`): ^20, ^22, ^24, ^26, ^28. Use one of these to avoid
+  - Node engines supported (package.json `engines.node`): ^22.22, ^24, ^26, ^28. Use one of these to avoid
     dev/build/runtime surprises.
 
 - Install
@@ -73,6 +73,10 @@ conventions (test locations, crypto/network mocking, determinism).
   - Keep Quasar theming in `src/css/quasar.variables.scss`; avoid scattering color tokens outside variables.
   - Boot files: keep side-effectful global setup isolated in `src/boot/*`; do not import boot files directly in
     components.
+  - Import by the `@` alias (mapped to `src/`, the only alias `@quasar/app-vite` 3 injects), e.g.
+    `@/components/<surface>/<Name>.vue`, `@/stores/`, `@/services/`; reach extension code as `@/../src-bex/...`.
+  - Read environment values as `import.meta.env.*` (`build.defineEnv` in `quasar.config.ts`; Quasar constants use
+    the `QUASAR_` prefix), not `process.env`.
 
 - Networking
   - Centralize Axios configuration in `src/boot/axios`. Abstract HTTP calls behind modules/composables to keep
