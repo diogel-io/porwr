@@ -46,6 +46,7 @@ describe('useNavigation', () => {
       'relays',
       'connected-sites',
       'contacts',
+      'media-management',
       'wallet-connections',
       'event-history',
       'settings',
@@ -79,6 +80,16 @@ describe('useNavigation', () => {
       const item = vm.navigationItems.find((i) => i.id === 'event-history');
       expect(item?.isActive()).toBe(true);
     }
+  });
+
+  it('marks media-management active on its own route', () => {
+    testState.route.name = 'media-management';
+    const wrapper = mount(TestHarness);
+    const vm = wrapper.vm as unknown as HarnessVm;
+
+    const active = vm.navigationItems.filter((item) => item.isActive());
+    expect(active.map((item) => item.id)).toEqual(['media-management']);
+    expect(active[0]?.target).toEqual({ name: 'media-management' });
   });
 
   it('provides two utility links pointing at support and documentation', () => {

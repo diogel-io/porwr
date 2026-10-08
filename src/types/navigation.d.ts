@@ -9,6 +9,7 @@ type NavigationRouteName =
   | 'relays'
   | 'connected-sites'
   | 'contacts'
+  | 'media-management'
   | 'wallet-connections'
   | 'settings'
   | 'event-history'
@@ -30,6 +31,7 @@ interface NavigationItem {
     | 'relays'
     | 'connected-sites'
     | 'contacts'
+    | 'media-management'
     | 'wallet-connections'
     | 'event-history'
     | 'settings';

@@ -119,24 +119,6 @@ async function updateProfileSearchRelay(index: number, value: string | number | 
           </q-item>
         </q-list>
       </q-card-section>
-      <q-card-section>
-        <h2 class="text-subtitle1 q-mb-md">{{ t('profile.blossomServer') }}</h2>
-        <q-list>
-          <q-item>
-            <q-item-section>
-              <q-item-label>{{ t('profile.blossomServer') }}</q-item-label>
-              <q-item-label caption> {{ t('profile.blossomServerCaption')}}</q-item-label>
-              <q-input
-                v-model="settingsStore.blossomServer"
-                class="q-mt-sm"
-                dense
-                outlined
-                @update:model-value="(val) => settingsStore.setBlossomServer(String(val))"
-              />
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card-section>
 
       <q-separator />
 
