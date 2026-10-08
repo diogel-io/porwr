@@ -46,6 +46,7 @@ import {
   createNewVault,
   unlockVault,
   lockVault,
+  onVaultLocked,
   isVaultUnlocked,
   updateVaultData,
   getVaultData,
@@ -233,6 +234,19 @@ describe('Vault', () => {
       expect(unlockRes.success).toBe(true);
       expect(unlockRes.vaultData).toEqual(TEST_DATA);
       expect(isVaultUnlocked()).toBe(true);
+    });
+
+    it('tells lock listeners when the vault locks, until they unsubscribe', async () => {
+      const listener = vi.fn();
+      const unsubscribe = onVaultLocked(listener);
+
+      await createNewVault(TEST_PASSWORD, TEST_DATA);
+      await lockVault();
+      expect(listener).toHaveBeenCalledTimes(1);
+
+      unsubscribe();
+      await lockVault();
+      expect(listener).toHaveBeenCalledTimes(1);
     });
 
     it('should update vault data', async () => {

@@ -6,6 +6,17 @@ import type {
   DecisionResult,
 } from '@/../src-bex/types/background';
 import type { RelayCatalogEntry, RelayDiscoveryState } from './relay';
+import type {
+  DmRelayList,
+  DmRelayPublishRequest,
+  DmRelayPublishResult,
+  FetchMessagesRequest,
+  FetchMessagesResult,
+  MarkReadRequest,
+  MessagingReadState,
+  SendMessageRequest,
+  SendMessageResult,
+} from './messaging';
 import type { ConnectedSite } from '@/../src-bex/services/connected-sites';
 import type { SiteAccount, SwitchSiteAccountResult } from '@/../src-bex/services/site-account';
 import type {
@@ -85,6 +96,8 @@ export interface VaultData {
   nip47PaymentHistory?: Nip47PaymentHistoryEntry[];
   nip57ZapHistory?: Nip57ZapHistoryEntry[];
   webLnPermissions?: WebLnPermissionGrant[];
+  /** NIP-17 read state: account pubkey -> peer pubkey -> newest read message `created_at`. */
+  messagingReadState?: Record<string, MessagingReadState>;
 }
 
 // Bridge action types
@@ -134,6 +147,12 @@ export type BridgeAction =
   | 'nip47.getBalance'
   | 'nip47.payInvoice'
   | 'nip47.payments.list'
+  | 'messaging.dmRelays.get'
+  | 'messaging.dmRelays.publish'
+  | 'messaging.send'
+  | 'messaging.fetch'
+  | 'messaging.readState'
+  | 'messaging.markRead'
   | 'nip57.getCapabilities'
   | 'nip57.sendZap'
   | 'nip57.zaps.list'
@@ -377,6 +396,30 @@ export interface BridgeRequestMap {
     id: string;
     action: 'nip47.payments.list';
   };
+  'messaging.dmRelays.get': {
+    id: string;
+    action: 'messaging.dmRelays.get';
+  };
+  'messaging.dmRelays.publish': {
+    id: string;
+    action: 'messaging.dmRelays.publish';
+  } & DmRelayPublishRequest;
+  'messaging.send': {
+    id: string;
+    action: 'messaging.send';
+  } & SendMessageRequest;
+  'messaging.fetch': {
+    id: string;
+    action: 'messaging.fetch';
+  } & FetchMessagesRequest;
+  'messaging.readState': {
+    id: string;
+    action: 'messaging.readState';
+  };
+  'messaging.markRead': {
+    id: string;
+    action: 'messaging.markRead';
+  } & MarkReadRequest;
   'nip57.getCapabilities': {
     id: string;
     action: 'nip57.getCapabilities';
@@ -453,6 +496,12 @@ export interface BridgeResponseMap {
   'nip47.getBalance': Nip47BalanceResponse | { success: false; error: string };
   'nip47.payInvoice': Nip47PayInvoiceResponse | { success: false; error: string };
   'nip47.payments.list': Nip47PaymentHistoryEntry[] | { success: false; error: string };
+  'messaging.dmRelays.get': DmRelayList | { success: false; error: string };
+  'messaging.dmRelays.publish': DmRelayPublishResult | { success: false; error: string };
+  'messaging.send': SendMessageResult | { success: false; error: string };
+  'messaging.fetch': FetchMessagesResult | { success: false; error: string };
+  'messaging.readState': MessagingReadState | { success: false; error: string };
+  'messaging.markRead': MessagingReadState | { success: false; error: string };
   'nip57.getCapabilities': ZapCapabilities | { success: false; error: string };
   'nip57.sendZap': SendZapResult | { success: false; error: string };
   'nip57.zaps.list': Nip57ZapHistoryEntry[] | { success: false; error: string };

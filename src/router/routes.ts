@@ -96,6 +96,17 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    path: '/messages',
+    component: () => import('@/layouts/dashboard/Layout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'messaging',
+        component: () => import('@/pages/dashboard/MessagingPage.vue'),
+      },
+    ],
+  },
+  {
     path: '/wallet-connections',
     component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [

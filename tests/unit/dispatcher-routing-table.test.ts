@@ -51,6 +51,11 @@ vi.mock('@/../src-bex/handlers/nip47', () => ({
 vi.mock('@/../src-bex/handlers/nip57', () => ({
   handleNip57GetCapabilities: vi.fn(), handleNip57SendZap: vi.fn(), handleNip57ZapHistoryList: vi.fn(),
 }));
+vi.mock('@/../src-bex/handlers/messaging', () => ({
+  handleDmRelaysGet: vi.fn(), handleDmRelaysPublish: vi.fn(),
+  handleMessagesSend: vi.fn(), handleMessagesFetch: vi.fn(),
+  handleMessagesReadState: vi.fn(), handleMessagesMarkRead: vi.fn(),
+}));
 vi.mock('@/../src-bex/handlers/webln', () => ({
   handleWebLnEnable: vi.fn(), handleWebLnGetInfo: vi.fn(), handleWebLnSendPayment: vi.fn(),
 }));
@@ -70,6 +75,7 @@ import * as relays from '@/../src-bex/handlers/relay-browser-handler';
 import * as nip47 from '@/../src-bex/handlers/nip47';
 import * as nip57 from '@/../src-bex/handlers/nip57';
 import * as webln from '@/../src-bex/handlers/webln';
+import * as messaging from '@/../src-bex/handlers/messaging';
 
 const ORIGIN = 'https://example.com';
 
@@ -192,6 +198,26 @@ const cases: Case[] = [
     name: 'handleNip47PayInvoice', resolves: ok({ preimage: 'p' }), expected: { preimage: 'p' } },
   { action: 'nip47.payments.list', handler: vi.mocked(nip47.handleNip47PaymentHistoryList),
     name: 'handleNip47PaymentHistoryList', resolves: ok([]), expected: [] },
+  { action: 'messaging.dmRelays.get', handler: vi.mocked(messaging.handleDmRelaysGet),
+    name: 'handleDmRelaysGet', resolves: ok({ relays: ['wss://dm'], updatedAt: 1 }),
+    expected: { relays: ['wss://dm'], updatedAt: 1 } },
+  { action: 'messaging.dmRelays.publish', payload: { relays: ['wss://dm'] },
+    handler: vi.mocked(messaging.handleDmRelaysPublish), name: 'handleDmRelaysPublish',
+    resolves: ok({ relays: ['wss://dm'], accepted: ['wss://dm'], rejected: [] }),
+    expected: { relays: ['wss://dm'], accepted: ['wss://dm'], rejected: [] },
+    expectArgs: [expect.objectContaining({ relays: ['wss://dm'] })] },
+  { action: 'messaging.send', payload: { clientMessageId: 'c1', recipient: 'b', content: 'hi' },
+    handler: vi.mocked(messaging.handleMessagesSend), name: 'handleMessagesSend',
+    resolves: ok({ status: 'recipient-not-ready' }), expected: { status: 'recipient-not-ready' },
+    expectArgs: [expect.objectContaining({ clientMessageId: 'c1', recipient: 'b', content: 'hi' })] },
+  { action: 'messaging.fetch', payload: { since: 5 }, handler: vi.mocked(messaging.handleMessagesFetch),
+    name: 'handleMessagesFetch', resolves: ok({ inbox: 'ready', messages: [], dropped: 0 }),
+    expected: { inbox: 'ready', messages: [], dropped: 0 }, expectArgs: [expect.objectContaining({ since: 5 })] },
+  { action: 'messaging.readState', handler: vi.mocked(messaging.handleMessagesReadState),
+    name: 'handleMessagesReadState', resolves: ok({ b: 7 }), expected: { b: 7 } },
+  { action: 'messaging.markRead', payload: { peer: 'b', readAt: 7 },
+    handler: vi.mocked(messaging.handleMessagesMarkRead), name: 'handleMessagesMarkRead',
+    resolves: ok({ b: 7 }), expected: { b: 7 }, expectArgs: [expect.objectContaining({ peer: 'b', readAt: 7 })] },
   { action: 'nip57.getCapabilities', handler: vi.mocked(nip57.handleNip57GetCapabilities),
     name: 'handleNip57GetCapabilities', resolves: ok({ available: true }), expected: { available: true } },
   { action: 'nip57.sendZap', payload: { request: {}, origin: ORIGIN, approved: true },
@@ -299,6 +325,36 @@ describe('dispatcher decisions that are not pass-through', () => {
 
     await expect(dispatchMessage('nip47.payInvoice', { invoice: 'lnbc' } as never, ORIGIN)).resolves.toEqual({
       success: false, error: 'wallet offline',
+    });
+  });
+});
+
+describe('messaging actions report failures to the page', () => {
+  const messagingCases = cases.filter((entry) => entry.action.startsWith('messaging.'));
+
+  it('covers every messaging action', () => {
+    expect(messagingCases.map((entry) => entry.action).sort()).toEqual([
+      'messaging.dmRelays.get',
+      'messaging.dmRelays.publish',
+      'messaging.fetch',
+      'messaging.markRead',
+      'messaging.readState',
+      'messaging.send',
+    ]);
+  });
+
+  it.each(messagingCases)('passes on a refusal from $name', async ({ action, payload, handler }) => {
+    handler.mockResolvedValue({ success: false, error: 'refused' });
+
+    await expect(dispatchMessage(action, payload as never, ORIGIN)).resolves.toEqual({ success: false, error: 'refused' });
+  });
+
+  it.each(messagingCases)('turns an exception in $name into an error result', async ({ action, payload, handler }) => {
+    handler.mockRejectedValue(new Error('Vault is locked'));
+
+    await expect(dispatchMessage(action, payload as never, ORIGIN)).resolves.toEqual({
+      success: false,
+      error: 'Vault is locked',
     });
   });
 });

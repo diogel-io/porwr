@@ -418,6 +418,10 @@ export default {
       label: 'Contact Management',
       caption: 'Browse and edit your NIP-02 follow list',
     },
+    messaging: {
+      label: 'Messaging',
+      caption: 'Private messages with your contacts',
+    },
     mediaManagement: {
       label: 'Media Management',
       caption: 'Choose where images are uploaded',
@@ -447,6 +451,36 @@ export default {
       caption: 'Lock the vault immediately',
     },
     newSignature: 'New Signature',
+  },
+  messaging: {
+    title: 'Messaging',
+    dashboardCaption: 'Private, end-to-end encrypted messages with your contacts (NIP-17).',
+    noInbox:
+      'You have no direct message relays, so nobody can send you private messages. Add one to start receiving.',
+    noInboxAction: 'Set up relays',
+    loadError: 'Could not check for new messages. Porwr will try again shortly.',
+    selectPrompt: 'Choose a conversation to start messaging.',
+    list: {
+      label: 'Conversations',
+      contacts: 'Contacts',
+      requests: 'Message requests',
+      noMessages: 'No messages yet',
+      unread: '{count} unread',
+      empty: 'No contacts or messages yet. Add contacts in Contact Management.',
+    },
+    view: {
+      label: 'Conversation with {name}',
+      empty: 'No messages yet. Say hello.',
+      sending: 'Sending…',
+      failed: 'Not sent.',
+      retry: 'Retry',
+      recipientNotReady: "{name} can't receive private messages yet: they have not published direct message relays.",
+    },
+    composer: {
+      label: 'Message',
+      placeholder: 'Write a message. Enter sends, Shift+Enter adds a line.',
+      send: 'Send message',
+    },
   },
   mediaManagement: {
     title: 'Media Management',
@@ -539,6 +573,22 @@ export default {
     invalidUrl: 'Invalid relay URL (must start with ws:// or wss://)',
     noRelays: 'No relays in the list',
     recommendedSize: 'NIP-65 recommends keeping the list small (2-4 relays per category).',
+    dmRelays: {
+      title: 'Direct Message Relays',
+      caption:
+        'Relays where other people send you private messages (NIP-17). Porwr publishes this list so they know where to reach you.',
+      url: 'Direct message relay URL',
+      add: 'Add direct message relay',
+      remove: 'Remove {url}',
+      save: 'Save Direct Message Relays',
+      empty: 'No direct message relays. Without any, other people cannot send you private messages.',
+      notPublished: 'You have not published a direct message relay list yet.',
+      loadError: 'Could not load your direct message relays. Saving will publish the list shown here.',
+      recommendedSize: 'NIP-17 recommends keeping this list small: 1 to 3 relays.',
+      tooMany: 'More than 3 relays. NIP-17 recommends 1 to 3, so messages reach you reliably.',
+      saveSuccess: 'Direct message relays published to {count} relays',
+      saveError: 'Failed to publish direct message relays',
+    },
     browser: {
       title: 'Relay Browser',
       loading: 'Loading relay catalog...',

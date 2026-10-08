@@ -31,6 +31,23 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      # Local Nostr relays for the messaging tests (tests/e2e/fixtures/relays.ts). Pinned by version
+      # and by hash: the release publishes no checksum, so the hash was taken from the v0.21.0
+      # release asset when it was pinned. Bump both together.
+      - name: Install nak
+        env:
+          NAK_VERSION: v0.21.0
+          NAK_SHA256: 7bf6d8d82a9e9cf9aca74a04449fb2235bc49624a73b3539cf7d6f95304837a1
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/nak" \
+            "https://github.com/fiatjaf/nak/releases/download/${NAK_VERSION}/nak-${NAK_VERSION}-linux-amd64"
+          echo "${NAK_SHA256}  $HOME/.local/bin/nak" | sha256sum --check
+          chmod +x "$HOME/.local/bin/nak"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/nak" --version
+
       - name: Run Chromium end-to-end tests
         run: npm run test:e2e
 
