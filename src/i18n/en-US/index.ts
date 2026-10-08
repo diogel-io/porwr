@@ -539,6 +539,22 @@ export default {
     invalidUrl: 'Invalid relay URL (must start with ws:// or wss://)',
     noRelays: 'No relays in the list',
     recommendedSize: 'NIP-65 recommends keeping the list small (2-4 relays per category).',
+    dmRelays: {
+      title: 'Direct Message Relays',
+      caption:
+        'Relays where other people send you private messages (NIP-17). Porwr publishes this list so they know where to reach you.',
+      url: 'Direct message relay URL',
+      add: 'Add direct message relay',
+      remove: 'Remove {url}',
+      save: 'Save Direct Message Relays',
+      empty: 'No direct message relays. Without any, other people cannot send you private messages.',
+      notPublished: 'You have not published a direct message relay list yet.',
+      loadError: 'Could not load your direct message relays. Saving will publish the list shown here.',
+      recommendedSize: 'NIP-17 recommends keeping this list small: 1 to 3 relays.',
+      tooMany: 'More than 3 relays. NIP-17 recommends 1 to 3, so messages reach you reliably.',
+      saveSuccess: 'Direct message relays published to {count} relays',
+      saveError: 'Failed to publish direct message relays',
+    },
     browser: {
       title: 'Relay Browser',
       loading: 'Loading relay catalog...',

@@ -62,6 +62,8 @@ const SURFACE_ACTIONS = [
   'sites.binding',
   'sites.useActiveAccount',
   'sites.countForAccount',
+  'messaging.dmRelays.get',
+  'messaging.dmRelays.publish',
 ];
 
 describe('bridge action routing', () => {

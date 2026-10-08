@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import useAccountStore from '@/stores/account-store';
 import RelayEditor from '@/components/dashboard/RelayEditor.vue';
+import DmRelayEditor from '@/components/dashboard/DmRelayEditor.vue';
 
 const { t } = useI18n();
 const accountStore = useAccountStore();
@@ -46,6 +47,10 @@ onMounted(async () => {
         <q-spinner color="grey-5" size="3em" />
         <div class="text-h6 text-grey-7 q-mt-md">{{ t('account.loading') }}</div>
       </div>
+    </q-card>
+
+    <q-card v-if="activeStoredKey" class="dashboard-card relay-page__card q-mt-lg">
+      <DmRelayEditor :stored-key="activeStoredKey" />
     </q-card>
   </q-page>
 </template>

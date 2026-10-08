@@ -210,6 +210,8 @@ declare module '@quasar/app-vite' {
       BridgeResponsePayload<'nip47.payInvoice'>,
     ];
     'nip47.payments.list': [undefined, BridgeResponsePayload<'nip47.payments.list'>];
+    'messaging.dmRelays.get': [undefined, BridgeResponsePayload<'messaging.dmRelays.get'>];
+    'messaging.dmRelays.publish': [{ relays: string[] }, BridgeResponsePayload<'messaging.dmRelays.publish'>];
     'nip57.getCapabilities': [{ origin: string }, BridgeResponsePayload<'nip57.getCapabilities'>];
     'nip57.sendZap': [
       { origin: string; request: SendZapRequest; approved?: boolean },
@@ -407,6 +409,14 @@ bridge.on('nip47.payInvoice', ({ payload }) => {
 
 bridge.on('nip47.payments.list', () => {
   return dispatchMessage('nip47.payments.list', createBridgeRequest('nip47.payments.list', {}), '') as unknown as BridgeResponsePayload<'nip47.payments.list'>;
+});
+
+bridge.on('messaging.dmRelays.get', () => {
+  return dispatchMessage('messaging.dmRelays.get', createBridgeRequest('messaging.dmRelays.get', {}), '') as unknown as BridgeResponsePayload<'messaging.dmRelays.get'>;
+});
+
+bridge.on('messaging.dmRelays.publish', ({ payload }) => {
+  return dispatchMessage('messaging.dmRelays.publish', createBridgeRequest('messaging.dmRelays.publish', payload), '') as unknown as BridgeResponsePayload<'messaging.dmRelays.publish'>;
 });
 
 // The vault's raw AES key is persisted to chrome.storage.session so it survives

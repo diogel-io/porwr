@@ -51,6 +51,9 @@ vi.mock('@/../src-bex/handlers/nip47', () => ({
 vi.mock('@/../src-bex/handlers/nip57', () => ({
   handleNip57GetCapabilities: vi.fn(), handleNip57SendZap: vi.fn(), handleNip57ZapHistoryList: vi.fn(),
 }));
+vi.mock('@/../src-bex/handlers/messaging', () => ({
+  handleDmRelaysGet: vi.fn(), handleDmRelaysPublish: vi.fn(),
+}));
 vi.mock('@/../src-bex/handlers/webln', () => ({
   handleWebLnEnable: vi.fn(), handleWebLnGetInfo: vi.fn(), handleWebLnSendPayment: vi.fn(),
 }));
@@ -70,6 +73,7 @@ import * as relays from '@/../src-bex/handlers/relay-browser-handler';
 import * as nip47 from '@/../src-bex/handlers/nip47';
 import * as nip57 from '@/../src-bex/handlers/nip57';
 import * as webln from '@/../src-bex/handlers/webln';
+import * as messaging from '@/../src-bex/handlers/messaging';
 
 const ORIGIN = 'https://example.com';
 
@@ -192,6 +196,14 @@ const cases: Case[] = [
     name: 'handleNip47PayInvoice', resolves: ok({ preimage: 'p' }), expected: { preimage: 'p' } },
   { action: 'nip47.payments.list', handler: vi.mocked(nip47.handleNip47PaymentHistoryList),
     name: 'handleNip47PaymentHistoryList', resolves: ok([]), expected: [] },
+  { action: 'messaging.dmRelays.get', handler: vi.mocked(messaging.handleDmRelaysGet),
+    name: 'handleDmRelaysGet', resolves: ok({ relays: ['wss://dm'], updatedAt: 1 }),
+    expected: { relays: ['wss://dm'], updatedAt: 1 } },
+  { action: 'messaging.dmRelays.publish', payload: { relays: ['wss://dm'] },
+    handler: vi.mocked(messaging.handleDmRelaysPublish), name: 'handleDmRelaysPublish',
+    resolves: ok({ relays: ['wss://dm'], accepted: ['wss://dm'], rejected: [] }),
+    expected: { relays: ['wss://dm'], accepted: ['wss://dm'], rejected: [] },
+    expectArgs: [expect.objectContaining({ relays: ['wss://dm'] })] },
   { action: 'nip57.getCapabilities', handler: vi.mocked(nip57.handleNip57GetCapabilities),
     name: 'handleNip57GetCapabilities', resolves: ok({ available: true }), expected: { available: true } },
   { action: 'nip57.sendZap', payload: { request: {}, origin: ORIGIN, approved: true },

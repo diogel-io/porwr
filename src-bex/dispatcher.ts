@@ -40,6 +40,7 @@ import { handleBlossomUpload } from './handlers/blossom-handler';
 import { handleNip04Encrypt, handleNip04Decrypt } from './handlers/nip04';
 import { handleNip44Encrypt, handleNip44Decrypt } from './handlers/nip44';
 import { handleRelayBrowserList, handleRelayBrowserGetStatus, handleRelayBrowserRefresh } from './handlers/relay-browser-handler';
+import { handleDmRelaysGet, handleDmRelaysPublish } from './handlers/messaging';
 import {
   handleNip47ConnectionImport,
   handleNip47ConnectionRemove,
@@ -402,6 +403,30 @@ export async function dispatchMessage<K extends BridgeAction>(
     case 'nip47.payments.list': {
       try {
         const result = await handleNip47PaymentHistoryList();
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.dmRelays.get': {
+      try {
+        const result = await handleDmRelaysGet();
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.dmRelays.publish': {
+      try {
+        const result = await handleDmRelaysPublish(payload as BridgeRequestMap['messaging.dmRelays.publish']);
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
