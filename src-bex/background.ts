@@ -212,6 +212,10 @@ declare module '@quasar/app-vite' {
     'nip47.payments.list': [undefined, BridgeResponsePayload<'nip47.payments.list'>];
     'messaging.dmRelays.get': [undefined, BridgeResponsePayload<'messaging.dmRelays.get'>];
     'messaging.dmRelays.publish': [{ relays: string[] }, BridgeResponsePayload<'messaging.dmRelays.publish'>];
+    'messaging.send': [{ clientMessageId: string; recipient: string; content: string }, BridgeResponsePayload<'messaging.send'>];
+    'messaging.fetch': [{ since?: number }, BridgeResponsePayload<'messaging.fetch'>];
+    'messaging.readState': [undefined, BridgeResponsePayload<'messaging.readState'>];
+    'messaging.markRead': [{ peer: string; readAt: number }, BridgeResponsePayload<'messaging.markRead'>];
     'nip57.getCapabilities': [{ origin: string }, BridgeResponsePayload<'nip57.getCapabilities'>];
     'nip57.sendZap': [
       { origin: string; request: SendZapRequest; approved?: boolean },
@@ -417,6 +421,22 @@ bridge.on('messaging.dmRelays.get', () => {
 
 bridge.on('messaging.dmRelays.publish', ({ payload }) => {
   return dispatchMessage('messaging.dmRelays.publish', createBridgeRequest('messaging.dmRelays.publish', payload), '') as unknown as BridgeResponsePayload<'messaging.dmRelays.publish'>;
+});
+
+bridge.on('messaging.send', ({ payload }) => {
+  return dispatchMessage('messaging.send', createBridgeRequest('messaging.send', payload), '') as unknown as BridgeResponsePayload<'messaging.send'>;
+});
+
+bridge.on('messaging.fetch', ({ payload }) => {
+  return dispatchMessage('messaging.fetch', createBridgeRequest('messaging.fetch', payload), '') as unknown as BridgeResponsePayload<'messaging.fetch'>;
+});
+
+bridge.on('messaging.readState', () => {
+  return dispatchMessage('messaging.readState', createBridgeRequest('messaging.readState', {}), '') as unknown as BridgeResponsePayload<'messaging.readState'>;
+});
+
+bridge.on('messaging.markRead', ({ payload }) => {
+  return dispatchMessage('messaging.markRead', createBridgeRequest('messaging.markRead', payload), '') as unknown as BridgeResponsePayload<'messaging.markRead'>;
 });
 
 // The vault's raw AES key is persisted to chrome.storage.session so it survives

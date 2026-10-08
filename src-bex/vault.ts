@@ -107,9 +107,23 @@ export async function unlockVault(password: string) {
   }
 }
 
+const lockListeners = new Set<() => void>();
+
+/**
+ * Runs `listener` whenever the vault locks, manually or by auto-lock. For anything that holds
+ * decrypted material in memory and must drop it with the key.
+ */
+export function onVaultLocked(listener: () => void): () => void {
+  lockListeners.add(listener);
+  return () => lockListeners.delete(listener);
+}
+
 export async function lockVault() {
   clearVaultKey();
   await clearSession();
+  for (const listener of lockListeners) {
+    listener();
+  }
 }
 
 export async function createNewVault(password: string, vaultData: unknown) {

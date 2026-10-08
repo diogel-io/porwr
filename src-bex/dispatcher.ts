@@ -40,7 +40,14 @@ import { handleBlossomUpload } from './handlers/blossom-handler';
 import { handleNip04Encrypt, handleNip04Decrypt } from './handlers/nip04';
 import { handleNip44Encrypt, handleNip44Decrypt } from './handlers/nip44';
 import { handleRelayBrowserList, handleRelayBrowserGetStatus, handleRelayBrowserRefresh } from './handlers/relay-browser-handler';
-import { handleDmRelaysGet, handleDmRelaysPublish } from './handlers/messaging';
+import {
+  handleDmRelaysGet,
+  handleDmRelaysPublish,
+  handleMessagesFetch,
+  handleMessagesMarkRead,
+  handleMessagesReadState,
+  handleMessagesSend,
+} from './handlers/messaging';
 import {
   handleNip47ConnectionImport,
   handleNip47ConnectionRemove,
@@ -427,6 +434,54 @@ export async function dispatchMessage<K extends BridgeAction>(
     case 'messaging.dmRelays.publish': {
       try {
         const result = await handleDmRelaysPublish(payload as BridgeRequestMap['messaging.dmRelays.publish']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.send': {
+      try {
+        const result = await handleMessagesSend(payload as BridgeRequestMap['messaging.send']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.fetch': {
+      try {
+        const result = await handleMessagesFetch(payload as BridgeRequestMap['messaging.fetch']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.readState': {
+      try {
+        const result = await handleMessagesReadState();
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.markRead': {
+      try {
+        const result = await handleMessagesMarkRead(payload as BridgeRequestMap['messaging.markRead']);
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
