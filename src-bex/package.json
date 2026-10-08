@@ -1,0 +1,7 @@
+{
+  "name": "porwr-bex",
+  "version": "1.0.0",
+  "description": "Porwr browser extension scripts. Quasar bundles every dependency from the root package.json; list one here only to keep it out of the background and content-script bundles.",
+  "private": true,
+  "type": "module"
+}

@@ -11,7 +11,7 @@ const { t } = useI18n();
 const router = useRouter();
 const { navigationItems, utilityLinks } = useNavigation();
 
-const appVersion = process.env.APP_VERSION;
+const appVersion = import.meta.env.APP_VERSION;
 
 function navigateTo(item: NavigationItem) {
   if (item.isActive()) {

@@ -18,7 +18,9 @@ export class LogService {
   private readonly debugMode: boolean;
 
   constructor() {
-    this.debugMode = process.env.DEBUG === 'true' || process.env.NODE_ENV === 'test';
+    // Only tests turn on debug and info output. The old `process.env.DEBUG === 'true'` check
+    // compared against the boolean Quasar injected, so it never enabled anything (#210).
+    this.debugMode = import.meta.env.MODE === 'test';
   }
 
   private normalizeNullableString(value?: string | null): string | null {

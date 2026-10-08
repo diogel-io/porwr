@@ -1,7 +1,7 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
-import { defineConfig } from '#q-app/wrappers';
+import { defineConfig } from '#q-app';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
@@ -55,18 +55,22 @@ export default defineConfig((ctx) => {
       // rebuildCache: true, // rebuilds Vite/linter/etc cache on startup
 
       // publicPath: '/',
-      // analyze: true,
-      env: {
+      // Read at runtime as import.meta.env.APP_VERSION.
+      defineEnv: {
         APP_VERSION: pkg.version,
-        DEBUG: ctx.dev,
       },
-      // rawDefine: {}
+      // TEMPORARY: the import shortcuts @quasar/app-vite 2 provided, removed in the next commit (#210).
+      alias: {
+        src: ctx.appPaths.srcDir,
+        app: ctx.appPaths.appDir,
+        components: ctx.appPaths.resolve.src('components'),
+        layouts: ctx.appPaths.resolve.src('layouts'),
+        pages: ctx.appPaths.resolve.src('pages'),
+      },
       // ignorePublicFolder: true,
       // minify: false,
-      // polyfillModulePreload: true,
       // distDir
 
-      // extendViteConf (viteConf) {},
       // viteVuePluginOptions: {},
 
       vitePlugins: [
@@ -228,11 +232,8 @@ export default defineConfig((ctx) => {
     bex: {
       extendBexScriptsConf() {},
       extendBexManifestJson(json) {
-        // @ts-expect-error: json is not typed correctly
         json.permissions ||= [];
-        // @ts-expect-error: json is not typed correctly
         if (!json.permissions.includes('storage')) {
-          // @ts-expect-error: json is not typed correctly
           json.permissions.push('storage');
         }
 
