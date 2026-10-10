@@ -1,13 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getPublicKey } from 'nostr-tools';
+import { finalizeEvent, getPublicKey } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import { storageService } from '@/services/storage-service';
+import type { AccountEventTemplate } from '@/types/account-signing';
 
-const { poolGetMock, poolPublishMock, fallbackRelays } = vi.hoisted(() => ({
+const { poolGetMock, poolPublishMock, fallbackRelays, signAsAccountMock } = vi.hoisted(() => ({
   poolGetMock: vi.fn(),
   poolPublishMock: vi.fn(),
   fallbackRelays: ['wss://relay.damus.io'] as string[],
+  signAsAccountMock: vi.fn(),
 }));
+
+// The background signs (#240). Stand in for it with the account's key, as it would.
+const TEST_PRIVKEY = 'aa'.repeat(32);
+vi.mock('@/services/account-signing-client', () => ({ signAsAccount: signAsAccountMock }));
+const backgroundSigns = () =>
+  signAsAccountMock.mockImplementation((_pubkey: string, template: AccountEventTemplate) =>
+    Promise.resolve(
+      finalizeEvent({ ...template, created_at: template.created_at ?? 1 }, hexToBytes(TEST_PRIVKEY)),
+    ),
+  );
 
 vi.mock('@/services/storage-service', () => ({
   PROFILE_UPDATED_KEY: 'profile:updated',
@@ -69,11 +81,22 @@ describe('profileService.fetchProfile', () => {
 });
 
 describe('profileService.saveProfile', () => {
-  const privkey = 'aa'.repeat(32);
-  const pubkey = getPublicKey(hexToBytes(privkey));
+  const pubkey = getPublicKey(hexToBytes(TEST_PRIVKEY));
 
   beforeEach(() => {
     vi.clearAllMocks();
+    backgroundSigns();
+  });
+
+  it('has the background sign the kind 0 as the account, never holding the key itself', async () => {
+    poolGetMock.mockResolvedValue(null);
+    poolPublishMock.mockReturnValue([Promise.resolve('relay-ack')]);
+
+    const { profileService } = await import('@/services/profile-service');
+    await profileService.saveProfile(pubkey, { name: 'New Name' });
+
+    expect(signAsAccountMock).toHaveBeenCalledWith(pubkey, expect.objectContaining({ kind: 0, tags: [] }));
+    expect(JSON.stringify(signAsAccountMock.mock.calls)).not.toContain(TEST_PRIVKEY);
   });
 
   it('merges the new profile fields over the latest fetched profile and publishes it', async () => {
@@ -81,7 +104,7 @@ describe('profileService.saveProfile', () => {
     poolPublishMock.mockReturnValue([Promise.resolve('relay-ack')]);
 
     const { profileService } = await import('@/services/profile-service');
-    await profileService.saveProfile(privkey, { name: 'New Name' });
+    await profileService.saveProfile(pubkey, { name: 'New Name' });
 
     expect(poolGetMock).toHaveBeenCalledWith(fallbackRelays, { authors: [pubkey], kinds: [0] });
     expect(poolPublishMock).toHaveBeenCalledTimes(1);
@@ -99,7 +122,7 @@ describe('profileService.saveProfile', () => {
     poolPublishMock.mockReturnValue([Promise.reject(new Error('relay rejected'))]);
 
     const { profileService } = await import('@/services/profile-service');
-    await expect(profileService.saveProfile(privkey, { name: 'New Name' })).rejects.toThrow();
+    await expect(profileService.saveProfile(pubkey, { name: 'New Name' })).rejects.toThrow();
   });
 });
 
@@ -111,11 +134,11 @@ describe('profileService.saveProfile', () => {
  * preview was the only thing that ever reflected an edit.
  */
 describe('the profile-changed signal', () => {
-  const privkey = 'aa'.repeat(32);
-  const pubkey = getPublicKey(hexToBytes(privkey));
+  const pubkey = getPublicKey(hexToBytes(TEST_PRIVKEY));
 
   beforeEach(() => {
     vi.clearAllMocks();
+    backgroundSigns();
     poolGetMock.mockResolvedValue(null);
   });
 
@@ -131,7 +154,7 @@ describe('the profile-changed signal', () => {
     });
 
     const { profileService } = await import('@/services/profile-service');
-    await profileService.saveProfile(privkey, { name: 'alice' });
+    await profileService.saveProfile(pubkey, { name: 'alice' });
 
     // Signalling first would tell every surface to re-read on the strength of a publish that had
     // not happened yet, and might still fail.
@@ -142,7 +165,7 @@ describe('the profile-changed signal', () => {
     poolPublishMock.mockReturnValue([Promise.resolve('relay-ack')]);
 
     const { profileService } = await import('@/services/profile-service');
-    await profileService.saveProfile(privkey, { name: 'alice' });
+    await profileService.saveProfile(pubkey, { name: 'alice' });
 
     expect(storageService.set).toHaveBeenCalledWith(
       'profile:updated',
@@ -154,7 +177,7 @@ describe('the profile-changed signal', () => {
     poolPublishMock.mockReturnValue([Promise.reject(new Error('relay rejected'))]);
 
     const { profileService } = await import('@/services/profile-service');
-    await expect(profileService.saveProfile(privkey, { name: 'alice' })).rejects.toThrow();
+    await expect(profileService.saveProfile(pubkey, { name: 'alice' })).rejects.toThrow();
 
     // A surface that re-read here would show what is on the relays, which is not what was saved.
     expect(storageService.set).not.toHaveBeenCalled();

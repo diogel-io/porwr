@@ -120,7 +120,7 @@ describe('ProfileEditor.vue', () => {
     await flushComponent();
 
     expect(saveProfileMock).toHaveBeenCalledWith(
-      storedKey.account.privkey,
+      storedKey.id,
       expect.objectContaining({
         bot: true,
       }),
@@ -138,7 +138,7 @@ describe('ProfileEditor.vue', () => {
     await flushComponent();
 
     expect(saveProfileMock).toHaveBeenCalledWith(
-      storedKey.account.privkey,
+      storedKey.id,
       expect.objectContaining({
         birthday: {
           year: 1980,

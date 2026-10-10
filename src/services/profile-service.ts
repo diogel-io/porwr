@@ -1,5 +1,5 @@
-import { finalizeEvent, getPublicKey, SimplePool } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { SimplePool } from 'nostr-tools';
+import { signAsAccount } from './account-signing-client';
 import type { NostrProfile } from '../types';
 import useSettingsStore from '../stores/settings-store';
 import { PROFILE_UPDATED_KEY, storageService } from './storage-service';
@@ -42,10 +42,8 @@ export const profileService = {
     return null;
   },
 
-  async saveProfile(privkey: string, profile: NostrProfile): Promise<void> {
-    const sk = hexToBytes(privkey);
-    const pk = getPublicKey(sk);
-
+  /** Publishes `profile` as account `pk`, signed in the background, which holds the key (#240). */
+  async saveProfile(pk: string, profile: NostrProfile): Promise<void> {
     // Fetch latest profile to avoid overwriting other fields (like picture/banner)
     const latestProfile = await this.fetchProfile(pk);
 
@@ -57,15 +55,12 @@ export const profileService = {
       banner: profile.banner !== undefined ? profile.banner : latestProfile?.banner,
     };
 
-    const eventTemplate = {
+    const signedEvent = await signAsAccount(pk, {
       kind: 0,
       created_at: Math.floor(Date.now() / 1000),
       tags: [],
       content: JSON.stringify(updatedProfile),
-      pubkey: pk,
-    };
-
-    const signedEvent = finalizeEvent(eventTemplate, sk);
+    });
 
     const settingsStore = useSettingsStore();
     const relays = await settingsStore.getFallbackRelays();

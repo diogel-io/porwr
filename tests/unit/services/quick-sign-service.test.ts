@@ -23,12 +23,16 @@ vi.mock('@/services/vault-service', () => ({
   sendBexMessage: vi.fn(),
 }));
 
-const { poolGetMock, poolCloseMock, poolPublishMock, verifyEventMock } = vi.hoisted(() => ({
+const { poolGetMock, poolCloseMock, poolPublishMock, verifyEventMock, signAsAccountMock } = vi.hoisted(() => ({
   poolGetMock: vi.fn(),
   poolCloseMock: vi.fn(),
   poolPublishMock: vi.fn(),
   verifyEventMock: vi.fn(),
+  signAsAccountMock: vi.fn(),
 }));
+
+// QuickSign has the background sign as the chosen account (#240); this stands in for it.
+vi.mock('@/services/account-signing-client', () => ({ signAsAccount: signAsAccountMock }));
 
 const { settingsStoreMock } = vi.hoisted(() => {
   const mock = {
@@ -75,6 +79,9 @@ describe('quick-sign-service', () => {
         sig: 'f'.repeat(128),
       },
     } as unknown as Awaited<ReturnType<typeof sendBexMessage>>);
+    signAsAccountMock.mockImplementation((pubkey: string, template: { kind: number; content: string; tags: string[][]; created_at?: number }) =>
+      Promise.resolve({ ...template, id: 'signed-event-id', pubkey, created_at: template.created_at ?? 1, sig: 'f'.repeat(128) }),
+    );
     vi.mocked(getActive).mockResolvedValue('alpha');
     vi.mocked(get).mockResolvedValue({
       alpha: {
@@ -478,5 +485,39 @@ describe('quick-sign-service', () => {
 
     await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual([]);
     expect(poolGetMock).not.toHaveBeenCalled();
+  });
+
+  it('has the background sign as the chosen account, even one that is not active, without the key', async () => {
+    vi.mocked(get).mockResolvedValue({
+      alpha: { id: 'a'.repeat(64), alias: 'alpha', account: { privkey: '1'.repeat(64) }, createdAt: '2026-01-01' },
+      beta: { id: 'b'.repeat(64), alias: 'beta', account: { privkey: '2'.repeat(64) }, createdAt: '2026-01-01' },
+    });
+
+    const result = await quickSignEvent(
+      { kind: 1, content: 'as beta', tags: [['t', 'x']], created_at: 1_700_000_000, pubkey: 'b'.repeat(64) },
+      false,
+      [],
+      'beta',
+    );
+
+    expect(result.success).toBe(true);
+    expect(signAsAccountMock).toHaveBeenCalledWith('b'.repeat(64), {
+      kind: 1,
+      content: 'as beta',
+      tags: [['t', 'x']],
+      created_at: 1_700_000_000,
+    });
+    expect(JSON.stringify(signAsAccountMock.mock.calls)).not.toMatch(/1{64}|2{64}/);
+  });
+
+  it('reports a background signing failure as a signing failure', async () => {
+    signAsAccountMock.mockRejectedValueOnce(new Error('Account not found'));
+
+    const result = await quickSignEvent(
+      { kind: 1, content: 'x', tags: [], created_at: 1, pubkey: 'f'.repeat(64) },
+      false,
+    );
+
+    expect(result).toMatchObject({ success: false, error: 'Account not found' });
   });
 });

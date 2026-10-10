@@ -75,6 +75,7 @@ const SURFACE_ACTIONS = [
   'messaging.fetch',
   'messaging.readState',
   'messaging.markRead',
+  'account.signEvent',
 ];
 
 describe('bridge action routing', () => {

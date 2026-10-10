@@ -17,6 +17,8 @@ import type {
   SendMessageRequest,
   SendMessageResult,
 } from './messaging';
+import type { AccountSignRequest } from './account-signing';
+import type { Event as SignedNostrEvent } from 'nostr-tools';
 import type { ConnectedSite } from '@/../src-bex/services/connected-sites';
 import type { SiteAccount, SwitchSiteAccountResult } from '@/../src-bex/services/site-account';
 import type {
@@ -153,6 +155,7 @@ export type BridgeAction =
   | 'messaging.fetch'
   | 'messaging.readState'
   | 'messaging.markRead'
+  | 'account.signEvent'
   | 'nip57.getCapabilities'
   | 'nip57.sendZap'
   | 'nip57.zaps.list'
@@ -420,6 +423,10 @@ export interface BridgeRequestMap {
     id: string;
     action: 'messaging.markRead';
   } & MarkReadRequest;
+  'account.signEvent': {
+    id: string;
+    action: 'account.signEvent';
+  } & AccountSignRequest;
   'nip57.getCapabilities': {
     id: string;
     action: 'nip57.getCapabilities';
@@ -502,6 +509,7 @@ export interface BridgeResponseMap {
   'messaging.fetch': FetchMessagesResult | { success: false; error: string };
   'messaging.readState': MessagingReadState | { success: false; error: string };
   'messaging.markRead': MessagingReadState | { success: false; error: string };
+  'account.signEvent': SignedNostrEvent | { success: false; error: string };
   'nip57.getCapabilities': ZapCapabilities | { success: false; error: string };
   'nip57.sendZap': SendZapResult | { success: false; error: string };
   'nip57.zaps.list': Nip57ZapHistoryEntry[] | { success: false; error: string };

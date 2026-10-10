@@ -56,6 +56,7 @@ vi.mock('@/../src-bex/handlers/messaging', () => ({
   handleMessagesSend: vi.fn(), handleMessagesFetch: vi.fn(),
   handleMessagesReadState: vi.fn(), handleMessagesMarkRead: vi.fn(),
 }));
+vi.mock('@/../src-bex/handlers/account-signing', () => ({ handleAccountSignEvent: vi.fn() }));
 vi.mock('@/../src-bex/handlers/webln', () => ({
   handleWebLnEnable: vi.fn(), handleWebLnGetInfo: vi.fn(), handleWebLnSendPayment: vi.fn(),
 }));
@@ -76,6 +77,7 @@ import * as nip47 from '@/../src-bex/handlers/nip47';
 import * as nip57 from '@/../src-bex/handlers/nip57';
 import * as webln from '@/../src-bex/handlers/webln';
 import * as messaging from '@/../src-bex/handlers/messaging';
+import * as accountSigning from '@/../src-bex/handlers/account-signing';
 
 const ORIGIN = 'https://example.com';
 
@@ -218,6 +220,10 @@ const cases: Case[] = [
   { action: 'messaging.markRead', payload: { peer: 'b', readAt: 7 },
     handler: vi.mocked(messaging.handleMessagesMarkRead), name: 'handleMessagesMarkRead',
     resolves: ok({ b: 7 }), expected: { b: 7 }, expectArgs: [expect.objectContaining({ peer: 'b', readAt: 7 })] },
+  { action: 'account.signEvent', payload: { accountPubkey: 'a', template: { kind: 1, content: '', tags: [] } },
+    handler: vi.mocked(accountSigning.handleAccountSignEvent), name: 'handleAccountSignEvent',
+    resolves: ok({ id: 'e', kind: 1 }), expected: { id: 'e', kind: 1 },
+    expectArgs: [expect.objectContaining({ accountPubkey: 'a' })] },
   { action: 'nip57.getCapabilities', handler: vi.mocked(nip57.handleNip57GetCapabilities),
     name: 'handleNip57GetCapabilities', resolves: ok({ available: true }), expected: { available: true } },
   { action: 'nip57.sendZap', payload: { request: {}, origin: ORIGIN, approved: true },

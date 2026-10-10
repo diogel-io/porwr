@@ -203,7 +203,7 @@ async function publishChanges() {
   errorMessage.value = '';
 
   try {
-    const result = await publishContactList(activeStoredKey.value, contacts.value);
+    const result = await publishContactList(activeStoredKey.value.id, contacts.value);
     sourceEventId.value = result.event.id;
     sourceCreatedAt.value = result.event.created_at;
     dirty.value = false;

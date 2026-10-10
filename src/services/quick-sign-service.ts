@@ -1,5 +1,5 @@
-import { type Event as NostrEvent, SimplePool, type UnsignedEvent, verifyEvent, finalizeEvent } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { type Event as NostrEvent, SimplePool, type UnsignedEvent, verifyEvent } from 'nostr-tools';
+import { signAsAccount } from './account-signing-client';
 import { get, getActive } from './dexie-storage';
 import { LogLevel, logService } from './log-service';
 import { isVaultUnlocked } from './vault-service';
@@ -20,8 +20,9 @@ import type {
   StoredKey
 } from '@/types/bridge';
 
-export const QUICK_SIGN_SUPPORTED_KINDS = [1, 30023] as const;
-export type QuickSignSupportedKind = (typeof QUICK_SIGN_SUPPORTED_KINDS)[number];
+import { QUICK_SIGN_SUPPORTED_KINDS, type QuickSignSupportedKind } from '@/types/account-signing';
+
+export { QUICK_SIGN_SUPPORTED_KINDS, type QuickSignSupportedKind };
 
 export type QuickSignTagType = 'p' | 'a' | 't' | 'e';
 
@@ -337,8 +338,13 @@ export async function quickSignEvent(
 
   let signedEvent: NostrEvent;
   try {
-    const sk = hexToBytes(selectedAccount.account.privkey);
-    signedEvent = finalizeEvent(event, sk);
+    // Signed in the background as the selected account, which need not be the active one (#240).
+    signedEvent = await signAsAccount(selectedAccount.id, {
+      kind: event.kind,
+      content: event.content,
+      tags: event.tags,
+      created_at: event.created_at,
+    });
   } catch (error: unknown) {
     return {
       success: false,
