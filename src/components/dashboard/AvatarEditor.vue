@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import ImagePreview from '@/components/dashboard/ImagePreview.vue';
 import ImageUploader from '@/components/dashboard/ImageUploader.vue';
 
@@ -9,7 +9,7 @@ defineOptions({ name: 'AvatarEditor' });
 withDefaults(
   defineProps<{
     modelValue: string | undefined;
-    storedKey: StoredKey;
+    storedKey: AccountSummary;
     name?: string | null | undefined;
     size?: string;
   }>(),

@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures/extension';
-import { createVault, TEST_ACCOUNT } from './fixtures/vault';
+import { createVault, TEST_ACCOUNT, seedAccounts } from './fixtures/vault';
 
 /**
  * A site connected as one account while another is active (diogel-io/workspace#23).
@@ -26,31 +26,7 @@ const SECOND_ACCOUNT = {
 const SITE = 'https://example.com';
 
 async function seedTwoAccounts(page: Page): Promise<void> {
-  const seeded = await page.evaluate(
-    async (accounts) => {
-      const result = (await chrome.runtime.sendMessage({
-        type: 'vault.updateData',
-        payload: {
-          vaultData: {
-            accounts: accounts.map((account) => ({
-              id: account.pubkey,
-              alias: account.alias,
-              account: { privkey: account.privkey },
-              createdAt: new Date().toISOString(),
-            })),
-          },
-        },
-      })) as { success?: boolean } | undefined;
-
-      await chrome.storage.local.set({ 'nostr:active': accounts[0]?.alias });
-      return result;
-    },
-    [TEST_ACCOUNT, SECOND_ACCOUNT],
-  );
-
-  if (!seeded || seeded.success === false) {
-    throw new Error(`Could not seed the test accounts: ${JSON.stringify(seeded)}`);
-  }
+  await seedAccounts(page, [TEST_ACCOUNT, SECOND_ACCOUNT]);
 }
 
 /** Asks the page's provider for its key, holding the promise on the page for later. */

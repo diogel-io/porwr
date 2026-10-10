@@ -1,7 +1,6 @@
 import { BlobWriter, configure, TextReader, ZipWriter } from '@zip.js/zip.js';
-import type { StoredKey } from '../types';
+import type { AccountSummary } from '@/types/accounts';
 import * as nip19 from 'nostr-tools/nip19';
-import { hexToBytes } from '@noble/hashes/utils';
 
 export const ZIP_MIME_TYPE = 'application/zip';
 // This required here to disable web workers for @zip.js
@@ -10,17 +9,22 @@ configure({
   useWebWorkers: false,
 });
 
+/**
+ * The password-protected backup the user asked to export. `nsec` comes from the background's
+ * explicit reveal for this one export (#240); the page never reads it from the account.
+ */
 export async function createEncryptedZipBytes(
   password: string,
   filename: string,
-  key: StoredKey,
+  key: AccountSummary,
+  nsec: string,
 ): Promise<ArrayBuffer> {
   const writer = new ZipWriter(new BlobWriter(ZIP_MIME_TYPE), {
     password,
     zipCrypto: true, // enables encryption
   });
 
-  const content = generateKeyExportText(key);
+  const content = generateKeyExportText(key, nsec);
   await writer.add(`${key.alias}.txt`, new TextReader(content));
 
   const zipBlob = await writer.close();
@@ -42,7 +46,7 @@ function isValidHex(str: string): boolean {
  * @param key The stored key to export
  * @returns The text content for the export file
  */
-function generateKeyExportText(key: StoredKey): string {
+function generateKeyExportText(key: AccountSummary, revealedNsec: string): string {
   if (!key) {
     throw new Error('Stored key cannot be null or undefined');
   }
@@ -59,13 +63,8 @@ function generateKeyExportText(key: StoredKey): string {
     npub = 'Error encoding npub';
   }
 
-  try {
-    if (isValidHex(key.account.privkey)) {
-      nsec = nip19.nsecEncode(hexToBytes(key.account.privkey));
-    }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (e) {
-    nsec = `Error encoding nsec`;
+  if (revealedNsec.startsWith('nsec1')) {
+    nsec = revealedNsec;
   }
 
   return formatKeyBackupText(key.alias, key.createdAt, npub, nsec);

@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { NostrProfile, StoredKey } from '@/types';
+import type { NostrProfile } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import { profileService } from '@/services/profile-service';
 import { PROFILE_UPDATED_KEY, storageService } from '@/services/storage-service';
 import { formatBirthday, normalizeWebsiteUrl } from '@/utils/profile-format';
@@ -9,7 +10,7 @@ import { formatBirthday, normalizeWebsiteUrl } from '@/utils/profile-format';
 defineOptions({ name: 'ProfileView' });
 
 const props = defineProps<{
-  storedKey: StoredKey;
+  storedKey: AccountSummary;
 }>();
 
 const { t } = useI18n();

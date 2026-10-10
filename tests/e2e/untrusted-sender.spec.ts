@@ -51,9 +51,10 @@ test.describe('the background checks who is asking', () => {
     await site.goto('https://example.com');
     const contextId = await porwrWorld();
 
-    // What a compromised renderer would try: read every key, approve its own request, revoke a site.
+    // What a compromised renderer would try: list or reveal keys, approve its own request, revoke a site.
     for (const message of [
-      { type: 'vault.getData', payload: {} },
+      { type: 'vault.getView', payload: {} },
+      { type: 'accounts.revealSecret', payload: { accountPubkey: TEST_ACCOUNT.pubkey } },
       { type: 'nostr.requests.respond', payload: { requestId: 'any', decision: 'approve' } },
       { type: 'sites.revoke', payload: { origin: 'https://example.com' } },
     ]) {
@@ -62,10 +63,9 @@ test.describe('the background checks who is asking', () => {
 
     // The control: the same read from an extension page is answered.
     const fromPage = (await extensionPage.evaluate(() =>
-      chrome.runtime.sendMessage({ type: 'vault.getData', payload: {} }),
-    )) as { success?: boolean; vaultData?: { accounts?: { alias: string }[] } };
-    expect(fromPage.success).toBe(true);
-    expect(fromPage.vaultData?.accounts?.map((account) => account.alias)).toEqual([TEST_ACCOUNT.alias]);
+      chrome.runtime.sendMessage({ type: 'vault.getView', payload: {} }),
+    )) as { accounts?: { alias: string }[] };
+    expect(fromPage.accounts?.map((account) => account.alias)).toEqual([TEST_ACCOUNT.alias]);
   });
 
   test('still serves window.nostr to the site through the content script', async ({ openPage, context }) => {

@@ -17,8 +17,8 @@ import type {
   QuickSignResult,
   QuickSignSanitizedInput,
   QuickSignValidationResult,
-  StoredKey
 } from '@/types/bridge';
+import type { AccountSummary } from '@/types/accounts';
 
 import { QUICK_SIGN_SUPPORTED_KINDS, type QuickSignSupportedKind } from '@/types/account-signing';
 
@@ -114,7 +114,7 @@ export async function getQuickSignAvailability(publish: boolean, relayUrls: stri
 export async function listQuickSignAccounts(): Promise<QuickSignAccountOption[]> {
   const accounts = await get();
 
-  return Object.values(accounts).map((account: StoredKey) => ({
+  return Object.values(accounts).map((account: AccountSummary) => ({
     label: `${account.alias} (${account.id})`,
     value: account.alias,
     npub: account.id,
@@ -315,7 +315,7 @@ export async function quickSignEvent(
   }
 
   const accounts = await get();
-  let selectedAccount: StoredKey | undefined;
+  let selectedAccount: AccountSummary | undefined;
 
   if (accountAlias) {
     selectedAccount = accounts[accountAlias];

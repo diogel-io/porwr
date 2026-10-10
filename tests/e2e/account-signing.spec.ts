@@ -3,7 +3,7 @@ import { SimplePool, verifyEvent } from 'nostr-tools';
 import type { Event } from 'nostr-tools';
 
 import { expect, test } from './fixtures/relays';
-import { createVault, TEST_ACCOUNT } from './fixtures/vault';
+import { createVault, TEST_ACCOUNT, seedAccounts as seedVaultAccounts } from './fixtures/vault';
 
 /**
  * Porwr's pages have the background sign for them (#240).
@@ -20,25 +20,8 @@ const SECOND = {
 };
 
 async function seedTwoAccounts(page: Page, fallbackRelay: string): Promise<void> {
-  await page.evaluate(
-    async ([accounts, relay]) => {
-      await chrome.runtime.sendMessage({
-        type: 'vault.updateData',
-        payload: {
-          vaultData: {
-            accounts: accounts.map((account) => ({
-              id: account.pubkey,
-              alias: account.alias,
-              account: { privkey: account.privkey },
-              createdAt: new Date().toISOString(),
-            })),
-          },
-        },
-      });
-      await chrome.storage.local.set({ 'nostr:fallback-relays': [relay], 'nostr:active': accounts[0]!.alias });
-    },
-    [[TEST_ACCOUNT, SECOND], fallbackRelay] as const,
-  );
+  await seedVaultAccounts(page, [TEST_ACCOUNT, SECOND]);
+  await page.evaluate((relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }), fallbackRelay);
 }
 
 async function latest(relay: string, kind: number, author: string): Promise<Event | null> {

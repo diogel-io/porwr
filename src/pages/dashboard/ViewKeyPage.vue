@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { type QInput, useQuasar } from 'quasar';
 
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import useAccountStore from '@/stores/account-store';
 import ViewStoredKey from '@/components/dashboard/ViewStoredKey.vue';
 import ExportButton from '@/components/dashboard/ExportButton.vue';
@@ -19,7 +19,7 @@ const accountStore = useAccountStore();
 const aliasInputRef = ref<QInput | null>(null);
 const isSaving = ref(false);
 const originalAlias = ref('');
-const storedKey = ref<StoredKey | undefined>(undefined);
+const storedKey = ref<AccountSummary | undefined>(undefined);
 const alias = ref('');
 
 const requestedAlias = computed(() => String(route.params.alias ?? ''));

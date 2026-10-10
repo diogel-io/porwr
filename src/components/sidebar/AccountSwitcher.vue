@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import useAccountStore from '@/stores/account-store';
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 
 defineOptions({ name: 'AccountSwitcher' });
 
@@ -18,7 +18,7 @@ defineOptions({ name: 'AccountSwitcher' });
 const { t } = useI18n();
 const accountStore = useAccountStore();
 
-const accounts = computed<StoredKey[]>(() => Array.from(accountStore.storedKeys));
+const accounts = computed<AccountSummary[]>(() => Array.from(accountStore.storedKeys));
 
 const activeAlias = computed(() => accountStore.activeKey);
 

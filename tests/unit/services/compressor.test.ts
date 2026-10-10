@@ -1,9 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { nip19, generateSecretKey, getPublicKey } from 'nostr-tools';
-import { bytesToHex } from '@noble/hashes/utils';
 import { Blob as NodeBlob } from 'node:buffer';
 import { BlobReader, TextWriter, ZipReader } from '@zip.js/zip.js';
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import { createEncryptedZipBytes, formatKeyBackupText } from '@/services/compressor';
 import generateKeyExportText from '@/services/compressor';
 
@@ -19,48 +18,45 @@ afterAll(() => {
   globalThis.Blob = jsdomBlob;
 });
 
-function buildKey(overrides: Partial<StoredKey> = {}): StoredKey {
+/** An account summary and its nsec, as the background's reveal would hand them over (#240). */
+function buildKey(overrides: Partial<AccountSummary> = {}): { key: AccountSummary; nsec: string } {
   const sk = generateSecretKey();
-  const pubkeyHex = getPublicKey(sk);
   return {
-    id: pubkeyHex,
-    alias: 'alpha',
-    account: { privkey: bytesToHex(sk) },
-    createdAt: '2026-01-01T00:00:00.000Z',
-    ...overrides,
+    key: { id: getPublicKey(sk), alias: 'alpha', createdAt: '2026-01-01T00:00:00.000Z', ...overrides },
+    nsec: nip19.nsecEncode(sk),
   };
 }
 
 describe('generateKeyExportText (default export)', () => {
   it('throws when given no key', () => {
-    expect(() => generateKeyExportText(undefined as unknown as StoredKey)).toThrow(
+    expect(() => generateKeyExportText(undefined as unknown as AccountSummary, '')).toThrow(
       'Stored key cannot be null or undefined',
     );
   });
 
-  it('encodes a valid key to npub/nsec and includes it in the backup text', () => {
-    const key = buildKey();
+  it('writes the npub and the revealed nsec into the backup text', () => {
+    const { key, nsec } = buildKey();
 
-    const text = generateKeyExportText(key);
+    const text = generateKeyExportText(key, nsec);
 
     expect(text).toContain(`Alias: ${key.alias}`);
     expect(text).toContain(nip19.npubEncode(key.id));
-    expect(text).toContain('nsec (Private Key): nsec1');
+    expect(text).toContain(`nsec (Private Key): ${nsec}`);
     expect(text).not.toContain('Error');
   });
 
   it('reports an npub encoding error when the id is not valid hex', () => {
-    const key = buildKey({ id: 'not-hex' });
+    const { key, nsec } = buildKey({ id: 'not-hex' });
 
-    const text = generateKeyExportText(key);
+    const text = generateKeyExportText(key, nsec);
 
     expect(text).toContain('npub (Public Key):  Error (Invalid ID)');
   });
 
-  it('reports an nsec encoding error when the privkey is not valid hex', () => {
-    const key = buildKey({ account: { privkey: 'not-hex' } });
+  it('reports an nsec error when the reveal gave back something that is not an nsec', () => {
+    const { key } = buildKey();
 
-    const text = generateKeyExportText(key);
+    const text = generateKeyExportText(key, 'not-an-nsec');
 
     expect(text).toContain('nsec (Private Key): Error (Invalid Private Key)');
   });
@@ -80,9 +76,9 @@ describe('formatKeyBackupText', () => {
 
 describe('createEncryptedZipBytes', () => {
   it('produces a password-protected zip containing the key backup text', async () => {
-    const key = buildKey();
+    const { key, nsec } = buildKey();
 
-    const bytes = await createEncryptedZipBytes('correct horse battery staple', 'export.zip', key);
+    const bytes = await createEncryptedZipBytes('correct horse battery staple', 'export.zip', key, nsec);
     expect(bytes.byteLength).toBeGreaterThan(0);
 
     const reader = new ZipReader(new BlobReader(new Blob([bytes])), {
@@ -103,8 +99,8 @@ describe('createEncryptedZipBytes', () => {
   });
 
   it('rejects a wrong password when reading the archive back', async () => {
-    const key = buildKey();
-    const bytes = await createEncryptedZipBytes('correct-password', 'export.zip', key);
+    const { key, nsec } = buildKey();
+    const bytes = await createEncryptedZipBytes('correct-password', 'export.zip', key, nsec);
 
     const reader = new ZipReader(new BlobReader(new Blob([bytes])), { password: 'wrong-password' });
     const entries = await reader.getEntries();

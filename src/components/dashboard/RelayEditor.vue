@@ -3,7 +3,8 @@ import { onMounted, ref, watch, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { normalizeRelayUrl } from '@/services/relay-url';
-import type { NostrRelay, StoredKey } from '@/types';
+import type { NostrRelay } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import type { RelayCatalogEntry } from '@/types/relay';
 import { SimplePool } from 'nostr-tools';
 import { signAsAccount } from '@/services/account-signing-client';
@@ -13,7 +14,7 @@ import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
 defineOptions({ name: 'RelayEditor' });
 
 const props = defineProps<{
-  storedKey: StoredKey;
+  storedKey: AccountSummary;
 }>();
 
 const $q = useQuasar();

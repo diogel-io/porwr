@@ -82,38 +82,43 @@ export const TEST_ACCOUNT = {
   pubkey: '4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa',
 };
 
+export interface SeedAccount {
+  alias: string;
+  privkey: string;
+  pubkey: string;
+}
+
 /**
- * Puts one account into an unlocked vault, without driving the key-generation UI.
+ * Puts accounts into an unlocked vault, without driving the key-management UI.
  *
- * `vault.updateData` is routed through the dispatcher, so an extension page can send it directly.
- * The active account lives in `chrome.storage.local` under `nostr:active`, which is what
- * `resolveSigningAccount` reads when a site has no binding yet.
+ * Goes through `accounts.add`, the same narrow action the Import page uses: pages can no longer write
+ * the whole vault (#240). The first account becomes active. The active account lives in
+ * `chrome.storage.local` under `nostr:active`, which is what `resolveSigningAccount` reads when a
+ * site has no binding yet.
  */
+export async function seedAccounts(page: Page, accounts: readonly SeedAccount[]): Promise<void> {
+  const results = await page.evaluate(async (list) => {
+    const answers: unknown[] = [];
+    for (const account of list) {
+      answers.push(
+        await chrome.runtime.sendMessage({ type: 'accounts.add', payload: { alias: account.alias, privkey: account.privkey } }),
+      );
+    }
+    await chrome.storage.local.set({ 'nostr:active': list[0]?.alias });
+    return answers;
+  }, accounts);
+
+  results.forEach((result, index) => {
+    const expected = accounts[index]!;
+    if (!result || typeof result !== 'object' || (result as { id?: string }).id !== expected.pubkey) {
+      throw new Error(`Could not seed ${expected.alias}: ${JSON.stringify(result)}`);
+    }
+  });
+}
+
+/** Puts the one fixed test account into an unlocked vault. */
 export async function seedAccount(page: Page): Promise<void> {
-  const seeded = await page.evaluate(async (account) => {
-    const result = (await chrome.runtime.sendMessage({
-      type: 'vault.updateData',
-      payload: {
-        vaultData: {
-          accounts: [
-            {
-              id: account.pubkey,
-              alias: account.alias,
-              account: { privkey: account.privkey },
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      },
-    })) as { success?: boolean } | undefined;
-
-    await chrome.storage.local.set({ 'nostr:active': account.alias });
-    return result;
-  }, TEST_ACCOUNT);
-
-  if (!seeded || seeded.success === false) {
-    throw new Error(`Could not seed the test account: ${JSON.stringify(seeded)}`);
-  }
+  await seedAccounts(page, [TEST_ACCOUNT]);
 }
 
 /**

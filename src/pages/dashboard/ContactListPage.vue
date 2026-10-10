@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import useAccountStore from '@/stores/account-store';
 import type { ContactProfile, ContactSearchResult, Nip02Contact } from '@/types/contact-list';
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import {
   fetchContactList,
   fetchContactProfiles,
@@ -33,7 +33,7 @@ const searchResults = ref<ContactSearchResult[]>([]);
 const searchingContacts = ref(false);
 const formError = ref('');
 
-const activeStoredKey = computed<StoredKey | undefined>(() => accountStore.activeAccountOrFirst);
+const activeStoredKey = computed<AccountSummary | undefined>(() => accountStore.activeAccountOrFirst);
 
 const sortedContacts = computed(() => contacts.value);
 

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { type QInput, useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
@@ -9,7 +9,7 @@ import { bytesToHex } from '@noble/hashes/utils';
 
 import ViewStoredKey from '@/components/dashboard/ViewStoredKey.vue';
 import useAccountStore from '@/stores/account-store';
-import type { Account, StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 
 const { t } = useI18n();
 const $q = useQuasar();
@@ -19,14 +19,14 @@ const accountStore = useAccountStore();
 const aliasInputRef = ref<QInput | null>(null);
 const importNsec = ref('');
 const importedReady = ref(false);
-const storedKey = ref<StoredKey>({
-  id: '',
-  alias: '',
-  createdAt: '',
-  account: {
-    privkey: '',
-  },
-});
+/** What the preview shows: the public key only. */
+const storedKey = ref<{ id: string; alias: string; createdAt: string }>({ id: '', alias: '', createdAt: '' });
+/**
+ * The key the user pasted, held only until it is handed to the background on save (#240) and cleared
+ * then, or when the page is left.
+ */
+let importedPrivkey = '';
+const preview = computed<AccountSummary>(() => ({ ...storedKey.value }));
 
 const isValidNsec = computed<boolean>(() => {
   const val = importNsec.value.trim();
@@ -47,14 +47,10 @@ function onImportClick(): void {
     const decoded = nip19.decode(importNsec.value.trim());
     if (decoded.type !== 'nsec') return;
     const sk = decoded.data;
-    const pk = getPublicKey(sk);
-    const account: Account = {
-      privkey: bytesToHex(sk),
-    };
+    importedPrivkey = bytesToHex(sk);
     storedKey.value = {
-      id: pk,
+      id: getPublicKey(sk),
       alias: '',
-      account,
       createdAt: new Date().toISOString(),
     };
     importedReady.value = true;
@@ -88,9 +84,10 @@ async function saveKey() {
   if (!validate()) return;
 
   try {
-    storedKey.value.alias = trimmedAlias.value;
-    await accountStore.saveKey(storedKey.value);
-    await router.push({ name: 'view-key', params: { alias: storedKey.value.alias } });
+    const account = await accountStore.saveKey({ alias: trimmedAlias.value, privkey: importedPrivkey });
+    importedPrivkey = '';
+    importNsec.value = '';
+    await router.push({ name: 'view-key', params: { alias: account.alias } });
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : String(t('validation.keyPairExists'));
@@ -101,6 +98,10 @@ async function saveKey() {
     });
   }
 }
+
+onBeforeUnmount(() => {
+  importedPrivkey = '';
+});
 </script>
 
 <template>
@@ -147,7 +148,7 @@ async function saveKey() {
         </template>
       </q-input>
 
-      <view-stored-key :stored-key="storedKey" />
+      <view-stored-key :stored-key="preview" :revealable="false" />
 
       <q-btn
         :label="t('createAccount.save')"

@@ -2,15 +2,12 @@ import type {
   BridgeAction,
   BridgeRequestMap,
   BridgeResponsePayload,
-  VaultData,
 } from '@/types/bridge';
 import {
   handleVaultUnlock,
   handleVaultLock,
   handleVaultIsUnlocked,
   handleVaultCreate,
-  handleVaultGetData,
-  handleVaultUpdateData,
   handleVaultExport,
   handleVaultImport,
 } from './handlers/vault-handler';
@@ -49,6 +46,13 @@ import {
   handleMessagesSend,
 } from './handlers/messaging';
 import { handleAccountSignEvent } from './handlers/account-signing';
+import {
+  handleAccountsAdd,
+  handleAccountsRemove,
+  handleAccountsRename,
+  handleAccountsRevealSecret,
+  handleVaultGetView,
+} from './handlers/accounts';
 import {
   handleNip47ConnectionImport,
   handleNip47ConnectionRemove,
@@ -152,7 +156,8 @@ export async function dispatchMessage<K extends BridgeAction>(
       if (result.success) {
         await resetAutoLockTimer();
         startAutoLockTimer();
-        return { success: true, vaultData: result.data.vaultData as VaultData } as BridgeResponsePayload<K>;
+        // The decrypted vault stays here; a page learns only that unlocking worked (#240).
+        return { success: true } as BridgeResponsePayload<K>;
       }
       return { success: false, error: result.error, code: result.code } as unknown as BridgeResponsePayload<K>;
     }
@@ -247,21 +252,64 @@ export async function dispatchMessage<K extends BridgeAction>(
       )) as BridgeResponsePayload<K>;
     }
 
-    case 'vault.getData': {
-      const result = await handleVaultGetData({}, origin);
-      if (result.success) {
-        return { success: true, vaultData: result.data.vaultData as VaultData } as BridgeResponsePayload<K>;
+    case 'vault.getView': {
+      try {
+        const result = await handleVaultGetView();
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
       }
-      return { success: false, error: result.error, code: result.code } as unknown as BridgeResponsePayload<K>;
     }
 
-    case 'vault.updateData': {
-      const updatePayload = payload as BridgeRequestMap['vault.updateData'];
-      const result = await handleVaultUpdateData({ vaultData: updatePayload.vaultData }, origin);
-      if (result.success) {
-        return { success: true } as BridgeResponsePayload<K>;
+    case 'accounts.add': {
+      try {
+        const result = await handleAccountsAdd(payload as BridgeRequestMap['accounts.add']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
       }
-      return { success: false, error: result.error, code: result.code } as unknown as BridgeResponsePayload<K>;
+    }
+
+    case 'accounts.rename': {
+      try {
+        const result = await handleAccountsRename(payload as BridgeRequestMap['accounts.rename']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'accounts.remove': {
+      try {
+        const result = await handleAccountsRemove(payload as BridgeRequestMap['accounts.remove']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'accounts.revealSecret': {
+      try {
+        const result = await handleAccountsRevealSecret(payload as BridgeRequestMap['accounts.revealSecret']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
     }
 
     case 'vault.export': {

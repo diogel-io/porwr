@@ -1,7 +1,7 @@
 import { nip19, SimplePool } from 'nostr-tools';
 import type { Event as NostrEvent } from 'nostr-tools';
 import { signAsAccount } from '@/services/account-signing-client';
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import type {
   ContactInputValidationResult,
   ContactListPublishResult,
@@ -20,7 +20,7 @@ const PROFILE_METADATA_KIND = 0;
 const HEX_PUBKEY_PATTERN = /^[0-9a-f]{64}$/i;
 const pool = new SimplePool();
 
-function getAccountPubkey(storedKey: StoredKey): string {
+function getAccountPubkey(storedKey: AccountSummary): string {
   return storedKey.id;
 }
 
@@ -318,7 +318,7 @@ export function validateContactInput(
   };
 }
 
-export async function fetchContactList(storedKey: StoredKey): Promise<ContactListState> {
+export async function fetchContactList(storedKey: AccountSummary): Promise<ContactListState> {
   const settingsStore = useSettingsStore();
   const relays = await settingsStore.getFallbackRelays();
   const pubkey = getAccountPubkey(storedKey);

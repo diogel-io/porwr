@@ -1,5 +1,5 @@
 import { acceptHMRUpdate, defineStore } from 'pinia';
-import type { StoredKey, VaultData } from '@/types/bridge';
+import type { VaultData } from '@/types/bridge';
 import { logService, LogLevel } from '@/services/log-service';
 import { storageService, VAULT_UNLOCKED } from '@/services/storage-service';
 import {
@@ -67,17 +67,17 @@ const useVaultStore = defineStore('vault', {
       this.lastLockReason = reason;
     },
 
-    async create(
-      password: string,
-      mnemonic: string,
-      passphrase?: string,
-      initialAccount?: StoredKey,
-    ) {
+    /**
+     * Creates the vault. It starts with no accounts; they are added through the background
+     * (`accounts.add`), so no private key is put together here (#240). The mnemonic is still
+     * generated in the page — moving that into the background is a follow-up to #240.
+     */
+    async create(password: string, mnemonic: string, passphrase?: string) {
       const vaultData: VaultData = {
         mnemonic,
         passphrase: passphrase || '',
         createdAt: new Date().toISOString(),
-        accounts: initialAccount ? [initialAccount] : [],
+        accounts: [],
       };
       const result = await createVaultBex(password, vaultData);
       if (result.success) {

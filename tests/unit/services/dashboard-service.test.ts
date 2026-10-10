@@ -147,8 +147,8 @@ describe('dashboard-service', () => {
 
   it('getActiveKeyCount returns total stored keys', async () => {
     vi.mocked(dexieStorage.get).mockResolvedValue({
-      alpha: { id: 'npub1', alias: 'alpha', account: { privkey: 'redacted' }, createdAt: '2026-01-01' },
-      beta: { id: 'npub2', alias: 'beta', account: { privkey: 'redacted' }, createdAt: '2026-01-01' },
+      alpha: { id: 'npub1', alias: 'alpha', createdAt: '2026-01-01' },
+      beta: { id: 'npub2', alias: 'beta', createdAt: '2026-01-01' },
     });
 
     await expect(dashboardService.getActiveKeyCount()).resolves.toBe(2);
@@ -235,7 +235,6 @@ describe('dashboard-service', () => {
       alpha: {
         id: 'pubkey-alpha',
         alias: 'alpha',
-        account: { privkey: 'redacted' },
         createdAt: '2026-01-01',
       },
     });
@@ -260,7 +259,7 @@ describe('dashboard-service', () => {
   it('counts relays from active account kind 10002 metadata', async () => {
     vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
     vi.mocked(dexieStorage.get).mockResolvedValue({
-      alpha: { id: 'pubkey-alpha', alias: 'alpha', account: { privkey: 'redacted' }, createdAt: '2026-01-01' },
+      alpha: { id: 'pubkey-alpha', alias: 'alpha', createdAt: '2026-01-01' },
     });
     const event = { id: 'evt-1', kind: 10002, tags: [['r', 'wss://relay.one'], ['r', 'wss://relay.two']] };
     fetchAccountRelayListEventMock.mockResolvedValue(event);
@@ -273,7 +272,7 @@ describe('dashboard-service', () => {
   it('deduplicates relay urls for connected relay metric', async () => {
     vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
     vi.mocked(dexieStorage.get).mockResolvedValue({
-      alpha: { id: 'pubkey-alpha', alias: 'alpha', account: { privkey: 'redacted' }, createdAt: '2026-01-01' },
+      alpha: { id: 'pubkey-alpha', alias: 'alpha', createdAt: '2026-01-01' },
     });
     const event = { id: 'evt-2', kind: 10002, tags: [] };
     fetchAccountRelayListEventMock.mockResolvedValue(event);
@@ -291,7 +290,7 @@ describe('dashboard-service', () => {
   it('ignores malformed relay urls through normalization', async () => {
     vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
     vi.mocked(dexieStorage.get).mockResolvedValue({
-      alpha: { id: 'pubkey-alpha', alias: 'alpha', account: { privkey: 'redacted' }, createdAt: '2026-01-01' },
+      alpha: { id: 'pubkey-alpha', alias: 'alpha', createdAt: '2026-01-01' },
     });
     const event = { id: 'evt-3', kind: 10002, tags: [] };
     fetchAccountRelayListEventMock.mockResolvedValue(event);
@@ -304,7 +303,7 @@ describe('dashboard-service', () => {
   it('returns unavailable when no kind 10002 metadata exists', async () => {
     vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
     vi.mocked(dexieStorage.get).mockResolvedValue({
-      alpha: { id: 'pubkey-alpha', alias: 'alpha', account: { privkey: 'redacted' }, createdAt: '2026-01-01' },
+      alpha: { id: 'pubkey-alpha', alias: 'alpha', createdAt: '2026-01-01' },
     });
     fetchAccountRelayListEventMock.mockResolvedValue(null);
 
@@ -335,7 +334,7 @@ describe('dashboard-service', () => {
   it('returns unavailable when fallback relays are missing', async () => {
     vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
     vi.mocked(dexieStorage.get).mockResolvedValue({
-      alpha: { id: 'pubkey-alpha', alias: 'alpha', account: { privkey: 'redacted' }, createdAt: '2026-01-01' },
+      alpha: { id: 'pubkey-alpha', alias: 'alpha', createdAt: '2026-01-01' },
     });
     fetchAccountRelayListEventMock.mockResolvedValue(null);
     fallbackRelays.splice(0, fallbackRelays.length);
@@ -361,7 +360,7 @@ describe('dashboard-service', () => {
   it('returns sorted recent events for active account with limit', async () => {
     vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
     vi.mocked(dexieStorage.get).mockResolvedValue({
-      alpha: { id: 'pubkey-alpha', alias: 'alpha', account: { privkey: 'redacted' }, createdAt: '2026-01-01' },
+      alpha: { id: 'pubkey-alpha', alias: 'alpha', createdAt: '2026-01-01' },
     });
 
     getEventsMock.mockResolvedValue([

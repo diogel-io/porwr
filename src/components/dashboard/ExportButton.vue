@@ -2,14 +2,15 @@
 import { ref } from 'vue';
 import { exportFile, useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
+import { revealSecret } from '@/services/dexie-storage';
 import ExportDialog from '@/components/dashboard/ExportDialog.vue';
 import { createEncryptedZipBytes, ZIP_MIME_TYPE } from '@/services/compressor';
 
 defineOptions({ name: 'ExportButton' });
 
 const props = defineProps<{
-  storedKey: StoredKey;
+  storedKey: AccountSummary;
 }>();
 
 const $q = useQuasar();
@@ -32,11 +33,15 @@ function onExportClick() {
 async function onExportConfirm(payload: ExportPayload) {
   showExportDialog.value = false;
 
-  const zipBytes = await createEncryptedZipBytes(
-    payload.password,
-    payload.filename,
-    props.storedKey,
-  );
+  let zipBytes: ArrayBuffer;
+  try {
+    // Revealed only for this export, after the user confirmed it, and not kept (#240).
+    const nsec = await revealSecret(props.storedKey.id);
+    zipBytes = await createEncryptedZipBytes(payload.password, payload.filename, props.storedKey, nsec);
+  } catch {
+    $q.notify({ type: 'negative', message: t('account.exportFailed') });
+    return;
+  }
 
   const didStartExport = exportFile(payload.filename, zipBytes, ZIP_MIME_TYPE);
   if (!didStartExport) return;

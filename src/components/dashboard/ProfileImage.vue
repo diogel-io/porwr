@@ -2,7 +2,8 @@
 import { onMounted, ref, watch, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import type { NostrProfile, StoredKey } from '@/types';
+import type { NostrProfile } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import { SimplePool } from 'nostr-tools';
 import { signAsAccount } from '@/services/account-signing-client';
 import useSettingsStore from '@/stores/settings-store';
@@ -13,7 +14,7 @@ import AvatarEditor from '@/components/dashboard/AvatarEditor.vue';
 defineOptions({ name: 'ProfileImage' });
 
 const props = defineProps<{
-  storedKey: StoredKey;
+  storedKey: AccountSummary;
 }>();
 
 const $q = useQuasar();

@@ -1,6 +1,6 @@
 import { acceptHMRUpdate, defineStore } from 'pinia';
 import { watch } from 'vue';
-import type { StoredKey } from '../types';
+import type { AccountSummary, AddAccountRequest } from '@/types/accounts';
 import { get, getActive, renameAlias, save, setActive } from '../services/dexie-storage';
 import { NOSTR_ACTIVE, storageService } from '../services/storage-service';
 import useVaultStore from './vault-store';
@@ -16,7 +16,7 @@ import useVaultStore from './vault-store';
 export type AccountHydration = 'empty' | 'loading' | 'ready';
 
 interface AccountState {
-  storedKeys: Set<StoredKey>;
+  storedKeys: Set<AccountSummary>;
   isListening: boolean;
   isFollowingVault: boolean;
   hydration: AccountHydration;
@@ -25,7 +25,7 @@ interface AccountState {
 
 const useAccountStore = defineStore('account', {
   state: (): AccountState => ({
-    storedKeys: new Set<StoredKey>(),
+    storedKeys: new Set<AccountSummary>(),
     isListening: false,
     isFollowingVault: false,
     hydration: 'empty',
@@ -40,7 +40,7 @@ const useAccountStore = defineStore('account', {
      * separately. It resolves against `storedKeys`, which is empty whenever the vault is locked, so
      * a consumer must read `hydration` before concluding anything from `undefined`.
      */
-    activeAccount(state): StoredKey | undefined {
+    activeAccount(state): AccountSummary | undefined {
       const activeAlias = state.activeKey;
       if (!activeAlias) return undefined;
       return Array.from(state.storedKeys).find((key) => key.alias === activeAlias);
@@ -54,7 +54,7 @@ const useAccountStore = defineStore('account', {
      * Kept as a second getter rather than folded into `activeAccount`, because the two answers
      * genuinely differ and the panel must not silently show an account nobody selected.
      */
-    activeAccountOrFirst(): StoredKey | undefined {
+    activeAccountOrFirst(): AccountSummary | undefined {
       return this.activeAccount ?? Array.from(this.storedKeys)[0];
     },
 
@@ -74,12 +74,16 @@ const useAccountStore = defineStore('account', {
   },
 
   actions: {
-    async saveKey(storedKey: StoredKey): Promise<void> {
+    /**
+     * Adds an account through the background, which keeps its key (#240). Importing passes the key
+     * in once; generating passes none. What comes back, and what is held here, never has a key.
+     */
+    async saveKey(request: AddAccountRequest): Promise<AccountSummary> {
       try {
-        // 1. Save to the encrypted Vault (using dexie-storage which now handles vault syncing)
-        await save(storedKey);
-        this.storedKeys.add(storedKey);
-        console.log('[AccountStore] Account saved to vault');
+        const account = await save(request);
+        this.storedKeys.add(account);
+        this.activeKey = account.alias;
+        return account;
       } catch (error) {
         console.error('Failed to save key:', error);
         throw error;
@@ -115,7 +119,7 @@ const useAccountStore = defineStore('account', {
      * exactly why it must not be trusted on its own: it names an account we can no longer read.
      */
     clearKeys(): void {
-      this.storedKeys = new Set<StoredKey>();
+      this.storedKeys = new Set<AccountSummary>();
       this.hydration = 'empty';
     },
     async setActiveKey(alias: string) {
