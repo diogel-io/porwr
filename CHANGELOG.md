@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/diogel-io/porwr/compare/v0.2.0...v0.3.0) (2026-10-10)
+
+
+### Features
+
+* **media:** move the Blossom server setting to a Media Management page ([#233](https://github.com/diogel-io/porwr/issues/233)) ([e4aa87c](https://github.com/diogel-io/porwr/commit/e4aa87c35023de2ecd6293be9af07aeb3e49edcd))
+* **messaging:** publish direct message relays (kind 10050) from the Relays page ([#235](https://github.com/diogel-io/porwr/issues/235)) ([d69ade1](https://github.com/diogel-io/porwr/commit/d69ade1fac1895b491cfc2d06b3c62c4c102015d))
+* **sidebar:** recognise NIP-98 HTTP authentication in the approval prompt ([#223](https://github.com/diogel-io/porwr/issues/223)) ([7d67b87](https://github.com/diogel-io/porwr/commit/7d67b87a575fd381068d1f9e6dbda07f0deb0fe8)), closes [#215](https://github.com/diogel-io/porwr/issues/215)
+
+
+### Bug Fixes
+
+* **keys:** allow spaces in the profile name when adding a key ([#231](https://github.com/diogel-io/porwr/issues/231)) ([a741f84](https://github.com/diogel-io/porwr/commit/a741f844c4d938f8984a3afa97a0c5722c2c9f2a)), closes [#230](https://github.com/diogel-io/porwr/issues/230)
+* **navigation:** open extension menu items on their real paths, and prove NIP-17 interop ([#239](https://github.com/diogel-io/porwr/issues/239)) ([987f889](https://github.com/diogel-io/porwr/commit/987f889fee3e07145ebfb13aeb284835a6d5396f)), closes [#227](https://github.com/diogel-io/porwr/issues/227)
+* **security:** only Porwr's own pages may use the privileged channel ([#241](https://github.com/diogel-io/porwr/issues/241)) ([9f4ad8f](https://github.com/diogel-io/porwr/commit/9f4ad8f20b48f2b74cda9e6cc4ce961fe89b638f)), closes [#240](https://github.com/diogel-io/porwr/issues/240)
+* **security:** sign in the background, not in Porwr's pages ([#242](https://github.com/diogel-io/porwr/issues/242)) ([08e8eb2](https://github.com/diogel-io/porwr/commit/08e8eb26111909f613681eafe55981cf2d8473fb)), closes [#240](https://github.com/diogel-io/porwr/issues/240)
+* **security:** stop returning secrets to Porwr's pages ([#243](https://github.com/diogel-io/porwr/issues/243)) ([de099eb](https://github.com/diogel-io/porwr/commit/de099ebcefa427da15d65ed8c42e365115a17c27)), closes [#240](https://github.com/diogel-io/porwr/issues/240)
+
 ## [0.2.0](https://github.com/diogel-io/porwr/compare/v0.1.1...v0.2.0) (2026-10-03)
 
 
