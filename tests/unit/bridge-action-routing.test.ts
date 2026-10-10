@@ -31,6 +31,13 @@ const dispatcherCases = (): string[] =>
 const bridgeRegistrations = (): string[] =>
   [...read('src-bex/background.ts').matchAll(/bridge\.on\('([^']+)'/g)].map(([, action]) => action ?? '');
 
+/** The bridge actions a web page may reach through `window.nostr` and WebLN, from the content script's allowlist. */
+const pageActions = (): string[] => {
+  const source = read('src-bex/window-message-handler.ts');
+  const map = /const PAGE_METHOD_TO_BRIDGE_ACTION = \{(.*?)\}/s.exec(source)?.[1] ?? '';
+  return [...map.matchAll(/:\s*'([^']+)'/g)].map(([, action]) => action ?? '');
+};
+
 /**
  * Declared, wired to neither path, and sent by nothing.
  *
@@ -77,7 +84,7 @@ describe('bridge action routing', () => {
   it('parses all three sources, so this cannot pass by reading nothing', () => {
     expect(actions.length).toBeGreaterThan(40);
     expect(dispatcherCases().length).toBeGreaterThan(30);
-    expect(bridgeRegistrations().length).toBeGreaterThan(30);
+    expect(bridgeRegistrations().length).toBeGreaterThan(10);
   });
 
   it('routes every declared action except the ones known to be unrouted', () => {
@@ -115,5 +122,15 @@ describe('bridge action routing', () => {
     for (const action of SURFACE_ACTIONS) {
       expect(actions).toContain(action);
     }
+  });
+
+  it('exposes on the Quasar bridge only what a web page may ask for (#240)', () => {
+    // The bridge's other end is the content script, which runs in a website's renderer and is
+    // untrusted. Vault, queue, site and every other extension-surface action belongs on the raw
+    // listener, which checks the sender. A new registration here must be a page action.
+    const pages = pageActions();
+    expect(pages.length).toBe(12);
+
+    expect([...bridgeRegistrations()].sort()).toEqual([...pages, 'ping'].sort());
   });
 });

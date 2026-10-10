@@ -23,6 +23,9 @@ import { resolvePanelSurface } from '@/../src-bex/services/panel-surface';
 
 type Connect = (port: chrome.runtime.Port) => void;
 
+const EXTENSION_ID = 'porwrextensionid';
+const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
+
 const addListener = vi.fn();
 
 const openPort = (
@@ -32,6 +35,7 @@ const openPort = (
   const handlers: Array<() => void> = [];
   const port = {
     name: PANEL_PORT_NAME,
+    sender: { id: EXTENSION_ID, url: `${EXTENSION_ORIGIN}/www/index.html#/sidebar` },
     onDisconnect: { addListener: (fn: () => void) => handlers.push(fn) },
     ...over,
   } as unknown as chrome.runtime.Port;
@@ -48,7 +52,9 @@ const startObserving = (): Connect => {
 beforeEach(() => {
   vi.clearAllMocks();
   __resetPanelPresenceForTests();
-  vi.stubGlobal('chrome', { runtime: { onConnect: { addListener } } });
+  vi.stubGlobal('chrome', {
+    runtime: { onConnect: { addListener }, id: EXTENSION_ID, getURL: (path: string) => `${EXTENSION_ORIGIN}/${path}` },
+  });
 });
 
 describe('panel presence', () => {
@@ -71,9 +77,30 @@ describe('panel presence', () => {
   it('counts the panel even when it is running in a tab, as it does in development (#142)', () => {
     const connect = startObserving();
 
-    openPort(connect, { sender: { tab: { id: 1 } } as chrome.runtime.MessageSender });
+    openPort(connect, {
+      sender: { id: EXTENSION_ID, url: `${EXTENSION_ORIGIN}/www/index.html#/sidebar`, tab: { id: 1 } } as chrome.runtime.MessageSender,
+    });
 
     expect(isPanelPresent()).toBe(true);
+  });
+
+  it("ignores a content script that names its port after the panel (#240)", () => {
+    const connect = startObserving();
+
+    openPort(connect, {
+      sender: { id: EXTENSION_ID, url: 'https://example.com/', tab: { id: 1 } } as chrome.runtime.MessageSender,
+    });
+
+    expect(isPanelPresent()).toBe(false);
+  });
+
+  it('ignores a port from another extension, or with no sender', () => {
+    const connect = startObserving();
+
+    openPort(connect, { sender: { id: 'someone-else', url: 'chrome-extension://someone-else/x.html' } as chrome.runtime.MessageSender });
+    openPort(connect, { sender: undefined } as unknown as Partial<chrome.runtime.Port>);
+
+    expect(isPanelPresent()).toBe(false);
   });
 
   it('counts each window separately, since every window has its own panel (D2)', () => {
@@ -137,6 +164,7 @@ describe('telling panels the queue moved', () => {
     const handlers: Array<() => void> = [];
     const port = {
       name: PANEL_PORT_NAME,
+      sender: { id: EXTENSION_ID, url: `${EXTENSION_ORIGIN}/www/index.html#/sidebar` },
       postMessage,
       onDisconnect: { addListener: (fn: () => void) => handlers.push(fn) },
       ...over,

@@ -18,6 +18,7 @@
 import { LogLevel, logService } from '@/services/log-service';
 import { resolvePanelSurface } from './panel-surface';
 import { requeuePresented } from './request-queue';
+import { classifySender, originOf } from './sender-policy';
 
 export const PANEL_PORT_NAME = 'porwr-panel';
 
@@ -61,14 +62,17 @@ const handleDisconnect = (port: chrome.runtime.Port): void => {
 /**
  * Watch for panels connecting.
  *
- * Filtered on the port name alone. Content scripts connect too, but under the bridge's own name,
- * so the name is already decisive. Rejecting ports that carry a `sender.tab` would additionally
- * reject the panel opened as a tab, which is how it is run during development (#142) — the panel
- * is the same page either way and should count as present either way.
+ * A port counts as a panel when it has the panel's name and comes from one of Porwr's own pages.
+ * The name alone is not enough: a port's name is chosen by whoever opens it, so a content script —
+ * which runs in a website's renderer — could claim to be the panel and change whether requests are
+ * presented or the badge is shown (#240). The sender is decided by its URL, not by `sender.tab`, so
+ * the panel opened as a tab, as it is during development (#142), still counts.
  */
 export const observePanelConnections = (): void => {
+  const extensionOrigin = originOf(chrome.runtime.getURL(''));
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== PANEL_PORT_NAME) return;
+    if (classifySender(port.sender, chrome.runtime.id, extensionOrigin) !== 'extension-page') return;
 
     panels.add(port);
     notify();
