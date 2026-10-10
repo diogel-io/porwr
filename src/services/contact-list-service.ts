@@ -1,6 +1,6 @@
-import { finalizeEvent, getPublicKey, nip19, SimplePool } from 'nostr-tools';
+import { nip19, SimplePool } from 'nostr-tools';
 import type { Event as NostrEvent } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { signAsAccount } from '@/services/account-signing-client';
 import type { StoredKey } from '@/types';
 import type {
   ContactInputValidationResult,
@@ -21,7 +21,7 @@ const HEX_PUBKEY_PATTERN = /^[0-9a-f]{64}$/i;
 const pool = new SimplePool();
 
 function getAccountPubkey(storedKey: StoredKey): string {
-  return getPublicKey(hexToBytes(storedKey.account.privkey));
+  return storedKey.id;
 }
 
 export function normalizePubkey(input: string): string | null {
@@ -354,22 +354,19 @@ function settlePublishResult(relayUrl: string, result: Promise<string>): Promise
 }
 
 export async function publishContactList(
-  storedKey: StoredKey,
+  accountPubkey: string,
   contacts: Nip02Contact[],
 ): Promise<ContactListPublishResult> {
   const settingsStore = useSettingsStore();
   const relays = await settingsStore.getFallbackRelays();
-  const privateKeyBytes = hexToBytes(storedKey.account.privkey);
 
-  const signedEvent = finalizeEvent(
-    {
-      kind: CONTACT_LIST_KIND,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: buildContactListTags(contacts),
-      content: '',
-    },
-    privateKeyBytes,
-  ) as NostrEvent;
+  // Signed in the background, which holds the key (#240).
+  const signedEvent: NostrEvent = await signAsAccount(accountPubkey, {
+    kind: CONTACT_LIST_KIND,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: buildContactListTags(contacts),
+    content: '',
+  });
 
   const publishResults = pool.publish(relays, signedEvent);
   const relayResults = await Promise.all(

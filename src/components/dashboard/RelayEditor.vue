@@ -6,8 +6,7 @@ import { normalizeRelayUrl } from '@/services/relay-url';
 import type { NostrRelay, StoredKey } from '@/types';
 import type { RelayCatalogEntry } from '@/types/relay';
 import { SimplePool } from 'nostr-tools';
-import { finalizeEvent } from 'nostr-tools/pure';
-import { hexToBytes } from '@noble/hashes/utils';
+import { signAsAccount } from '@/services/account-signing-client';
 import useSettingsStore from '@/stores/settings-store';
 import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
 
@@ -114,16 +113,13 @@ async function saveRelayList() {
       return tag;
     });
 
-    const unsignedEvent = {
+    // Signed in the background, which holds the key (#240).
+    const event = await signAsAccount(props.storedKey.id, {
       kind: 10002,
       created_at: Math.floor(Date.now() / 1000),
       tags,
       content: '',
-      pubkey: props.storedKey.id,
-    };
-
-    const sk = hexToBytes(props.storedKey.account.privkey);
-    const event = finalizeEvent(unsignedEvent, sk);
+    });
 
     await Promise.any(pool.publish(fallbackRelays.value, event));
 

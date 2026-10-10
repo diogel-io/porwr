@@ -3,8 +3,8 @@ import { onMounted, ref, watch, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import type { NostrProfile, StoredKey } from '@/types';
-import { finalizeEvent, getPublicKey, SimplePool } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { SimplePool } from 'nostr-tools';
+import { signAsAccount } from '@/services/account-signing-client';
 import useSettingsStore from '@/stores/settings-store';
 import { notifyProfileChanged } from '@/services/profile-service';
 import BannerEditor from '@/components/dashboard/BannerEditor.vue';
@@ -83,8 +83,7 @@ async function fetchProfile() {
 async function saveProfile(field: 'picture' | 'banner', url: string) {
   saving.value = true;
   try {
-    const sk = hexToBytes(props.storedKey.account.privkey);
-    const pk = getPublicKey(sk);
+    const pk = props.storedKey.id;
 
     // Fetch latest profile to avoid overwriting other fields
     const latestEvent = await pool.get(fallbackRelays.value, {
@@ -103,15 +102,13 @@ async function saveProfile(field: 'picture' | 'banner', url: string) {
       [field]: url,
     };
 
-    const eventTemplate = {
+    // Signed in the background, which holds the key (#240).
+    const signedEvent = await signAsAccount(pk, {
       kind: 0,
       created_at: Math.floor(Date.now() / 1000),
       tags: [],
       content: JSON.stringify(updatedProfile),
-      pubkey: pk,
-    };
-
-    const signedEvent = finalizeEvent(eventTemplate, sk);
+    });
     await Promise.any(pool.publish(fallbackRelays.value, signedEvent));
 
     // This path publishes its own event rather than going through `profileService`, so it has to

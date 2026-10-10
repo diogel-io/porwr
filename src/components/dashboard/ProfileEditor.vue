@@ -277,7 +277,7 @@ async function saveProfile() {
       profileToSave.birthday = birthdayPayload;
     }
 
-    await profileService.saveProfile(props.storedKey.account.privkey, profileToSave);
+    await profileService.saveProfile(props.storedKey.id, profileToSave);
 
     emit('saved');
 
