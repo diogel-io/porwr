@@ -4,13 +4,13 @@ import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import * as nip19 from 'nostr-tools/nip19';
 
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 
 const { t, d } = useI18n();
 const $q = useQuasar();
 
 const props = defineProps<{
-  keys: StoredKey[];
+  keys: AccountSummary[];
 }>();
 
 interface KeyRow {

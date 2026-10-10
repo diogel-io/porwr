@@ -112,12 +112,11 @@ describe('vault-store', () => {
   });
 
   describe('create', () => {
-    it('creates the vault with the given accounts and marks it unlocked', async () => {
+    it('creates the vault with no accounts, which are added through the background (#240)', async () => {
       mockCreateVault.mockResolvedValue({ success: true, encryptedVault: 'v2:abc' });
       const store = useVaultStore();
-      const account = { id: 'pubkey', alias: 'alpha', account: { privkey: 'secret' }, createdAt: '2026-01-01T00:00:00.000Z' };
 
-      const result = await store.create('pw', 'mnemonic words', 'passphrase', account);
+      const result = await store.create('pw', 'mnemonic words', 'passphrase');
 
       expect(result).toEqual({ success: true });
       expect(store.vaultExists).toBe(true);
@@ -125,7 +124,7 @@ describe('vault-store', () => {
       const [, vaultData] = mockCreateVault.mock.calls[0] as [string, { mnemonic: string; passphrase: string; accounts: unknown[] }];
       expect(vaultData.mnemonic).toBe('mnemonic words');
       expect(vaultData.passphrase).toBe('passphrase');
-      expect(vaultData.accounts).toEqual([account]);
+      expect(vaultData.accounts).toEqual([]);
     });
 
     it('creates the vault with no initial account and an empty passphrase by default', async () => {

@@ -4,12 +4,12 @@ import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { uploadImageToBlossom } from '@/services/blossom-upload-service';
 import { storageService } from '@/services/storage-service';
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 
 defineOptions({ name: 'ImageUploader' });
 
 const props = defineProps<{
-  storedKey: StoredKey;
+  storedKey: AccountSummary;
   label?: string;
   uploadId?: string;
 }>();

@@ -63,23 +63,24 @@ describe('account-store', () => {
   });
 
   describe('saveKey', () => {
-    it('persists the key and adds it to the in-memory set', async () => {
-      mockSave.mockResolvedValue(undefined);
+    it('adds the account through the background and holds only its summary (#240)', async () => {
+      const summary = { id: 'f'.repeat(64), alias: 'alpha', createdAt: '2026-01-01T00:00:00.000Z' };
+      mockSave.mockResolvedValue(summary);
       const store = useAccountStore();
-      const key = buildKey();
 
-      await store.saveKey(key);
+      await expect(store.saveKey({ alias: 'alpha', privkey: 'e'.repeat(64) })).resolves.toEqual(summary);
 
-      expect(mockSave).toHaveBeenCalledWith(key);
-      expect(store.storedKeys.has(key)).toBe(true);
+      expect(mockSave).toHaveBeenCalledWith({ alias: 'alpha', privkey: 'e'.repeat(64) });
+      expect(Array.from(store.storedKeys)).toEqual([summary]);
+      expect(JSON.stringify(Array.from(store.storedKeys))).not.toContain('e'.repeat(64));
+      expect(store.activeKey).toBe('alpha');
     });
 
     it('propagates a save failure without adding the key', async () => {
       mockSave.mockRejectedValue(new Error('duplicate alias'));
       const store = useAccountStore();
-      const key = buildKey();
 
-      await expect(store.saveKey(key)).rejects.toThrow('duplicate alias');
+      await expect(store.saveKey({ alias: 'alpha' })).rejects.toThrow('duplicate alias');
       expect(store.storedKeys.size).toBe(0);
     });
   });

@@ -1,30 +1,33 @@
-import type { StoredKey } from '@/types/bridge';
-import { getVaultData, isVaultUnlocked, updateVaultData } from './vault-service';
+import type { AccountSummary, AddAccountRequest } from '@/types/accounts';
+import { getVaultView, isVaultUnlocked, sendBexMessage } from './vault-service';
 import { NOSTR_ACTIVE, storageService } from './storage-service';
 
-import { db } from './database';
+/**
+ * Accounts, from a page's side (#240).
+ *
+ * Every change is a narrow request the background carries out on the decrypted vault: a page reads
+ * a view with no secrets in it and never writes the vault back. The active alias lives in extension
+ * storage, not the vault, and is read and set here directly.
+ */
 
-const RESERVED_MAIN_ACCOUNT_ALIAS = 'Main Account';
+const fail = (response: unknown, fallback: string): never => {
+  const error =
+    response && typeof response === 'object' && 'error' in response && typeof response.error === 'string'
+      ? response.error
+      : fallback;
+  throw new Error(error);
+};
 
-export async function get(): Promise<Record<string, StoredKey>> {
+export async function get(): Promise<Record<string, AccountSummary>> {
   if (!(await isVaultUnlocked())) {
     return {};
   }
-  const res = await getVaultData();
-  if (!res.success || !res.vaultData) {
+  try {
+    const view = await getVaultView();
+    return Object.fromEntries(view.accounts.map((account) => [account.alias, account]));
+  } catch {
     return {};
   }
-
-  const vaultData = res.vaultData;
-  const accounts = vaultData.accounts || [];
-
-  return accounts.reduce(
-    (acc: Record<string, StoredKey>, key: StoredKey) => {
-      acc[key.alias] = key;
-      return acc;
-    },
-    {} as Record<string, StoredKey>,
-  );
 }
 
 export async function getActive(): Promise<string | undefined> {
@@ -35,81 +38,29 @@ export async function setActive(alias: string): Promise<void> {
   await storageService.set(NOSTR_ACTIVE, alias);
 }
 
-export async function save(storedKey: StoredKey): Promise<void> {
+/**
+ * Adds an account and makes it active. With `privkey` (hex) it imports that key, which crosses into
+ * the background once and is never read back; without it, the background generates a key.
+ */
+export async function save(request: AddAccountRequest): Promise<AccountSummary> {
   if (!(await isVaultUnlocked())) {
     throw new Error('Vault is locked. Cannot save key.');
   }
-
-  const res = await getVaultData();
-  if (!res.success || !res.vaultData) {
-    throw new Error('Failed to retrieve vault data');
+  const response = await sendBexMessage('accounts.add', request);
+  if (!response || typeof response !== 'object' || !('id' in response)) {
+    return fail(response, 'Failed to save the key');
   }
-
-  const vaultData = res.vaultData;
-  vaultData.accounts = vaultData.accounts || [];
-
-  // Check if a key with the same alias or id already exists
-  const existingAlias = vaultData.accounts.find((acc: StoredKey) => acc.alias === storedKey.alias);
-  if (existingAlias) {
-    throw new Error('Key with the same alias already exists.');
-  }
-
-  const existingId = vaultData.accounts.find((acc: StoredKey) => acc.id === storedKey.id);
-  if (existingId) {
-    throw new Error('Key with the same npub already exists.');
-  }
-
-  vaultData.accounts.push(JSON.parse(JSON.stringify(storedKey)));
-  await updateVaultData(vaultData);
-  await setActive(storedKey.alias);
+  await setActive(response.alias);
+  return response;
 }
 
 export async function renameAlias(currentAlias: string, newAlias: string): Promise<void> {
   if (!(await isVaultUnlocked())) {
     throw new Error('Vault is locked. Cannot rename key.');
   }
-
-  const normalizedNextAlias = newAlias.trim();
-  if (!normalizedNextAlias) {
-    throw new Error('Alias is required.');
-  }
-
-  if (normalizedNextAlias === RESERVED_MAIN_ACCOUNT_ALIAS) {
-    throw new Error(`Alias "${RESERVED_MAIN_ACCOUNT_ALIAS}" is reserved.`);
-  }
-
-  const res = await getVaultData();
-  if (!res.success || !res.vaultData) {
-    throw new Error('Failed to retrieve vault data');
-  }
-
-  const vaultData = res.vaultData;
-  vaultData.accounts = vaultData.accounts || [];
-
-  const existingAlias = vaultData.accounts.find((acc: StoredKey) => acc.alias === normalizedNextAlias);
-  if (existingAlias && existingAlias.alias !== currentAlias) {
-    throw new Error('Key with the same alias already exists.');
-  }
-
-  const targetAccount = vaultData.accounts.find((acc: StoredKey) => acc.alias === currentAlias);
-  if (!targetAccount) {
-    throw new Error('Key not found.');
-  }
-
-  if (targetAccount.alias === normalizedNextAlias) {
-    return;
-  }
-
-  targetAccount.alias = normalizedNextAlias;
-  await updateVaultData(vaultData);
-
-  // Migrate logs
-  await db.approvals.where('account').equals(currentAlias).modify({ account: normalizedNextAlias });
-  await db.exceptions.where('account').equals(currentAlias).modify({ account: normalizedNextAlias });
-
-  const activeAlias = await getActive();
-  if (activeAlias === currentAlias) {
-    await setActive(normalizedNextAlias);
+  const response = await sendBexMessage('accounts.rename', { currentAlias, newAlias });
+  if (!response || typeof response !== 'object' || !('id' in response)) {
+    fail(response, 'Failed to rename the key');
   }
 }
 
@@ -117,20 +68,20 @@ export async function remove(id: string): Promise<void> {
   if (!(await isVaultUnlocked())) {
     throw new Error('Vault is locked. Cannot remove key.');
   }
-
-  const res = await getVaultData();
-  if (!res.success || !res.vaultData) {
-    throw new Error('Failed to retrieve vault data');
+  const response = await sendBexMessage('accounts.remove', { accountPubkey: id });
+  if (typeof response !== 'boolean') {
+    fail(response, 'Failed to remove the key');
   }
+}
 
-  const vaultData = res.vaultData;
-  vaultData.accounts = vaultData.accounts || [];
-
-  const filteredAccounts = vaultData.accounts.filter((acc: StoredKey) => acc.id !== id);
-  if (filteredAccounts.length === vaultData.accounts.length) {
-    return; // Already not there
+/**
+ * One account's nsec, for the user's explicit "show private key" or backup export. The only path by
+ * which a private key reaches a page; callers hold it no longer than they show or write it.
+ */
+export async function revealSecret(accountPubkey: string): Promise<string> {
+  const response = await sendBexMessage('accounts.revealSecret', { accountPubkey });
+  if (!response || typeof response !== 'object' || !('nsec' in response)) {
+    return fail(response, 'Failed to reveal the key');
   }
-
-  vaultData.accounts = filteredAccounts;
-  await updateVaultData(vaultData);
+  return response.nsec;
 }

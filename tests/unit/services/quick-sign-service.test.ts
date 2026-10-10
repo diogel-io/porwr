@@ -87,7 +87,6 @@ describe('quick-sign-service', () => {
       alpha: {
         id: 'f'.repeat(64),
         alias: 'alpha',
-        account: { privkey: 'e'.repeat(64) },
         createdAt: '2026-01-01',
       },
     });
@@ -489,8 +488,8 @@ describe('quick-sign-service', () => {
 
   it('has the background sign as the chosen account, even one that is not active, without the key', async () => {
     vi.mocked(get).mockResolvedValue({
-      alpha: { id: 'a'.repeat(64), alias: 'alpha', account: { privkey: '1'.repeat(64) }, createdAt: '2026-01-01' },
-      beta: { id: 'b'.repeat(64), alias: 'beta', account: { privkey: '2'.repeat(64) }, createdAt: '2026-01-01' },
+      alpha: { id: 'a'.repeat(64), alias: 'alpha', createdAt: '2026-01-01' },
+      beta: { id: 'b'.repeat(64), alias: 'beta', createdAt: '2026-01-01' },
     });
 
     const result = await quickSignEvent(

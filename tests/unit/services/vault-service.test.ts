@@ -107,26 +107,21 @@ describe('vault-service (bridge messaging)', () => {
     await expect(isVaultUnlocked()).resolves.toBe(false);
   });
 
-  it('getVaultData surfaces a failure response', async () => {
-    setBridge(async () => ({ data: { success: false, error: 'Vault is locked' } }));
-
-    const { getVaultData } = await import('@/services/vault-service');
-    await expect(getVaultData()).resolves.toEqual({ success: false, error: 'Vault is locked' });
-  });
-
-  it('updateVaultData forwards the payload and returns the bridge result', async () => {
-    const send = vi.fn().mockResolvedValue({ data: { success: true } });
+  it('getVaultView returns the view: accounts by id, alias and creation date (#240)', async () => {
+    const send = vi.fn().mockResolvedValue({ data: { accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] } });
     setBridge(send);
 
-    const { updateVaultData } = await import('@/services/vault-service');
-    const result = await updateVaultData({ accounts: [] });
+    const { getVaultView } = await import('@/services/vault-service');
 
-    expect(send).toHaveBeenCalledWith({
-      event: 'vault.updateData',
-      to: 'background',
-      payload: { vaultData: { accounts: [] } },
-    });
-    expect(result).toEqual({ success: true });
+    await expect(getVaultView()).resolves.toEqual({ accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] });
+    expect(send).toHaveBeenCalledWith({ event: 'vault.getView', to: 'background', payload: undefined });
+  });
+
+  it('getVaultView turns a refusal into an error', async () => {
+    setBridge(async () => ({ data: { success: false, error: 'Vault is locked' } }));
+
+    const { getVaultView } = await import('@/services/vault-service');
+    await expect(getVaultView()).rejects.toThrow('Vault is locked');
   });
 
   it('exportVault returns the encrypted payload on success', async () => {

@@ -76,6 +76,11 @@ const SURFACE_ACTIONS = [
   'messaging.readState',
   'messaging.markRead',
   'account.signEvent',
+  'vault.getView',
+  'accounts.add',
+  'accounts.rename',
+  'accounts.remove',
+  'accounts.revealSecret',
 ];
 
 describe('bridge action routing', () => {

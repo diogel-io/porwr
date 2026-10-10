@@ -57,6 +57,10 @@ vi.mock('@/../src-bex/handlers/messaging', () => ({
   handleMessagesReadState: vi.fn(), handleMessagesMarkRead: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/account-signing', () => ({ handleAccountSignEvent: vi.fn() }));
+vi.mock('@/../src-bex/handlers/accounts', () => ({
+  handleVaultGetView: vi.fn(), handleAccountsAdd: vi.fn(), handleAccountsRename: vi.fn(),
+  handleAccountsRemove: vi.fn(), handleAccountsRevealSecret: vi.fn(),
+}));
 vi.mock('@/../src-bex/handlers/webln', () => ({
   handleWebLnEnable: vi.fn(), handleWebLnGetInfo: vi.fn(), handleWebLnSendPayment: vi.fn(),
 }));
@@ -78,6 +82,7 @@ import * as nip57 from '@/../src-bex/handlers/nip57';
 import * as webln from '@/../src-bex/handlers/webln';
 import * as messaging from '@/../src-bex/handlers/messaging';
 import * as accountSigning from '@/../src-bex/handlers/account-signing';
+import * as accounts from '@/../src-bex/handlers/accounts';
 
 const ORIGIN = 'https://example.com';
 
@@ -126,8 +131,9 @@ const cases: Case[] = [
   { action: 'vault.isUnlocked', payload: {}, handler: vi.mocked(vault.handleVaultIsUnlocked),
     name: 'handleVaultIsUnlocked', resolves: ok(true), expected: true },
   { action: 'vault.unlock', payload: { password: 'pw' }, handler: vi.mocked(vault.handleVaultUnlock),
-    name: 'handleVaultUnlock', resolves: ok({ vaultData: { accounts: [] } }),
-    expected: { success: true, vaultData: { accounts: [] } }, expectArgs: [{ password: 'pw' }, ORIGIN] },
+    // The decrypted vault is not passed on: a page only learns that unlocking worked (#240).
+    name: 'handleVaultUnlock', resolves: ok({ vaultData: { accounts: [{ account: { privkey: 'secret' } }] } }),
+    expected: { success: true }, expectArgs: [{ password: 'pw' }, ORIGIN] },
   { action: 'vault.create', payload: { password: 'pw', vaultData: { accounts: [] } },
     handler: vi.mocked(vault.handleVaultCreate), name: 'handleVaultCreate',
     resolves: ok({ encryptedVault: 'blob' }), expected: { success: true, encryptedVault: 'blob' } },
@@ -160,12 +166,20 @@ const cases: Case[] = [
   { action: 'sites.countForAccount', payload: { accountPubkey: 'a' },
     handler: vi.mocked(sites.countSitesHoldingGrantsFor), name: 'countSitesHoldingGrantsFor',
     resolves: 2, expected: 2, expectArgs: ['a'] },
-  { action: 'vault.getData', payload: {}, handler: vi.mocked(vault.handleVaultGetData),
-    name: 'handleVaultGetData', resolves: ok({ vaultData: { accounts: [] } }),
-    expected: { success: true, vaultData: { accounts: [] } } },
-  { action: 'vault.updateData', payload: { vaultData: { accounts: [] } },
-    handler: vi.mocked(vault.handleVaultUpdateData), name: 'handleVaultUpdateData',
-    resolves: { success: true }, expected: { success: true }, expectArgs: [{ vaultData: { accounts: [] } }, ORIGIN] },
+  { action: 'vault.getView', handler: vi.mocked(accounts.handleVaultGetView), name: 'handleVaultGetView',
+    resolves: ok({ accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] }),
+    expected: { accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] } },
+  { action: 'accounts.add', payload: { alias: 'new' }, handler: vi.mocked(accounts.handleAccountsAdd),
+    name: 'handleAccountsAdd', resolves: ok({ id: 'a', alias: 'new', createdAt: 't' }),
+    expected: { id: 'a', alias: 'new', createdAt: 't' }, expectArgs: [expect.objectContaining({ alias: 'new' })] },
+  { action: 'accounts.rename', payload: { currentAlias: 'a', newAlias: 'b' }, handler: vi.mocked(accounts.handleAccountsRename),
+    name: 'handleAccountsRename', resolves: ok({ id: 'a', alias: 'b', createdAt: 't' }),
+    expected: { id: 'a', alias: 'b', createdAt: 't' }, expectArgs: [expect.objectContaining({ currentAlias: 'a', newAlias: 'b' })] },
+  { action: 'accounts.remove', payload: { accountPubkey: 'a' }, handler: vi.mocked(accounts.handleAccountsRemove),
+    name: 'handleAccountsRemove', resolves: ok(true), expected: true, expectArgs: [expect.objectContaining({ accountPubkey: 'a' })] },
+  { action: 'accounts.revealSecret', payload: { accountPubkey: 'a' }, handler: vi.mocked(accounts.handleAccountsRevealSecret),
+    name: 'handleAccountsRevealSecret', resolves: ok({ nsec: 'nsec1x' }), expected: { nsec: 'nsec1x' },
+    expectArgs: [expect.objectContaining({ accountPubkey: 'a' })] },
   { action: 'vault.export', payload: {}, handler: vi.mocked(vault.handleVaultExport), name: 'handleVaultExport',
     resolves: ok({ encryptedData: 'enc' }), expected: { success: true, encryptedData: 'enc' } },
   { action: 'vault.import', payload: { encryptedData: 'enc' }, handler: vi.mocked(vault.handleVaultImport),

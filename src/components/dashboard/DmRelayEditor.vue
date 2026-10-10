@@ -4,7 +4,7 @@ import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { normalizeRelayUrl } from '@/services/relay-url';
 import { getDmRelays, publishDmRelays } from '@/services/messaging-service';
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 
 defineOptions({ name: 'DmRelayEditor' });
 
@@ -14,7 +14,7 @@ defineOptions({ name: 'DmRelayEditor' });
  * Signing happens in the background; this component only edits a list of URLs.
  */
 const props = defineProps<{
-  storedKey: StoredKey;
+  storedKey: AccountSummary;
 }>();
 
 /** NIP-17 asks clients to guide users towards small lists. */

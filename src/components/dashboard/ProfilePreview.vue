@@ -1,13 +1,14 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { NostrProfile, StoredKey } from '@/types';
+import type { NostrProfile } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import { profileService } from '@/services/profile-service';
 
 defineOptions({ name: 'ProfilePreview' });
 
 const props = defineProps<{
-  storedKey: StoredKey;
+  storedKey: AccountSummary;
   refreshKey?: number;
 }>();
 

@@ -18,6 +18,14 @@ import type {
   SendMessageResult,
 } from './messaging';
 import type { AccountSignRequest } from './account-signing';
+import type {
+  AccountRequest,
+  AccountSummary,
+  AddAccountRequest,
+  RenameAccountRequest,
+  RevealedSecret,
+  VaultView,
+} from './accounts';
 import type { Event as SignedNostrEvent } from 'nostr-tools';
 import type { ConnectedSite } from '@/../src-bex/services/connected-sites';
 import type { SiteAccount, SwitchSiteAccountResult } from '@/../src-bex/services/site-account';
@@ -118,9 +126,12 @@ export type BridgeAction =
   | 'permission.grant'
   | 'blossom.upload'
   | 'ping'
-  | 'vault.getData'
+  | 'vault.getView'
+  | 'accounts.add'
+  | 'accounts.rename'
+  | 'accounts.remove'
+  | 'accounts.revealSecret'
   | 'vault.setData'
-  | 'vault.updateData'
   | 'vault.create'
   | 'vault.export'
   | 'vault.import'
@@ -254,18 +265,29 @@ export interface BridgeRequestMap {
     id: string;
     action: 'ping';
   };
-  'vault.getData': {
+  'vault.getView': {
     id: string;
-    action: 'vault.getData';
+    action: 'vault.getView';
   };
+  'accounts.add': {
+    id: string;
+    action: 'accounts.add';
+  } & AddAccountRequest;
+  'accounts.rename': {
+    id: string;
+    action: 'accounts.rename';
+  } & RenameAccountRequest;
+  'accounts.remove': {
+    id: string;
+    action: 'accounts.remove';
+  } & AccountRequest;
+  'accounts.revealSecret': {
+    id: string;
+    action: 'accounts.revealSecret';
+  } & AccountRequest;
   'vault.setData': {
     id: string;
     action: 'vault.setData';
-    vaultData: VaultData;
-  };
-  'vault.updateData': {
-    id: string;
-    action: 'vault.updateData';
     vaultData: VaultData;
   };
   'vault.create': {
@@ -465,16 +487,19 @@ export interface BridgeResponseMap {
   'nostr.nip04.decrypt': string;
   'nostr.nip44.encrypt': string;
   'nostr.nip44.decrypt': string;
-  'vault.unlock': { success: boolean; vaultData?: VaultData | null; error?: string };
+  'vault.unlock': { success: boolean; error?: string };
   'vault.lock': { success: boolean };
   'vault.isUnlocked': boolean;
   'permission.check': boolean;
   'permission.grant': boolean;
   'blossom.upload': { success: true; url: string; sha256?: string } | { success: false; error: string };
   'ping': string;
-  'vault.getData': { success: boolean; vaultData?: VaultData | null; error?: string };
+  'vault.getView': VaultView | { success: false; error: string };
+  'accounts.add': AccountSummary | { success: false; error: string };
+  'accounts.rename': AccountSummary | { success: false; error: string };
+  'accounts.remove': boolean | { success: false; error: string };
+  'accounts.revealSecret': RevealedSecret | { success: false; error: string };
   'vault.setData': { success: boolean; error?: string };
-  'vault.updateData': { success: boolean; error?: string };
   'vault.create': { success: boolean; encryptedVault?: string; error?: string };
   'vault.export': { success: boolean; encryptedData?: string; error?: string };
   'vault.import': { success: boolean; error?: string };

@@ -9,15 +9,23 @@ import { describe, it, expect } from 'vitest';
  * Signing happens in the background (`account.signEvent`); a page gets the signed event. A page that
  * calls `finalizeEvent` or reads `account.privkey` is holding key material it should not have.
  *
- * Allowed until part 3 of #240 replaces them with an explicit, background-side reveal:
+ * Revealing or exporting a key goes through `accounts.revealSecret`, which hands over one nsec; nothing
+ * in a page reads `account.privkey`. The only exception:
  */
 const ALLOWED: Record<string, string> = {
-  // Shows the nsec when the user asks to see it.
-  'src/components/dashboard/ViewStoredKey.vue': 'reveal',
-  // Writes the backup file the user asked to export.
-  'src/services/compressor.ts': 'export',
   // Lives under src/ but is only ever called by src-bex/handlers/nip57.ts, in the background.
   'src/services/nip57-zap-request.ts': 'background-only',
+};
+
+/**
+ * `StoredKey` and `VaultData` carry private keys, mnemonics and wallet secrets. Pages use
+ * `AccountSummary` and `VaultView` instead. The exceptions only ever send a new vault *in*:
+ */
+const MAY_NAME_VAULT_TYPES: Record<string, string> = {
+  // `vault.create` sends the new vault, with its mnemonic, to the background. Generating the mnemonic
+  // in the background instead is a follow-up to #240.
+  'src/services/vault-service.ts': 'vault.create payload',
+  'src/stores/vault-store.ts': 'vault.create payload',
 };
 
 const ROOT = resolve(__dirname, '../../..');
@@ -58,5 +66,15 @@ describe('extension pages never hold a private key', () => {
   it('has only the background call the zap-request signer', () => {
     const callers = files.filter(({ path, source }) => path !== 'src/services/nip57-zap-request.ts' && /nip57-zap-request/.test(source));
     expect(callers.map(({ path }) => path)).toEqual([]);
+  });
+
+  it('keeps the background-only vault types out of pages (#240)', () => {
+    const offenders = files
+      .filter(({ path }) => !path.startsWith('src/types/'))
+      .filter(({ source }) => /import type \{[^}]*\b(StoredKey|VaultData)\b[^}]*\}/s.test(source))
+      .map(({ path }) => path)
+      .filter((path) => !(path in MAY_NAME_VAULT_TYPES));
+
+    expect(offenders).toEqual([]);
   });
 });

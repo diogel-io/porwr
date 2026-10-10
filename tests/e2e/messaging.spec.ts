@@ -6,7 +6,7 @@ import type { Event, EventTemplate } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 
 import { expect, test } from './fixtures/relays';
-import { createVault, TEST_ACCOUNT } from './fixtures/vault';
+import { createVault, TEST_ACCOUNT, seedAccounts as seedVaultAccounts } from './fixtures/vault';
 
 /**
  * NIP-17 messaging end to end: two accounts in one extension, talking through local relays (#227).
@@ -45,26 +45,8 @@ const nak = (args: string[], input?: string): string =>
   }).trim();
 
 async function seedAccounts(page: Page, fallbackRelay: string): Promise<void> {
-  await page.evaluate(
-    async ([accounts, relay]) => {
-      const result = (await chrome.runtime.sendMessage({
-        type: 'vault.updateData',
-        payload: {
-          vaultData: {
-            accounts: accounts.map((account) => ({
-              id: account.pubkey,
-              alias: account.alias,
-              account: { privkey: account.privkey },
-              createdAt: new Date().toISOString(),
-            })),
-          },
-        },
-      })) as { success?: boolean } | undefined;
-      if (result?.success === false) throw new Error('could not seed accounts');
-      await chrome.storage.local.set({ 'nostr:fallback-relays': [relay] });
-    },
-    [[ALICE, BOB], fallbackRelay] as const,
-  );
+  await seedVaultAccounts(page, [ALICE, BOB]);
+  await page.evaluate((relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }), fallbackRelay);
 }
 
 async function useAccount(page: Page, alias: string): Promise<void> {

@@ -1,7 +1,8 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import useAccountStore from '@/stores/account-store';
-import type { DropdownItem, StoredKey } from '@/types';
+import type { DropdownItem } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 import { useI18n } from 'vue-i18n';
 import { profileService } from '@/services/profile-service';
 
@@ -19,7 +20,7 @@ export function useAccounts() {
 
   const CREATE_VALUE = 'create-account';
 
-  const accountKeys = computed<StoredKey[]>(() =>
+  const accountKeys = computed<AccountSummary[]>(() =>
     Array.from(accountStore.storedKeys).filter((key) => key.alias !== 'Main Account'),
   );
 

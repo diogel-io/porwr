@@ -106,7 +106,10 @@ function requiredInput(wrapper: ReturnType<typeof mount>, index: number) {
 describe('ImportKeyForm.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    saveKeyMock.mockResolvedValue(undefined);
+    // The background answers with the new account's summary (#240).
+    saveKeyMock.mockImplementation((request: { alias: string }) =>
+      Promise.resolve({ id: 'pubkey-hex', alias: request.alias, createdAt: '2026-05-01T00:00:00.000Z' }),
+    );
     pushMock.mockResolvedValue(undefined);
   });
 
@@ -191,15 +194,8 @@ describe('ImportKeyForm.vue', () => {
     await wrapper.find('button[data-label="createAccount.save"]').trigger('click');
     await flushComponent();
 
-    expect(saveKeyMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        alias: 'alice',
-        id: 'pubkey-hex',
-        account: expect.objectContaining({
-          privkey: 'privkey-hex',
-        }),
-      }),
-    );
+    // The pasted key goes into the background once, with the alias; nothing comes back with it (#240).
+    expect(saveKeyMock).toHaveBeenCalledWith({ alias: 'alice', privkey: 'privkey-hex' });
     expect(pushMock).toHaveBeenCalledWith({ name: 'view-key', params: { alias: 'alice' } });
   });
 });

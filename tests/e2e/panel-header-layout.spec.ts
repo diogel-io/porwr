@@ -13,18 +13,13 @@ import { createVault, seedAccount } from './fixtures/vault';
 const LEGIBLE_ALIAS_PX = 48;
 
 const renameActiveAccount = async (page: import('@playwright/test').Page, alias: string) => {
-  await page.evaluate(async (name) => {
-    const data = await new Promise((resolve) =>
-      chrome.runtime.sendMessage({ type: 'vault.getData', payload: {} }, resolve),
-    );
-    const vaultData = (data as { vaultData?: { accounts: Array<{ alias: string }> } }).vaultData;
-    if (!vaultData) throw new Error('no vault data');
-    vaultData.accounts[0]!.alias = name;
-    await new Promise((r) =>
-      chrome.runtime.sendMessage({ type: 'vault.updateData', payload: { vaultData } }, r),
-    );
-    await chrome.storage.local.set({ 'nostr:active': name });
+  const renamed = await page.evaluate(async (name) => {
+    const current = (await chrome.storage.local.get('nostr:active'))['nostr:active'] as string;
+    return chrome.runtime.sendMessage({ type: 'accounts.rename', payload: { currentAlias: current, newAlias: name } });
   }, alias);
+  if (!renamed || typeof renamed !== 'object' || (renamed as { alias?: string }).alias !== alias.trim()) {
+    throw new Error(`Could not rename the account: ${JSON.stringify(renamed)}`);
+  }
   await page.reload();
   await page.locator('.sidebar-root').waitFor({ state: 'visible', timeout: 20_000 });
 };

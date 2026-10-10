@@ -4,21 +4,16 @@ import { nextTick } from 'vue';
 
 import GenerateKeyForm from '@/components/dashboard/key-management/GenerateKeyForm.vue';
 
-const { saveKeyMock, pushMock, notifyMock, generateKeyMock } = vi.hoisted(() => ({
+const { saveKeyMock, pushMock, notifyMock } = vi.hoisted(() => ({
   saveKeyMock: vi.fn(),
   pushMock: vi.fn(),
   notifyMock: vi.fn(),
-  generateKeyMock: vi.fn(),
 }));
 
 vi.mock('@/stores/account-store', () => ({
   default: () => ({
     saveKey: saveKeyMock,
   }),
-}));
-
-vi.mock('@/services/generate-key', () => ({
-  generateKey: generateKeyMock,
 }));
 
 vi.mock('vue-router', () => ({
@@ -99,32 +94,28 @@ function requiredInput(wrapper: ReturnType<typeof mount>) {
 describe('GenerateKeyForm.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    saveKeyMock.mockResolvedValue(undefined);
+    // The background generates the key and answers with the account's summary (#240).
+    saveKeyMock.mockImplementation((request: { alias: string }) =>
+      Promise.resolve({ id: 'pubkey-hex', alias: request.alias, createdAt: '2026-05-01T00:00:00.000Z' }),
+    );
     pushMock.mockResolvedValue(undefined);
-    generateKeyMock.mockReturnValue({
-      id: 'pubkey-hex',
-      alias: '',
-      createdAt: '2026-05-01T00:00:00.000Z',
-      account: {
-        privkey: 'privkey-hex',
-      },
-    });
   });
 
-  it('generates a new key preview after clicking generate', async () => {
+  it('opens the profile name form, without generating a key in the page (#240)', async () => {
     const wrapper = mount(GenerateKeyForm, {
       global: {
         stubs: globalStubs,
       },
     });
 
-    expect(wrapper.find('[data-testid="view-stored-key"]').exists()).toBe(false);
+    expect(wrapper.find('input').exists()).toBe(false);
 
     await wrapper.find('button[data-label="createAccount.generateKeys"]').trigger('click');
     await flushComponent();
 
-    expect(generateKeyMock).toHaveBeenCalledTimes(1);
-    expect(wrapper.find('[data-testid="view-stored-key"]').exists()).toBe(true);
+    expect(wrapper.find('input').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="view-stored-key"]').exists()).toBe(false);
+    expect(saveKeyMock).not.toHaveBeenCalled();
   });
 
   it('requires alias before saving generated key', async () => {
@@ -193,15 +184,8 @@ describe('GenerateKeyForm.vue', () => {
     await wrapper.find('button[data-label="createAccount.save"]').trigger('click');
     await flushComponent();
 
-    expect(saveKeyMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        alias: 'alice',
-        id: 'pubkey-hex',
-        account: expect.objectContaining({
-          privkey: 'privkey-hex',
-        }),
-      }),
-    );
+    // Only the alias: the background generates the key, so none is sent (#240).
+    expect(saveKeyMock).toHaveBeenCalledWith({ alias: 'alice' });
     expect(pushMock).toHaveBeenCalledWith({ name: 'view-key', params: { alias: 'alice' } });
   });
 
@@ -217,7 +201,7 @@ describe('GenerateKeyForm.vue', () => {
     await wrapper.find('button[data-label="createAccount.save"]').trigger('click');
     await flushComponent();
 
-    expect(saveKeyMock).toHaveBeenCalledWith(expect.objectContaining({ alias: 'Anne Mous' }));
+    expect(saveKeyMock).toHaveBeenCalledWith({ alias: 'Anne Mous' });
     expect(pushMock).toHaveBeenCalledWith({ name: 'view-key', params: { alias: 'Anne Mous' } });
   });
 });

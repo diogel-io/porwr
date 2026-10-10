@@ -136,7 +136,8 @@ describe('Dispatcher', () => {
 
     const result = await dispatchMessage('vault.unlock', createBridgeRequest('vault.unlock', { password: 'test-password' }));
 
-    expect(result).toEqual({ success: true, vaultData: { accounts: [] } });
+    // The decrypted vault stays in the background (#240).
+    expect(result).toEqual({ success: true });
     expect(autoLockMocks.resetAutoLockTimer).toHaveBeenCalled();
     expect(autoLockMocks.startAutoLockTimer).toHaveBeenCalled();
     expect(
