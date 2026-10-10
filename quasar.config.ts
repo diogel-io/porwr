@@ -5,6 +5,8 @@ import { defineConfig } from '#q-app';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
+import { withDevScriptSources } from './src-bex/manifest-csp';
+
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'));
 
 export default defineConfig((ctx) => {
@@ -227,6 +229,15 @@ export default defineConfig((ctx) => {
         json.permissions ||= [];
         if (!json.permissions.includes('storage')) {
           json.permissions.push('storage');
+        }
+
+        // Only `quasar dev` serves page scripts from localhost; a released build allows 'self' alone (#247).
+        const csp = json.content_security_policy?.extension_pages;
+        if (ctx.dev && csp) {
+          json.content_security_policy = {
+            ...json.content_security_policy,
+            extension_pages: withDevScriptSources(csp),
+          };
         }
 
         // Optional: only if you plan to *open* downloaded files via the API
