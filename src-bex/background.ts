@@ -15,22 +15,14 @@ import {
 } from '@/services/storage-service';
 import {
   startAutoLockTimer,
-  resetAutoLockTimer,
   restoreLastActivity,
   checkAutoLock,
 } from './services/auto-lock';
 import { initializePanelSurface, resolvePanelSurface } from './services/panel-surface';
 import {
-  getCurrentRequest,
-  getPendingCount,
-  getRequestContent,
-  listPendingRequests,
-  markPresented,
   pruneResolvedRequests,
   onQueueChange,
   reconcileInterruptedRequests,
-  requeuePresented,
-  submitDecision,
 } from './services/request-queue';
 import {
   notifyPanelsOfQueueChange,
@@ -42,25 +34,17 @@ import { requestApproval, trimApprovalContentDescription } from './services/appr
 import type { ApprovalRequestDetails } from './services/approval-flow';
 import { originHostname } from './services/origin';
 import { decideRouting, type RawMessage } from './services/message-routing';
+import { classifySender, originOf } from './services/sender-policy';
 import { reconcileAbandonedRequests } from './services/page-reconciliation';
 import {
-  countSitesHoldingGrantsFor,
-  disconnectSite,
-  listConnectedSites,
-} from './services/connected-sites';
-import { getSiteAccount, switchSiteToActiveAccount } from './services/site-account';
-import {
-  getPageOrigin,
   observePageConnections,
   onPageOriginChange,
   restorePageOrigins,
 } from './services/page-origin-registry';
-import type { ApprovalDuration } from './types/background';
 import type {
   BridgeAction,
   BridgeRequestMap,
   BridgeResponsePayload,
-  VaultData,
   GetPublicKeyRequest,
   GetPublicKeyResponse,
   SignEventRequest,
@@ -153,75 +137,11 @@ declare module '@quasar/app-vite' {
       { pubkey: string; ciphertext: string; origin: string },
       BridgeResponsePayload<'nostr.nip44.decrypt'>,
     ];
-    'nostr.requests.list': [undefined, BridgeResponsePayload<'nostr.requests.list'>];
-    'nostr.requests.current': [undefined, BridgeResponsePayload<'nostr.requests.current'>];
-    'nostr.requests.count': [undefined, BridgeResponsePayload<'nostr.requests.count'>];
-    'pages.originForTab': [{ tabId: number }, BridgeResponsePayload<'pages.originForTab'>];
-    'sites.list': [undefined, BridgeResponsePayload<'sites.list'>];
-    'sites.revoke': [{ origin: string }, BridgeResponsePayload<'sites.revoke'>];
-    'sites.binding': [{ origin: string }, BridgeResponsePayload<'sites.binding'>];
-    'sites.useActiveAccount': [{ origin: string }, BridgeResponsePayload<'sites.useActiveAccount'>];
-    'sites.countForAccount': [
-      { accountPubkey: string },
-      BridgeResponsePayload<'sites.countForAccount'>,
-    ];
-    'nostr.requests.present': [{ requestId: string }, BridgeResponsePayload<'nostr.requests.present'>];
-    'nostr.requests.respond': [
-      { requestId: string; approved: boolean; duration: ApprovalDuration },
-      BridgeResponsePayload<'nostr.requests.respond'>,
-    ];
-    'nostr.requests.content': [{ requestId: string }, BridgeResponsePayload<'nostr.requests.content'>];
-    'nostr.requests.requeuePresented': [undefined, BridgeResponsePayload<'nostr.requests.requeuePresented'>];
-    'vault.unlock': [{ password: string }, BridgeResponsePayload<'vault.unlock'>];
-    'vault.lock': [undefined, BridgeResponsePayload<'vault.lock'>];
-    'vault.create': [
-      { password: string; vaultData: VaultData },
-      BridgeResponsePayload<'vault.create'>,
-    ];
-    'vault.isUnlocked': [undefined, BridgeResponsePayload<'vault.isUnlocked'>];
-    'activity.mark': [undefined, BridgeResponsePayload<'activity.mark'>];
-    'vault.getData': [undefined, BridgeResponsePayload<'vault.getData'>];
-    'vault.updateData': [{ vaultData: VaultData }, BridgeResponsePayload<'vault.updateData'>];
-    'vault.export': [undefined, BridgeResponsePayload<'vault.export'>];
-    'vault.import': [{ encryptedData: string }, BridgeResponsePayload<'vault.import'>];
-    'blossom.upload': [
-      {
-        base64Data: string;
-        fileType: string;
-        blossomServer: string;
-        uploadId?: string;
-      },
-      BridgeResponsePayload<'blossom.upload'>,
-    ];
-    'relay.browser.list': [undefined, BridgeResponsePayload<'relay.browser.list'>];
-    'relay.browser.getStatus': [undefined, BridgeResponsePayload<'relay.browser.getStatus'>];
-    'relay.browser.refresh': [{ force?: boolean }, BridgeResponsePayload<'relay.browser.refresh'>];
-    'nip47.connections.list': [undefined, BridgeResponsePayload<'nip47.connections.list'>];
-    'nip47.connections.import': [
-      { uri: string; label?: string; identityId?: string },
-      BridgeResponsePayload<'nip47.connections.import'>,
-    ];
-    'nip47.connections.remove': [{ connectionId: string }, BridgeResponsePayload<'nip47.connections.remove'>];
-    'nip47.connections.setActive': [{ connectionId: string }, BridgeResponsePayload<'nip47.connections.setActive'>];
-    'nip47.getInfo': [{ connectionId: string }, BridgeResponsePayload<'nip47.getInfo'>];
-    'nip47.getBalance': [{ connectionId: string }, BridgeResponsePayload<'nip47.getBalance'>];
-    'nip47.payInvoice': [
-      { connectionId: string; invoice: string },
-      BridgeResponsePayload<'nip47.payInvoice'>,
-    ];
-    'nip47.payments.list': [undefined, BridgeResponsePayload<'nip47.payments.list'>];
-    'messaging.dmRelays.get': [undefined, BridgeResponsePayload<'messaging.dmRelays.get'>];
-    'messaging.dmRelays.publish': [{ relays: string[] }, BridgeResponsePayload<'messaging.dmRelays.publish'>];
-    'messaging.send': [{ clientMessageId: string; recipient: string; content: string }, BridgeResponsePayload<'messaging.send'>];
-    'messaging.fetch': [{ since?: number }, BridgeResponsePayload<'messaging.fetch'>];
-    'messaging.readState': [undefined, BridgeResponsePayload<'messaging.readState'>];
-    'messaging.markRead': [{ peer: string; readAt: number }, BridgeResponsePayload<'messaging.markRead'>];
     'nip57.getCapabilities': [{ origin: string }, BridgeResponsePayload<'nip57.getCapabilities'>];
     'nip57.sendZap': [
       { origin: string; request: SendZapRequest; approved?: boolean },
       BridgeResponsePayload<'nip57.sendZap'>,
     ];
-    'nip57.zaps.list': [undefined, BridgeResponsePayload<'nip57.zaps.list'>];
     'webln.enable': [{ origin: string; approved?: boolean }, BridgeResponsePayload<'webln.enable'>];
     'webln.getInfo': [{ origin: string }, BridgeResponsePayload<'webln.getInfo'>];
     'webln.sendPayment': [WebLnSendPaymentRequest, BridgeResponsePayload<'webln.sendPayment'>];
@@ -274,170 +194,10 @@ if (typeof self !== 'undefined') {
   });
 }
 
-// Auto-lock activity is deliberately not reset by site-initiated requests (ADR D15). A page
-// making periodic requests must not hold the vault unlocked past the user's configured
-// interval; only interaction with a Porwr surface counts as activity.
-bridge.on('nostr.requests.list', () => {
-  return listPendingRequests() as unknown as BridgeResponsePayload<'nostr.requests.list'>;
-});
-
-bridge.on('nostr.requests.current', () => {
-  return getCurrentRequest() as unknown as BridgeResponsePayload<'nostr.requests.current'>;
-});
-
-bridge.on('nostr.requests.count', () => {
-  return getPendingCount() as unknown as BridgeResponsePayload<'nostr.requests.count'>;
-});
-
-// The panel can read a tab's id but never its url (NFR-18 rules out the permission that would
-// expose it), so the origin is resolved here from what the content script's port already told us.
-bridge.on('pages.originForTab', ({ payload }) => {
-  return getPageOrigin(payload.tabId) ?? null;
-});
-
-// What each site currently holds, and disconnecting one. The handlers behind these have existed
-// since the permission model was written, with no bridge event and no caller, so no user has ever
-// been able to see or revoke a grant (#116).
-bridge.on('sites.list', () => {
-  return listConnectedSites() as unknown as BridgeResponsePayload<'sites.list'>;
-});
-
-bridge.on('sites.revoke', ({ payload }) => {
-  return disconnectSite(payload.origin) as unknown as BridgeResponsePayload<'sites.revoke'>;
-});
-
-// Which account a site is connected as, and moving it to the active one. Only Porwr's own panel and
-// dashboard send these: a site never moves itself (diogel-io/workspace#23).
-bridge.on('sites.binding', ({ payload }) => {
-  return getSiteAccount(payload.origin) as unknown as BridgeResponsePayload<'sites.binding'>;
-});
-
-bridge.on('sites.useActiveAccount', ({ payload }) => {
-  return switchSiteToActiveAccount(
-    payload.origin,
-  ) as unknown as BridgeResponsePayload<'sites.useActiveAccount'>;
-});
-
-bridge.on('sites.countForAccount', ({ payload }) => {
-  return countSitesHoldingGrantsFor(
-    payload.accountPubkey,
-  ) as unknown as BridgeResponsePayload<'sites.countForAccount'>;
-});
-
-bridge.on('nostr.requests.present', ({ payload }) => {
-  return markPresented(payload.requestId) as unknown as BridgeResponsePayload<'nostr.requests.present'>;
-});
-
-// Decisions name a request id. The queue refuses unknown, already-terminal, and expired ids, so
-// a panel acting on stale state changes nothing (ADR D5).
-bridge.on('nostr.requests.respond', ({ payload }) => {
-  return submitDecision(payload.requestId, {
-    approved: payload.approved,
-    duration: payload.duration,
-  }) as unknown as BridgeResponsePayload<'nostr.requests.respond'>;
-});
-
-// Reviewable content is read from the live worker, never from storage. A restarted worker has
-// none, which matches the request being interrupted anyway (D6, D7).
-bridge.on('nostr.requests.content', ({ payload }) => {
-  return getRequestContent(payload.requestId);
-});
-
-bridge.on('nostr.requests.requeuePresented', () => {
-  return requeuePresented() as unknown as BridgeResponsePayload<'nostr.requests.requeuePresented'>;
-});
-
-bridge.on('vault.unlock', ({ payload }) => {
-  return dispatchMessage('vault.unlock', createBridgeRequest('vault.unlock', payload), '') as unknown as BridgeResponsePayload<'vault.unlock'>;
-});
-
-bridge.on('vault.lock', () => {
-  return dispatchMessage('vault.lock', createBridgeRequest('vault.lock', {}), '') as unknown as BridgeResponsePayload<'vault.lock'>;
-});
-
-bridge.on('vault.create', ({ payload }) => {
-  return dispatchMessage('vault.create', createBridgeRequest('vault.create', payload), '') as unknown as BridgeResponsePayload<'vault.create'>;
-});
-
-bridge.on('vault.isUnlocked', () => {
-  return dispatchMessage('vault.isUnlocked', createBridgeRequest('vault.isUnlocked', {}), '') as unknown as BridgeResponsePayload<'vault.isUnlocked'>;
-});
-
-bridge.on('activity.mark', () => {
-  return dispatchMessage('activity.mark', createBridgeRequest('activity.mark', {}), '') as unknown as BridgeResponsePayload<'activity.mark'>;
-});
-
-bridge.on('vault.getData', () => {
-  return dispatchMessage('vault.getData', createBridgeRequest('vault.getData', {}), '') as unknown as BridgeResponsePayload<'vault.getData'>;
-});
-
-bridge.on('vault.updateData', ({ payload }) => {
-  return dispatchMessage('vault.updateData', createBridgeRequest('vault.updateData', payload), '') as unknown as BridgeResponsePayload<'vault.updateData'>;
-});
-
-bridge.on('vault.export', () => {
-  return dispatchMessage('vault.export', createBridgeRequest('vault.export', {}), '') as unknown as BridgeResponsePayload<'vault.export'>;
-});
-
-bridge.on('vault.import', ({ payload }) => {
-  return dispatchMessage('vault.import', createBridgeRequest('vault.import', payload), '') as unknown as BridgeResponsePayload<'vault.import'>;
-});
-
-bridge.on('nip47.connections.list', () => {
-  return dispatchMessage('nip47.connections.list', createBridgeRequest('nip47.connections.list', {}), '') as unknown as BridgeResponsePayload<'nip47.connections.list'>;
-});
-
-bridge.on('nip47.connections.import', ({ payload }) => {
-  return dispatchMessage('nip47.connections.import', createBridgeRequest('nip47.connections.import', payload), '') as unknown as BridgeResponsePayload<'nip47.connections.import'>;
-});
-
-bridge.on('nip47.connections.remove', ({ payload }) => {
-  return dispatchMessage('nip47.connections.remove', createBridgeRequest('nip47.connections.remove', payload), '') as unknown as BridgeResponsePayload<'nip47.connections.remove'>;
-});
-
-bridge.on('nip47.connections.setActive', ({ payload }) => {
-  return dispatchMessage('nip47.connections.setActive', createBridgeRequest('nip47.connections.setActive', payload), '') as unknown as BridgeResponsePayload<'nip47.connections.setActive'>;
-});
-
-bridge.on('nip47.getInfo', ({ payload }) => {
-  return dispatchMessage('nip47.getInfo', createBridgeRequest('nip47.getInfo', payload), '') as unknown as BridgeResponsePayload<'nip47.getInfo'>;
-});
-
-bridge.on('nip47.getBalance', ({ payload }) => {
-  return dispatchMessage('nip47.getBalance', createBridgeRequest('nip47.getBalance', payload), '') as unknown as BridgeResponsePayload<'nip47.getBalance'>;
-});
-
-bridge.on('nip47.payInvoice', ({ payload }) => {
-  return dispatchMessage('nip47.payInvoice', createBridgeRequest('nip47.payInvoice', payload), '') as unknown as BridgeResponsePayload<'nip47.payInvoice'>;
-});
-
-bridge.on('nip47.payments.list', () => {
-  return dispatchMessage('nip47.payments.list', createBridgeRequest('nip47.payments.list', {}), '') as unknown as BridgeResponsePayload<'nip47.payments.list'>;
-});
-
-bridge.on('messaging.dmRelays.get', () => {
-  return dispatchMessage('messaging.dmRelays.get', createBridgeRequest('messaging.dmRelays.get', {}), '') as unknown as BridgeResponsePayload<'messaging.dmRelays.get'>;
-});
-
-bridge.on('messaging.dmRelays.publish', ({ payload }) => {
-  return dispatchMessage('messaging.dmRelays.publish', createBridgeRequest('messaging.dmRelays.publish', payload), '') as unknown as BridgeResponsePayload<'messaging.dmRelays.publish'>;
-});
-
-bridge.on('messaging.send', ({ payload }) => {
-  return dispatchMessage('messaging.send', createBridgeRequest('messaging.send', payload), '') as unknown as BridgeResponsePayload<'messaging.send'>;
-});
-
-bridge.on('messaging.fetch', ({ payload }) => {
-  return dispatchMessage('messaging.fetch', createBridgeRequest('messaging.fetch', payload), '') as unknown as BridgeResponsePayload<'messaging.fetch'>;
-});
-
-bridge.on('messaging.readState', () => {
-  return dispatchMessage('messaging.readState', createBridgeRequest('messaging.readState', {}), '') as unknown as BridgeResponsePayload<'messaging.readState'>;
-});
-
-bridge.on('messaging.markRead', ({ payload }) => {
-  return dispatchMessage('messaging.markRead', createBridgeRequest('messaging.markRead', payload), '') as unknown as BridgeResponsePayload<'messaging.markRead'>;
-});
+// Only the page actions above and below are registered on the Quasar bridge. That channel's other end
+// is the content script, which runs in a website's renderer and is untrusted (#240): vault, queue,
+// site, wallet, messaging and other extension-surface actions are reachable only from Porwr's own
+// pages, through the raw `chrome.runtime.onMessage` listener, which checks the sender.
 
 // The vault's raw AES key is persisted to chrome.storage.session so it survives
 // service worker restarts. Explicitly restrict that storage area to extension
@@ -540,12 +300,16 @@ chrome.action?.onClicked?.addListener((tab) => {
   });
 });
 
-// Signing/encryption actions are scoped to the requesting page's origin for
-// permission checks. This raw listener has no reliable origin of its own, so
-// these actions must carry a non-empty `payload.origin` rather than falling
-// back to '' (which could otherwise match a permission record with no origin).
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  const decision = decideRouting(message as RawMessage);
+// The channel Porwr's own pages use. The browser fills in `sender`, so it — not anything in the
+// payload — decides whether the message came from an extension page. Content scripts, which run in
+// a website's renderer, and anything else are refused before dispatch (#240).
+const EXTENSION_ORIGIN = originOf(chrome.runtime.getURL(''));
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const decision = decideRouting(
+    message as RawMessage,
+    classifySender(sender, chrome.runtime.id, EXTENSION_ORIGIN),
+  );
 
   if (!decision.dispatch) {
     sendResponse({ success: false, error: decision.error });
@@ -704,23 +468,6 @@ bridge.on('nostr.nip44.decrypt', ({ payload }) => (
   })() as unknown as BridgeResponsePayload<'nostr.nip44.decrypt'>
 ));
 
-bridge.on('blossom.upload', ({ payload }) => {
-  void resetAutoLockTimer();
-  return dispatchMessage('blossom.upload', createBridgeRequest('blossom.upload', payload), '') as unknown as BridgeResponsePayload<'blossom.upload'>;
-});
-
-bridge.on('relay.browser.list', () => {
-  return dispatchMessage('relay.browser.list', createBridgeRequest('relay.browser.list', {}), '') as unknown as BridgeResponsePayload<'relay.browser.list'>;
-});
-
-bridge.on('relay.browser.getStatus', () => {
-  return dispatchMessage('relay.browser.getStatus', createBridgeRequest('relay.browser.getStatus', {}), '') as unknown as BridgeResponsePayload<'relay.browser.getStatus'>;
-});
-
-bridge.on('relay.browser.refresh', ({ payload }) => {
-  return dispatchMessage('relay.browser.refresh', createBridgeRequest('relay.browser.refresh', payload), '') as unknown as BridgeResponsePayload<'relay.browser.refresh'>;
-});
-
 bridge.on('nip57.getCapabilities', ({ payload }) => {
   return dispatchMessage(
     'nip57.getCapabilities',
@@ -758,10 +505,6 @@ bridge.on('nip57.sendZap', ({ payload }) => (
     );
   })() as unknown as BridgeResponsePayload<'nip57.sendZap'>
 ));
-
-bridge.on('nip57.zaps.list', () => {
-  return dispatchMessage('nip57.zaps.list', createBridgeRequest('nip57.zaps.list', {}), '') as unknown as BridgeResponsePayload<'nip57.zaps.list'>;
-});
 
 bridge.on('webln.enable', ({ payload }) => (
   (async () => {
