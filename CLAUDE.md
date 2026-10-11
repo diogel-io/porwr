@@ -36,24 +36,31 @@ Use a Node version from `engines.node` in `package.json` (`^22.22 || ^24 || ^26 
    `window.nostr`) and relays `window.postMessage` traffic via
    `src-bex/window-message-handler.ts` (origin/security checks in
    `window-message-security.ts`).
-2. The content script's bridge forwards requests to `src-bex/background.ts`, the BEX service
-   worker / extension background.
-3. `background.ts` registers handlers for every Bridge event (declared via the
-   `BexEventMap` augmentation), enforces approval/permission flow (`requestApproval`,
-   `handlers/permission-handler.ts`), resets the auto-lock timer, logs activity via
-   `src/services/log-service.ts`, then calls `dispatchMessage` (`src-bex/dispatcher.ts`).
+2. The content script sends each request over Porwr's own `porwr:page` port
+   (`src-bex/page-port-client.ts`) to `src-bex/background.ts`, the BEX service worker /
+   extension background. It sends no origin: `src-bex/services/page-channel.ts` takes the
+   requesting site from the port's browser-supplied `sender` (`pageOriginOf` in
+   `services/sender-policy.ts`) and refuses a request whose sender names no http(s) site. The
+   Quasar bridge serves only `ping`, because a bridge handler cannot tell which port a message
+   came from (#246).
+3. `background.ts`'s `pageActionHandlers` serve the page allowlist (`src-bex/page-actions.ts`),
+   each given the sender's origin as an argument. They enforce approval/permission flow
+   (`requestApproval`, `handlers/permission-handler.ts`), log activity via
+   `src/services/log-service.ts`, then call `dispatchMessage` (`src-bex/dispatcher.ts`).
 4. `dispatcher.ts` is the single switch-statement router from `BridgeAction` →
    handler in `src-bex/handlers/*` (vault, nip04, nip07, nip44, blossom, relay-browser,
-   permissions, active-key). It is shared by both the Quasar BEX bridge and the raw
-   `chrome.runtime.onMessage` listener.
+   permissions, active-key). It is shared by the page handlers and the raw
+   `chrome.runtime.onMessage` listener, which serves only Porwr's own pages.
 5. Vault state itself (encryption, lock/unlock, account storage) lives in
    `src-bex/vault.ts`, with persistence through `src/services/storage-service.ts` /
    `dexie-storage.ts` / `database.ts` (Dexie/IndexedDB).
 
-When adding a new `window.nostr` capability: add the type to `BridgeRequestMap`/
-`BexEventMap` in `src/types/bridge.ts` and `background.ts`, add a case in
-`dispatcher.ts`, implement the handler in `src-bex/handlers/`, and wire the
-provider-side call in `nostr-provider.js`.
+When adding a new `window.nostr` capability: add the type to `BridgeRequestMap` in
+`src/types/bridge-types.d.ts`, add the method to `PAGE_METHOD_TO_ACTION` in
+`src-bex/page-actions.ts`, add its handler to `pageActionHandlers` in `background.ts` (typecheck
+requires one per allowlisted action), add a case in `dispatcher.ts`, implement the handler in
+`src-bex/handlers/`, and wire the provider-side call in `nostr-provider.js`. Never read the origin
+from the request.
 
 ### Approval / permission model
 

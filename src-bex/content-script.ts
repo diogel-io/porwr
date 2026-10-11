@@ -4,18 +4,16 @@
  * Warning:
  *   Do not remove the import statement below. It is required for the extension to work.
  *   If you don't need createBridge(), leave it as "import '#q-app/bex/content'".
+ *
+ * Page requests no longer use the Quasar bridge: they travel over Porwr's own port, so the background
+ * can read the requesting site from the browser rather than from this script (#246). The import
+ * stays for dev hot reload, which opens its own port.
  */
-import { createBridge } from '#q-app/bex/content';
+import '#q-app/bex/content';
+import { createPagePortClient } from './page-port-client';
 import { handleDiogelWindowMessage } from './window-message-handler';
 
-const bridge = createBridge({ debug: false });
-/**
- * bridge.portName is 'content@<path>-<number>'
- *   where <path> is the relative path of this content script
- *   filename (without extension) from /src-bex
- *   (eg. 'my-content-script', 'subdir/my-script')
- *   and <number> is a unique instance number (1-10000).
- */
+const channel = createPagePortClient();
 
 type LogContext = Record<string, unknown>;
 
@@ -56,15 +54,17 @@ if (document.readyState === 'loading') {
 
 window.addEventListener('message', (event: MessageEvent<unknown>) => {
   void handleDiogelWindowMessage(event, {
-    bridge,
+    channel,
     postMessage: (message, targetOrigin) => window.postMessage(message, targetOrigin),
     warn,
     error,
   });
 });
 
-bridge.connectToBackground().catch((connectError: unknown) => {
+try {
+  channel.connect();
+} catch (connectError: unknown) {
   error('[BEX] Failed to connect to background', {
     error: connectError instanceof Error ? connectError.message : String(connectError),
   });
-});
+}

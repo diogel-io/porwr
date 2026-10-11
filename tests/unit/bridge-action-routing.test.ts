@@ -4,12 +4,12 @@ import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
 /**
- * Every declared bridge action must be reachable, by one path or the other.
+ * Every declared bridge action must be reachable, by one path or another.
  *
- * There are two: `dispatcher.ts`'s switch, used by the raw `chrome.runtime.onMessage` listener, and
- * `bridge.on` registrations in `background.ts`, used by the Quasar bridge. An action declared in the
- * union but wired to neither is a call that silently does nothing — no error, no route, no reply
- * (#173).
+ * There are three: `dispatcher.ts`'s switch, used by the raw `chrome.runtime.onMessage` listener;
+ * `bridge.on` registrations in `background.ts`, used by the Quasar bridge; and the page action
+ * handlers in `background.ts`, served over the page channel (#246). An action declared in the union
+ * but wired to none is a call that silently does nothing — no error, no route, no reply (#173).
  *
  * This reads the source rather than the runtime because `background.ts` cannot be imported: it
  * registers listeners and calls `initialize()` at load, which is the same reason coverage skips it.
@@ -31,12 +31,19 @@ const dispatcherCases = (): string[] =>
 const bridgeRegistrations = (): string[] =>
   [...read('src-bex/background.ts').matchAll(/bridge\.on\('([^']+)'/g)].map(([, action]) => action ?? '');
 
-/** The bridge actions a web page may reach through `window.nostr` and WebLN, from the content script's allowlist. */
+/** The bridge actions a web page may reach through `window.nostr` and WebLN, from the shared allowlist. */
 const pageActions = (): string[] => {
-  const source = read('src-bex/window-message-handler.ts');
-  const map = /const PAGE_METHOD_TO_BRIDGE_ACTION = \{(.*?)\}/s.exec(source)?.[1] ?? '';
+  const source = read('src-bex/page-actions.ts');
+  const map = /export const PAGE_METHOD_TO_ACTION = \{(.*?)\}/s.exec(source)?.[1] ?? '';
   return [...map.matchAll(/:\s*'([^']+)'/g)].map(([, action]) => action ?? '');
 };
+
+/** The body of `background.ts`'s page action handlers, served over the page channel. */
+const pageHandlerSource = (): string =>
+  /const pageActionHandlers: PageActionHandlers = \{(.*?)\n\};/s.exec(read('src-bex/background.ts'))?.[1] ?? '';
+
+const pageHandlers = (): string[] =>
+  [...pageHandlerSource().matchAll(/^ {2}'([^']+)': async/gm)].map(([, action]) => action ?? '');
 
 /**
  * Declared, wired to neither path, and sent by nothing.
@@ -85,12 +92,13 @@ const SURFACE_ACTIONS = [
 
 describe('bridge action routing', () => {
   const actions = declaredActions();
-  const routed = new Set([...dispatcherCases(), ...bridgeRegistrations()]);
+  const routed = new Set([...dispatcherCases(), ...bridgeRegistrations(), ...pageHandlers()]);
 
-  it('parses all three sources, so this cannot pass by reading nothing', () => {
+  it('parses every source, so this cannot pass by reading nothing', () => {
     expect(actions.length).toBeGreaterThan(40);
     expect(dispatcherCases().length).toBeGreaterThan(30);
-    expect(bridgeRegistrations().length).toBeGreaterThan(10);
+    expect(bridgeRegistrations().length).toBe(1);
+    expect(pageHandlers().length).toBeGreaterThan(10);
   });
 
   it('routes every declared action except the ones known to be unrouted', () => {
@@ -130,13 +138,26 @@ describe('bridge action routing', () => {
     }
   });
 
-  it('exposes on the Quasar bridge only what a web page may ask for (#240)', () => {
+  it('exposes nothing but ping on the Quasar bridge (#240, #246)', () => {
     // The bridge's other end is the content script, which runs in a website's renderer and is
-    // untrusted. Vault, queue, site and every other extension-surface action belongs on the raw
-    // listener, which checks the sender. A new registration here must be a page action.
+    // untrusted, and a bridge handler cannot tell which port a message came from. Page actions use
+    // the page channel, which can; everything else belongs on the raw listener, which checks the sender.
+    expect(bridgeRegistrations()).toEqual(['ping']);
+  });
+
+  it('serves exactly the page allowlist over the page channel (#246)', () => {
     const pages = pageActions();
     expect(pages.length).toBe(12);
 
-    expect([...bridgeRegistrations()].sort()).toEqual([...pages, 'ping'].sort());
+    expect([...pageHandlers()].sort()).toEqual([...pages].sort());
+  });
+
+  it('takes no page handler’s origin from what the page sent (#246)', () => {
+    // Each handler gets the site from the port's browser-supplied sender as its own argument.
+    const source = pageHandlerSource();
+    expect(source.length).toBeGreaterThan(1000);
+    // No handler reads an `origin` property off anything, or destructures one from its payload.
+    expect(source).not.toMatch(/\.origin\b/);
+    expect(source).not.toMatch(/async \(\{[^}]*\borigin\b[^}]*\}/);
   });
 });

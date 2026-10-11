@@ -85,4 +85,69 @@ test.describe('the background checks who is asking', () => {
       })
       .toBe(1);
   });
+
+  test('takes the requesting site from the browser, not from what the content script claims (#246)', async ({
+    openPage,
+    context,
+  }) => {
+    const extensionPage = await openPage('/login');
+    await createVault(extensionPage);
+    await seedAccount(extensionPage);
+    const queued = () =>
+      extensionPage.evaluate(() => chrome.runtime.sendMessage({ type: 'nostr.requests.list' })) as Promise<
+        { id: string; origin: string; state: string }[]
+      >;
+
+    // other.example earns an "always" grant for its public key, the honest way: it asks, the user agrees.
+    await context.route('https://other.example/**', (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>other</title><p>other</p>' }),
+    );
+    const other = await context.newPage();
+    await other.goto('https://other.example/');
+    await expect.poll(() => other.evaluate(() => 'nostr' in window), { timeout: 15_000 }).toBe(true);
+    await other.evaluate(() => {
+      const nostr = (window as unknown as { nostr: { getPublicKey: () => Promise<string> } }).nostr;
+      (window as unknown as { __pubkey: Promise<string> }).__pubkey = nostr.getPublicKey();
+    });
+    await expect.poll(async () => (await queued()).find((request) => request.origin === 'https://other.example')?.id, {
+      timeout: 15_000,
+    }).toBeDefined();
+    const grantRequest = (await queued()).find((request) => request.origin === 'https://other.example')!;
+    await extensionPage.evaluate(
+      (requestId) =>
+        chrome.runtime.sendMessage({
+          type: 'nostr.requests.respond',
+          payload: { requestId, approved: true, duration: 'always' },
+        }),
+      grantRequest.id,
+    );
+    expect(await other.evaluate(() => (window as unknown as { __pubkey: Promise<string> }).__pubkey)).toBe(
+      TEST_ACCOUNT.pubkey,
+    );
+
+    // What a compromised example.com renderer would try: claim to be other.example and ride its grant.
+    const site = await context.newPage();
+    const cdp = await context.newCDPSession(site);
+    const porwrWorld = await contentScriptWorld(site, cdp);
+    await site.goto('https://example.com');
+    const contextId = await porwrWorld();
+
+    const { result } = await cdp.send('Runtime.evaluate', {
+      contextId,
+      expression: `new Promise((resolve) => {
+        const port = chrome.runtime.connect({ name: 'porwr:page' });
+        port.onMessage.addListener((reply) => resolve(reply));
+        port.postMessage({ id: 'spoofed', action: 'nostr.getPublicKey', payload: { origin: 'https://other.example' } });
+        setTimeout(() => resolve('no answer yet'), 3000);
+      })`,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+
+    // Had the claim been believed, the grant would have answered at once with the key. Instead the
+    // request waits for the user, under the site that really sent it.
+    expect(result.value).toBe('no answer yet');
+    const waiting = (await queued()).filter((request) => request.state === 'queued' || request.state === 'presented');
+    expect(waiting.map((request) => request.origin)).toEqual(['https://example.com']);
+  });
 });
