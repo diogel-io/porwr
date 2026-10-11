@@ -31,4 +31,19 @@ test.describe('the built extension', () => {
 
     expect(hostPermissions).toEqual([]);
   });
+
+  test('loads page scripts from the extension alone, never from a local server (#247)', async ({
+    background,
+  }) => {
+    const csp = await background.evaluate(
+      () =>
+        (chrome.runtime.getManifest() as chrome.runtime.ManifestV3).content_security_policy
+          ?.extension_pages ?? '',
+    );
+
+    // The local sources are for `quasar dev` only; a built extension that kept them would run script
+    // served by any process on the user's machine in the pages that hold the vault.
+    expect(csp).toMatch(/script-src 'self'/);
+    expect(csp).not.toMatch(/localhost|127\.0\.0\.1/);
+  });
 });

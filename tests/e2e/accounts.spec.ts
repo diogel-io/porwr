@@ -57,6 +57,15 @@ test.describe('accounts', () => {
     await createVault(page);
     await seedAccount(page);
     await page.goto(page.url().replace(/#.*$/, `#/keys/${TEST_ACCOUNT.alias}`));
+    // The pages' CSP allows no WebAssembly (#247). If zip.js tried it and fell back, the export would
+    // still pass, so a blocked attempt is recorded here instead.
+    await page.evaluate(() => {
+      const violations: string[] = [];
+      Object.assign(window, { cspViolations: violations });
+      document.addEventListener('securitypolicyviolation', (event) =>
+        violations.push((event as SecurityPolicyViolationEvent).violatedDirective),
+      );
+    });
 
     await page.getByRole('button', { name: 'Export', exact: true }).first().click();
     await page.getByLabel('Password', { exact: true }).fill('backup-password');
@@ -74,5 +83,6 @@ test.describe('accounts', () => {
 
     expect(text).toContain(`nsec (Private Key): ${TEST_NSEC}`);
     expect(text).toContain(nip19.npubEncode(TEST_ACCOUNT.pubkey));
+    expect(await page.evaluate(() => (window as unknown as { cspViolations: string[] }).cspViolations)).toEqual([]);
   });
 });
