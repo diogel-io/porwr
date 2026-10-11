@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { ref } from 'vue';
-import type { StoredKey } from '@/types';
+import type { AccountSummary } from '@/types/accounts';
 
 const uploadImageToBlossomMock = vi.hoisted(() => vi.fn());
 
@@ -9,14 +8,16 @@ vi.mock('@/services/blossom-upload-service', () => ({
   uploadImageToBlossom: uploadImageToBlossomMock,
 }));
 
+const storageMock = vi.hoisted(() => ({
+  get: vi.fn().mockResolvedValue(null),
+  set: vi.fn(),
+  remove: vi.fn(),
+  onChanged: vi.fn(),
+  removeOnChanged: vi.fn(),
+}));
+
 vi.mock('@/services/storage-service', () => ({
-  storageService: {
-    get: vi.fn().mockResolvedValue(null),
-    set: vi.fn(),
-    remove: vi.fn(),
-    onChanged: vi.fn(),
-    removeOnChanged: vi.fn(),
-  },
+  storageService: storageMock,
 }));
 
 vi.mock('vue-i18n', () => ({
@@ -41,10 +42,10 @@ vi.mock('quasar', () => ({
 // Import after mocks
 import ImageUploader from '@/components/dashboard/ImageUploader.vue';
 
-const mockStoredKey: StoredKey = {
+// What a page holds for an account since #243: no key.
+const mockStoredKey: AccountSummary = {
   id: 'test-pubkey',
   alias: 'test',
-  account: { privkey: 'test-privkey' },
   createdAt: '2026-01-01',
 };
 
@@ -228,5 +229,48 @@ describe('ImageUploader.vue', () => {
     const uploadedEvents = wrapper.emitted('uploaded')!;
     expect(uploadedEvents.length).toBe(1);
     expect(uploadedEvents[0]).toEqual(['https://blossom.example.com/img.png']);
+  });
+
+  describe('the storage listener (#252)', () => {
+    const stubs = {
+      qBtn: { template: '<button><slot /></button>' },
+      qTooltip: { template: '<span><slot /></span>' },
+    };
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    it('removes exactly the listener it added when unmounted, without a lifecycle warning', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'avatar' },
+        global: { stubs },
+      });
+      await settle();
+
+      expect(storageMock.onChanged).toHaveBeenCalledTimes(1);
+      const added = storageMock.onChanged.mock.calls[0]![0] as unknown;
+
+      wrapper.unmount();
+
+      expect(storageMock.removeOnChanged).toHaveBeenCalledWith(added);
+      expect(warn.mock.calls.flat().join(' ')).not.toMatch(/no active component instance/);
+      warn.mockRestore();
+    });
+
+    it('adds no listener when it is unmounted before the stored status is read', async () => {
+      let finishRead: (value: null) => void = () => undefined;
+      storageMock.get.mockImplementationOnce(
+        () => new Promise<null>((resolve) => (finishRead = resolve)),
+      );
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'avatar' },
+        global: { stubs },
+      });
+
+      wrapper.unmount();
+      finishRead(null);
+      await settle();
+
+      expect(storageMock.onChanged).not.toHaveBeenCalled();
+    });
   });
 });

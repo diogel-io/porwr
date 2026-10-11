@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { uploadImageToBlossom } from '@/services/blossom-upload-service';
@@ -155,9 +155,49 @@ async function uploadImage(file: File) {
   }
 }
 
+// Storage listener kept as optional recovery for edge cases
+// (e.g. upload completed while popup was closed).
+// The direct response from uploadImageToBlossom is the authoritative success path.
+const storageListener = (
+  changes: { [key: string]: chrome.storage.StorageChange },
+  areaName: string,
+) => {
+  if (areaName === 'local' && BLOSSOM_UPLOAD_STATUS in changes) {
+    const statusChange = changes[BLOSSOM_UPLOAD_STATUS];
+    if (statusChange) {
+      const status = statusChange.newValue;
+      if (isUploadStatus(status)) {
+        if (status.url) {
+          emitUploadedOnce(status.url);
+        } else if (status.error && !uploading.value) {
+          // Only show storage-sourced errors when we're not actively uploading
+          // (the direct call handles error notification for active uploads)
+          $q.notify({
+            type: 'negative',
+            message: status.error,
+          });
+        }
+        // Clear status after processing
+        void storageService.remove(BLOSSOM_UPLOAD_STATUS);
+      }
+    }
+  }
+};
+
+// Registered during setup, not inside the async onMounted: a hook registered after an `await` has no
+// component to belong to, so Vue drops it and the listener outlives the page (#252).
+let unmounted = false;
+onBeforeUnmount(() => {
+  unmounted = true;
+  storageService.removeOnChanged(storageListener);
+});
+
 onMounted(async () => {
   // Check for completed uploads from a previous session
   const status = await storageService.get<StorageUploadStatus>(BLOSSOM_UPLOAD_STATUS);
+  // Left before the read came back: listening now would leave a listener nothing removes.
+  if (unmounted) return;
+
   if (status) {
     if (status.url) {
       emitUploadedOnce(status.url);
@@ -171,40 +211,7 @@ onMounted(async () => {
     }
   }
 
-  // Storage listener kept as optional recovery for edge cases
-  // (e.g. upload completed while popup was closed).
-  // The direct response from uploadImageToBlossom is the authoritative success path.
-  const storageListener = (
-    changes: { [key: string]: chrome.storage.StorageChange },
-    areaName: string,
-  ) => {
-    if (areaName === 'local' && BLOSSOM_UPLOAD_STATUS in changes) {
-      const statusChange = changes[BLOSSOM_UPLOAD_STATUS];
-      if (statusChange) {
-        const status = statusChange.newValue;
-        if (isUploadStatus(status)) {
-          if (status.url) {
-            emitUploadedOnce(status.url);
-          } else if (status.error && !uploading.value) {
-            // Only show storage-sourced errors when we're not actively uploading
-            // (the direct call handles error notification for active uploads)
-            $q.notify({
-              type: 'negative',
-              message: status.error,
-            });
-          }
-          // Clear status after processing
-          void storageService.remove(BLOSSOM_UPLOAD_STATUS);
-        }
-      }
-    }
-  };
-
   storageService.onChanged(storageListener);
-
-  onUnmounted(() => {
-    storageService.removeOnChanged(storageListener);
-  });
 });
 
 function triggerUpload() {
