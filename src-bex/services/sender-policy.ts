@@ -49,3 +49,30 @@ export const originOf = (url: string): string => {
     return '';
   }
 };
+
+export interface PageSenderLike extends SenderLike {
+  origin?: string | undefined;
+}
+
+/**
+ * The site a page request came from, as the browser reports it (#246), or `''` when it cannot say.
+ *
+ * Taken from the sender of the content script's port: `sender.origin` where the browser provides it
+ * (Chromium), else the origin of `sender.url` when it gives none (Firefox). Both describe the frame
+ * that opened the port, never the tab around it, so a frame is only ever attributed to itself. Only
+ * `http:` and `https:` sites qualify; an extension page, a foreign sender, an opaque origin or any
+ * other scheme gives `''`, and the request is refused.
+ */
+export const pageOriginOf = (
+  sender: PageSenderLike | undefined,
+  extensionId: string,
+  extensionOrigin: string,
+): string => {
+  if (classifySender(sender, extensionId, extensionOrigin) !== 'content-script') return '';
+
+  // An opaque origin (`'null'`, e.g. a sandboxed frame) is refused, not replaced by the url: the
+  // frame is deliberately not that site, and must not get its permissions.
+  const reported = sender?.origin;
+  const origin = reported === undefined ? originOf(sender?.url ?? '') : originOf(reported);
+  return origin.startsWith('http://') || origin.startsWith('https://') ? origin : '';
+};

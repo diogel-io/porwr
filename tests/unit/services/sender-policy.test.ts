@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { classifySender, originOf } from '@/../src-bex/services/sender-policy';
+import { classifySender, originOf, pageOriginOf } from '@/../src-bex/services/sender-policy';
 
 const ID = 'abcdefghijklmnopabcdefghijklmnop';
 const CHROME = `chrome-extension://${ID}`;
@@ -71,3 +71,41 @@ describe('originOf', () => {
     expect(classifySender({ id: ID, url: `${CHROME}/x` }, ID, '')).toBe('foreign');
   });
 });
+
+describe('pageOriginOf (#246)', () => {
+  const site = (sender: object): string => pageOriginOf({ id: ID, ...sender }, ID, CHROME);
+
+  it('takes the origin the browser stamped on the sender (Chromium)', () => {
+    expect(site({ url: 'https://example.com/page?x=1', origin: 'https://example.com' })).toBe('https://example.com');
+  });
+
+  it('falls back to the sender url when the browser gives no origin (Firefox)', () => {
+    expect(site({ url: 'https://example.com:8443/a/b' })).toBe('https://example.com:8443');
+  });
+
+  it('attributes a cross-origin iframe to the iframe, not the page around it', () => {
+    const sender = { url: 'https://widget.example/embed', origin: 'https://widget.example', frameId: 2, tab: { id: 3, url: 'https://news.example/' } };
+    expect(site(sender)).toBe('https://widget.example');
+  });
+
+  it('refuses one of Porwr’s own pages, which is not a website', () => {
+    expect(site({ url: `${CHROME}/www/index.html#/sidebar`, origin: CHROME })).toBe('');
+  });
+
+  it('refuses another extension and an unknown sender', () => {
+    expect(pageOriginOf({ id: 'someone-else', url: 'https://example.com/' }, ID, CHROME)).toBe('');
+    expect(pageOriginOf(undefined, ID, CHROME)).toBe('');
+  });
+
+  it('refuses a page that is not an http(s) site', () => {
+    expect(site({ url: 'file:///home/user/page.html' })).toBe('');
+    expect(site({ url: 'data:text/html,hi' })).toBe('');
+    expect(site({ url: 'ftp://files.example/x' })).toBe('');
+  });
+
+  it('refuses an opaque origin rather than guessing from the url', () => {
+    expect(site({ url: 'https://example.com/sandboxed', origin: 'null' })).toBe('');
+    expect(site({ url: 'about:blank', origin: 'null' })).toBe('');
+  });
+});
+

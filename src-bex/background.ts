@@ -35,6 +35,7 @@ import type { ApprovalRequestDetails } from './services/approval-flow';
 import { originHostname } from './services/origin';
 import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
+import { observePageRequests, type PageActionHandlers } from './services/page-channel';
 import { reconcileAbandonedRequests } from './services/page-reconciliation';
 import {
   observePageConnections,
@@ -45,15 +46,9 @@ import type {
   BridgeAction,
   BridgeRequestMap,
   BridgeResponsePayload,
-  GetPublicKeyRequest,
-  GetPublicKeyResponse,
-  SignEventRequest,
-  SignEventResponse,
   BridgeError,
   StoredKey,
 } from '@/types/bridge';
-import type { SendZapRequest } from '@/types/nip57';
-import type { WebLnSendPaymentRequest } from '@/types/webln';
 import {
   handleVaultIsUnlocked,
   handleVaultGetData,
@@ -116,38 +111,6 @@ async function getActiveStoredKey(): Promise<StoredKey | null> {
   return (vaultData.accounts || []).find((acc) => acc.alias === activeAlias) || null;
 }
 
-declare module '@quasar/app-vite' {
-  interface BexEventMap {
-    'nostr.getPublicKey': [GetPublicKeyRequest, GetPublicKeyResponse];
-    'nostr.signEvent': [SignEventRequest, SignEventResponse];
-    'nostr.getRelays': [{ origin: string }, BridgeResponsePayload<'nostr.getRelays'>];
-    'nostr.nip04.encrypt': [
-      { pubkey: string; plaintext: string; origin: string },
-      BridgeResponsePayload<'nostr.nip04.encrypt'>,
-    ];
-    'nostr.nip04.decrypt': [
-      { pubkey: string; ciphertext: string; origin: string },
-      BridgeResponsePayload<'nostr.nip04.decrypt'>,
-    ];
-    'nostr.nip44.encrypt': [
-      { pubkey: string; plaintext: string; origin: string },
-      BridgeResponsePayload<'nostr.nip44.encrypt'>,
-    ];
-    'nostr.nip44.decrypt': [
-      { pubkey: string; ciphertext: string; origin: string },
-      BridgeResponsePayload<'nostr.nip44.decrypt'>,
-    ];
-    'nip57.getCapabilities': [{ origin: string }, BridgeResponsePayload<'nip57.getCapabilities'>];
-    'nip57.sendZap': [
-      { origin: string; request: SendZapRequest; approved?: boolean },
-      BridgeResponsePayload<'nip57.sendZap'>,
-    ];
-    'webln.enable': [{ origin: string; approved?: boolean }, BridgeResponsePayload<'webln.enable'>];
-    'webln.getInfo': [{ origin: string }, BridgeResponsePayload<'webln.getInfo'>];
-    'webln.sendPayment': [WebLnSendPaymentRequest, BridgeResponsePayload<'webln.sendPayment'>];
-  }
-}
-
 type BexBridge = ReturnType<typeof createBridge>;
 
 const bridgeHost = globalThis as typeof globalThis & {
@@ -194,10 +157,12 @@ if (typeof self !== 'undefined') {
   });
 }
 
-// Only the page actions above and below are registered on the Quasar bridge. That channel's other end
-// is the content script, which runs in a website's renderer and is untrusted (#240): vault, queue,
-// site, wallet, messaging and other extension-surface actions are reachable only from Porwr's own
-// pages, through the raw `chrome.runtime.onMessage` listener, which checks the sender.
+// Only `ping` is registered on the Quasar bridge. Its `content@…` ports still accept a connection
+// from any content script, which runs in a website's renderer and is untrusted (#240), and a bridge
+// handler cannot tell which port a message came from. So page actions use Porwr's own port instead
+// (`services/page-channel.ts`, #246), and vault, queue, site, wallet, messaging and other
+// extension-surface actions are reachable only from Porwr's own pages, through the raw
+// `chrome.runtime.onMessage` listener, which checks the sender.
 
 // The vault's raw AES key is persisted to chrome.storage.session so it survives
 // service worker restarts. Explicitly restrict that storage area to extension
@@ -348,8 +313,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-bridge.on('nostr.getPublicKey', ({ payload: { origin } }) => (
-  (async () => {
+// The actions a website may ask for. They arrive over the page channel, which hands each one the
+// requesting site as the browser reports it, from the content script's port, never from anything the
+// page or the content script wrote (#246).
+const pageActionHandlers: PageActionHandlers = {
+  'nostr.getPublicKey': async (_payload, origin) => {
     const result = await handleGetPublicKey({}, origin);
     if (!result.success) {
       throw new BackgroundBridgeError(
@@ -364,11 +332,9 @@ bridge.on('nostr.getPublicKey', ({ payload: { origin } }) => (
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the request');
     }
     return result.data;
-  })() as unknown as BridgeResponsePayload<'nostr.getPublicKey'>
-));
+  },
 
-bridge.on('nostr.signEvent', ({ payload: { event, origin } }) => (
-  (async () => {
+  'nostr.signEvent': async ({ event }, origin) => {
     const activeStoredKey = await getActiveStoredKey();
     void logService.logApproval(event.kind, originHostname(origin), activeStoredKey?.alias);
     const contentDescription = trimApprovalContentDescription(event.content);
@@ -395,11 +361,9 @@ bridge.on('nostr.signEvent', ({ payload: { event, origin } }) => (
       );
     }
     return result.data;
-  })() as unknown as BridgeResponsePayload<'nostr.signEvent'>
-));
+  },
 
-bridge.on('nostr.getRelays', ({ payload: { origin } }) => (
-  (async () => {
+  'nostr.getRelays': async (_payload, origin) => {
     const activeStoredKey = await getActiveStoredKey();
     void logService.logApproval('get_relays', originHostname(origin), activeStoredKey?.alias);
     const approved = await requestApproval(origin, -1, { requestType: 'get_relays' });
@@ -409,81 +373,70 @@ bridge.on('nostr.getRelays', ({ payload: { origin } }) => (
       throw new Error('User rejected the request');
     }
     return await dispatchMessage('nostr.getRelays', createBridgeRequest('nostr.getRelays', { origin }), origin) ?? {};
-  })() as unknown as BridgeResponsePayload<'nostr.getRelays'>
-));
+  },
 
-bridge.on('nostr.nip04.encrypt', ({ payload }) => (
-  (async () => {
+  'nostr.nip04.encrypt': async (payload, origin) => {
     const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('nip04_encrypt', originHostname(payload.origin), activeStoredKey?.alias);
-    const approved = await requestApproval(payload.origin, -1, { requestType: 'nip04_encrypt', counterpartyPubkey: payload.pubkey });
+    void logService.logApproval('nip04_encrypt', originHostname(origin), activeStoredKey?.alias);
+    const approved = await requestApproval(origin, -1, { requestType: 'nip04_encrypt', counterpartyPubkey: payload.pubkey });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data) throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return await dispatchMessage('nostr.nip04.encrypt', createBridgeRequest('nostr.nip04.encrypt', payload), payload.origin) ?? '';
-  })() as unknown as BridgeResponsePayload<'nostr.nip04.encrypt'>
-));
+    return await dispatchMessage('nostr.nip04.encrypt', createBridgeRequest('nostr.nip04.encrypt', { ...payload, origin }), origin) ?? '';
+  },
 
-bridge.on('nostr.nip04.decrypt', ({ payload }) => (
-  (async () => {
+  'nostr.nip04.decrypt': async (payload, origin) => {
     const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('nip04_decrypt', originHostname(payload.origin), activeStoredKey?.alias);
-    const approved = await requestApproval(payload.origin, -1, { requestType: 'nip04_decrypt', counterpartyPubkey: payload.pubkey });
+    void logService.logApproval('nip04_decrypt', originHostname(origin), activeStoredKey?.alias);
+    const approved = await requestApproval(origin, -1, { requestType: 'nip04_decrypt', counterpartyPubkey: payload.pubkey });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data) throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return await dispatchMessage('nostr.nip04.decrypt', createBridgeRequest('nostr.nip04.decrypt', payload), payload.origin) ?? '';
-  })() as unknown as BridgeResponsePayload<'nostr.nip04.decrypt'>
-));
+    return await dispatchMessage('nostr.nip04.decrypt', createBridgeRequest('nostr.nip04.decrypt', { ...payload, origin }), origin) ?? '';
+  },
 
-bridge.on('nostr.nip44.encrypt', ({ payload }) => (
-  (async () => {
+  'nostr.nip44.encrypt': async (payload, origin) => {
     const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('nip44_encrypt', originHostname(payload.origin), activeStoredKey?.alias);
-    const approved = await requestApproval(payload.origin, -1, { requestType: 'nip44_encrypt', counterpartyPubkey: payload.pubkey });
+    void logService.logApproval('nip44_encrypt', originHostname(origin), activeStoredKey?.alias);
+    const approved = await requestApproval(origin, -1, { requestType: 'nip44_encrypt', counterpartyPubkey: payload.pubkey });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data) throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return await dispatchMessage('nostr.nip44.encrypt', createBridgeRequest('nostr.nip44.encrypt', payload), payload.origin) ?? '';
-  })() as unknown as BridgeResponsePayload<'nostr.nip44.encrypt'>
-));
+    return await dispatchMessage('nostr.nip44.encrypt', createBridgeRequest('nostr.nip44.encrypt', { ...payload, origin }), origin) ?? '';
+  },
 
-bridge.on('nostr.nip44.decrypt', ({ payload }) => (
-  (async () => {
+  'nostr.nip44.decrypt': async (payload, origin) => {
     const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('nip44_decrypt', originHostname(payload.origin), activeStoredKey?.alias);
-    const approved = await requestApproval(payload.origin, -1, { requestType: 'nip44_decrypt', counterpartyPubkey: payload.pubkey });
+    void logService.logApproval('nip44_decrypt', originHostname(origin), activeStoredKey?.alias);
+    const approved = await requestApproval(origin, -1, { requestType: 'nip44_decrypt', counterpartyPubkey: payload.pubkey });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data) throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return await dispatchMessage('nostr.nip44.decrypt', createBridgeRequest('nostr.nip44.decrypt', payload), payload.origin) ?? '';
-  })() as unknown as BridgeResponsePayload<'nostr.nip44.decrypt'>
-));
+    return await dispatchMessage('nostr.nip44.decrypt', createBridgeRequest('nostr.nip44.decrypt', { ...payload, origin }), origin) ?? '';
+  },
 
-bridge.on('nip57.getCapabilities', ({ payload }) => {
-  return dispatchMessage(
-    'nip57.getCapabilities',
-    createBridgeRequest('nip57.getCapabilities', { origin: payload.origin }),
-    payload.origin,
-  ) as unknown as BridgeResponsePayload<'nip57.getCapabilities'>;
-});
+  'nip57.getCapabilities': async (_payload, origin) =>
+    dispatchMessage(
+      'nip57.getCapabilities',
+      createBridgeRequest('nip57.getCapabilities', { origin }),
+      origin,
+    ),
 
-bridge.on('nip57.sendZap', ({ payload }) => (
-  (async () => {
+  'nip57.sendZap': async (payload, origin) => {
     const amountMsat = payload.request.amountMsat ?? (payload.request.amountSats !== undefined ? payload.request.amountSats * 1000 : 0);
     const amountSatsLabel = amountMsat > 0 ? `${amountMsat / 1000} sats` : 'unknown amount';
     const contentDescription = trimApprovalContentDescription(
       `Zap ${amountSatsLabel} to ${payload.request.target.recipientPubkey}${payload.request.comment ? ` — ${payload.request.comment}` : ''}`,
     );
-    const approved = await requestApproval(payload.origin, 9734, {
+    const approved = await requestApproval(origin, 9734, {
       requestType: 'send_zap',
       ...(contentDescription ? { contentDescription } : {}),
       allowRemember: false,
@@ -500,15 +453,13 @@ bridge.on('nip57.sendZap', ({ payload }) => (
     }
     return await dispatchMessage(
       'nip57.sendZap',
-      createBridgeRequest('nip57.sendZap', { origin: payload.origin, request: payload.request, approved: true }),
-      payload.origin,
+      createBridgeRequest('nip57.sendZap', { origin, request: payload.request, approved: true }),
+      origin,
     );
-  })() as unknown as BridgeResponsePayload<'nip57.sendZap'>
-));
+  },
 
-bridge.on('webln.enable', ({ payload }) => (
-  (async () => {
-    const approved = await requestApproval(payload.origin, -1, {
+  'webln.enable': async (_payload, origin) => {
+    const approved = await requestApproval(origin, -1, {
       requestType: 'webln_enable',
       contentDescription: 'Allow this site to use Porwr as a WebLN wallet provider. Payments will still require separate approval.',
       allowRemember: true,
@@ -519,25 +470,22 @@ bridge.on('webln.enable', ({ payload }) => (
     }
     return await dispatchMessage(
       'webln.enable',
-      createBridgeRequest('webln.enable', { origin: payload.origin, approved: true }),
-      payload.origin,
+      createBridgeRequest('webln.enable', { origin, approved: true }),
+      origin,
     );
-  })() as unknown as BridgeResponsePayload<'webln.enable'>
-));
+  },
 
-bridge.on('webln.getInfo', ({ payload }) => {
-  return dispatchMessage(
-    'webln.getInfo',
-    createBridgeRequest('webln.getInfo', { origin: payload.origin }),
-    payload.origin,
-  ) as unknown as BridgeResponsePayload<'webln.getInfo'>;
-});
+  'webln.getInfo': async (_payload, origin) =>
+    dispatchMessage(
+      'webln.getInfo',
+      createBridgeRequest('webln.getInfo', { origin }),
+      origin,
+    ),
 
-bridge.on('webln.sendPayment', ({ payload }) => (
-  (async () => {
+  'webln.sendPayment': async (payload, origin) => {
     const amountMsat = parseBolt11AmountMsat(payload.paymentRequest);
     const amountDescription = amountMsat !== undefined ? `${amountMsat / 1000} sats` : 'unknown amount';
-    const approved = await requestApproval(payload.origin, -1, {
+    const approved = await requestApproval(origin, -1, {
       requestType: 'webln_send_payment',
       contentDescription: `Pay Lightning invoice for ${amountDescription}: ${previewInvoice(payload.paymentRequest)}`,
       allowRemember: false,
@@ -549,11 +497,13 @@ bridge.on('webln.sendPayment', ({ payload }) => (
     return await dispatchMessage(
       'webln.sendPayment',
       createBridgeRequest('webln.sendPayment', {
-        origin: payload.origin,
+        origin,
         paymentRequest: payload.paymentRequest,
         approved: true,
       }),
-      payload.origin,
+      origin,
     );
-  })() as unknown as BridgeResponsePayload<'webln.sendPayment'>
-));
+  },
+};
+
+observePageRequests(pageActionHandlers, chrome.runtime.id, EXTENSION_ORIGIN);

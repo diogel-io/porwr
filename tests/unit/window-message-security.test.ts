@@ -2,10 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { MESSAGE_TYPE_REQUEST } from '@/../src-bex/constants';
 import { normalizeErrorMessage } from '@/../src-bex/error-normalizer';
-import {
-  handleDiogelWindowMessage,
-  type WindowMessageBridge,
-} from '@/../src-bex/window-message-handler';
+import type { PagePortClient } from '@/../src-bex/page-port-client';
+import { handleDiogelWindowMessage } from '@/../src-bex/window-message-handler';
 import {
   getCurrentWindowOrigin,
   isDiogelWindowMessage,
@@ -63,9 +61,8 @@ describe('window-message-security helpers', () => {
   });
 });
 
-const createBridge = (result: unknown = 'bridge-result'): WindowMessageBridge => ({
-  isConnected: true,
-  connectToBackground: vi.fn(async () => undefined),
+const createChannel = (result: unknown = 'channel-result'): PagePortClient => ({
+  connect: vi.fn(),
   send: vi.fn(async () => result),
 });
 
@@ -82,23 +79,18 @@ const createRequestEvent = (origin: string): MessageEvent<unknown> =>
   });
 
 describe('handleDiogelWindowMessage', () => {
-  it('sends same-origin requests to the bridge and posts the response to the page origin', async () => {
-    const bridge = createBridge('pubkey-result');
+  it('sends same-origin requests over the page channel, without an origin, and posts the response to the page origin', async () => {
+    const channel = createChannel('pubkey-result');
     const postMessage = vi.fn<(message: unknown, targetOrigin: string) => void>();
 
     await handleDiogelWindowMessage(createRequestEvent(window.location.origin), {
-      bridge,
+      channel,
       postMessage,
     });
 
-    expect(bridge.send).toHaveBeenCalledTimes(1);
-    expect(bridge.send).toHaveBeenCalledWith({
-      event: 'nostr.getPublicKey',
-      to: 'background',
-      payload: {
-        origin: window.location.origin,
-      },
-    });
+    // The background takes the site from the port's sender, so nothing here may claim one (#246).
+    expect(channel.send).toHaveBeenCalledTimes(1);
+    expect(channel.send).toHaveBeenCalledWith('nostr.getPublicKey', {});
     expect(postMessage).toHaveBeenCalledTimes(1);
     expect(postMessage).toHaveBeenCalledWith(
       {
@@ -110,24 +102,22 @@ describe('handleDiogelWindowMessage', () => {
     );
   });
 
-  it('ignores cross-origin requests without posting or calling the bridge', async () => {
-    const bridge = createBridge('pubkey-result');
+  it('ignores cross-origin requests without posting or using the channel', async () => {
+    const channel = createChannel('pubkey-result');
     const postMessage = vi.fn<(message: unknown, targetOrigin: string) => void>();
 
     await handleDiogelWindowMessage(createRequestEvent('https://malicious.example'), {
-      bridge,
+      channel,
       postMessage,
     });
 
-    expect(bridge.connectToBackground).not.toHaveBeenCalled();
-    expect(bridge.send).not.toHaveBeenCalled();
+    expect(channel.send).not.toHaveBeenCalled();
     expect(postMessage).not.toHaveBeenCalled();
   });
 
-  it('posts readable messages for object-shaped bridge errors', async () => {
-    const bridge: WindowMessageBridge = {
-      isConnected: true,
-      connectToBackground: vi.fn(async () => undefined),
+  it('posts readable messages for object-shaped errors', async () => {
+    const channel: PagePortClient = {
+      connect: vi.fn(),
       send: vi.fn(async () => {
         throw { error: { message: 'Vault is locked. Open the extension to unlock.' } };
       }),
@@ -135,7 +125,7 @@ describe('handleDiogelWindowMessage', () => {
     const postMessage = vi.fn<(message: unknown, targetOrigin: string) => void>();
 
     await handleDiogelWindowMessage(createRequestEvent(window.location.origin), {
-      bridge,
+      channel,
       postMessage,
     });
 

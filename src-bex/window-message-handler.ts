@@ -1,6 +1,7 @@
-import type { BridgeAction, BridgeRequestMap } from '../src/types/bridge';
 import { MESSAGE_TYPE_PING, MESSAGE_TYPE_REQUEST } from './constants';
 import { normalizeErrorMessage } from './error-normalizer';
+import { isPageMethod, PAGE_METHOD_TO_ACTION } from './page-actions';
+import type { PagePortClient } from './page-port-client';
 import {
   getCurrentWindowOrigin,
   isDiogelWindowMessage,
@@ -9,38 +10,8 @@ import {
 
 type LogContext = Record<string, unknown>;
 
-// Methods the injected window.nostr provider is permitted to invoke from page context.
-// Anything outside this set (e.g. internal bridge events such as
-// 'approval.respond') must never be reachable via postMessage from the page.
-const PAGE_METHOD_TO_BRIDGE_ACTION = {
-  getPublicKey: 'nostr.getPublicKey',
-  signEvent: 'nostr.signEvent',
-  getRelays: 'nostr.getRelays',
-  'nip04.encrypt': 'nostr.nip04.encrypt',
-  'nip04.decrypt': 'nostr.nip04.decrypt',
-  'nip44.encrypt': 'nostr.nip44.encrypt',
-  'nip44.decrypt': 'nostr.nip44.decrypt',
-  'diogel.getZapCapabilities': 'nip57.getCapabilities',
-  'diogel.sendZap': 'nip57.sendZap',
-  'webln.enable': 'webln.enable',
-  'webln.getInfo': 'webln.getInfo',
-  'webln.sendPayment': 'webln.sendPayment',
-} as const satisfies Record<string, BridgeAction>;
-
-const ALLOWED_PAGE_METHODS = new Set<string>(Object.keys(PAGE_METHOD_TO_BRIDGE_ACTION));
-
-export interface WindowMessageBridge {
-  isConnected: boolean;
-  connectToBackground: () => Promise<void>;
-  send: (message: {
-    event: BridgeAction;
-    to: 'background';
-    payload: Omit<BridgeRequestMap[BridgeAction], 'id' | 'action'>;
-  }) => Promise<unknown>;
-}
-
 export interface WindowMessageHandlerDependencies {
-  bridge: WindowMessageBridge;
+  channel: PagePortClient;
   postMessage: (message: unknown, targetOrigin: string) => void;
   warn?: (message: string, context?: LogContext) => void;
   error?: (message: string, context?: LogContext) => void;
@@ -75,7 +46,7 @@ export async function handleDiogelWindowMessage(
     return;
   }
 
-  if (!method || !ALLOWED_PAGE_METHODS.has(method)) {
+  if (!isPageMethod(method)) {
     dependencies.warn?.('[BEX] Rejected disallowed window.nostr method', { method });
     dependencies.postMessage(
       {
@@ -88,40 +59,10 @@ export async function handleDiogelWindowMessage(
     return;
   }
 
-  const pageOrigin = getCurrentWindowOrigin();
-
-  if (!dependencies.bridge.isConnected) {
-    dependencies.warn?.('[BEX] Bridge is not connected, attempting to connect...');
-    try {
-      await dependencies.bridge.connectToBackground();
-    } catch (connectError: unknown) {
-      const errorMessage = normalizeErrorMessage(connectError);
-      dependencies.error?.('[BEX] Failed to reconnect', {
-        error: errorMessage,
-      });
-      dependencies.postMessage(
-        {
-          id,
-          response: true,
-          error: `Bridge connection failed: ${errorMessage}`,
-        },
-        targetOrigin,
-      );
-      return;
-    }
-  }
-
   try {
-    const methodAction = PAGE_METHOD_TO_BRIDGE_ACTION[method as keyof typeof PAGE_METHOD_TO_BRIDGE_ACTION];
-    const bridgePayload = {
-      ...(payload ?? {}),
-      origin: pageOrigin,
-    } as Omit<BridgeRequestMap[BridgeAction], 'id' | 'action'>;
-    const result = await dependencies.bridge.send({
-      event: methodAction,
-      to: 'background',
-      payload: bridgePayload,
-    });
+    // No origin is sent: the background takes the requesting site from the port's browser-supplied
+    // sender, never from anything this script, which runs in the site's renderer, could write (#246).
+    const result = await dependencies.channel.send(PAGE_METHOD_TO_ACTION[method], payload ?? {});
     dependencies.postMessage(
       {
         id,
@@ -130,8 +71,8 @@ export async function handleDiogelWindowMessage(
       },
       targetOrigin,
     );
-  } catch (bridgeError: unknown) {
-    const errorMessage = normalizeErrorMessage(bridgeError);
+  } catch (channelError: unknown) {
+    const errorMessage = normalizeErrorMessage(channelError);
     dependencies.error?.('[BEX] Content script received error from background', {
       id,
       error: errorMessage,
