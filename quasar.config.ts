@@ -5,6 +5,7 @@ import { defineConfig } from '#q-app';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
+import { externaliseCheckerPreamble } from './src-bex/dev-checker-preamble';
 import { withDevScriptSources } from './src-bex/manifest-csp';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'));
@@ -96,6 +97,24 @@ export default defineConfig((ctx) => {
           },
           { server: false },
         ],
+
+        // The checker's overlay preamble is an inline script, which extension pages never run (#249).
+        // Only Chrome dev serves pages through Vite; Firefox dev builds them, and the checker injects nothing.
+        ctx.dev && ctx.modeName === 'bex' && ctx.targetName === 'chrome'
+          ? {
+              name: 'porwr:checker-preamble',
+              enforce: 'post',
+              transformIndexHtml(html: string) {
+                const result = externaliseCheckerPreamble(html);
+                if (!result.replaced) {
+                  console.warn(
+                    '[porwr] vite-plugin-checker injected no recognised overlay preamble; check src-bex/dev-checker-preamble.ts',
+                  );
+                }
+                return result.html;
+              },
+            }
+          : null,
       ],
     },
 
