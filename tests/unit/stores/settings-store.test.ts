@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import useSettingsStore from '@/stores/settings-store';
-import { FALLBACK_RELAYS, storageService } from '@/services/storage-service';
+import { FALLBACK_RELAYS, QUICK_PUBLISH_CLIENT_TAG, storageService } from '@/services/storage-service';
 import {
   getStoredProfileSearchRelays,
   setStoredProfileSearchRelays,
@@ -172,5 +172,53 @@ describe('SettingsStore', () => {
 
     await store.removeProfileSearchRelay('wss://profiles.example.com');
     expect(store.profileSearchRelays).not.toContain('wss://profiles.example.com');
+  });
+
+  describe('the Quick Publish client tag setting (#226)', () => {
+    /* eslint-disable @typescript-eslint/unbound-method */
+    it('is on by default, and stays on when nothing is stored', async () => {
+      const store = useSettingsStore();
+      expect(store.quickPublishClientTag).toBe(true);
+
+      vi.mocked(storageService.getMultiple).mockResolvedValue({});
+      await store.getSettings();
+
+      expect(store.quickPublishClientTag).toBe(true);
+      expect(storageService.getMultiple).toHaveBeenCalledWith(expect.arrayContaining([QUICK_PUBLISH_CLIENT_TAG]));
+    });
+
+    it('reads a stored false as off, and anything else as on', async () => {
+      const store = useSettingsStore();
+
+      vi.mocked(storageService.getMultiple).mockResolvedValue({ [QUICK_PUBLISH_CLIENT_TAG]: false });
+      await store.getSettings();
+      expect(store.quickPublishClientTag).toBe(false);
+
+      vi.mocked(storageService.getMultiple).mockResolvedValue({ [QUICK_PUBLISH_CLIENT_TAG]: true });
+      await store.getSettings();
+      expect(store.quickPublishClientTag).toBe(true);
+    });
+
+    it('stores the choice so it survives a restart', async () => {
+      const store = useSettingsStore();
+
+      await store.setQuickPublishClientTag(false);
+
+      expect(store.quickPublishClientTag).toBe(false);
+      expect(storageService.set).toHaveBeenCalledWith(QUICK_PUBLISH_CLIENT_TAG, false);
+    });
+
+    it('follows a change made in another surface', () => {
+      const store = useSettingsStore();
+      store.listenToStorageChanges();
+      const listener = vi.mocked(storageService.onChanged).mock.calls[0]![0];
+
+      listener({ [QUICK_PUBLISH_CLIENT_TAG]: { newValue: false } }, 'local');
+      expect(store.quickPublishClientTag).toBe(false);
+
+      listener({ [QUICK_PUBLISH_CLIENT_TAG]: { newValue: true } }, 'local');
+      expect(store.quickPublishClientTag).toBe(true);
+    });
+    /* eslint-enable @typescript-eslint/unbound-method */
   });
 });

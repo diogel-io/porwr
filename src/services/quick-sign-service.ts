@@ -26,6 +26,18 @@ export { QUICK_SIGN_SUPPORTED_KINDS, type QuickSignSupportedKind };
 
 export type QuickSignTagType = 'p' | 'a' | 't' | 'e';
 
+/**
+ * The NIP-89 client tag Quick Publish adds to its notes, so other clients can show where a note came
+ * from (#226). Two-element form: no handler address or relay hint until Porwr publishes a kind 31990
+ * handler. Users can turn it off in Settings, as NIP-89 asks.
+ */
+export const QUICK_PUBLISH_CLIENT_TAG = ['client', 'Diogel Porwr'] as const;
+
+export interface QuickSignPreviewOptions {
+  /** Add {@link QUICK_PUBLISH_CLIENT_TAG}. On unless explicitly `false`. */
+  clientTag?: boolean;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
 }
@@ -229,7 +241,15 @@ export function validateQuickSignInput(input: QuickSignFormInput, publishInput?:
   };
 }
 
-export function buildQuickSignPreviewEvent(pubkey: string, input: QuickSignFormInput): QuickSignPreparedEvent {
+/**
+ * The event Quick Publish shows in its preview, and then signs exactly as shown: the client tag is
+ * added here, so the user always sees it before signing.
+ */
+export function buildQuickSignPreviewEvent(
+  pubkey: string,
+  input: QuickSignFormInput,
+  options: QuickSignPreviewOptions = {},
+): QuickSignPreparedEvent {
   const validation = validateQuickSignInput(input);
   const parsed = parseQuickSignInput(input);
 
@@ -243,7 +263,10 @@ export function buildQuickSignPreviewEvent(pubkey: string, input: QuickSignFormI
   const event: UnsignedEvent = {
     kind: sanitizedInput.kind,
     content: sanitizedInput.content,
-    tags: sanitizedInput.tags.map((tag) => [tag.type, tag.value]),
+    tags: [
+      ...sanitizedInput.tags.map((tag) => [tag.type, tag.value]),
+      ...(options.clientTag === false ? [] : [[...QUICK_PUBLISH_CLIENT_TAG]]),
+    ],
     created_at: now,
     pubkey,
   };

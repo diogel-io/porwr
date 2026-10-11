@@ -492,6 +492,9 @@ export default {
     dashboardCaption: 'Choose the Blossom server Porwr uploads your profile images to.',
   },
   settings: {
+    quickPublishClientTag: 'Tag Quick Publish notes as from Porwr',
+    quickPublishClientTagCaption:
+      'Adds a NIP-89 client tag so other Nostr clients can show which app published the note. Turn off to leave no trace of the client.',
     profileSearchRelays: 'Profile Search Relays',
     profileSearchRelaysCaption:
       'Relays used when searching for Nostr profiles by name, npub, hex pubkey, or NIP-05 identifier.',

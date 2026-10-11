@@ -13,6 +13,8 @@ export const PERMISSIONS_KEY = 'nostr:permissions' as const;
 export const SITE_BINDINGS_KEY = 'nostr:site-bindings' as const;
 export const VAULT_UNLOCKED = 'vault:unlocked' as const;
 export const FALLBACK_RELAYS = 'nostr:fallback-relays' as const;
+/** Whether Quick Publish adds a NIP-89 `client` tag to its notes. On unless stored as `false` (#226). */
+export const QUICK_PUBLISH_CLIENT_TAG = 'nostr:quick-publish-client-tag' as const;
 
 /**
  * Bumped whenever a profile is published, so any surface showing that profile can re-read it.

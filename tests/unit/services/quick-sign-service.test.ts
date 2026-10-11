@@ -4,6 +4,7 @@ import { LogLevel, logService } from '@/services/log-service';
 import { isVaultUnlocked, sendBexMessage } from '@/services/vault-service';
 import {
   buildQuickSignPreviewEvent,
+  QUICK_PUBLISH_CLIENT_TAG,
   getQuickSignAvailability,
   listQuickSignAccountRelayUrls,
   listQuickSignAccounts,
@@ -386,12 +387,69 @@ describe('quick-sign-service', () => {
       kind: 1,
       content: 'hello nostr',
       pubkey: 'pubkey-test',
-      tags: [['e', '123']],
+      // The NIP-89 client tag is on by default (#226).
+      tags: [['e', '123'], ['client', 'Diogel Porwr']],
       created_at: Math.floor(new Date('2026-05-20T00:00:00.000Z').getTime() / 1000),
     });
     expect('id' in prepared.event).toBe(false);
     expect('sig' in prepared.event).toBe(false);
     vi.useRealTimers();
+  });
+
+  describe('the NIP-89 client tag (#226)', () => {
+    const input = (kind: 1 | 30023) => ({
+      accountAlias: 'alpha',
+      kind,
+      content: kind === 1 ? 'hello nostr' : '# A long read',
+      tags: [
+        { type: 't' as const, value: 'nostr' },
+        { type: 'p' as const, value: 'a'.repeat(64) },
+      ],
+    });
+    const clientTags = (tags: string[][]) => tags.filter((tag) => tag[0] === 'client');
+
+    it.each([1, 30023] as const)('adds exactly one client tag to a kind %i note, after the user’s tags', (kind) => {
+      const { event } = buildQuickSignPreviewEvent('pubkey-test', input(kind), { clientTag: true });
+
+      expect(event.tags).toEqual([
+        ['t', 'nostr'],
+        ['p', 'a'.repeat(64)],
+        ['client', 'Diogel Porwr'],
+      ]);
+      expect(clientTags(event.tags)).toEqual([[...QUICK_PUBLISH_CLIENT_TAG]]);
+    });
+
+    it('adds it when no option is given, because it is on by default', () => {
+      const { event } = buildQuickSignPreviewEvent('pubkey-test', input(1));
+
+      expect(clientTags(event.tags)).toHaveLength(1);
+    });
+
+    it.each([1, 30023] as const)('adds no client tag to a kind %i note when the setting is off', (kind) => {
+      const { event } = buildQuickSignPreviewEvent('pubkey-test', input(kind), { clientTag: false });
+
+      expect(clientTags(event.tags)).toEqual([]);
+      expect(event.tags).toEqual([
+        ['t', 'nostr'],
+        ['p', 'a'.repeat(64)],
+      ]);
+    });
+
+    it('shows the tag in the preview the user approves', () => {
+      const prepared = buildQuickSignPreviewEvent('pubkey-test', input(1));
+
+      expect(JSON.parse(prepared.normalizedJson).tags).toContainEqual(['client', 'Diogel Porwr']);
+    });
+
+    it('never lets the user add a second client tag of their own', () => {
+      const result = validateQuickSignInput({
+        ...input(1),
+        tags: [{ type: 'client' as 't', value: 'Someone Else' }],
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Tag #1 has unsupported type.');
+    });
   });
 
   it('lists quick sign accounts', async () => {

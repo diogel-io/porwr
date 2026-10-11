@@ -71,6 +71,20 @@ async function updateProfileSearchRelay(index: number, value: string | number | 
             </q-item-section>
           </q-item>
 
+          <q-item v-ripple tag="label">
+            <q-item-section>
+              <q-item-label>{{ t('settings.quickPublishClientTag') }}</q-item-label>
+              <q-item-label caption lines="3">{{ t('settings.quickPublishClientTagCaption') }}</q-item-label>
+            </q-item-section>
+            <q-item-section side top>
+              <q-toggle
+                :model-value="settingsStore.quickPublishClientTag"
+                :aria-label="t('settings.quickPublishClientTag')"
+                @update:model-value="(val) => settingsStore.setQuickPublishClientTag(Boolean(val))"
+              />
+            </q-item-section>
+          </q-item>
+
           <q-item>
             <q-item-section>
               <q-item-label>{{ t('settings.autoLockVault') }}</q-item-label>

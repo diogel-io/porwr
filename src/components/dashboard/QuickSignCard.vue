@@ -11,6 +11,7 @@ import {
   type QuickSignSupportedKind,
   type QuickSignTagType,
 } from '@/services/quick-sign-service';
+import useSettingsStore from '@/stores/settings-store';
 import type {
   QuickSignAccountOption,
   QuickSignFormInput,
@@ -19,6 +20,7 @@ import type {
 } from '@/types';
 
 const { t } = useI18n();
+const settingsStore = useSettingsStore();
 
 const loading = ref(false);
 const accountAlias = ref('');
@@ -147,7 +149,9 @@ async function openPreview(): Promise<void> {
     return;
   }
 
-  const prepared = buildQuickSignPreviewEvent(selectedAccount.id, buildInput());
+  const prepared = buildQuickSignPreviewEvent(selectedAccount.id, buildInput(), {
+    clientTag: settingsStore.quickPublishClientTag,
+  });
   if (!prepared.validation.valid) {
     errorMessage.value = prepared.validation.errors.join(' ');
     return;

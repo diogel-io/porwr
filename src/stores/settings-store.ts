@@ -3,6 +3,7 @@ import {
   BLOSSOM_SERVER,
   DARK_MODE,
   FALLBACK_RELAYS,
+  QUICK_PUBLISH_CLIENT_TAG,
   REQUEST_EXPIRY_MINUTES,
   storageService,
   VAULT_AUTO_LOCK_MINUTES,
@@ -41,6 +42,8 @@ const useSettingsStore = defineStore('settings', {
     requestExpiryMinutes: REQUEST_EXPIRY_DEFAULT_MINUTES,
     fallbackRelays: DEFAULT_FALLBACK_RELAYS,
     profileSearchRelays: DEFAULT_PROFILE_SEARCH_RELAYS,
+    // NIP-89 client tag on Quick Publish notes. On by default; only an explicit `false` turns it off.
+    quickPublishClientTag: true,
     isListening: false,
   }),
 
@@ -66,6 +69,7 @@ const useSettingsStore = defineStore('settings', {
         VAULT_AUTO_LOCK_MINUTES,
         REQUEST_EXPIRY_MINUTES,
         FALLBACK_RELAYS,
+        QUICK_PUBLISH_CLIENT_TAG,
       ]);
       if (result[BLOSSOM_SERVER] && typeof result[BLOSSOM_SERVER] === 'string') {
         this.blossomServer = result[BLOSSOM_SERVER];
@@ -87,6 +91,7 @@ const useSettingsStore = defineStore('settings', {
       if (Array.isArray(result[FALLBACK_RELAYS]) && (result[FALLBACK_RELAYS] as unknown[]).length > 0) {
         this.fallbackRelays = result[FALLBACK_RELAYS] as string[];
       }
+      this.quickPublishClientTag = result[QUICK_PUBLISH_CLIENT_TAG] !== false;
       let storedProfileSearchRelays: string[] | undefined;
       try {
         storedProfileSearchRelays = await getStoredProfileSearchRelays();
@@ -107,6 +112,11 @@ const useSettingsStore = defineStore('settings', {
     async setDarkMode(dark: boolean): Promise<void> {
       this.darkMode = dark;
       await storageService.set(DARK_MODE, dark);
+    },
+
+    async setQuickPublishClientTag(enabled: boolean): Promise<void> {
+      this.quickPublishClientTag = enabled;
+      await storageService.set(QUICK_PUBLISH_CLIENT_TAG, enabled);
     },
 
     async setVaultAutoLockMinutes(minutes: number): Promise<void> {
@@ -169,6 +179,9 @@ const useSettingsStore = defineStore('settings', {
             this.vaultAutoLockMinutes = Number.isFinite(newValue)
               ? Math.max(0, Math.floor(newValue))
               : DEFAULT_VAULT_AUTO_LOCK_MINUTES;
+          }
+          if (QUICK_PUBLISH_CLIENT_TAG in changes) {
+            this.quickPublishClientTag = changes[QUICK_PUBLISH_CLIENT_TAG].newValue !== false;
           }
           if (FALLBACK_RELAYS in changes) {
             const newValue = changes[FALLBACK_RELAYS].newValue;
