@@ -12,11 +12,10 @@ const pool = new SimplePool();
  * Called after the event is published rather than before: a surface that re-reads on the strength
  * of a publish that then failed would show something that is not on any relay.
  *
- * Exported because saving a profile happens in two places — here, and the avatar/banner path in
- * `ProfileImage`, which publishes its own event. Consolidating those is #200's business; until then
- * both signal, because changing an avatar is changing a profile.
+ * Every kind 0 the dashboard publishes goes through `saveProfile`, so this is the one place it is
+ * sent. The avatar and banner path published its own event and had to signal for itself until #200.
  */
-export const notifyProfileChanged = async (pubkey: string): Promise<void> => {
+const notifyProfileChanged = async (pubkey: string): Promise<void> => {
   await storageService.set(PROFILE_UPDATED_KEY, { pubkey, at: Date.now() });
 };
 
@@ -26,6 +25,10 @@ export const profileService = {
 
     const settingsStore = useSettingsStore();
     const relays = await settingsStore.getFallbackRelays();
+    // `pool.get` over no relays never settles: it resolves when every relay has closed, and with none
+    // there is nothing to close. Each relay is otherwise bounded by the pool's own connection and EOSE
+    // timeouts, so this is the one way a profile fetch could leave a page spinning (#200).
+    if (relays.length === 0) return null;
 
     try {
       const event = await pool.get(relays, {
