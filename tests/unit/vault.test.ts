@@ -259,6 +259,25 @@ describe('Vault', () => {
       expect(getRes.vaultData).toEqual(newData);
     });
 
+    it('drops the retired mnemonic and passphrase on the next write, and keeps everything else (#244)', async () => {
+      const oldVault = { ...TEST_DATA, mnemonic: 'Generating...', passphrase: '', createdAt: '2026-01-01' };
+      await createNewVault(TEST_PASSWORD, oldVault);
+      await lockVault();
+
+      // A vault created before #244 still unlocks, fields and all.
+      const unlocked = await unlockVault(TEST_PASSWORD);
+      expect(unlocked.success).toBe(true);
+      expect(unlocked.vaultData).toMatchObject({ mnemonic: 'Generating...', passphrase: '' });
+
+      const { vaultData } = (await getVaultData()) as { vaultData: VaultData };
+      await updateVaultData(vaultData);
+
+      const written = (await getVaultData()) as { vaultData: Record<string, unknown> };
+      expect(written.vaultData).not.toHaveProperty('mnemonic');
+      expect(written.vaultData).not.toHaveProperty('passphrase');
+      expect(written.vaultData).toEqual({ accounts: TEST_DATA.accounts, createdAt: '2026-01-01' });
+    });
+
     it('should export and import vault', async () => {
       const { encryptedVault } = await createNewVault(TEST_PASSWORD, TEST_DATA);
       expect(encryptedVault).toBeDefined();

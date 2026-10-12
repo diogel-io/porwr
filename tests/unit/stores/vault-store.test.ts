@@ -112,37 +112,23 @@ describe('vault-store', () => {
   });
 
   describe('create', () => {
-    it('creates the vault with no accounts, which are added through the background (#240)', async () => {
+    it('creates the vault from the password alone; the background builds it (#240, #244)', async () => {
       mockCreateVault.mockResolvedValue({ success: true, encryptedVault: 'v2:abc' });
       const store = useVaultStore();
 
-      const result = await store.create('pw', 'mnemonic words', 'passphrase');
+      const result = await store.create('pw');
 
       expect(result).toEqual({ success: true });
       expect(store.vaultExists).toBe(true);
       expect(store.isUnlocked).toBe(true);
-      const [, vaultData] = mockCreateVault.mock.calls[0] as [string, { mnemonic: string; passphrase: string; accounts: unknown[] }];
-      expect(vaultData.mnemonic).toBe('mnemonic words');
-      expect(vaultData.passphrase).toBe('passphrase');
-      expect(vaultData.accounts).toEqual([]);
-    });
-
-    it('creates the vault with no initial account and an empty passphrase by default', async () => {
-      mockCreateVault.mockResolvedValue({ success: true });
-      const store = useVaultStore();
-
-      await store.create('pw', 'mnemonic words');
-
-      const [, vaultData] = mockCreateVault.mock.calls[0] as [string, { passphrase: string; accounts: unknown[] }];
-      expect(vaultData.passphrase).toBe('');
-      expect(vaultData.accounts).toEqual([]);
+      expect(mockCreateVault).toHaveBeenCalledWith('pw');
     });
 
     it('returns the failure result without marking the vault as existing', async () => {
       mockCreateVault.mockResolvedValue({ success: false, error: 'boom', code: 'GEN_UNKNOWN' });
       const store = useVaultStore();
 
-      const result = await store.create('pw', 'mnemonic words');
+      const result = await store.create('pw');
 
       expect(result).toEqual({ success: false, error: 'boom', errorCode: 'GEN_UNKNOWN' });
       expect(store.vaultExists).toBe(false);

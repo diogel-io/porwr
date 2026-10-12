@@ -17,16 +17,6 @@ const ALLOWED: Record<string, string> = {
   'src/services/nip57-zap-request.ts': 'background-only',
 };
 
-/**
- * `StoredKey` and `VaultData` carry private keys, mnemonics and wallet secrets. Pages use
- * `AccountSummary` and `VaultView` instead. The exceptions only ever send a new vault *in*:
- */
-const MAY_NAME_VAULT_TYPES: Record<string, string> = {
-  // `vault.create` sends the new vault, with its mnemonic, to the background. Generating the mnemonic
-  // in the background instead is a follow-up to #240.
-  'src/services/vault-service.ts': 'vault.create payload',
-  'src/stores/vault-store.ts': 'vault.create payload',
-};
 
 const ROOT = resolve(__dirname, '../../..');
 const SRC = join(ROOT, 'src');
@@ -68,12 +58,13 @@ describe('extension pages never hold a private key', () => {
     expect(callers.map(({ path }) => path)).toEqual([]);
   });
 
-  it('keeps the background-only vault types out of pages (#240)', () => {
+  // `StoredKey` and `VaultData` carry private keys and wallet secrets. Pages use `AccountSummary` and
+  // `VaultView` instead, with no exceptions: since #244 even creating a vault sends only a password.
+  it('keeps the background-only vault types out of pages, with no exceptions (#240, #244)', () => {
     const offenders = files
       .filter(({ path }) => !path.startsWith('src/types/'))
       .filter(({ source }) => /import type \{[^}]*\b(StoredKey|VaultData)\b[^}]*\}/s.test(source))
-      .map(({ path }) => path)
-      .filter((path) => !(path in MAY_NAME_VAULT_TYPES));
+      .map(({ path }) => path);
 
     expect(offenders).toEqual([]);
   });

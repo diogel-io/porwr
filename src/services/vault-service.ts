@@ -1,7 +1,6 @@
 import { db } from './database';
 import { ErrorCode } from '@/types/error-codes.d';
 import { LogLevel, logService } from './log-service';
-import type { VaultData } from '@/types/bridge';
 import type { VaultView } from '@/types/accounts';
 import { sendBexMessage } from './bridge-client';
 
@@ -43,9 +42,9 @@ export async function lockVault() {
   }
 }
 
+/** Creates the vault. Only the password is sent; the background builds the empty vault (#244). */
 export async function createVault(
   password: string,
-  vaultData: VaultData,
 ): Promise<{
   success: boolean;
   error?: string;
@@ -53,7 +52,7 @@ export async function createVault(
   encryptedVault?: string;
 }> {
   try {
-    const data = await sendBexMessage('vault.create', { password, vaultData });
+    const data = await sendBexMessage('vault.create', { password });
     return (
       (data as {
         success: boolean;

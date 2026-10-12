@@ -69,21 +69,35 @@ describe('vault-handler', () => {
     expect(result).toEqual({ success: true, data: true });
   });
 
-  it('handleVaultCreate returns the encrypted vault on success', async () => {
+  it('handleVaultCreate builds the empty vault itself and returns the encrypted vault (#244)', async () => {
     const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
     mockCreateNewVault.mockResolvedValue({ success: true, encryptedVault: 'v2:abc' });
 
-    const result = await handleVaultCreate({ password: 'pw', vaultData }, '');
+    const result = await handleVaultCreate({ password: 'pw' }, '');
 
-    expect(mockCreateNewVault).toHaveBeenCalledWith('pw', vaultData);
+    expect(mockCreateNewVault).toHaveBeenCalledWith('pw', { accounts: [], createdAt: expect.any(String) });
+    const [, built] = mockCreateNewVault.mock.calls[0] as [string, Record<string, unknown>];
+    expect(Object.keys(built).sort()).toEqual(['accounts', 'createdAt']);
+    expect(Number.isNaN(Date.parse(built.createdAt as string))).toBe(false);
     expect(result).toEqual({ success: true, data: { encryptedVault: 'v2:abc' } });
+  });
+
+  it('handleVaultCreate ignores vault contents an older page still sends (#244)', async () => {
+    const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
+    mockCreateNewVault.mockResolvedValue({ success: true });
+    const fromOldPage = { password: 'pw', vaultData: { ...vaultData, mnemonic: 'Generating...', passphrase: '' } };
+
+    await handleVaultCreate(fromOldPage, '');
+
+    const [, built] = mockCreateNewVault.mock.calls[0] as [string, Record<string, unknown>];
+    expect(built).toEqual({ accounts: [], createdAt: expect.any(String) });
   });
 
   it('handleVaultCreate surfaces failure', async () => {
     const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
     mockCreateNewVault.mockResolvedValue({ success: false, error: 'boom', errorCode: 'GEN_UNKNOWN' });
 
-    const result = await handleVaultCreate({ password: 'pw', vaultData }, '');
+    const result = await handleVaultCreate({ password: 'pw' }, '');
 
     expect(result).toEqual({ success: false, error: 'boom', code: 'GEN_UNKNOWN' });
   });
