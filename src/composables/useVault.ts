@@ -36,8 +36,6 @@ export function useVault() {
 
   const password = ref('');
   const confirmPassword = ref('');
-  const mnemonic = ref('Generating...');
-  const passphrase = ref('');
   const loading = ref(false);
   const loginError = ref('');
 
@@ -74,7 +72,7 @@ export function useVault() {
     loading.value = true;
     loginError.value = '';
 
-    const result = await vaultStore.create(password.value, mnemonic.value, passphrase.value);
+    const result = await vaultStore.create(password.value);
     loading.value = false;
     if (result.success) {
       $q.notify({ type: 'positive', message: 'Vault created successfully' });
@@ -142,8 +140,6 @@ export function useVault() {
     vaultStore,
     password,
     confirmPassword,
-    mnemonic,
-    passphrase,
     loading,
     loginError,
     handleCreate,

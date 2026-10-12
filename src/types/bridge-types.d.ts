@@ -99,7 +99,12 @@ export interface BridgeError {
 
 export interface VaultData {
   accounts: StoredKey[];
+  /**
+   * @deprecated A placeholder (`'Generating...'`) that vaults created before #244 carry. Never read;
+   * dropped the next time the vault is written.
+   */
   mnemonic?: string;
+  /** @deprecated Always empty in vaults created before #244. Never read; dropped on the next write. */
   passphrase?: string;
   createdAt?: string;
   nip47Connections?: Nip47Connection[];
@@ -293,8 +298,8 @@ export interface BridgeRequestMap {
   'vault.create': {
     id: string;
     action: 'vault.create';
+    /** Only the password: the background builds the new, empty vault itself (#244). */
     password: string;
-    vaultData: VaultData;
   };
   'vault.export': {
     id: string;

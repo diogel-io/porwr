@@ -134,9 +134,11 @@ const cases: Case[] = [
     // The decrypted vault is not passed on: a page only learns that unlocking worked (#240).
     name: 'handleVaultUnlock', resolves: ok({ vaultData: { accounts: [{ account: { privkey: 'secret' } }] } }),
     expected: { success: true }, expectArgs: [{ password: 'pw' }, ORIGIN] },
-  { action: 'vault.create', payload: { password: 'pw', vaultData: { accounts: [] } },
+  { action: 'vault.create', payload: { password: 'pw', vaultData: { accounts: [], mnemonic: 'Generating...' } },
+    // Only the password reaches the handler, even from an older page that still sends a vault (#244).
     handler: vi.mocked(vault.handleVaultCreate), name: 'handleVaultCreate',
-    resolves: ok({ encryptedVault: 'blob' }), expected: { success: true, encryptedVault: 'blob' } },
+    resolves: ok({ encryptedVault: 'blob' }), expected: { success: true, encryptedVault: 'blob' },
+    expectArgs: [{ password: 'pw' }, ORIGIN] },
   { action: 'nostr.requests.list', handler: vi.mocked(queue.listPendingRequests), name: 'listPendingRequests',
     resolves: [{ id: 'r1' }], expected: [{ id: 'r1' }] },
   { action: 'nostr.requests.current', handler: vi.mocked(queue.getCurrentRequest), name: 'getCurrentRequest',

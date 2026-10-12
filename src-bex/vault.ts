@@ -172,6 +172,15 @@ export async function createNewVault(password: string, vaultData: unknown) {
   }
 }
 
+/** Fields only vaults created before #244 carry, never read, so not written back. */
+const RETIRED_VAULT_FIELDS = ['mnemonic', 'passphrase'];
+
+/** The vault as it is written: without the retired fields, and otherwise exactly as given. */
+const withoutRetiredFields = (vaultData: unknown): unknown =>
+  vaultData && typeof vaultData === 'object' && !Array.isArray(vaultData)
+    ? Object.fromEntries(Object.entries(vaultData).filter(([field]) => !RETIRED_VAULT_FIELDS.includes(field)))
+    : vaultData;
+
 export async function updateVaultData(vaultData: unknown) {
   if (!isVaultUnlocked() || !vaultKey || !vaultSalt) {
     return {
@@ -182,7 +191,7 @@ export async function updateVaultData(vaultData: unknown) {
   }
 
   try {
-    const encryptedVault = await encryptWithKey(vaultData, vaultKey, vaultSalt);
+    const encryptedVault = await encryptWithKey(withoutRetiredFields(vaultData), vaultKey, vaultSalt);
 
     await db.vaults.put({
       id: 'master',

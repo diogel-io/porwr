@@ -62,12 +62,17 @@ export const handleVaultIsUnlocked = logWrapper(async (
   return Promise.resolve({ success: true, data: isVaultUnlocked() });
 }, 'isUnlocked');
 
+/**
+ * Creates the vault from the password alone. The background builds the empty vault: a page sends
+ * no vault contents, and anything else it sends is ignored (#244).
+ */
 export const handleVaultCreate = logWrapper(async (
-  payload: { password: string; vaultData: VaultData },
+  payload: { password: string },
   _origin: string
 ): Promise<HandlerResult<{ encryptedVault?: string }>> => {
   void _origin;
-  const result = await createNewVault(payload.password, payload.vaultData);
+  const vaultData: VaultData = { accounts: [], createdAt: new Date().toISOString() };
+  const result = await createNewVault(payload.password, vaultData);
 
   if (result.success) {
     return {

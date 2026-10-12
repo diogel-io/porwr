@@ -37,8 +37,6 @@ vi.mock('@/stores/vault-store', () => ({
 interface HarnessVm {
   password: string;
   confirmPassword: string;
-  mnemonic: string;
-  passphrase: string;
   loading: boolean;
   loginError: string;
   handleCreate: () => Promise<void>;
@@ -60,6 +58,13 @@ describe('useVault', () => {
     vi.clearAllMocks();
     testState.route.name = 'login';
     testState.route.query = {};
+  });
+
+  it('exposes no mnemonic or passphrase (#244)', () => {
+    const vm = mount(TestHarness).vm as unknown as Record<string, unknown>;
+
+    expect(vm).not.toHaveProperty('mnemonic');
+    expect(vm).not.toHaveProperty('passphrase');
   });
 
   describe('handleCreate', () => {
@@ -94,6 +99,8 @@ describe('useVault', () => {
 
       await vm.handleCreate();
 
+      // Only the password: there is no mnemonic or passphrase to send (#244).
+      expect(testState.vaultStore.create).toHaveBeenCalledWith('longenough1');
       expect(testState.notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'positive' }));
       // A vault that has just been created holds no keys, and a dashboard with no keys has nothing
       // to show (#198).

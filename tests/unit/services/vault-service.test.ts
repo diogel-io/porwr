@@ -76,17 +76,17 @@ describe('vault-service (bridge messaging)', () => {
     await expect(lockVault()).resolves.toBeUndefined();
   });
 
-  it('createVault forwards password and vaultData through the bridge', async () => {
+  it('createVault sends only the password through the bridge (#244)', async () => {
     const send = vi.fn().mockResolvedValue({ data: { success: true, encryptedVault: 'v2:abc' } });
     setBridge(send);
 
     const { createVault } = await import('@/services/vault-service');
-    const result = await createVault('pw', { accounts: [] });
+    const result = await createVault('pw');
 
     expect(send).toHaveBeenCalledWith({
       event: 'vault.create',
       to: 'background',
-      payload: { password: 'pw', vaultData: { accounts: [] } },
+      payload: { password: 'pw' },
     });
     expect(result).toEqual({ success: true, encryptedVault: 'v2:abc' });
   });

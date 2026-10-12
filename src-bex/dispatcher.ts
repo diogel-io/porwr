@@ -170,10 +170,7 @@ export async function dispatchMessage<K extends BridgeAction>(
 
     case 'vault.create': {
       const createPayload = payload as BridgeRequestMap['vault.create'];
-      const result = await handleVaultCreate({
-        password: createPayload.password,
-        vaultData: createPayload.vaultData,
-      }, origin);
+      const result = await handleVaultCreate({ password: createPayload.password }, origin);
       if (result.success) {
         return {
           success: true,
