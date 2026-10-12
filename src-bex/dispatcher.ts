@@ -58,6 +58,9 @@ import {
   handleVaultGetView,
 } from './handlers/accounts';
 import {
+  handleNip47AuthorizationBegin,
+  handleNip47AuthorizationComplete,
+  handleNip47AuthorizationProbe,
   handleNip47ConnectionImport,
   handleNip47ConnectionRemove,
   handleNip47ConnectionSetActive,
@@ -460,6 +463,42 @@ export async function dispatchMessage<K extends BridgeAction>(
     case 'nip47.payments.list': {
       try {
         const result = await handleNip47PaymentHistoryList();
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'nip47.authorization.begin': {
+      try {
+        const result = await handleNip47AuthorizationBegin(payload as BridgeRequestMap['nip47.authorization.begin']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'nip47.authorization.complete': {
+      try {
+        const result = await handleNip47AuthorizationComplete(payload as BridgeRequestMap['nip47.authorization.complete']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'nip47.authorization.probe': {
+      try {
+        const result = await handleNip47AuthorizationProbe(payload as BridgeRequestMap['nip47.authorization.probe']);
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }

@@ -46,6 +46,16 @@ vi.mock('@/../src-bex/services/auto-lock', () => ({
   stopAutoLockTimer: vi.fn(),
 }));
 
+// The wallet connect flow generates a client secret in the background and parks it here (#110).
+const pendingAuthorizations = vi.hoisted(() => [] as Array<{ clientSecret: string }>);
+vi.mock('@/../src-bex/services/nip47-pending-authorization-store', () => ({
+  savePendingNip47Authorization: vi.fn((entry: { clientSecret: string }) => {
+    pendingAuthorizations.push(entry);
+    return Promise.resolve({ ...entry, createdAt: 0, expiresAt: 1 });
+  }),
+  takePendingNip47Authorization: vi.fn(),
+}));
+
 import { dispatchMessage } from '@/../src-bex/dispatcher';
 
 const findSecrets = (value: unknown, path = '$'): string[] => {
@@ -78,6 +88,17 @@ describe('vault responses to pages carry no secrets', () => {
     const response = await dispatchMessage('vault.unlock', { password: 'pw' } as never, '');
 
     expect(response).toEqual({ success: true });
+    expect(findSecrets(response)).toEqual([]);
+  });
+
+  it('nip47.authorization.begin', async () => {
+    globalThis.crypto.randomUUID = vi.fn(() => 'pending-uuid') as () => `${string}-${string}-${string}-${string}-${string}`;
+    const response = await dispatchMessage('nip47.authorization.begin', { provider: 'coinos' } as never, '');
+
+    expect(response).toHaveProperty('clientPubkey');
+    const secret = pendingAuthorizations.at(-1)!.clientSecret;
+    expect(secret).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(response)).not.toContain(secret);
     expect(findSecrets(response)).toEqual([]);
   });
 });

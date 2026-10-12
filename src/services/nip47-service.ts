@@ -1,6 +1,9 @@
 import { sendBexMessage } from './vault-service';
 import type {
+  BeginNip47AuthorizationRequest,
+  CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
+  Nip47AuthorizationStart,
   Nip47BalanceResponse,
   Nip47ConnectionSummary,
   Nip47InfoResponse,
@@ -95,4 +98,33 @@ export async function listNip47PaymentHistory(): Promise<Nip47PaymentHistoryEntr
   const response = await sendBexMessage('nip47.payments.list');
   throwIfError(response);
   return Array.isArray(response) ? response : [];
+}
+
+export async function beginNip47Authorization(
+  request: BeginNip47AuthorizationRequest,
+): Promise<Nip47AuthorizationStart> {
+  const response = await sendBexMessage('nip47.authorization.begin', request);
+  throwIfError(response);
+  if (!response || typeof response !== 'object' || !('authorizationUrl' in response)) {
+    throw new Error('Invalid wallet authorization response');
+  }
+  return response;
+}
+
+export async function completeNip47Authorization(
+  request: CompleteNip47AuthorizationRequest,
+): Promise<Nip47ConnectionSummary> {
+  const response = await sendBexMessage('nip47.authorization.complete', request);
+  throwIfError(response);
+  if (!response || typeof response !== 'object' || !('id' in response)) {
+    throw new Error('Invalid wallet authorization response');
+  }
+  return response;
+}
+
+/** @returns The saved connection, or `null` when the wallet did not approve Porwr. */
+export async function probeNip47Authorization(pendingId: string): Promise<Nip47ConnectionSummary | null> {
+  const response = await sendBexMessage('nip47.authorization.probe', { pendingId });
+  throwIfError(response);
+  return response && typeof response === 'object' && 'id' in response ? response : null;
 }
