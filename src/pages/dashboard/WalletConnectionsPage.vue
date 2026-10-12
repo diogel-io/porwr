@@ -13,6 +13,9 @@ import {
   setActiveNip47Connection,
 } from '@/services/nip47-service';
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
+import { parseNwcUri } from '@/services/nip47-uri';
+import { useWalletAuthorization } from '@/composables/useWalletAuthorization';
+import { WALLET_PROVIDERS, type WalletProviderId } from '@/types/wallet-provider';
 import type { Nip47ConnectionSummary, Nip47PaymentHistoryEntry } from '@/types/nip47';
 
 const $q = useQuasar();
@@ -33,6 +36,11 @@ const lastPaymentPreimage = ref<string | null>(null);
 const paymentHistory = ref<Nip47PaymentHistoryEntry[]>([]);
 const historyLoading = ref(false);
 const importPanelOpen = ref(false);
+const customHubOpen = ref(false);
+const customHubOrigin = ref('');
+const pasteOpen = ref(false);
+const { connecting, connect } = useWalletAuthorization();
+const providers = Object.values(WALLET_PROVIDERS);
 const balanceDisplayUnit = ref<'sats' | 'btc'>('sats');
 
 const hasConnections = computed(() => connections.value.length > 0);
@@ -63,6 +71,19 @@ const activeBalanceToggleLabel = computed(() => {
 });
 const importPanelVisible = computed(() => importPanelOpen.value || !hasConnections.value);
 const parsedInvoiceAmount = computed(() => parseBolt11Amount(paymentInvoice.value));
+const nwcUriError = computed<string>(() => {
+  if (!nwcUri.value.trim()) {
+    return '';
+  }
+  try {
+    parseNwcUri(nwcUri.value);
+    return '';
+  } catch (error: unknown) {
+    return t('walletManagement.import.invalidUri', {
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
 
 function shortHex(value: string): string {
   if (value.length <= 16) return value;
@@ -184,7 +205,7 @@ function sortConnections(items: Nip47ConnectionSummary[]): Nip47ConnectionSummar
 async function importConnection(): Promise<void> {
   loading.value = true;
   try {
-    await importNip47Connection({
+    const imported = await importNip47Connection({
       uri: nwcUri.value,
       ...(label.value.trim() ? { label: label.value.trim() } : {}),
     });
@@ -193,10 +214,37 @@ async function importConnection(): Promise<void> {
     importPanelOpen.value = false;
     notifySuccess(t('walletManagement.notifications.imported'));
     await refreshConnections();
+    // Check the pasted connection straight away, so a wrong string shows up now rather than at the
+    // first payment.
+    await refreshConnectionInfo(imported.id);
   } catch (error: unknown) {
     notifyError(error);
   } finally {
     loading.value = false;
+  }
+}
+
+async function connectWallet(provider: WalletProviderId): Promise<void> {
+  try {
+    const result = await connect(
+      provider,
+      provider === 'alby-hub' && customHubOpen.value ? customHubOrigin.value : undefined,
+    );
+    if (result.status === 'connected') {
+      importPanelOpen.value = false;
+      notifySuccess(t('walletManagement.notifications.connected', { label: result.connection.label }));
+      await refreshConnections();
+    } else if (result.status === 'popup-blocked') {
+      $q.notify({ type: 'warning', message: t('walletManagement.notifications.popupBlocked') });
+    } else {
+      pasteOpen.value = true;
+      $q.notify({
+        type: 'warning',
+        message: t('walletManagement.notifications.noResponse', { provider: WALLET_PROVIDERS[provider].name }),
+      });
+    }
+  } catch (error: unknown) {
+    notifyError(error);
   }
 }
 
@@ -379,39 +427,85 @@ onMounted(() => {
             </p>
           </div>
           <div class="wallet-import-card__form">
-            <q-input
-              v-model="label"
-              outlined
-              dense
-              :label="$t('walletManagement.import.connectionLabel')"
-              :hint="$t('walletManagement.import.connectionHint')"
-            />
-            <q-input
-              v-model="nwcUri"
-              outlined
-              dense
-              type="textarea"
-              autogrow
-              :label="$t('walletManagement.import.nwcUri')"
-              placeholder="nostr+walletconnect://..."
-            />
-            <div class="wallet-import-card__actions">
+            <div class="wallet-import-card__providers">
               <q-btn
+                v-for="provider in providers"
+                :key="provider.id"
                 class="diogel-btn-primary"
                 no-caps
-                :loading="loading"
-                :disable="!nwcUri.trim()"
-                :label="$t('walletManagement.actions.importConnection')"
-                @click="importConnection"
-              />
-              <q-btn
-                v-if="hasConnections"
-                flat
-                no-caps
-                :label="$t('walletManagement.actions.cancel')"
-                @click="importPanelOpen = false"
+                icon="bolt"
+                :data-testid="`connect-${provider.id}`"
+                :loading="connecting === provider.id"
+                :disable="connecting !== null && connecting !== provider.id"
+                :label="$t('walletManagement.import.connectWith', { provider: provider.name })"
+                @click="connectWallet(provider.id)"
               />
             </div>
+            <q-toggle
+              v-model="customHubOpen"
+              dense
+              :label="$t('walletManagement.import.customHubToggle')"
+            />
+            <q-input
+              v-if="customHubOpen"
+              v-model="customHubOrigin"
+              outlined
+              dense
+              type="url"
+              placeholder="https://"
+              :label="$t('walletManagement.import.customHubLabel')"
+              :hint="$t('walletManagement.import.customHubHint')"
+            />
+            <q-expansion-item
+              v-model="pasteOpen"
+              dense
+              dense-toggle
+              class="wallet-import-card__paste"
+              :label="$t('walletManagement.import.pasteTitle')"
+            >
+              <div class="wallet-import-card__paste-body">
+                <p class="text-body2 text-grey-7 q-mb-none">
+                  {{ $t('walletManagement.import.pasteCaption') }}
+                </p>
+                <q-input
+                  v-model="label"
+                  outlined
+                  dense
+                  :label="$t('walletManagement.import.connectionLabel')"
+                  :hint="$t('walletManagement.import.connectionHint')"
+                />
+                <q-input
+                  v-model="nwcUri"
+                  outlined
+                  dense
+                  type="textarea"
+                  autogrow
+                  data-testid="nwc-uri"
+                  :label="$t('walletManagement.import.nwcUri')"
+                  :error="nwcUriError !== ''"
+                  :error-message="nwcUriError"
+                  placeholder="nostr+walletconnect://..."
+                />
+                <div class="wallet-import-card__actions">
+                  <q-btn
+                    class="diogel-btn-primary"
+                    no-caps
+                    data-testid="import-connection"
+                    :loading="loading"
+                    :disable="!nwcUri.trim() || nwcUriError !== ''"
+                    :label="$t('walletManagement.actions.importConnection')"
+                    @click="importConnection"
+                  />
+                  <q-btn
+                    v-if="hasConnections"
+                    flat
+                    no-caps
+                    :label="$t('walletManagement.actions.cancel')"
+                    @click="importPanelOpen = false"
+                  />
+                </div>
+              </div>
+            </q-expansion-item>
           </div>
         </q-card-section>
       </q-card>
@@ -776,6 +870,18 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.wallet-import-card__providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wallet-import-card__paste-body {
+  display: grid;
+  gap: 14px;
+  padding-top: 8px;
 }
 
 .wallet-active-card {

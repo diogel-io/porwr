@@ -33,7 +33,10 @@ import type { Event as SignedNostrEvent } from 'nostr-tools';
 import type { ConnectedSite } from '@/../src-bex/services/connected-sites';
 import type { SiteAccount, SwitchSiteAccountResult } from '@/../src-bex/services/site-account';
 import type {
+  BeginNip47AuthorizationRequest,
+  CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
+  Nip47AuthorizationStart,
   Nip47BalanceResponse,
   Nip47Connection,
   Nip47ConnectionSummary,
@@ -41,6 +44,7 @@ import type {
   Nip47PayInvoiceRequest,
   Nip47PayInvoiceResponse,
   Nip47PaymentHistoryEntry,
+  ProbeNip47AuthorizationRequest,
 } from './nip47';
 import type {
   Nip57ZapHistoryEntry,
@@ -170,6 +174,9 @@ export type BridgeAction =
   | 'nip47.getBalance'
   | 'nip47.payInvoice'
   | 'nip47.payments.list'
+  | 'nip47.authorization.begin'
+  | 'nip47.authorization.complete'
+  | 'nip47.authorization.probe'
   | 'messaging.dmRelays.get'
   | 'messaging.dmRelays.publish'
   | 'messaging.send'
@@ -435,6 +442,18 @@ export interface BridgeRequestMap {
     id: string;
     action: 'nip47.payments.list';
   };
+  'nip47.authorization.begin': {
+    id: string;
+    action: 'nip47.authorization.begin';
+  } & BeginNip47AuthorizationRequest;
+  'nip47.authorization.complete': {
+    id: string;
+    action: 'nip47.authorization.complete';
+  } & CompleteNip47AuthorizationRequest;
+  'nip47.authorization.probe': {
+    id: string;
+    action: 'nip47.authorization.probe';
+  } & ProbeNip47AuthorizationRequest;
   'messaging.dmRelays.get': {
     id: string;
     action: 'messaging.dmRelays.get';
@@ -558,6 +577,9 @@ export interface BridgeResponseMap {
   'nip47.getBalance': Nip47BalanceResponse | { success: false; error: string };
   'nip47.payInvoice': Nip47PayInvoiceResponse | { success: false; error: string };
   'nip47.payments.list': Nip47PaymentHistoryEntry[] | { success: false; error: string };
+  'nip47.authorization.begin': Nip47AuthorizationStart | { success: false; error: string };
+  'nip47.authorization.complete': Nip47ConnectionSummary | { success: false; error: string };
+  'nip47.authorization.probe': Nip47ConnectionSummary | null | { success: false; error: string };
   'messaging.dmRelays.get': DmRelayList | { success: false; error: string };
   'messaging.dmRelays.publish': DmRelayPublishResult | { success: false; error: string };
   'messaging.send': SendMessageResult | { success: false; error: string };

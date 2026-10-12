@@ -1,8 +1,13 @@
-import { getPublicKey } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { generateSecretKey, getPublicKey } from 'nostr-tools';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import type { HandlerResult } from '../types/background';
 import type {
+  BeginNip47AuthorizationRequest,
+  CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
+  Nip47AuthorizationStart,
+  Nip47AuthorizedWalletService,
+  Nip47Command,
   Nip47BalanceResponse,
   Nip47Connection,
   Nip47ConnectionSummary,
@@ -10,9 +15,16 @@ import type {
   Nip47PayInvoiceRequest,
   Nip47PayInvoiceResponse,
   Nip47PaymentHistoryEntry,
+  ProbeNip47AuthorizationRequest,
 } from '@/types/nip47';
 import type { VaultData } from '@/types/bridge';
 import { parseNwcUri, buildNip47ConnectionId } from '@/services/nip47-uri';
+import { buildAuthorizationUrl, validateAuthorizedWalletService } from '@/services/nip47-authorization';
+import {
+  WALLET_PROVIDERS,
+  createWalletProviderId,
+  resolveWalletProviderOrigin,
+} from '@/types/wallet-provider';
 import { getVaultData, updateVaultData } from '../vault';
 import {
   findNip47Connection,
@@ -28,6 +40,11 @@ import {
   listNip47PaymentHistory,
 } from '../services/nip47-payment-history-store';
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
+import {
+  savePendingNip47Authorization,
+  takePendingNip47Authorization,
+  type PendingNip47Authorization,
+} from '../services/nip47-pending-authorization-store';
 
 async function requireUnlockedVaultData(): Promise<VaultData> {
   const result = await getVaultData();
@@ -261,5 +278,165 @@ export async function handleNip47PaymentHistoryList(): Promise<HandlerResult<Nip
   return {
     success: true,
     data: listNip47PaymentHistory(vaultData),
+  };
+}
+
+/** The app name a wallet shows the user on its approval page. */
+const AUTHORIZATION_APP_NAME = 'Porwr';
+
+/**
+ * Starts connecting a wallet without a pasted connection string (#110).
+ *
+ * Generates the client secret here and keeps it in the background; the page gets only the public
+ * key and the wallet page to open.
+ */
+export async function handleNip47AuthorizationBegin(
+  payload: BeginNip47AuthorizationRequest,
+): Promise<HandlerResult<Nip47AuthorizationStart>> {
+  await requireUnlockedVaultData();
+
+  const providerId = createWalletProviderId(payload.provider);
+  if (!providerId) {
+    throw new Error('Unsupported wallet provider');
+  }
+  const provider = WALLET_PROVIDERS[providerId];
+  const origin = resolveWalletProviderOrigin(provider, payload.customOrigin);
+  if (!origin) {
+    throw new Error(`Enter the https:// address of your ${provider.name}`);
+  }
+
+  const clientSecret = bytesToHex(generateSecretKey());
+  const clientPubkey = getPublicKey(hexToBytes(clientSecret));
+  const pending = await savePendingNip47Authorization({
+    pendingId: crypto.randomUUID(),
+    providerId,
+    origin,
+    clientSecret,
+    clientPubkey,
+  });
+
+  return {
+    success: true,
+    data: {
+      pendingId: pending.pendingId,
+      clientPubkey,
+      origin,
+      authorizationUrl: buildAuthorizationUrl(provider, origin, clientPubkey, {
+        name: AUTHORIZATION_APP_NAME,
+      }),
+    },
+  };
+}
+
+async function requirePendingAuthorization(pendingId: string): Promise<PendingNip47Authorization> {
+  const pending = await takePendingNip47Authorization(pendingId);
+  if (!pending) {
+    throw new Error('This wallet connection request has expired. Start again.');
+  }
+  return pending;
+}
+
+function buildAuthorizedConnection(
+  pending: PendingNip47Authorization,
+  service: Nip47AuthorizedWalletService,
+): Nip47Connection {
+  const now = new Date().toISOString();
+  return {
+    id: buildNip47ConnectionId(service.walletServicePubkey, pending.clientPubkey),
+    label: WALLET_PROVIDERS[pending.providerId].name,
+    walletServicePubkey: service.walletServicePubkey,
+    clientSecret: pending.clientSecret,
+    clientPubkey: pending.clientPubkey,
+    relays: service.relays,
+    ...(service.lud16 ? { lud16: service.lud16 } : {}),
+    capabilities: [],
+    createdAt: now,
+    updatedAt: now,
+    isActive: true,
+  };
+}
+
+async function saveAuthorizedConnection(
+  connection: Nip47Connection,
+  capabilities: Nip47Command[],
+  checkedAt: string,
+): Promise<Nip47ConnectionSummary> {
+  const saved = await mutateNip47Vault((vaultData) => {
+    const nextConnection: Nip47Connection = { ...connection, capabilities, lastInfoCheckedAt: checkedAt };
+    return { vaultData: upsertNip47Connection(vaultData, nextConnection), data: nextConnection };
+  });
+  return summarizeNip47Connection(saved);
+}
+
+/**
+ * Finishes a connection from the wallet service details the wallet posted back to the page.
+ *
+ * The connection is saved only once the wallet service answers on the relays it named; otherwise
+ * nothing is stored and the pending secret is gone either way.
+ */
+export async function handleNip47AuthorizationComplete(
+  payload: CompleteNip47AuthorizationRequest,
+): Promise<HandlerResult<Nip47ConnectionSummary>> {
+  await requireUnlockedVaultData();
+  const pending = await requirePendingAuthorization(payload.pendingId);
+
+  const service = validateAuthorizedWalletService(payload);
+  if (!service) {
+    throw new Error('The wallet sent connection details Porwr could not use');
+  }
+
+  const connection = buildAuthorizedConnection(pending, service);
+  const info = await nip47Client.getInfo(connection);
+  return {
+    success: true,
+    data: await saveAuthorizedConnection(connection, info.capabilities, info.checkedAt),
+  };
+}
+
+function parseMethods(value: unknown): Nip47Command[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is Nip47Command => typeof item === 'string' && item.length > 0)
+    : [];
+}
+
+/**
+ * Checks whether the user approved Porwr when the wallet's popup closed without a message.
+ *
+ * Only possible for a provider whose wallet service pubkey and relay are fixed (Coinos): Porwr asks
+ * that service for `get_info` with the pending key. Any answer other than `UNAUTHORIZED` means the
+ * wallet recognised the key, so the connection is saved. No answer, or `UNAUTHORIZED`, saves nothing.
+ *
+ * @returns The saved connection, or `null` when the wallet did not approve it.
+ */
+export async function handleNip47AuthorizationProbe(
+  payload: ProbeNip47AuthorizationRequest,
+): Promise<HandlerResult<Nip47ConnectionSummary | null>> {
+  await requireUnlockedVaultData();
+  const pending = await requirePendingAuthorization(payload.pendingId);
+
+  const known = WALLET_PROVIDERS[pending.providerId].knownWalletService;
+  if (!known) {
+    return { success: true, data: null };
+  }
+
+  const connection = buildAuthorizedConnection(pending, {
+    walletServicePubkey: known.walletServicePubkey,
+    relays: [known.relay],
+  });
+
+  let methods: Nip47Command[];
+  try {
+    const response = await nip47Client.sendRequest(connection, { method: 'get_info', params: {} });
+    if (response.error?.code === 'UNAUTHORIZED') {
+      return { success: true, data: null };
+    }
+    methods = parseMethods(response.result?.methods);
+  } catch {
+    return { success: true, data: null };
+  }
+
+  return {
+    success: true,
+    data: await saveAuthorizedConnection(connection, methods, new Date().toISOString()),
   };
 }

@@ -287,8 +287,8 @@ export default {
     title: 'Wallet Management',
     caption: 'Manage encrypted Nostr Wallet Connect links for Lightning payments.',
     actions: {
-      hideImport: 'Hide import',
-      importWallet: 'Import wallet',
+      hideImport: 'Hide',
+      importWallet: 'Connect wallet',
       importConnection: 'Import connection',
       cancel: 'Cancel',
       payInvoice: 'Pay invoice',
@@ -299,12 +299,20 @@ export default {
       approveAndPay: 'Approve and pay',
     },
     import: {
-      title: 'Import wallet connection',
+      title: 'Connect a wallet',
       caption:
-        'Paste a Nostr Wallet Connect URI from your Lightning wallet. NWC secrets are stored inside your encrypted Porwr vault and are not exposed to websites in this MVP.',
+        'Choose your wallet and approve Porwr in the window that opens. Nothing to copy or paste. The connection key is created inside Porwr and stored in your encrypted vault; it is never shown to websites.',
+      connectWith: 'Connect {provider}',
+      customHubToggle: 'Use my own Alby Hub',
+      customHubLabel: 'Alby Hub address',
+      customHubHint: 'The https:// address of your self-hosted Alby Hub',
+      pasteTitle: 'Paste a connection string instead',
+      pasteCaption:
+        'For any other Nostr Wallet Connect wallet, copy its nostr+walletconnect:// connection string and paste it here.',
       connectionLabel: 'Connection label',
       connectionHint: 'Optional. Example: Alby, Mutiny, Home node',
       nwcUri: 'NWC URI',
+      invalidUri: 'This is not a usable connection string: {reason}',
     },
     active: {
       eyebrow: 'Active wallet connection',
@@ -382,6 +390,10 @@ export default {
     },
     notifications: {
       imported: 'Wallet connection imported into the encrypted vault.',
+      connected: '{label} connected.',
+      noResponse:
+        "We didn't hear back from {provider}. If you approved Porwr, try again, or paste a connection string instead.",
+      popupBlocked: 'Your browser blocked the wallet window. Allow pop-ups for Porwr and try again.',
       infoLoaded: 'Wallet info loaded. Capabilities: {capabilities}.',
       balanceLoaded: 'Balance loaded for {label}.',
       activeWallet: '{label} Wallet is now active wallet',

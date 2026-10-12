@@ -62,6 +62,34 @@ export interface ImportNip47ConnectionRequest {
   identityId?: string;
 }
 
+/** The public wallet service details a wallet posts back after the user approves Porwr (#110). */
+export interface Nip47AuthorizedWalletService {
+  walletServicePubkey: string;
+  relays: string[];
+  lud16?: string;
+}
+
+export interface BeginNip47AuthorizationRequest {
+  provider: string;
+  customOrigin?: string;
+}
+
+/** What the page needs to open the wallet's approval popup. The client secret stays in the background. */
+export interface Nip47AuthorizationStart {
+  pendingId: string;
+  clientPubkey: string;
+  authorizationUrl: string;
+  origin: string;
+}
+
+export interface CompleteNip47AuthorizationRequest extends Nip47AuthorizedWalletService {
+  pendingId: string;
+}
+
+export interface ProbeNip47AuthorizationRequest {
+  pendingId: string;
+}
+
 export interface Nip47InfoResponse {
   pubkey: string;
   capabilities: Nip47Command[];
