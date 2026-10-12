@@ -211,7 +211,7 @@ describe('ProfileEditor.vue', () => {
     await wrapper.find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]').trigger('click');
     await flushPromises();
 
-    const statusBlock = wrapper.find('.profile-editor__nip05-status--success');
+    const statusBlock = wrapper.find('.profile-identity__nip05-status--success');
     expect(statusBlock.exists()).toBe(true);
     expect(statusBlock.text()).toContain('profile.nip05StatusVerifiedTitle');
   });
@@ -239,8 +239,75 @@ describe('ProfileEditor.vue', () => {
     resolveVerify({ status: 'verified', identifier: 'alice@example.com', domain: 'example.com', name: 'alice' });
     await flushPromises();
 
-    // Stale result must not be applied under bob's identifier
-    expect(wrapper.find('.profile-editor__nip05-status--success').exists()).toBe(false);
+    // Stale result must not be applied under bob's identifier. The neutral status is what renders
+    // instead; checking for it keeps this from passing against a status block that is not there.
+    expect(wrapper.find('.profile-identity__nip05-status--neutral').exists()).toBe(true);
+    expect(wrapper.find('.profile-identity__nip05-status--success').exists()).toBe(false);
+  });
+
+  it('saves the NIP-05 identifier and Lightning Address with the details, in one publish', async () => {
+    const wrapper = await mountEditor({ name: 'alice' });
+
+    await wrapper.find('[data-testid="q-input"][data-label="profile.nip05"] input').setValue('alice@example.com');
+    await wrapper.find('[data-testid="q-input"][data-label="profile.lud16"] input').setValue('alice@getalby.com');
+    await wrapper.find('[data-testid="q-input"][data-label="profile.displayName"] input').setValue('Alice');
+
+    await wrapper.find('form[data-testid="q-form"]').trigger('submit');
+    await flushComponent();
+
+    expect(saveProfileMock).toHaveBeenCalledTimes(1);
+    expect(saveProfileMock).toHaveBeenCalledWith(
+      storedKey.id,
+      expect.objectContaining({
+        name: 'alice',
+        display_name: 'Alice',
+        nip05: 'alice@example.com',
+        lud16: 'alice@getalby.com',
+      }),
+    );
+  });
+
+  // The images are published from the header as they are uploaded. Sending the copy loaded with the
+  // page would put back an avatar replaced since, so the editor must leave both to the latest (#200).
+  it('never sends the picture or banner it loaded', async () => {
+    const wrapper = await mountEditor({
+      name: 'alice',
+      picture: 'https://example.com/old-avatar.png',
+      banner: 'https://example.com/old-banner.png',
+    });
+
+    await wrapper.find('form[data-testid="q-form"]').trigger('submit');
+    await flushComponent();
+
+    const savePayload = saveProfileMock.mock.calls[0]?.[1] as NostrProfile | undefined;
+    expect(savePayload).toMatchObject({ name: 'alice' });
+    expect(savePayload).not.toHaveProperty('picture');
+    expect(savePayload).not.toHaveProperty('banner');
+  });
+
+  it('says there are unsaved changes after an edit, and stops saying so once saved', async () => {
+    const wrapper = await mountEditor({ name: 'alice' });
+    const status = () => wrapper.find('.profile-editor__savebar-status').text();
+
+    expect(status()).toBe('');
+
+    await wrapper.find('[data-testid="q-input"][data-label="profile.lud16"] input').setValue('alice@getalby.com');
+    expect(status()).toBe('profile.unsavedChanges');
+
+    await wrapper.find('form[data-testid="q-form"]').trigger('submit');
+    await flushPromises();
+    expect(status()).toBe('');
+  });
+
+  it('keeps saying there are unsaved changes when the save fails', async () => {
+    saveProfileMock.mockRejectedValue(new Error('no relay accepted it'));
+    const wrapper = await mountEditor({ name: 'alice' });
+
+    await wrapper.find('[data-testid="q-input"][data-label="profile.name"] input').setValue('bob');
+    await wrapper.find('form[data-testid="q-form"]').trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.find('.profile-editor__savebar-status').text()).toBe('profile.unsavedChanges');
   });
 
   it('renders failure inline status for pubkey-mismatch', async () => {
@@ -258,7 +325,7 @@ describe('ProfileEditor.vue', () => {
     await wrapper.find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]').trigger('click');
     await flushPromises();
 
-    const statusBlock = wrapper.find('.profile-editor__nip05-status--failure');
+    const statusBlock = wrapper.find('.profile-identity__nip05-status--failure');
     expect(statusBlock.exists()).toBe(true);
     expect(statusBlock.text()).toContain('profile.nip05StatusFailureTitle');
   });

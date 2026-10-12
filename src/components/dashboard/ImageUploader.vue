@@ -11,6 +11,11 @@ defineOptions({ name: 'ImageUploader' });
 const props = defineProps<{
   storedKey: AccountSummary;
   label?: string;
+  /**
+   * Shown on the button itself. Without it the button is a bare round icon, which is fine beside a
+   * titled card and not fine laid over an image, where nothing else says what it changes.
+   */
+  text?: string;
   uploadId?: string;
 }>();
 
@@ -222,10 +227,13 @@ function triggerUpload() {
 <template>
   <div class="inline-block" style="pointer-events: auto">
     <q-btn
+      :label="text"
       :loading="uploading"
+      :no-caps="Boolean(text)"
+      :round="!text"
+      :rounded="Boolean(text)"
       class="diogel-btn-ghost"
       icon="cloud_upload"
-      round
       type="button"
       @click.capture.stop.prevent="triggerUpload"
       @mousedown.stop

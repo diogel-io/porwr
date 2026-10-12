@@ -76,7 +76,8 @@ describe('ProfilePage.vue', () => {
     routeState.query = {};
   });
 
-  it('renders editor, preview, and images sections for active account', async () => {
+  // The side panel shows the profile (#201), so the page no longer repeats it (#200).
+  it('renders the profile header and editor, and no preview, for the active account', async () => {
     storeState.activeKey = 'alpha';
     storeState.storedKeys = [defaultStoredKey];
 
@@ -92,10 +93,6 @@ describe('ProfilePage.vue', () => {
             template: '<div class="profile-editor-stub" />',
             props: ['storedKey'],
           },
-          'profile-preview': {
-            template: '<div class="profile-preview-stub" />',
-            props: ['storedKey', 'refreshKey'],
-          },
           'profile-image': {
             template: '<div class="profile-image-stub" />',
             props: ['storedKey'],
@@ -107,11 +104,9 @@ describe('ProfilePage.vue', () => {
     await flushComponent();
 
     expect(wrapper.find('.profile-editor-stub').exists()).toBe(true);
-    expect(wrapper.find('.profile-preview-stub').exists()).toBe(true);
     expect(wrapper.find('.profile-image-stub').exists()).toBe(true);
-    expect(wrapper.text()).toContain('profile.editorTitle');
-    expect(wrapper.text()).toContain('profile.previewTitle');
-    expect(wrapper.text()).toContain('profile.imagesSectionTitle');
+    // Unstubbed on purpose: a preview still rendered would show here as an unresolved element.
+    expect(wrapper.html()).not.toMatch(/profile-preview/i);
   });
 
   it('renders no-account empty state without active account', async () => {
@@ -127,7 +122,6 @@ describe('ProfilePage.vue', () => {
           },
           'q-icon': true,
           'profile-editor': true,
-          'profile-preview': true,
           'profile-image': true,
         },
       },
