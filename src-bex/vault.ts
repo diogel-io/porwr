@@ -12,8 +12,22 @@ import { ErrorCode } from '@/types/error-codes.d';
 let vaultKey: CryptoKey | null = null;
 let vaultSalt: Uint8Array | null = null;
 
-const SESSION_KEY = 'vault:session-key' as const;
-const SESSION_SALT = 'vault:session-salt' as const;
+/**
+ * Keeping the vault unlocked across MV3 service-worker restarts (#245).
+ *
+ * The key is a non-extractable `CryptoKey` and is kept as that object in IndexedDB (`vaultSession`),
+ * never as bytes. Porwr's own pages share this origin and so can reach that table: they can *use* the
+ * key while the vault is unlocked, but can never read or copy it, so nothing can carry it away for
+ * offline decryption. That is the trust boundary this design accepts.
+ *
+ * IndexedDB outlives the browser session; `chrome.storage.session` does not. So the `VAULT_UNLOCKED`
+ * marker in session storage is what says "still the same browser session": the key is restored only
+ * when both are present, and a key without the marker is from before a browser restart and is deleted.
+ */
+const VAULT_SESSION_ID = 'current' as const;
+
+/** Raw key bytes written to session storage before #245. Deleted on sight, never imported. */
+const LEGACY_SESSION_KEYS = ['vault:session-key', 'vault:session-salt'];
 
 async function saveKeyToSession(): Promise<void> {
   if (!vaultKey || !vaultSalt) {
@@ -21,18 +35,8 @@ async function saveKeyToSession(): Promise<void> {
   }
 
   try {
-    const rawKey = await crypto.subtle.exportKey('raw', vaultKey);
-    const keyBase64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
-    const saltBase64 = btoa(String.fromCharCode(...vaultSalt));
-
-    await storageService.setMultiple(
-      {
-        [SESSION_KEY]: keyBase64,
-        [SESSION_SALT]: saltBase64,
-        [VAULT_UNLOCKED]: true,
-      },
-      'session',
-    );
+    await db.vaultSession.put({ id: VAULT_SESSION_ID, key: vaultKey, salt: vaultSalt });
+    await storageService.setMultiple({ [VAULT_UNLOCKED]: true }, 'session');
   } catch (error: unknown) {
     logService.log(LogLevel.ERROR, '[Vault] Failed to persist unlock session', {
       error: error instanceof Error ? error.message : String(error),
@@ -41,23 +45,37 @@ async function saveKeyToSession(): Promise<void> {
 }
 
 async function clearSession() {
-  await storageService.remove([SESSION_KEY, SESSION_SALT, VAULT_UNLOCKED], 'session');
+  await storageService.remove([VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS], 'session');
+  try {
+    await db.vaultSession.delete(VAULT_SESSION_ID);
+  } catch (error: unknown) {
+    logService.log(LogLevel.ERROR, '[Vault] Failed to clear unlock session', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 export async function restoreVaultState(): Promise<boolean> {
   try {
-    const items = await storageService.getMultiple([SESSION_KEY, SESSION_SALT], 'session');
-    if (items[SESSION_KEY] && items[SESSION_SALT]) {
-      const keyData = Uint8Array.from(atob(items[SESSION_KEY] as string), (character) => character.charCodeAt(0));
-      const saltData = Uint8Array.from(atob(items[SESSION_SALT] as string), (character) => character.charCodeAt(0));
-
-      vaultKey = await crypto.subtle.importKey('raw', keyData.buffer, 'AES-GCM', true, [
-        'encrypt',
-        'decrypt',
-      ]);
-      vaultSalt = saltData;
-      return true;
+    const items = await storageService.getMultiple([VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS], 'session');
+    if (LEGACY_SESSION_KEYS.some((key) => items[key] !== undefined)) {
+      // An unlock from before #245 left raw key bytes behind. Never use them: lock instead.
+      await clearSession();
+      return false;
     }
+
+    const session = await db.vaultSession.get(VAULT_SESSION_ID);
+    if (!session) return false;
+
+    if (items[VAULT_UNLOCKED] !== true) {
+      // A new browser session: the key outlived it in IndexedDB, but the vault must start locked.
+      await clearSession();
+      return false;
+    }
+
+    vaultKey = session.key;
+    vaultSalt = session.salt;
+    return true;
   } catch (error: unknown) {
     logService.log(LogLevel.ERROR, '[Vault] Failed to restore unlock session', {
       error: error instanceof Error ? error.message : String(error),
