@@ -44,6 +44,9 @@ import {
   handleMessagesMarkRead,
   handleMessagesReadState,
   handleMessagesSend,
+  handleSavedPeersAdd,
+  handleSavedPeersGet,
+  handleSavedPeersRemove,
 } from './handlers/messaging';
 import { handleAccountSignEvent } from './handlers/account-signing';
 import { handleContactsRefresh } from './handlers/contacts';
@@ -517,6 +520,42 @@ export async function dispatchMessage<K extends BridgeAction>(
     case 'messaging.readState': {
       try {
         const result = await handleMessagesReadState();
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.savedPeers.get': {
+      try {
+        const result = await handleSavedPeersGet();
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.savedPeers.add': {
+      try {
+        const result = await handleSavedPeersAdd(payload as BridgeRequestMap['messaging.savedPeers.add']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.savedPeers.remove': {
+      try {
+        const result = await handleSavedPeersRemove(payload as BridgeRequestMap['messaging.savedPeers.remove']);
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }

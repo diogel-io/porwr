@@ -9,15 +9,19 @@ import type {
   FetchMessagesResult,
   MarkReadRequest,
   MessagingReadState,
+  MessagingSavedPeers,
+  SavedPeerRequest,
   SendMessageRequest,
   SendMessageResult,
 } from '@/types/messaging';
 import type { HandlerResult } from '../types/background';
-import { getVaultData, onVaultLocked, updateVaultData } from '../vault';
+import { getVaultData, onVaultLocked } from '../vault';
+import { mutateVault } from '../services/vault-mutation';
 import { getActiveSecretKey } from './active-key';
 import { messagingRelays, validateDmRelays } from '../services/messaging-relays';
 import { nip17Messaging } from '../services/nip17-messaging';
 import { markConversationRead, readStateFor } from '../services/messaging-read-state-store';
+import { addSavedPeer, removeSavedPeer, savedPeersFor } from '../services/messaging-saved-peers-store';
 
 /**
  * NIP-17 messaging actions for the extension's own pages.
@@ -105,8 +109,6 @@ export async function handleMessagesReadState(): Promise<HandlerResult<Messaging
   return { success: true, data: readStateFor(await requireUnlockedVaultData(), me) };
 }
 
-let readStateWrites: Promise<void> = Promise.resolve();
-
 export async function handleMessagesMarkRead(payload: MarkReadRequest): Promise<HandlerResult<MessagingReadState>> {
   if (!payload || typeof payload.peer !== 'string' || !HEX_64.test(payload.peer)) {
     return { success: false, error: 'The conversation must be a hex public key' };
@@ -116,20 +118,57 @@ export async function handleMessagesMarkRead(payload: MarkReadRequest): Promise<
   }
 
   const me = getPublicKey(await getActiveSecretKey());
+  const readAt = Math.floor(payload.readAt);
 
-  // Serialised so two quick reads cannot each load the vault and overwrite the other's update.
-  const write = readStateWrites.then(async () => {
-    const vaultData = await requireUnlockedVaultData();
-    const next = markConversationRead(vaultData, me, payload.peer, Math.floor(payload.readAt));
-    if (next !== vaultData) {
-      const saved = await updateVaultData(next);
-      if (!saved.success) throw new Error(saved.error || 'Failed to save read state');
-    }
-    return readStateFor(next, me);
+  // Through the shared vault queue, so a read and a saved-peer change cannot each load the vault and
+  // overwrite the other's update. An unchanged vault is not written.
+  const readState = await mutateVault((vaultData) => {
+    const next = markConversationRead(vaultData, me, payload.peer, readAt);
+    return { vault: next, result: readStateFor(next, me) };
   });
-  readStateWrites = write.then(
-    () => undefined,
-    () => undefined,
-  );
-  return { success: true, data: await write };
+  return { success: true, data: readState };
+}
+
+function checkPeer(payload: SavedPeerRequest | undefined): string | null {
+  return payload && typeof payload.peer === 'string' && HEX_64.test(payload.peer) ? payload.peer : null;
+}
+
+/** The contacts this account added to Chats through search (#258). */
+export async function handleSavedPeersGet(): Promise<HandlerResult<MessagingSavedPeers>> {
+  const me = getPublicKey(await getActiveSecretKey());
+  return { success: true, data: savedPeersFor(await requireUnlockedVaultData(), me) };
+}
+
+export async function handleSavedPeersAdd(payload: SavedPeerRequest): Promise<HandlerResult<MessagingSavedPeers>> {
+  const peer = checkPeer(payload);
+  if (!peer) return { success: false, error: 'The conversation must be a hex public key' };
+
+  const me = getPublicKey(await getActiveSecretKey());
+  if (peer === me) return { success: false, error: 'Cannot start a conversation with yourself' };
+
+  try {
+    const peers = await mutateVault((vaultData) => {
+      const next = addSavedPeer(vaultData, me, peer);
+      return { vault: next, result: savedPeersFor(next, me) };
+    });
+    return { success: true, data: peers };
+  } catch (error: unknown) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Takes a contact off Chats. Only hides a conversation with no messages: one with history is listed
+ * because of its messages, whatever is saved here.
+ */
+export async function handleSavedPeersRemove(payload: SavedPeerRequest): Promise<HandlerResult<MessagingSavedPeers>> {
+  const peer = checkPeer(payload);
+  if (!peer) return { success: false, error: 'The conversation must be a hex public key' };
+
+  const me = getPublicKey(await getActiveSecretKey());
+  const peers = await mutateVault((vaultData) => {
+    const next = removeSavedPeer(vaultData, me, peer);
+    return { vault: next, result: savedPeersFor(next, me) };
+  });
+  return { success: true, data: peers };
 }

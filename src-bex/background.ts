@@ -10,6 +10,7 @@
 import { createBridge } from '#q-app/bex/background';
 import { LogLevel, logService } from '@/services/log-service';
 import {
+  FALLBACK_RELAYS,
   NOSTR_ACTIVE,
   storageService,
 } from '@/services/storage-service';
@@ -218,14 +219,17 @@ async function initialize(): Promise<void> {
 
 void initialize();
 
-// Keep the active account's contacts cached, so Contacts and Messaging open with them (#257). The
-// refresh skips a cache that is still fresh, and does nothing while the vault is locked.
+// Keep the active account's contacts cached, so Contacts and Messaging open with them (#257). Unlock
+// skips a cache that is still fresh; nothing is refreshed while the vault is locked.
 onVaultUnlocked(() => {
   void refreshActiveAccountContacts();
 });
 storageService.onChanged((changes, areaName) => {
-  if (areaName === 'local' && NOSTR_ACTIVE in changes) {
-    void refreshActiveAccountContacts();
+  if (areaName !== 'local') return;
+  // Choosing an account, or new relays to read from, is a deliberate act: ask relays now, however
+  // recently the cache was filled. Refreshes already running for that account are shared.
+  if (FALLBACK_RELAYS in changes || NOSTR_ACTIVE in changes) {
+    void refreshActiveAccountContacts({ force: true });
   }
 });
 

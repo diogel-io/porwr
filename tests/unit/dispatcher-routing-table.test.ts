@@ -55,6 +55,7 @@ vi.mock('@/../src-bex/handlers/messaging', () => ({
   handleDmRelaysGet: vi.fn(), handleDmRelaysPublish: vi.fn(),
   handleMessagesSend: vi.fn(), handleMessagesFetch: vi.fn(),
   handleMessagesReadState: vi.fn(), handleMessagesMarkRead: vi.fn(),
+  handleSavedPeersGet: vi.fn(), handleSavedPeersAdd: vi.fn(), handleSavedPeersRemove: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/account-signing', () => ({ handleAccountSignEvent: vi.fn() }));
 vi.mock('@/../src-bex/handlers/contacts', () => ({ handleContactsRefresh: vi.fn() }));
@@ -238,6 +239,14 @@ const cases: Case[] = [
   { action: 'messaging.markRead', payload: { peer: 'b', readAt: 7 },
     handler: vi.mocked(messaging.handleMessagesMarkRead), name: 'handleMessagesMarkRead',
     resolves: ok({ b: 7 }), expected: { b: 7 }, expectArgs: [expect.objectContaining({ peer: 'b', readAt: 7 })] },
+  { action: 'messaging.savedPeers.get', handler: vi.mocked(messaging.handleSavedPeersGet),
+    name: 'handleSavedPeersGet', resolves: ok(['b']), expected: ['b'] },
+  { action: 'messaging.savedPeers.add', payload: { peer: 'b' },
+    handler: vi.mocked(messaging.handleSavedPeersAdd), name: 'handleSavedPeersAdd',
+    resolves: ok(['b']), expected: ['b'], expectArgs: [expect.objectContaining({ peer: 'b' })] },
+  { action: 'messaging.savedPeers.remove', payload: { peer: 'b' },
+    handler: vi.mocked(messaging.handleSavedPeersRemove), name: 'handleSavedPeersRemove',
+    resolves: ok([]), expected: [], expectArgs: [expect.objectContaining({ peer: 'b' })] },
   { action: 'contacts.refresh', payload: { force: true }, handler: vi.mocked(contacts.handleContactsRefresh),
     name: 'handleContactsRefresh', resolves: ok({ accountPubkey: 'a' }), expected: { accountPubkey: 'a' },
     expectArgs: [expect.objectContaining({ force: true })] },
@@ -366,6 +375,9 @@ describe('messaging actions report failures to the page', () => {
       'messaging.fetch',
       'messaging.markRead',
       'messaging.readState',
+      'messaging.savedPeers.add',
+      'messaging.savedPeers.get',
+      'messaging.savedPeers.remove',
       'messaging.send',
     ]);
   });

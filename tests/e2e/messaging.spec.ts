@@ -100,6 +100,13 @@ async function openMessaging(page: Page): Promise<void> {
 
 const conversation = (page: Page, pubkey: string) => page.locator(`[data-peer="${pubkey}"]`);
 
+/** Finds a contact with the Chats search and starts a conversation with them (#258). */
+async function startWith(page: Page, query: string, pubkey: string): Promise<void> {
+  await page.getByLabel('Search contacts').fill(query);
+  await page.getByTestId('conversation-search-results').locator(`[data-peer="${pubkey}"]`).click();
+  await expect(conversation(page, pubkey)).toBeVisible();
+}
+
 async function send(page: Page, text: string): Promise<void> {
   await page.getByLabel('Message', { exact: true }).fill(text);
   await page.getByLabel('Message', { exact: true }).press('Enter');
@@ -120,19 +127,21 @@ test.describe('messaging', () => {
     await useAccount(page, ALICE.alias);
     await publishDmRelays(page, [relays.inbox]);
 
-    // Alice writes to Bob, a contact.
+    // Contacts are not listed until there is a conversation; Alice finds Bob by searching (#258).
     await openMessaging(page);
-    await expect(page.getByTestId('conversation-section-contacts')).toContainText('Bob');
-    await expect(page.getByTestId('conversation-section-contacts')).toContainText('Carol');
-    await conversation(page, BOB.pubkey).click();
+    await expect(page.getByTestId('conversation-list-empty')).toBeVisible();
+    await expect(conversation(page, CAROL_PUBKEY)).toHaveCount(0);
+    await startWith(page, 'bob', BOB.pubkey);
     await send(page, 'hello bob');
     await expect(page.locator('[data-from="me"]')).toContainText('hello bob');
 
-    // Bob does not follow Alice, so she arrives as a message request, unread.
+    // Bob does not follow Alice, so she arrives under Requests, unread.
     await useAccount(page, BOB.alias);
     await openMessaging(page);
     const fromAlice = conversation(page, ALICE.pubkey);
-    await expect(page.getByTestId('conversation-section-requests')).toContainText('hello bob');
+    await expect(page.getByTestId('conversation-tab-requests')).toContainText('1');
+    await page.getByTestId('conversation-tab-requests').click();
+    await expect(page.getByTestId('conversation-list-requests')).toContainText('hello bob');
     await expect(fromAlice.locator('.conversation-list__unread')).toHaveText('1');
 
     await fromAlice.click();
@@ -144,9 +153,10 @@ test.describe('messaging', () => {
     await send(page, 'hi alice');
     await expect(page.locator('[data-from="me"]')).toContainText('hi alice');
 
-    // Read state is kept: reopening as Bob shows nothing unread.
+    // Replying made Alice a chat, and read state is kept: reopening as Bob shows her under Chats,
+    // with nothing unread.
     await openMessaging(page);
-    await expect(conversation(page, ALICE.pubkey)).toBeVisible();
+    await expect(page.getByTestId('conversation-list-chats').locator(`[data-peer="${ALICE.pubkey}"]`)).toBeVisible();
     await expect(conversation(page, ALICE.pubkey).locator('.conversation-list__unread')).toHaveCount(0);
 
     // Alice sees the reply, in order, after her own message.
@@ -157,9 +167,19 @@ test.describe('messaging', () => {
     await expect(page.locator('[data-from]')).toHaveText([/hello bob/, /hi alice/]);
 
     // Carol has no DM relays, so nothing can reach her and Porwr says so.
-    await conversation(page, CAROL_PUBKEY).click();
+    await startWith(page, 'carol', CAROL_PUBKEY);
     await send(page, 'anyone there?');
     await expect(page.getByTestId('recipient-not-ready')).toBeVisible();
+
+    // An added conversation is kept in the vault: it outlives the page, for this account only.
+    await openMessaging(page);
+    await expect(conversation(page, CAROL_PUBKEY)).toBeVisible();
+    await useAccount(page, BOB.alias);
+    await openMessaging(page);
+    await expect(conversation(page, ALICE.pubkey)).toBeVisible();
+    await expect(conversation(page, CAROL_PUBKEY)).toHaveCount(0);
+    await useAccount(page, ALICE.alias);
+    await openMessaging(page);
 
     // Locking the vault takes the decrypted conversation off the screen: the app sends every
     // dashboard page to the login page, and the background drops what it decrypted (part 2).
@@ -178,8 +198,10 @@ test.describe('messaging', () => {
     await publishContacts(relays.plain, ALICE.privkey, [{ pubkey: BOB.pubkey, petname: 'Bob' }]);
     await useAccount(page, ALICE.alias);
 
+    // Search runs over the cached contact list (#258).
     await openMessaging(page);
-    await expect(page.getByTestId('conversation-section-contacts')).toContainText('Bob');
+    await page.getByLabel('Search contacts').fill('bob');
+    await expect(page.getByTestId('conversation-search-results')).toContainText('Bob');
 
     // The background wrote the list to IndexedDB, where it outlives the page.
     const cached = await page.evaluate(
@@ -204,8 +226,9 @@ test.describe('messaging', () => {
       { pubkey: BOB.pubkey, petname: 'Bob' },
       { pubkey: CAROL_PUBKEY, petname: 'Carol' },
     ]);
+    await page.getByLabel('Search contacts').fill('carol');
     await page.evaluate(() => chrome.runtime.sendMessage({ type: 'contacts.refresh', payload: { force: true } }));
-    await expect(page.getByTestId('conversation-section-contacts')).toContainText('Carol');
+    await expect(page.getByTestId('conversation-search-results')).toContainText('Carol');
   });
 
   test('an account without DM relays is told how to start receiving', async ({ openPage, relays }) => {
@@ -234,7 +257,7 @@ test.describe('messaging', () => {
 
     // Porwr -> nak: what Alice sends, Dave's client can open.
     await openMessaging(page);
-    await conversation(page, DAVE.pubkey).click();
+    await startWith(page, 'dave', DAVE.pubkey);
     await send(page, 'hello from porwr');
     await expect(page.locator('[data-from="me"]')).toContainText('hello from porwr');
 

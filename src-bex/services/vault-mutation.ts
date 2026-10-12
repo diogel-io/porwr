@@ -21,7 +21,10 @@ export async function readVault(): Promise<VaultData> {
 
 export function mutateVault<T>(change: (vault: VaultData) => { vault: VaultData; result: T } | Promise<{ vault: VaultData; result: T }>): Promise<T> {
   const run = async (): Promise<T> => {
-    const { vault, result } = await change(await readVault());
+    const current = await readVault();
+    const { vault, result } = await change(current);
+    // A change that hands back the vault it was given changed nothing, so there is nothing to save.
+    if (vault === current) return result;
     const saved = await updateVaultData(vault);
     if (!saved.success) throw new Error(saved.error || 'Failed to save the vault');
     return result;

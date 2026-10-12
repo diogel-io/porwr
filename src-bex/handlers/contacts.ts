@@ -1,7 +1,7 @@
 import type { ContactRefreshRequest, ContactRefreshResult } from '@/types/contact-list';
 import type { HandlerResult } from '../types/background';
 import { getActiveStoredKey } from './active-key';
-import { refreshContactsInBackground } from '../services/contact-cache-refresher';
+import { refreshContactsInBackground, type RefreshOptions } from '../services/contact-cache-refresher';
 
 /**
  * Contact cache actions for the extension's own pages (#257).
@@ -19,10 +19,10 @@ export async function handleContactsRefresh(
 }
 
 /** Refreshes the active account's contacts if the vault is unlocked and an account is chosen. */
-export async function refreshActiveAccountContacts(): Promise<void> {
+export async function refreshActiveAccountContacts(options: RefreshOptions = {}): Promise<void> {
   try {
     const storedKey = await getActiveStoredKey();
-    refreshContactsInBackground(storedKey.id);
+    refreshContactsInBackground(storedKey.id, options);
   } catch {
     // Locked, or no account chosen yet: there is nothing to refresh for.
   }

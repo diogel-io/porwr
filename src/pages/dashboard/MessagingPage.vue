@@ -6,9 +6,18 @@ import useAccountStore from '@/stores/account-store';
 import ConversationList from '@/components/dashboard/messaging/ConversationList.vue';
 import ConversationView from '@/components/dashboard/messaging/ConversationView.vue';
 import { useContactCache } from '@/composables/useContactCache';
-import { fetchContactProfiles, getContactDisplayName } from '@/services/contact-list-service';
-import { fetchMessages, getReadState, markConversationRead, sendMessage } from '@/services/messaging-service';
+import { fetchContactProfiles, formatContactNpub, getContactDisplayName } from '@/services/contact-list-service';
+import {
+  addSavedPeer,
+  fetchMessages,
+  getReadState,
+  getSavedPeers,
+  markConversationRead,
+  removeSavedPeer,
+  sendMessage,
+} from '@/services/messaging-service';
 import { buildConversations, conversationMessages, mergeMessages, newestFrom } from '@/utils/conversations';
+import { searchCachedContacts } from '@/utils/contact-search';
 import type { ContactProfile } from '@/types/contact-list';
 import type { DirectMessage, MessagingReadState, PendingMessage } from '@/types/messaging';
 
@@ -47,6 +56,8 @@ const profiles = computed<Record<string, ContactProfile>>(() => ({
 }));
 const messages = shallowRef<Map<string, DirectMessage>>(new Map());
 const readState = ref<MessagingReadState>({});
+/** Contacts added to Chats through search, kept in the vault per account (#258). */
+const savedPeers = ref<string[]>([]);
 const inbox = ref<'unknown' | 'ready' | 'none'>('unknown');
 const loadFailed = ref(false);
 const selectedPeer = ref<string | undefined>();
@@ -58,7 +69,9 @@ let pollTimer: ReturnType<typeof setInterval> | undefined;
 let polling = false;
 
 const contactPubkeys = computed(() => contacts.value.map((contact) => contact.pubkey));
-const conversations = computed(() => buildConversations(messages.value.values(), contactPubkeys.value, readState.value));
+const conversations = computed(() =>
+  buildConversations(messages.value.values(), contactPubkeys.value, savedPeers.value, readState.value),
+);
 const selectedMessages = computed(() =>
   selectedPeer.value ? conversationMessages(messages.value.values(), selectedPeer.value) : [],
 );
@@ -71,6 +84,18 @@ function nameOf(peer: string): string {
 
 function pictureOf(peer: string): string | undefined {
   return profiles.value[peer]?.picture || undefined;
+}
+
+function detailOf(peer: string): string {
+  const nip05 = profiles.value[peer]?.nip05;
+  if (nip05) return nip05;
+  const npub = formatContactNpub(peer);
+  return `${npub.slice(0, 12)}…${npub.slice(-4)}`;
+}
+
+/** Searches the cached contact list only; nothing goes to relays (#258). */
+function findContacts(query: string): string[] {
+  return searchCachedContacts(query, contacts.value, contactCache.profiles.value);
 }
 
 /**
@@ -145,6 +170,39 @@ function selectConversation(peer: string) {
   selectedPeer.value = peer;
 }
 
+/** Adds a contact found through search to Chats and opens it, ready to send. */
+async function startConversation(peer: string) {
+  const account = me.value;
+  selectedPeer.value = peer;
+  if (savedPeers.value.includes(peer)) return;
+  savedPeers.value = [...savedPeers.value, peer];
+  try {
+    const saved = await addSavedPeer(peer);
+    if (me.value === account) savedPeers.value = saved;
+  } catch {
+    if (me.value !== account) return;
+    savedPeers.value = savedPeers.value.filter((entry) => entry !== peer);
+    if (selectedPeer.value === peer) selectedPeer.value = undefined;
+    $q.notify({ type: 'negative', message: t('messaging.list.saveFailed') });
+  }
+}
+
+/** Takes a contact added through search, and never messaged, off Chats. */
+async function removeConversation(peer: string) {
+  const account = me.value;
+  const before = savedPeers.value;
+  savedPeers.value = before.filter((entry) => entry !== peer);
+  if (selectedPeer.value === peer) selectedPeer.value = undefined;
+  try {
+    const saved = await removeSavedPeer(peer);
+    if (me.value === account) savedPeers.value = saved;
+  } catch {
+    if (me.value !== account) return;
+    savedPeers.value = before;
+    $q.notify({ type: 'negative', message: t('messaging.list.removeFailed') });
+  }
+}
+
 async function deliver(message: PendingMessage) {
   try {
     const result = await sendMessage({
@@ -184,6 +242,7 @@ function retry(clientMessageId: string) {
 
 function resetState() {
   requestProfiles.value = {};
+  savedPeers.value = [];
   messages.value = new Map();
   readState.value = {};
   inbox.value = 'unknown';
@@ -195,11 +254,18 @@ function resetState() {
 
 async function load() {
   if (!activeKey.value) return;
-  await getReadState()
-    .then((state) => {
-      readState.value = state;
-    })
-    .catch(() => undefined);
+  await Promise.all([
+    getReadState()
+      .then((state) => {
+        readState.value = state;
+      })
+      .catch(() => undefined),
+    getSavedPeers()
+      .then((peers) => {
+        savedPeers.value = peers;
+      })
+      .catch(() => undefined),
+  ]);
   await poll();
 }
 
@@ -262,8 +328,12 @@ onBeforeUnmount(() => {
               :selected-peer="selectedPeer"
               :name-of="nameOf"
               :picture-of="pictureOf"
+              :detail-of="detailOf"
+              :find-contacts="findContacts"
               :loading="contactsLoading"
               @select="selectConversation"
+              @start="startConversation"
+              @remove="removeConversation"
             />
           </div>
           <div class="col messaging-page__view">

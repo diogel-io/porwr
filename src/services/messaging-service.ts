@@ -4,6 +4,7 @@ import type {
   DmRelayPublishResult,
   FetchMessagesResult,
   MessagingReadState,
+  MessagingSavedPeers,
   SendMessageRequest,
   SendMessageResult,
 } from '@/types/messaging';
@@ -73,4 +74,24 @@ export async function markConversationRead(peer: string, readAt: number): Promis
   const error = errorOf(response);
   if (error) throw new Error(error);
   return response && typeof response === 'object' ? (response as MessagingReadState) : {};
+}
+
+function savedPeersFrom(response: unknown): MessagingSavedPeers {
+  const error = errorOf(response);
+  if (error) throw new Error(error);
+  if (!Array.isArray(response)) throw new Error('Invalid saved conversations response');
+  return response.filter((peer): peer is string => typeof peer === 'string');
+}
+
+/** Contacts the active account added to Chats through search (#258). */
+export async function getSavedPeers(): Promise<MessagingSavedPeers> {
+  return savedPeersFrom(await sendBexMessage('messaging.savedPeers.get'));
+}
+
+export async function addSavedPeer(peer: string): Promise<MessagingSavedPeers> {
+  return savedPeersFrom(await sendBexMessage('messaging.savedPeers.add', { peer }));
+}
+
+export async function removeSavedPeer(peer: string): Promise<MessagingSavedPeers> {
+  return savedPeersFrom(await sendBexMessage('messaging.savedPeers.remove', { peer }));
 }

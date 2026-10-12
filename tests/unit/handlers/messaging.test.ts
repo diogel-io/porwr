@@ -47,6 +47,9 @@ import {
   handleMessagesMarkRead,
   handleMessagesReadState,
   handleMessagesSend,
+  handleSavedPeersAdd,
+  handleSavedPeersGet,
+  handleSavedPeersRemove,
 } from '@/../src-bex/handlers/messaging';
 
 const ME = getPublicKey(SECRET_KEY);
@@ -206,5 +209,64 @@ describe('vault lock', () => {
     mocks.lockListeners[0]!();
 
     expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('saved peers (#258)', () => {
+  const vaultWith = (saved: Record<string, string[]>) => ({
+    success: true,
+    vaultData: { accounts: [], messagingSavedPeers: saved },
+  });
+
+  it("returns the active account's saved peers only", async () => {
+    mocks.getVaultData.mockResolvedValue(vaultWith({ [ME]: [PEER], other: ['c'.repeat(64)] }));
+
+    await expect(handleSavedPeersGet()).resolves.toEqual({ success: true, data: [PEER] });
+  });
+
+  it('adds a peer inside the vault', async () => {
+    await expect(handleSavedPeersAdd({ peer: PEER })).resolves.toEqual({ success: true, data: [PEER] });
+    expect(mocks.updateVaultData).toHaveBeenCalledWith(
+      expect.objectContaining({ messagingSavedPeers: { [ME]: [PEER] } }),
+    );
+  });
+
+  it('does not write when the peer is already saved', async () => {
+    mocks.getVaultData.mockResolvedValue(vaultWith({ [ME]: [PEER] }));
+
+    await expect(handleSavedPeersAdd({ peer: PEER })).resolves.toEqual({ success: true, data: [PEER] });
+    expect(mocks.updateVaultData).not.toHaveBeenCalled();
+  });
+
+  it('removes a peer', async () => {
+    mocks.getVaultData.mockResolvedValue(vaultWith({ [ME]: [PEER] }));
+
+    await expect(handleSavedPeersRemove({ peer: PEER })).resolves.toEqual({ success: true, data: [] });
+    expect(mocks.updateVaultData).toHaveBeenCalledWith(
+      expect.objectContaining({ messagingSavedPeers: { [ME]: [] } }),
+    );
+  });
+
+  it('refuses a peer that is not a hex key, or the account itself', async () => {
+    await expect(handleSavedPeersAdd({ peer: 'npub1x' })).resolves.toMatchObject({ success: false });
+    await expect(handleSavedPeersRemove({ peer: 'npub1x' })).resolves.toMatchObject({ success: false });
+    await expect(handleSavedPeersAdd({ peer: ME })).resolves.toMatchObject({ success: false });
+    expect(mocks.updateVaultData).not.toHaveBeenCalled();
+  });
+
+  it('serialises a saved peer and a read so neither loses the other', async () => {
+    let vault: Record<string, unknown> = { accounts: [] };
+    mocks.getVaultData.mockImplementation(() => Promise.resolve({ success: true, vaultData: structuredClone(vault) }));
+    mocks.updateVaultData.mockImplementation((next: Record<string, unknown>) => {
+      vault = structuredClone(next);
+      return Promise.resolve({ success: true });
+    });
+
+    await Promise.all([handleSavedPeersAdd({ peer: PEER }), handleMessagesMarkRead({ peer: PEER, readAt: 10 })]);
+
+    expect(vault).toMatchObject({
+      messagingSavedPeers: { [ME]: [PEER] },
+      messagingReadState: { [ME]: { [PEER]: 10 } },
+    });
   });
 });

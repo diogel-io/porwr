@@ -44,7 +44,13 @@ describe('refreshActiveAccountContacts', () => {
   it('refreshes the active account', async () => {
     await refreshActiveAccountContacts();
 
-    expect(mocks.refreshContactsInBackground).toHaveBeenCalledWith(ALICE);
+    expect(mocks.refreshContactsInBackground).toHaveBeenCalledWith(ALICE, {});
+  });
+
+  it('passes on a forced refresh, as a relay change asks for', async () => {
+    await refreshActiveAccountContacts({ force: true });
+
+    expect(mocks.refreshContactsInBackground).toHaveBeenCalledWith(ALICE, { force: true });
   });
 
   it('does nothing, quietly, while locked', async () => {

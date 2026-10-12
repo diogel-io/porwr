@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   markConversationRead: vi.fn(),
   fetchContactProfiles: vi.fn(),
   requestContactRefresh: vi.fn(),
+  getSavedPeers: vi.fn(),
+  addSavedPeer: vi.fn(),
+  removeSavedPeer: vi.fn(),
   observeContactCache: vi.fn(),
   cachedContacts: {} as Record<string, { pubkey: string; relayUrl: string; petname: string }[] | undefined>,
   notify: vi.fn(),
@@ -30,11 +33,15 @@ vi.mock('@/services/messaging-service', () => ({
   sendMessage: mocks.sendMessage,
   getReadState: mocks.getReadState,
   markConversationRead: mocks.markConversationRead,
+  getSavedPeers: mocks.getSavedPeers,
+  addSavedPeer: mocks.addSavedPeer,
+  removeSavedPeer: mocks.removeSavedPeer,
 }));
 
 vi.mock('@/services/contact-list-service', () => ({
   fetchContactProfiles: mocks.fetchContactProfiles,
   requestContactRefresh: mocks.requestContactRefresh,
+  formatContactNpub: (pubkey: string) => `npub1${pubkey}`,
   getContactDisplayName: (contact: { pubkey: string; petname: string }, profile?: { name: string }) =>
     profile?.name || contact.petname || `npub-${contact.pubkey.slice(0, 4)}`,
 }));
@@ -87,7 +94,7 @@ const stubs = {
   'q-card': { template: '<div><slot /></div>' },
   'q-banner': { template: '<div class="q-banner" v-bind="$attrs"><slot /><slot name="action" /></div>' },
   'q-btn': {
-    template: '<button :disabled="disable" :aria-label="ariaLabel || label" @click="$emit(\'click\')">{{ label }}</button>',
+    template: '<button :disabled="disable" :aria-label="ariaLabel || label" @click="$emit(\'click\', $event)">{{ label }}</button>',
     props: ['label', 'ariaLabel', 'disable', 'to'],
     emits: ['click'],
   },
@@ -103,6 +110,8 @@ const stubs = {
   'q-item-label': { template: '<span><slot /></span>' },
   'q-avatar': { template: '<span><slot /></span>' },
   'q-badge': { template: '<span class="unread">{{ label }}</span>', props: ['label'] },
+  'q-tabs': { template: '<div role="tablist"><slot /></div>' },
+  'q-tab': { template: '<button role="tab" @click="$emit(\'click\', $event)"><slot /></button>', emits: ['click'] },
 };
 
 const mountPage = async () => {
@@ -117,8 +126,9 @@ const openConversation = async (wrapper: Awaited<ReturnType<typeof mountPage>>, 
 };
 
 const typeAndSend = async (wrapper: Awaited<ReturnType<typeof mountPage>>, text: string) => {
-  await wrapper.find('textarea').setValue(text);
-  await wrapper.find('textarea').trigger('keydown', { key: 'Enter' });
+  // The search field is a q-input too; type into the composer's.
+  await wrapper.find('.message-composer textarea').setValue(text);
+  await wrapper.find('.message-composer textarea').trigger('keydown', { key: 'Enter' });
   await flushPromises();
 };
 
@@ -145,6 +155,10 @@ beforeEach(() => {
   mocks.requestContactRefresh.mockResolvedValue(undefined);
   mocks.fetchContactProfiles.mockResolvedValue({});
   mocks.getReadState.mockResolvedValue({});
+  // Bob was added through search, so his conversation is listed before any message (#258).
+  mocks.getSavedPeers.mockResolvedValue([BOB]);
+  mocks.addSavedPeer.mockImplementation((peer: string) => Promise.resolve([BOB, peer]));
+  mocks.removeSavedPeer.mockResolvedValue([]);
   mocks.markConversationRead.mockImplementation((peer: string, readAt: number) => Promise.resolve({ [peer]: readAt }));
   mocks.fetchMessages.mockResolvedValue({ inbox: 'ready', messages: [], dropped: 0 });
 });
@@ -154,7 +168,7 @@ afterEach(() => {
 });
 
 describe('MessagingPage', () => {
-  it('lists contacts and message requests with unread counts', async () => {
+  it('lists conversations under Chats and non-contacts under Requests, with unread counts', async () => {
     mocks.fetchMessages.mockResolvedValue({
       inbox: 'ready',
       messages: [msg('1', BOB, BOB, 10, 'hi from bob'), msg('2', STRANGER, STRANGER, 20, 'who dis')],
@@ -163,9 +177,60 @@ describe('MessagingPage', () => {
 
     const wrapper = await mountPage();
 
-    expect(wrapper.find('[data-testid="conversation-section-contacts"]').text()).toContain('Bob');
-    expect(wrapper.find('[data-testid="conversation-section-requests"]').text()).toContain('who dis');
-    expect(wrapper.findAll('.unread').map((el) => el.text())).toEqual(['1', '1']);
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').text()).toContain('Bob');
+    expect(wrapper.find('[data-testid="conversation-tab-chats"] .unread').text()).toBe('1');
+    expect(wrapper.find('[data-testid="conversation-tab-requests"] .unread').text()).toBe('1');
+
+    await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');
+    expect(wrapper.find('[data-testid="conversation-list-requests"]').text()).toContain('who dis');
+  });
+
+  it('does not list a contact with no messages who was never added (#258)', async () => {
+    mocks.getSavedPeers.mockResolvedValue([]);
+
+    const wrapper = await mountPage();
+
+    expect(wrapper.find(`li[data-peer="${BOB}"]`).exists()).toBe(false);
+    expect(wrapper.find('[data-testid="conversation-list-empty"]').exists()).toBe(true);
+  });
+
+  it('finds a contact by searching the cache, adds them and opens the conversation (#258)', async () => {
+    mocks.getSavedPeers.mockResolvedValue([]);
+    const wrapper = await mountPage();
+
+    await wrapper.find('[data-testid="conversation-search"]').setValue('bob');
+    await flushPromises();
+    await wrapper.find(`[data-testid="conversation-search-results"] li[data-peer="${BOB}"]`).trigger('click');
+    await flushPromises();
+
+    expect(mocks.addSavedPeer).toHaveBeenCalledWith(BOB);
+    expect(mocks.fetchContactProfiles).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').text()).toContain('Bob');
+    expect(wrapper.find('.message-composer').exists()).toBe(true);
+  });
+
+  it('takes the added contact back off if saving fails', async () => {
+    mocks.getSavedPeers.mockResolvedValue([]);
+    mocks.addSavedPeer.mockRejectedValue(new Error('Vault is locked'));
+    const wrapper = await mountPage();
+
+    await wrapper.find('[data-testid="conversation-search"]').setValue('bob');
+    await flushPromises();
+    await wrapper.find(`[data-testid="conversation-search-results"] li[data-peer="${BOB}"]`).trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').exists()).toBe(false);
+    expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'negative' }));
+  });
+
+  it('removes an added conversation that has no messages', async () => {
+    const wrapper = await mountPage();
+
+    await wrapper.find(`li[data-peer="${BOB}"] [data-testid="conversation-remove"]`).trigger('click');
+    await flushPromises();
+
+    expect(mocks.removeSavedPeer).toHaveBeenCalledWith(BOB);
+    expect(wrapper.find(`li[data-peer="${BOB}"]`).exists()).toBe(false);
   });
 
   it('shows a conversation and marks it read up to the newest message from the peer', async () => {
@@ -281,6 +346,7 @@ describe('MessagingPage', () => {
   });
 
   it('shows cached contacts without asking relays for the contact list (#257)', async () => {
+    // Bob is listed as an added conversation; his name comes from the cached contact list.
     const wrapper = await mountPage();
 
     expect(wrapper.find(`li[data-peer="${BOB}"]`).exists()).toBe(true);
