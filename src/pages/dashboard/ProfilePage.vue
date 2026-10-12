@@ -1,22 +1,15 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import useAccountStore from '@/stores/account-store';
 import ProfileImage from '@/components/dashboard/ProfileImage.vue';
 import ProfileEditor from '@/components/dashboard/ProfileEditor.vue';
-import ProfilePreview from '@/components/dashboard/ProfilePreview.vue';
-
 
 const { t } = useI18n();
 const accountStore = useAccountStore();
 const route = useRoute();
 const router = useRouter();
-const profileRefreshKey = ref(0);
-
-function handleProfileSaved() {
-  profileRefreshKey.value += 1;
-}
 
 function clearLegacyTabQuery() {
   if (typeof route.query.tab === 'undefined') {
@@ -50,36 +43,19 @@ watch(
       <p class="dashboard-hero-caption">{{ t('profile.dashboardCaption') }}</p>
     </section>
 
+    <!--
+      One column, in the order a profile is read: how it looks, who it is, how it is verified and
+      paid. There is no preview: the side panel shows the profile beside this tab (#201, #200).
+    -->
     <div v-if="activeStoredKey" class="profile-page__layout">
-      <q-card class="dashboard-card profile-page__card profile-page__editor-card">
-        <q-card-section class="q-pb-none">
-          <div class="text-h6">{{ t('profile.editorTitle') }}</div>
-        </q-card-section>
-        <q-card-section>
-          <ProfileEditor :stored-key="activeStoredKey" @saved="handleProfileSaved" />
-        </q-card-section>
+      <q-card class="dashboard-card">
+        <ProfileImage :stored-key="activeStoredKey" />
       </q-card>
 
-      <q-card class="dashboard-card profile-page__card profile-page__images-card">
-        <q-card-section class="q-pb-none">
-          <div class="text-h6">{{ t('profile.imagesSectionTitle') }}</div>
-        </q-card-section>
-        <q-card-section>
-          <ProfileImage :stored-key="activeStoredKey" />
-        </q-card-section>
-      </q-card>
-
-      <q-card class="dashboard-card profile-page__card profile-page__preview-card">
-        <q-card-section class="q-pb-none">
-          <div class="text-h6">{{ t('profile.previewTitle') }}</div>
-        </q-card-section>
-        <q-card-section>
-          <ProfilePreview :refresh-key="profileRefreshKey" :stored-key="activeStoredKey" />
-        </q-card-section>
-      </q-card>
+      <ProfileEditor :stored-key="activeStoredKey" />
     </div>
 
-    <q-card v-else class="dashboard-card profile-page__card">
+    <q-card v-else class="dashboard-card">
       <div class="text-center q-pa-xl">
         <q-icon color="grey-5" name="account_circle" size="4em" />
         <div class="text-h6 text-grey-7 q-mt-md">{{ t('account.noAccounts') }}</div>
@@ -99,39 +75,14 @@ watch(
   width: 100%;
 }
 
+/*
+ * Capped rather than stretched: fields wider than this are harder to scan, not easier, and with the
+ * side panel open the tab is rarely much wider anyway.
+ */
 .profile-page__layout {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr);
-  grid-template-areas:
-    'editor preview'
-    'images preview';
-  gap: 1.5rem;
-  align-items: start;
-}
-
-.profile-page__card {
-  overflow: hidden;
-}
-
-.profile-page__editor-card {
-  grid-area: editor;
-}
-
-.profile-page__images-card {
-  grid-area: images;
-}
-
-.profile-page__preview-card {
-  grid-area: preview;
-}
-
-@media (max-width: 900px) {
-  .profile-page__layout {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      'editor'
-      'images'
-      'preview';
-  }
+  gap: 16px;
+  width: 100%;
+  max-width: 760px;
 }
 </style>

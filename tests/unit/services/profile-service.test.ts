@@ -72,6 +72,18 @@ describe('profileService.fetchProfile', () => {
     await expect(profileService.fetchProfile('pubkey-a')).resolves.toBeNull();
   });
 
+  // `pool.get` over no relays never settles, which would leave the page spinning (#200).
+  it('returns null without querying when there are no relays to ask', async () => {
+    const saved = fallbackRelays.splice(0);
+    try {
+      const { profileService } = await import('@/services/profile-service');
+      await expect(profileService.fetchProfile('pubkey-a')).resolves.toBeNull();
+      expect(poolGetMock).not.toHaveBeenCalled();
+    } finally {
+      fallbackRelays.push(...saved);
+    }
+  });
+
   it('returns null when the relay query rejects', async () => {
     poolGetMock.mockRejectedValue(new Error('relay unreachable'));
 
