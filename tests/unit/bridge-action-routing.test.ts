@@ -82,6 +82,7 @@ const SURFACE_ACTIONS = [
   'messaging.fetch',
   'messaging.readState',
   'messaging.markRead',
+  'contacts.refresh',
   'account.signEvent',
   'vault.getView',
   'accounts.add',

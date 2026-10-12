@@ -54,6 +54,8 @@ import {
   handleVaultGetData,
   restoreVaultState,
 } from './handlers/vault-handler';
+import { onVaultUnlocked } from './vault';
+import { refreshActiveAccountContacts } from './handlers/contacts';
 import {
 } from './handlers/permission-handler';
 import {
@@ -190,6 +192,8 @@ async function initialize(): Promise<void> {
     if (restored) {
       startAutoLockTimer();
       await checkAutoLock();
+      // A restarted worker with the vault still unlocked: fill the contact cache now (#257).
+      void refreshActiveAccountContacts();
     }
     void loadSeedRelays().catch((error: unknown) => {
       logService.log(LogLevel.ERROR, '[BEX] Failed to seed relay catalog', {
@@ -213,6 +217,17 @@ async function initialize(): Promise<void> {
 }
 
 void initialize();
+
+// Keep the active account's contacts cached, so Contacts and Messaging open with them (#257). The
+// refresh skips a cache that is still fresh, and does nothing while the vault is locked.
+onVaultUnlocked(() => {
+  void refreshActiveAccountContacts();
+});
+storageService.onChanged((changes, areaName) => {
+  if (areaName === 'local' && NOSTR_ACTIVE in changes) {
+    void refreshActiveAccountContacts();
+  }
+});
 
 // Registered at top level, not inside initialize(): a restarted worker must be watching before the
 // first content script or panel reconnects, or it misses them and never learns they are there.

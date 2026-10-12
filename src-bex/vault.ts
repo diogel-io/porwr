@@ -93,6 +93,18 @@ function clearVaultKey() {
   vaultSalt = null;
 }
 
+const unlockListeners = new Set<() => void>();
+
+/**
+ * Runs `listener` whenever the password unlocks the vault. For background work that needs the
+ * accounts, such as filling the contact cache (#257). A worker that restores an unlocked session
+ * at start does not call it; the caller of `restoreVaultState` handles that case.
+ */
+export function onVaultUnlocked(listener: () => void): () => void {
+  unlockListeners.add(listener);
+  return () => unlockListeners.delete(listener);
+}
+
 export async function unlockVault(password: string) {
   try {
     const vault = await db.vaults.get('master');
@@ -112,6 +124,13 @@ export async function unlockVault(password: string) {
     vaultKey = key;
     vaultSalt = salt;
     await saveKeyToSession();
+    for (const listener of unlockListeners) {
+      try {
+        listener();
+      } catch {
+        // A listener's failure must not reach the catch below, which would lock the vault again.
+      }
+    }
 
     return { success: true, vaultData };
   } catch {
@@ -126,7 +145,6 @@ export async function unlockVault(password: string) {
 }
 
 const lockListeners = new Set<() => void>();
-
 /**
  * Runs `listener` whenever the vault locks, manually or by auto-lock. For anything that holds
  * decrypted material in memory and must drop it with the key.

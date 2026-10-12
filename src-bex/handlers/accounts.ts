@@ -2,6 +2,7 @@ import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 import { db } from '@/services/database';
+import { clearAccount as clearContactCache } from '@/services/contact-cache';
 import { NOSTR_ACTIVE, storageService } from '@/services/storage-service';
 import type { StoredKey, VaultData } from '@/types/bridge';
 import type {
@@ -127,12 +128,16 @@ export async function handleAccountsRemove(payload: AccountRequest): Promise<Han
   if (!pubkey) return { success: false, error: 'accountPubkey must be a hex public key' };
 
   try {
-    const removed = await mutateVault((vault) => {
+    const removedId = await mutateVault((vault) => {
       const target = findByKey(vault, pubkey) ?? (vault.accounts ?? []).find((account) => account.id === pubkey);
-      if (!target) return { vault, result: false };
-      return { vault: { ...vault, accounts: (vault.accounts ?? []).filter((account) => account !== target) }, result: true };
+      if (!target) return { vault, result: undefined };
+      return { vault: { ...vault, accounts: (vault.accounts ?? []).filter((account) => account !== target) }, result: target.id };
     });
-    return { success: true, data: removed };
+    if (removedId !== undefined) {
+      // Its cached contacts would otherwise outlive the account (#257). Best-effort: the account is gone.
+      await clearContactCache(removedId).catch(() => undefined);
+    }
+    return { success: true, data: removedId !== undefined };
   } catch (error: unknown) {
     return fail(error);
   }

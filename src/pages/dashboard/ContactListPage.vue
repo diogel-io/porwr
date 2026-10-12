@@ -1,13 +1,13 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import useAccountStore from '@/stores/account-store';
 import type { ContactProfile, ContactSearchResult, Nip02Contact } from '@/types/contact-list';
 import type { AccountSummary } from '@/types/accounts';
+import { useContactCache } from '@/composables/useContactCache';
+import { upsertProfiles, writeContactList } from '@/services/contact-cache';
 import {
-  fetchContactList,
-  fetchContactProfiles,
   formatContactNpub,
   getContactDisplayName,
   publishContactList,
@@ -19,13 +19,12 @@ const $q = useQuasar();
 const accountStore = useAccountStore();
 
 const contacts = ref<Nip02Contact[]>([]);
-const profiles = ref<Record<string, ContactProfile>>({});
+/** Profiles of contacts added from search and not yet published; the cache holds the rest. */
+const addedProfiles = ref<Record<string, ContactProfile>>({});
 const sourceEventId = ref<string | undefined>();
 const sourceCreatedAt = ref<number | undefined>();
-const loading = ref(false);
 const publishing = ref(false);
-const loadingProfiles = ref(false);
-const errorMessage = ref('');
+const publishError = ref('');
 const dirty = ref(false);
 const dialogOpen = ref(false);
 const searchQuery = ref('');
@@ -34,6 +33,37 @@ const searchingContacts = ref(false);
 const formError = ref('');
 
 const activeStoredKey = computed<AccountSummary | undefined>(() => accountStore.activeAccountOrFirst);
+const contactCache = useContactCache(() => activeStoredKey.value?.id);
+
+/** Until relays have answered once for this account, there is no list to show — not an empty one. */
+const loading = computed(() => contactCache.status.value === 'loading');
+const profiles = computed<Record<string, ContactProfile>>(() => ({
+  ...contactCache.profiles.value,
+  ...addedProfiles.value,
+}));
+const errorMessage = computed(() => publishError.value || contactCache.error.value);
+
+/** Shows the cached list, unless the user is part-way through editing it. */
+function applyCachedList() {
+  if (dirty.value) return;
+  const list = contactCache.list.value;
+  contacts.value = list ? list.contacts.map((contact) => ({ ...contact })) : [];
+  sourceEventId.value = list?.sourceEventId;
+  sourceCreatedAt.value = list?.sourceCreatedAt;
+}
+
+watch(contactCache.list, applyCachedList, { immediate: true });
+
+watch(
+  () => activeStoredKey.value?.id,
+  () => {
+    // Another account's edits do not carry over.
+    dirty.value = false;
+    addedProfiles.value = {};
+    publishError.value = '';
+    applyCachedList();
+  },
+);
 
 const sortedContacts = computed(() => contacts.value);
 
@@ -81,23 +111,6 @@ function getSearchResultSubtitle(result: ContactSearchResult): string {
   return result.profile?.nip05 || formatContactNpub(result.pubkey);
 }
 
-async function enrichProfiles() {
-  const pubkeys = contacts.value.map((contact) => contact.pubkey);
-  if (pubkeys.length === 0) {
-    profiles.value = {};
-    return;
-  }
-
-  loadingProfiles.value = true;
-  try {
-    profiles.value = await fetchContactProfiles(pubkeys);
-  } catch {
-    profiles.value = {};
-  } finally {
-    loadingProfiles.value = false;
-  }
-}
-
 function resetForm() {
   searchQuery.value = '';
   searchResults.value = [];
@@ -134,26 +147,13 @@ async function runContactSearch() {
   }
 }
 
-async function loadContacts() {
-  if (!activeStoredKey.value) {
-    return;
-  }
-
-  loading.value = true;
-  errorMessage.value = '';
-
-  try {
-    const state = await fetchContactList(activeStoredKey.value);
-    contacts.value = state.contacts;
-    sourceEventId.value = state.sourceEventId;
-    sourceCreatedAt.value = state.sourceCreatedAt;
-    dirty.value = false;
-    await enrichProfiles();
-  } catch (error: unknown) {
-    errorMessage.value = error instanceof Error ? error.message : String(error);
-  } finally {
-    loading.value = false;
-  }
+/** Discards unpublished edits and asks relays again, even if the cache is fresh. */
+function reloadContacts() {
+  dirty.value = false;
+  addedProfiles.value = {};
+  publishError.value = '';
+  applyCachedList();
+  void contactCache.refresh(true);
 }
 
 function selectSearchResult(result: ContactSearchResult) {
@@ -170,8 +170,8 @@ function selectSearchResult(result: ContactSearchResult) {
 
   contacts.value = [...contacts.value, contact];
   if (result.profile) {
-    profiles.value = {
-      ...profiles.value,
+    addedProfiles.value = {
+      ...addedProfiles.value,
       [result.pubkey]: result.profile,
     };
   }
@@ -188,9 +188,9 @@ function closeAddContactForm() {
 
 function removeContact(contact: Nip02Contact) {
   contacts.value = contacts.value.filter((item) => item.pubkey !== contact.pubkey);
-  const nextProfiles = { ...profiles.value };
+  const nextProfiles = { ...addedProfiles.value };
   delete nextProfiles[contact.pubkey];
-  profiles.value = nextProfiles;
+  addedProfiles.value = nextProfiles;
   dirty.value = true;
 }
 
@@ -200,17 +200,29 @@ async function publishChanges() {
   }
 
   publishing.value = true;
-  errorMessage.value = '';
+  publishError.value = '';
+
+  const accountPubkey = activeStoredKey.value.id;
+  const published = contacts.value.map((contact) => ({ ...contact }));
 
   try {
-    const result = await publishContactList(activeStoredKey.value.id, contacts.value);
+    const result = await publishContactList(accountPubkey, published);
     sourceEventId.value = result.event.id;
     sourceCreatedAt.value = result.event.created_at;
+    // Every page reading the cache sees the published list now, not after the next refresh.
+    await writeContactList(accountPubkey, {
+      contacts: published,
+      sourceEventId: result.event.id,
+      sourceCreatedAt: result.event.created_at,
+    });
+    await upsertProfiles(accountPubkey, Object.values(addedProfiles.value));
+    addedProfiles.value = {};
     dirty.value = false;
+    applyCachedList();
     $q.notify({ type: 'positive', message: t('contacts.publishSuccess') });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    errorMessage.value = message;
+    publishError.value = message;
     $q.notify({ type: 'negative', message });
   } finally {
     publishing.value = false;
@@ -223,8 +235,6 @@ onMounted(async () => {
   if (!accountStore.activeKey && activeStoredKey.value) {
     await accountStore.setActiveKey(activeStoredKey.value.alias);
   }
-
-  await loadContacts();
 });
 </script>
 
@@ -269,16 +279,13 @@ onMounted(async () => {
         <div class="contacts-page__count-actions">
           <div class="text-subtitle1">
             {{ t('contacts.count', { count: contacts.length }) }}
-            <span v-if="loadingProfiles" class="text-caption text-grey-7 q-ml-sm">
-              {{ t('contacts.loadingProfiles') }}
-            </span>
           </div>
           <q-btn
             flat
             icon="refresh"
             :label="t('contacts.refresh')"
             :loading="loading"
-            @click="loadContacts"
+            @click="reloadContacts"
           />
         </div>
         <div class="contacts-page__actions">

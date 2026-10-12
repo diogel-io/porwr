@@ -11,7 +11,10 @@ const state = vi.hoisted(() => ({
   active: undefined as string | undefined,
   approvals: vi.fn(),
   exceptions: vi.fn(),
+  clearContactCache: vi.fn(),
 }));
+
+vi.mock('@/services/contact-cache', () => ({ clearAccount: state.clearContactCache }));
 
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(() =>
@@ -55,6 +58,7 @@ const BOB = getPublicKey(bobKey);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.clearContactCache.mockResolvedValue(undefined);
   state.writes = 0;
   state.active = 'alice';
   state.vault = {
@@ -171,8 +175,23 @@ describe('accounts.remove', () => {
     expect(state.vault!.accounts).toEqual([bob]);
   });
 
+  it('forgets the removed account’s cached contacts (#257)', async () => {
+    state.clearContactCache.mockResolvedValue(undefined);
+
+    await handleAccountsRemove({ accountPubkey: ALICE });
+
+    expect(state.clearContactCache).toHaveBeenCalledWith(ALICE);
+  });
+
+  it('still reports the removal if clearing the contact cache fails', async () => {
+    state.clearContactCache.mockRejectedValue(new Error('IndexedDB unavailable'));
+
+    await expect(handleAccountsRemove({ accountPubkey: ALICE })).resolves.toEqual({ success: true, data: true });
+  });
+
   it('answers false for an account that is not there', async () => {
     await expect(handleAccountsRemove({ accountPubkey: 'c'.repeat(64) })).resolves.toEqual({ success: true, data: false });
+    expect(state.clearContactCache).not.toHaveBeenCalled();
   });
 
   it('refuses a pubkey that is not hex', async () => {

@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import type { CachedContactList, CachedContactProfile } from '@/types/contact-list';
 import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
 
 export interface Vault {
@@ -69,6 +70,8 @@ export class DiogelDatabase extends Dexie {
   relayDiscoveryState!: Table<RelayDiscoveryState, string>;
   appSettings!: Table<AppSetting, string>;
   vaultSession!: Table<VaultSession, string>;
+  contactLists!: Table<CachedContactList, string>;
+  contactProfiles!: Table<CachedContactProfile, [string, string]>;
 
   constructor() {
     super('DiogelDatabase');
@@ -147,6 +150,20 @@ export class DiogelDatabase extends Dexie {
       relayDiscoveryState: 'id, lastGlobalDiscoveryAt',
       appSettings: 'key, updatedAt',
       vaultSession: 'id',
+    });
+
+    // The active account's contact list and its contacts' profiles, so Contacts and Messaging can
+    // show them without waiting on relays (#257). Public data, keyed by account public key.
+    this.version(11).stores({
+      vaults: 'id',
+      exceptions: '++id, dateTime, account, hostname',
+      approvals: '++id, dateTime, eventKind, hostname, account, outcome',
+      relayCatalog: 'url, hostname, status, lastSeen, createdAt',
+      relayDiscoveryState: 'id, lastGlobalDiscoveryAt',
+      appSettings: 'key, updatedAt',
+      vaultSession: 'id',
+      contactLists: 'accountPubkey',
+      contactProfiles: '[accountPubkey+pubkey], accountPubkey',
     });
   }
 }

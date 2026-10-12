@@ -50,3 +50,39 @@ export interface ContactInputValidationResult {
   contact?: Nip02Contact;
   error?: string;
 }
+
+/**
+ * A contact list as relays last told us, kept for one account so pages can show it at once (#257).
+ *
+ * Contact lists and profiles are public Nostr events, so the cache lives unencrypted in IndexedDB
+ * rather than in the vault. Keyed by the account's hex public key, never its alias, because an alias
+ * can be renamed.
+ */
+export interface CachedContactList {
+  accountPubkey: string;
+  contacts: Nip02Contact[];
+  sourceEventId?: string;
+  sourceCreatedAt?: number;
+  /** When relays were last asked, in milliseconds. Drives revalidation, not which list wins. */
+  fetchedAt: number;
+}
+
+/** A contact's kind 0 profile, cached for the account that follows them. */
+export interface CachedContactProfile extends ContactProfile {
+  accountPubkey: string;
+  fetchedAt: number;
+}
+
+/** The contact list fields a fetch or a publish produces. */
+export type ContactListSnapshot = Pick<CachedContactList, 'contacts' | 'sourceEventId' | 'sourceCreatedAt'>;
+
+/** Asks the background to refresh the active account's contact cache. */
+export interface ContactRefreshRequest {
+  /** Refresh even if the cache was filled recently, as the Refresh button does. */
+  force?: boolean;
+}
+
+/** The refresh was queued for this account; its results arrive through the cache. */
+export interface ContactRefreshResult {
+  accountPubkey: string;
+}

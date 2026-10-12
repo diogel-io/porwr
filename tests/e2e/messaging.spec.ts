@@ -171,6 +171,43 @@ test.describe('messaging', () => {
     await expect(page.getByText('hi alice')).toHaveCount(0);
   });
 
+  test('contacts are cached in the background and updates arrive without a reload (#257)', async ({ openPage, relays }) => {
+    const page = await openPage('/login');
+    await createVault(page);
+    await seedAccounts(page, relays.plain);
+    await publishContacts(relays.plain, ALICE.privkey, [{ pubkey: BOB.pubkey, petname: 'Bob' }]);
+    await useAccount(page, ALICE.alias);
+
+    await openMessaging(page);
+    await expect(page.getByTestId('conversation-section-contacts')).toContainText('Bob');
+
+    // The background wrote the list to IndexedDB, where it outlives the page.
+    const cached = await page.evaluate(
+      (account) =>
+        new Promise<number>((resolve, reject) => {
+          const open = indexedDB.open('DiogelDatabase');
+          open.onerror = () => reject(open.error);
+          open.onsuccess = () => {
+            const read = open.result.transaction('contactLists').objectStore('contactLists').get(account);
+            read.onsuccess = () => resolve((read.result?.contacts ?? []).length);
+            read.onerror = () => reject(read.error);
+          };
+        }),
+      ALICE.pubkey,
+    );
+    expect(cached).toBe(1);
+
+    // A newer list on relays reaches the open page once the background refreshes, with no reload.
+    // NIP-01 keeps the newest replaceable event by second, so wait for the next one.
+    await page.waitForTimeout(1_100);
+    await publishContacts(relays.plain, ALICE.privkey, [
+      { pubkey: BOB.pubkey, petname: 'Bob' },
+      { pubkey: CAROL_PUBKEY, petname: 'Carol' },
+    ]);
+    await page.evaluate(() => chrome.runtime.sendMessage({ type: 'contacts.refresh', payload: { force: true } }));
+    await expect(page.getByTestId('conversation-section-contacts')).toContainText('Carol');
+  });
+
   test('an account without DM relays is told how to start receiving', async ({ openPage, relays }) => {
     const page = await openPage('/login');
     await createVault(page);

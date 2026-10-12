@@ -7,6 +7,15 @@ Effective as 16 March 2026
 1. Diogel is a Free Browser Extension for Chrome and Firefox, that does not collect or process any personal information
    or data from its users.
 
+### Data stored on your device
+
+To show your contacts quickly, Diogel keeps a local copy of each account's contact list and its contacts' public
+profiles. These are public Nostr events (kinds 3 and 0) that anyone can read from relays, so this copy is stored
+unencrypted in your browser, keyed by the account's public key. Someone with access to your browser profile can
+therefore see which public keys you use in Diogel, and who they follow, even while the vault is locked. Your private
+keys stay in the encrypted vault. The copy for an account is deleted when you remove that account, and nothing in it
+is sent anywhere.
+
 ## Child safety standards
 
 Diogel does not knowingly collect information from children. The extension has no age verification because it collects
