@@ -5,7 +5,11 @@ const KEY_LENGTH = 256;
 const CRYPTO_VERSION = 2;
 
 /**
- * Derive a non-extractable CryptoKey from password using PBKDF2
+ * Derive the vault's AES-GCM key from the password using PBKDF2.
+ *
+ * Non-extractable: its bytes can never be exported, so the key can be kept across service-worker
+ * restarts as a `CryptoKey` object (`vaultSession` in IndexedDB) without any page being able to
+ * read or copy the key itself (#245).
  */
 async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
   const passwordKey = await crypto.subtle.importKey(
@@ -25,7 +29,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
     },
     passwordKey,
     { name: 'AES-GCM', length: KEY_LENGTH },
-    true, // EXTRACTABLE to allow persistence in session storage for MV3
+    false,
     ['encrypt', 'decrypt'],
   );
 }

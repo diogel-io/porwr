@@ -164,10 +164,10 @@ if (typeof self !== 'undefined') {
 // extension-surface actions are reachable only from Porwr's own pages, through the raw
 // `chrome.runtime.onMessage` listener, which checks the sender.
 
-// The vault's raw AES key is persisted to chrome.storage.session so it survives
-// service worker restarts. Explicitly restrict that storage area to extension
-// pages/background (never content scripts or web pages), regardless of the
-// browser's default access level.
+// chrome.storage.session holds the queue and the `vault:unlocked` marker, which says the vault's
+// key (kept as a non-extractable CryptoKey in IndexedDB, #245) belongs to this browser session.
+// Explicitly restrict that storage area to extension pages/background (never content scripts or
+// web pages), regardless of the browser's default access level.
 async function lockDownSessionStorage(): Promise<void> {
   try {
     if (typeof chrome !== 'undefined' && chrome.storage?.session?.setAccessLevel) {

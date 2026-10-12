@@ -49,6 +49,18 @@ export interface AppSetting {
   updatedAt: string;
 }
 
+/**
+ * The unlocked vault's key, kept so the vault stays unlocked across MV3 service-worker restarts
+ * (#245). The key is a non-extractable `CryptoKey`: it can be used to decrypt but its bytes can never
+ * be read, so nothing that reaches this table can take the key away. One row, `current`, present only
+ * while the vault is unlocked.
+ */
+export interface VaultSession {
+  id: 'current';
+  key: CryptoKey;
+  salt: Uint8Array;
+}
+
 export class DiogelDatabase extends Dexie {
   vaults!: Table<Vault, string>;
   exceptions!: Table<ExceptionLog, number>;
@@ -56,6 +68,7 @@ export class DiogelDatabase extends Dexie {
   relayCatalog!: Table<RelayCatalogEntry, string>;
   relayDiscoveryState!: Table<RelayDiscoveryState, string>;
   appSettings!: Table<AppSetting, string>;
+  vaultSession!: Table<VaultSession, string>;
 
   constructor() {
     super('DiogelDatabase');
@@ -123,6 +136,18 @@ export class DiogelDatabase extends Dexie {
             backfillApprovalOutcome(approval);
           }),
       );
+
+    // The unlocked vault's key, as a non-extractable CryptoKey instead of raw bytes in session
+    // storage (#245).
+    this.version(10).stores({
+      vaults: 'id',
+      exceptions: '++id, dateTime, account, hostname',
+      approvals: '++id, dateTime, eventKind, hostname, account, outcome',
+      relayCatalog: 'url, hostname, status, lastSeen, createdAt',
+      relayDiscoveryState: 'id, lastGlobalDiscoveryAt',
+      appSettings: 'key, updatedAt',
+      vaultSession: 'id',
+    });
   }
 }
 
