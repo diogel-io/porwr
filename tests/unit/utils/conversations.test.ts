@@ -39,17 +39,17 @@ describe('conversationMessages', () => {
 });
 
 describe('buildConversations', () => {
-  it('lists every contact, plus anyone else who wrote, newest conversation first', () => {
+  it('lists people with messages, not every contact, newest conversation first (#258)', () => {
     const result = buildConversations(
       [msg('1', CAROL, CAROL, 10), msg('2', STRANGER, STRANGER, 20)],
       [BOB, CAROL],
+      [],
       {},
     );
 
-    expect(result.map((c) => [c.peer, c.isContact])).toEqual([
-      [STRANGER, false],
-      [CAROL, true],
-      [BOB, true],
+    expect(result.map((c) => [c.peer, c.isRequest])).toEqual([
+      [STRANGER, true],
+      [CAROL, false],
     ]);
   });
 
@@ -57,6 +57,7 @@ describe('buildConversations', () => {
     const [bob] = buildConversations(
       [msg('1', BOB, BOB, 10), msg('2', BOB, BOB, 20), msg('3', BOB, ME, 30), msg('4', BOB, BOB, 40)],
       [BOB],
+      [],
       { [BOB]: 20 },
     );
 
@@ -64,8 +65,41 @@ describe('buildConversations', () => {
     expect(bob!.lastMessage?.id).toBe('4');
   });
 
-  it('keeps contacts without messages in contact-list order', () => {
-    expect(buildConversations([], [CAROL, BOB], {}).map((c) => c.peer)).toEqual([CAROL, BOB]);
+  it('lists contacts added through search, after conversations, in the order added', () => {
+    const result = buildConversations([msg('1', BOB, BOB, 10)], [BOB, CAROL, STRANGER], [STRANGER, CAROL], {});
+
+    expect(result.map((c) => [c.peer, c.removable])).toEqual([
+      [BOB, false],
+      [STRANGER, true],
+      [CAROL, true],
+    ]);
+  });
+
+  it('treats anyone the account has written to as a chat, not a request', () => {
+    const [stranger] = buildConversations(
+      [msg('1', STRANGER, STRANGER, 10), msg('2', STRANGER, ME, 20)],
+      [],
+      [],
+      {},
+    );
+
+    expect(stranger!.isRequest).toBe(false);
+  });
+
+  it('keeps a saved peer who left the contact list as a chat while they have messages', () => {
+    const [carol] = buildConversations([msg('1', CAROL, CAROL, 10)], [], [CAROL], {});
+
+    expect(carol).toMatchObject({ peer: CAROL, isRequest: false, removable: false });
+  });
+
+  it('hides a saved peer who left the contact list and has no messages', () => {
+    expect(buildConversations([], [BOB], [CAROL], {})).toEqual([]);
+  });
+
+  it('never offers to remove a conversation with messages', () => {
+    const [bob] = buildConversations([msg('1', BOB, ME, 10)], [BOB], [BOB], {});
+
+    expect(bob!.removable).toBe(false);
   });
 });
 

@@ -25,7 +25,7 @@ const stubs = {
     emits: ['update:modelValue', 'keydown'],
   },
   'q-btn': {
-    template: '<button :disabled="disable" :aria-label="ariaLabel || label" @click="$emit(\'click\')">{{ label }}</button>',
+    template: '<button :disabled="disable" :aria-label="ariaLabel || label" @click="$emit(\'click\', $event)">{{ label }}</button>',
     props: ['label', 'ariaLabel', 'disable'],
     emits: ['click'],
   },
@@ -36,6 +36,8 @@ const stubs = {
   'q-avatar': { template: '<span class="avatar"><slot /></span>' },
   'q-badge': { template: '<span class="unread">{{ label }}</span>', props: ['label'] },
   'q-banner': { template: '<div class="q-banner"><slot /></div>' },
+  'q-tabs': { template: '<div role="tablist"><slot /></div>' },
+  'q-tab': { template: '<button role="tab" @click="$emit(\'click\', $event)"><slot /></button>', emits: ['click'] },
 };
 
 describe('MessageComposer', () => {
@@ -78,30 +80,54 @@ describe('MessageComposer', () => {
   });
 });
 
-describe('ConversationList', () => {
+describe('ConversationList (#258, Concept C)', () => {
+  const CAROL = 'c'.repeat(64);
+  const DANA = 'e'.repeat(64);
+  const names: Record<string, string> = { [BOB]: 'Bob', [STRANGER]: 'Stranger', [CAROL]: 'Carol', [DANA]: 'Dana' };
   const conversations: ConversationSummary[] = [
-    { peer: STRANGER, unread: 1, isContact: false, lastMessage: { id: '2', peer: STRANGER, pubkey: STRANGER, created_at: 2, content: 'hey there' } },
-    { peer: BOB, unread: 0, isContact: true },
+    { peer: STRANGER, unread: 1, isRequest: true, removable: false, lastMessage: { id: '2', peer: STRANGER, pubkey: STRANGER, created_at: 2, content: 'hey there' } },
+    { peer: BOB, unread: 2, isRequest: false, removable: false, lastMessage: { id: '1', peer: BOB, pubkey: ME, created_at: 1, content: 'see you' } },
+    { peer: CAROL, unread: 0, isRequest: false, removable: true },
   ];
-  const mountList = () =>
+  const mountList = (props: Partial<InstanceType<typeof ConversationList>['$props']> = {}) =>
     mount(ConversationList, {
-      props: { conversations, selectedPeer: undefined, nameOf: (p: string) => (p === BOB ? 'Bob' : 'Stranger'), pictureOf: () => undefined },
+      props: {
+        conversations,
+        selectedPeer: undefined,
+        nameOf: (p: string) => names[p] ?? p,
+        pictureOf: () => undefined,
+        detailOf: (p: string) => `detail-${names[p]}`,
+        findContacts: (q: string) => Object.keys(names).filter((p) => names[p]!.toLowerCase().includes(q.toLowerCase()) && p !== STRANGER),
+        ...props,
+      },
       global: { stubs },
     });
 
-  it('keeps contacts and message requests apart', () => {
+  it('shows chats in the Chats tab and requests only in the Requests tab', async () => {
     const wrapper = mountList();
 
-    expect(wrapper.find('[data-testid="conversation-section-contacts"]').text()).toContain('Bob');
-    expect(wrapper.find('[data-testid="conversation-section-requests"]').text()).toContain('Stranger');
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').text()).toContain('Bob');
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').text()).not.toContain('Stranger');
+
+    await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="conversation-list-requests"]').text()).toContain('Stranger');
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').exists()).toBe(false);
   });
 
-  it('shows the last message, or that there is none, and an unread count', () => {
+  it('shows each tab’s unread total and each conversation’s count', () => {
     const wrapper = mountList();
 
-    expect(wrapper.text()).toContain('hey there');
-    expect(wrapper.text()).toContain('messaging.list.noMessages');
-    expect(wrapper.find('.unread').text()).toBe('1');
+    expect(wrapper.find('[data-testid="conversation-tab-chats"] .unread').text()).toBe('2');
+    expect(wrapper.find('[data-testid="conversation-tab-requests"] .unread').text()).toBe('1');
+    expect(wrapper.find(`li[data-peer="${BOB}"] .unread`).text()).toBe('2');
+  });
+
+  it('marks the account’s own last message, and says when there is none', () => {
+    const wrapper = mountList();
+
+    expect(wrapper.find(`li[data-peer="${BOB}"]`).text()).toContain('messaging.list.fromMe:see you');
+    expect(wrapper.find(`li[data-peer="${CAROL}"]`).text()).toContain('messaging.list.noMessages');
   });
 
   it('selects a conversation', async () => {
@@ -111,12 +137,73 @@ describe('ConversationList', () => {
     expect(wrapper.emitted('select')).toEqual([[BOB]]);
   });
 
-  it('says when there is nothing to list', () => {
-    const wrapper = mount(ConversationList, {
-      props: { conversations: [], nameOf: () => '', pictureOf: () => undefined },
-      global: { stubs },
+  it('offers to remove only an added conversation with no messages', async () => {
+    const wrapper = mountList();
+
+    expect(wrapper.findAll('[data-testid="conversation-remove"]')).toHaveLength(1);
+    await wrapper.find(`li[data-peer="${CAROL}"] [data-testid="conversation-remove"]`).trigger('click');
+
+    expect(wrapper.emitted('remove')).toEqual([[CAROL]]);
+    expect(wrapper.emitted('select')).toBeUndefined();
+  });
+
+  it('searching narrows chats and offers matching contacts to start a conversation with', async () => {
+    const wrapper = mountList();
+
+    await wrapper.find('[data-testid="conversation-search"]').setValue('a');
+
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').text()).toContain('Carol');
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').text()).not.toContain('Bob');
+    const results = wrapper.find('[data-testid="conversation-search-results"]');
+    expect(results.text()).toContain('Dana');
+    expect(results.text()).toContain('detail-Dana');
+    // Carol already has a row, so she is not offered again.
+    expect(results.text()).not.toContain('Carol');
+  });
+
+  it('starts a conversation from a search result and clears the search', async () => {
+    const wrapper = mountList();
+    await wrapper.find('[data-testid="conversation-search"]').setValue('dana');
+
+    await wrapper.find(`[data-testid="conversation-search-results"] li[data-peer="${DANA}"]`).trigger('click');
+
+    expect(wrapper.emitted('start')).toEqual([[DANA]]);
+    expect(wrapper.find('[data-testid="conversation-search-results"]').exists()).toBe(false);
+  });
+
+  it('says when a search matches nobody', async () => {
+    const wrapper = mountList();
+
+    await wrapper.find('[data-testid="conversation-search"]').setValue('zzz');
+
+    expect(wrapper.find('[data-testid="conversation-search-empty"]').text()).toContain('messaging.list.noMatches:zzz');
+  });
+
+  it('points to search when there are no chats, and says when there are no requests', async () => {
+    const wrapper = mountList({ conversations: [] });
+
+    expect(wrapper.find('[data-testid="conversation-list-empty"]').text()).toContain('messaging.list.noChatsHint');
+
+    await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');
+    expect(wrapper.find('[data-testid="conversation-requests-empty"]').exists()).toBe(true);
+  });
+
+  it('shows the loading state, not the empty one, before contacts arrive', () => {
+    const wrapper = mountList({ conversations: [], loading: true });
+
+    expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="conversation-list-empty"]').exists()).toBe(false);
+  });
+
+  it('follows a request to Chats once it has been answered', async () => {
+    const wrapper = mountList({ selectedPeer: STRANGER });
+    await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');
+
+    await wrapper.setProps({
+      conversations: [{ ...conversations[0]!, isRequest: false }, ...conversations.slice(1)],
     });
-    expect(wrapper.text()).toContain('messaging.list.empty');
+
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').text()).toContain('Stranger');
   });
 });
 

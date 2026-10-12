@@ -3,12 +3,17 @@ import type { DirectMessage, MessagingReadState } from '@/types/messaging';
 /** One row of the Messaging page's conversation list. */
 export interface ConversationSummary {
   peer: string;
-  /** The newest message either way, or undefined for a contact never messaged. */
+  /** The newest message either way, or undefined for a contact added but never messaged. */
   lastMessage?: DirectMessage;
   /** Messages from the peer newer than what has been read. Own messages are never unread. */
   unread: number;
-  /** In the contact list. Anyone else who writes is a message request. */
-  isContact: boolean;
+  /**
+   * Someone outside the contact list who wrote first and has not been answered: listed under
+   * Requests rather than Chats. Writing back makes it a chat.
+   */
+  isRequest: boolean;
+  /** Added through search and never messaged, so it can be taken off Chats. */
+  removable: boolean;
 }
 
 /**
@@ -34,34 +39,54 @@ export function conversationMessages(messages: Iterable<DirectMessage>, peer: st
 }
 
 /**
- * Every conversation to list: each contact, whether or not they have written, plus anyone else who
- * has. Ordered by the newest message, then contacts without messages in the order given.
+ * The conversations to list (#258): anyone with message history, plus contacts added through search.
+ * Contacts who have never been messaged are not listed; search finds them.
+ *
+ * A saved peer who has left the contact list and has no messages is hidden, not forgotten: following
+ * them again brings the row back. Ordered by the newest message, then saved peers without messages
+ * in the order they were added.
  */
 export function buildConversations(
   messages: Iterable<DirectMessage>,
   contacts: readonly string[],
+  savedPeers: readonly string[],
   readState: MessagingReadState,
 ): ConversationSummary[] {
-  const byPeer = new Map<string, ConversationSummary>();
   const contactSet = new Set(contacts);
-
-  for (const peer of contacts) {
-    byPeer.set(peer, { peer, unread: 0, isContact: true });
-  }
+  const savedSet = new Set(savedPeers);
+  const byPeer = new Map<string, ConversationSummary>();
+  const answered = new Set<string>();
 
   for (const message of messages) {
-    const summary = byPeer.get(message.peer) ?? { peer: message.peer, unread: 0, isContact: contactSet.has(message.peer) };
+    const summary = byPeer.get(message.peer) ?? {
+      peer: message.peer,
+      unread: 0,
+      isRequest: false,
+      removable: false,
+    };
     if (!summary.lastMessage || message.created_at >= summary.lastMessage.created_at) {
       summary.lastMessage = message;
     }
     const fromPeer = message.pubkey === message.peer;
-    if (fromPeer && message.created_at > (readState[message.peer] ?? 0)) {
+    if (!fromPeer) {
+      answered.add(message.peer);
+    } else if (message.created_at > (readState[message.peer] ?? 0)) {
       summary.unread += 1;
     }
     byPeer.set(message.peer, summary);
   }
 
-  const order = new Map(contacts.map((peer, index) => [peer, index]));
+  for (const summary of byPeer.values()) {
+    summary.isRequest =
+      !contactSet.has(summary.peer) && !savedSet.has(summary.peer) && !answered.has(summary.peer);
+  }
+
+  for (const peer of savedPeers) {
+    if (byPeer.has(peer) || !contactSet.has(peer)) continue;
+    byPeer.set(peer, { peer, unread: 0, isRequest: false, removable: true });
+  }
+
+  const order = new Map(savedPeers.map((peer, index) => [peer, index]));
   return [...byPeer.values()].sort((a, b) => {
     const aTime = a.lastMessage?.created_at ?? -1;
     const bTime = b.lastMessage?.created_at ?? -1;

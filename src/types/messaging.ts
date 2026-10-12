@@ -96,3 +96,13 @@ export interface PendingMessage {
   content: string;
   status: 'sending' | 'failed';
 }
+
+/**
+ * Contacts this account added to Chats through search, in the order they were added (#258). Kept in
+ * the encrypted vault, because who an account means to talk to is private.
+ */
+export type MessagingSavedPeers = string[];
+
+export interface SavedPeerRequest {
+  peer: string;
+}

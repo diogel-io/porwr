@@ -14,6 +14,8 @@ import type {
   FetchMessagesResult,
   MarkReadRequest,
   MessagingReadState,
+  MessagingSavedPeers,
+  SavedPeerRequest,
   SendMessageRequest,
   SendMessageResult,
 } from './messaging';
@@ -114,6 +116,8 @@ export interface VaultData {
   webLnPermissions?: WebLnPermissionGrant[];
   /** NIP-17 read state: account pubkey -> peer pubkey -> newest read message `created_at`. */
   messagingReadState?: Record<string, MessagingReadState>;
+  /** Contacts added to Chats through search: account pubkey -> peer pubkeys, oldest first (#258). */
+  messagingSavedPeers?: Record<string, MessagingSavedPeers>;
 }
 
 // Bridge action types
@@ -172,6 +176,9 @@ export type BridgeAction =
   | 'messaging.fetch'
   | 'messaging.readState'
   | 'messaging.markRead'
+  | 'messaging.savedPeers.get'
+  | 'messaging.savedPeers.add'
+  | 'messaging.savedPeers.remove'
   | 'contacts.refresh'
   | 'account.signEvent'
   | 'nip57.getCapabilities'
@@ -452,6 +459,18 @@ export interface BridgeRequestMap {
     id: string;
     action: 'messaging.markRead';
   } & MarkReadRequest;
+  'messaging.savedPeers.get': {
+    id: string;
+    action: 'messaging.savedPeers.get';
+  };
+  'messaging.savedPeers.add': {
+    id: string;
+    action: 'messaging.savedPeers.add';
+  } & SavedPeerRequest;
+  'messaging.savedPeers.remove': {
+    id: string;
+    action: 'messaging.savedPeers.remove';
+  } & SavedPeerRequest;
   'contacts.refresh': {
     id: string;
     action: 'contacts.refresh';
@@ -545,6 +564,9 @@ export interface BridgeResponseMap {
   'messaging.fetch': FetchMessagesResult | { success: false; error: string };
   'messaging.readState': MessagingReadState | { success: false; error: string };
   'messaging.markRead': MessagingReadState | { success: false; error: string };
+  'messaging.savedPeers.get': MessagingSavedPeers | { success: false; error: string };
+  'messaging.savedPeers.add': MessagingSavedPeers | { success: false; error: string };
+  'messaging.savedPeers.remove': MessagingSavedPeers | { success: false; error: string };
   'contacts.refresh': ContactRefreshResult | { success: false; error: string };
   'account.signEvent': SignedNostrEvent | { success: false; error: string };
   'nip57.getCapabilities': ZapCapabilities | { success: false; error: string };
