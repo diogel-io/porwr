@@ -1,6 +1,15 @@
 import { nip19, SimplePool } from 'nostr-tools';
 import type { Event as NostrEvent } from 'nostr-tools';
 import { signAsAccount } from '@/services/account-signing-client';
+import { sendBexMessage } from '@/services/bridge-client';
+import {
+  CONTACT_LIST_KIND,
+  PROFILE_METADATA_KIND,
+  fetchContactListSnapshot,
+  fetchProfilesInBatches,
+  normalizePubkey,
+  parseContactProfile,
+} from '@/services/contact-fetch';
 import type { AccountSummary } from '@/types/accounts';
 import type {
   ContactInputValidationResult,
@@ -8,6 +17,7 @@ import type {
   ContactListState,
   ContactListRelayPublishResult,
   ContactProfile,
+  ContactRefreshRequest,
   ContactSearchResult,
   Nip02Contact,
 } from '@/types/contact-list';
@@ -15,64 +25,17 @@ import useSettingsStore from '@/stores/settings-store';
 import { normalizeRelayUrl } from '@/services/relay-url';
 import { parseNip05Identifier } from '@/services/nip05-service';
 
-const CONTACT_LIST_KIND = 3;
-const PROFILE_METADATA_KIND = 0;
-const HEX_PUBKEY_PATTERN = /^[0-9a-f]{64}$/i;
+// Moved to `contact-fetch` so the background can share them; re-exported for existing callers.
+export { normalizePubkey, parseContactProfile, parseContactTags } from '@/services/contact-fetch';
+
 const pool = new SimplePool();
 
 function getAccountPubkey(storedKey: AccountSummary): string {
   return storedKey.id;
 }
 
-export function normalizePubkey(input: string): string | null {
-  const trimmed = input.trim();
-
-  if (HEX_PUBKEY_PATTERN.test(trimmed)) {
-    return trimmed.toLowerCase();
-  }
-
-  try {
-    const decoded = nip19.decode(trimmed);
-    if (decoded.type === 'npub' && typeof decoded.data === 'string' && HEX_PUBKEY_PATTERN.test(decoded.data)) {
-      return decoded.data.toLowerCase();
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
 export function formatContactNpub(pubkey: string): string {
   return nip19.npubEncode(pubkey);
-}
-
-function getStringField(value: Record<string, unknown>, field: string): string {
-  const fieldValue = value[field];
-  return typeof fieldValue === 'string' ? fieldValue.trim() : '';
-}
-
-export function parseContactProfile(event: NostrEvent): ContactProfile | null {
-  try {
-    const parsed = JSON.parse(event.content) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return null;
-    }
-
-    const profile = parsed as Record<string, unknown>;
-
-    return {
-      pubkey: event.pubkey,
-      name: getStringField(profile, 'name'),
-      displayName: getStringField(profile, 'display_name'),
-      about: getStringField(profile, 'about'),
-      picture: getStringField(profile, 'picture'),
-      nip05: getStringField(profile, 'nip05'),
-      updatedAt: event.created_at,
-    };
-  } catch {
-    return null;
-  }
 }
 
 export function getContactDisplayName(contact: Nip02Contact, profile?: ContactProfile): string {
@@ -210,64 +173,11 @@ export async function searchContacts(query: string): Promise<ContactSearchResult
   });
 }
 
+/** Profiles for `pubkeys` from the fallback relays, fetched in batches so one slow chunk holds up few. */
 export async function fetchContactProfiles(pubkeys: string[]): Promise<Record<string, ContactProfile>> {
-  const uniquePubkeys = Array.from(new Set(pubkeys.filter((pubkey) => HEX_PUBKEY_PATTERN.test(pubkey))));
-  if (uniquePubkeys.length === 0) {
-    return {};
-  }
-
   const settingsStore = useSettingsStore();
   const relays = await settingsStore.getFallbackRelays();
-  const events = await pool.querySync(
-    relays,
-    {
-      authors: uniquePubkeys,
-      kinds: [PROFILE_METADATA_KIND],
-      limit: uniquePubkeys.length,
-    },
-    { maxWait: 5000 },
-  );
-
-  const profiles: Record<string, ContactProfile> = {};
-
-  for (const event of events) {
-    const profile = parseContactProfile(event);
-    if (!profile) {
-      continue;
-    }
-
-    const existing = profiles[profile.pubkey];
-    if (!existing || profile.updatedAt > existing.updatedAt) {
-      profiles[profile.pubkey] = profile;
-    }
-  }
-
-  return profiles;
-}
-
-export function parseContactTags(tags: string[][]): Nip02Contact[] {
-  const seen = new Set<string>();
-  const contacts: Nip02Contact[] = [];
-
-  for (const tag of tags) {
-    const [name, rawPubkey, rawRelayUrl = '', rawPetname = ''] = tag;
-    if (name !== 'p' || !rawPubkey) {
-      continue;
-    }
-
-    const pubkey = normalizePubkey(rawPubkey);
-    if (!pubkey || seen.has(pubkey)) {
-      continue;
-    }
-
-    const relayUrl = rawRelayUrl.trim();
-    const petname = rawPetname.trim();
-
-    contacts.push({ pubkey, relayUrl, petname });
-    seen.add(pubkey);
-  }
-
-  return contacts;
+  return fetchProfilesInBatches(pool, relays, pubkeys);
 }
 
 export function buildContactListTags(contacts: Nip02Contact[]): string[][] {
@@ -322,25 +232,34 @@ export async function fetchContactList(storedKey: AccountSummary): Promise<Conta
   const settingsStore = useSettingsStore();
   const relays = await settingsStore.getFallbackRelays();
   const pubkey = getAccountPubkey(storedKey);
-
-  const event = await pool.get(relays, {
-    authors: [pubkey],
-    kinds: [CONTACT_LIST_KIND],
-  });
+  const snapshot = await fetchContactListSnapshot(pool, relays, pubkey);
 
   const state: ContactListState = {
     accountAlias: storedKey.alias,
     pubkey,
-    contacts: event ? parseContactTags(event.tags) : [],
+    contacts: snapshot.contacts,
     dirty: false,
   };
 
-  if (event) {
-    state.sourceEventId = event.id;
-    state.sourceCreatedAt = event.created_at;
+  if (snapshot.sourceEventId !== undefined && snapshot.sourceCreatedAt !== undefined) {
+    state.sourceEventId = snapshot.sourceEventId;
+    state.sourceCreatedAt = snapshot.sourceCreatedAt;
   }
 
   return state;
+}
+
+/**
+ * Asks the background to refresh the active account's contact cache (#257).
+ *
+ * Returns once the refresh is queued, not when it finishes: results arrive through the cache. A
+ * failure is not reported to the user, because cached contacts are still shown.
+ */
+export async function requestContactRefresh(options: ContactRefreshRequest = {}): Promise<void> {
+  const response = await sendBexMessage('contacts.refresh', options);
+  if (response && typeof response === 'object' && 'success' in response && response.success === false) {
+    throw new Error(response.error);
+  }
 }
 
 function settlePublishResult(relayUrl: string, result: Promise<string>): Promise<ContactListRelayPublishResult> {

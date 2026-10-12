@@ -5,10 +5,11 @@ import { useI18n } from 'vue-i18n';
 import useAccountStore from '@/stores/account-store';
 import ConversationList from '@/components/dashboard/messaging/ConversationList.vue';
 import ConversationView from '@/components/dashboard/messaging/ConversationView.vue';
-import { fetchContactList, fetchContactProfiles, getContactDisplayName } from '@/services/contact-list-service';
+import { useContactCache } from '@/composables/useContactCache';
+import { fetchContactProfiles, getContactDisplayName } from '@/services/contact-list-service';
 import { fetchMessages, getReadState, markConversationRead, sendMessage } from '@/services/messaging-service';
 import { buildConversations, conversationMessages, mergeMessages, newestFrom } from '@/utils/conversations';
-import type { ContactProfile, Nip02Contact } from '@/types/contact-list';
+import type { ContactProfile } from '@/types/contact-list';
 import type { DirectMessage, MessagingReadState, PendingMessage } from '@/types/messaging';
 
 /**
@@ -35,8 +36,15 @@ const activeKey = computed(() => accountStore.activeAccountOrFirst);
 const me = computed(() => activeKey.value?.id ?? '');
 const showNoAccount = computed(() => accountStore.hasNoAccounts);
 
-const contacts = ref<Nip02Contact[]>([]);
-const profiles = ref<Record<string, ContactProfile>>({});
+const contactCache = useContactCache(() => activeKey.value?.id);
+const contacts = contactCache.contacts;
+const contactsLoading = computed(() => contactCache.status.value === 'loading');
+/** Profiles of people who wrote but are not contacts, looked up for this page only. */
+const requestProfiles = ref<Record<string, ContactProfile>>({});
+const profiles = computed<Record<string, ContactProfile>>(() => ({
+  ...requestProfiles.value,
+  ...contactCache.profiles.value,
+}));
 const messages = shallowRef<Map<string, DirectMessage>>(new Map());
 const readState = ref<MessagingReadState>({});
 const inbox = ref<'unknown' | 'ready' | 'none'>('unknown');
@@ -65,22 +73,20 @@ function pictureOf(peer: string): string | undefined {
   return profiles.value[peer]?.picture || undefined;
 }
 
-async function loadProfiles(pubkeys: string[]) {
-  const missing = [...new Set(pubkeys)].filter((pubkey) => !profiles.value[pubkey]);
+/**
+ * Looks up writers who are not contacts. Contacts' profiles come from the cache, which may still be
+ * filling, so only pubkeys outside the contact list are fetched here.
+ */
+async function loadRequestProfiles(pubkeys: string[]) {
+  const contactSet = new Set(contactPubkeys.value);
+  const missing = [...new Set(pubkeys)].filter(
+    (pubkey) => !contactSet.has(pubkey) && !profiles.value[pubkey],
+  );
   if (missing.length === 0) return;
   try {
-    profiles.value = { ...profiles.value, ...(await fetchContactProfiles(missing)) };
+    requestProfiles.value = { ...requestProfiles.value, ...(await fetchContactProfiles(missing)) };
   } catch {
     // Names fall back to npubs; a missing profile never blocks reading or sending.
-  }
-}
-
-async function loadContacts() {
-  if (!activeKey.value) return;
-  try {
-    contacts.value = (await fetchContactList(activeKey.value)).contacts;
-  } catch {
-    contacts.value = [];
   }
 }
 
@@ -95,7 +101,7 @@ async function poll() {
     if (result.messages.length > 0) {
       messages.value = mergeMessages(messages.value, result.messages);
       newestFetched = Math.max(newestFetched ?? 0, ...result.messages.map((message) => message.created_at));
-      await loadProfiles(result.messages.map((message) => message.peer));
+      await loadRequestProfiles(result.messages.map((message) => message.peer));
     }
   } catch {
     loadFailed.value = true;
@@ -177,8 +183,7 @@ function retry(clientMessageId: string) {
 }
 
 function resetState() {
-  contacts.value = [];
-  profiles.value = {};
+  requestProfiles.value = {};
   messages.value = new Map();
   readState.value = {};
   inbox.value = 'unknown';
@@ -190,15 +195,11 @@ function resetState() {
 
 async function load() {
   if (!activeKey.value) return;
-  await Promise.all([
-    loadContacts(),
-    getReadState()
-      .then((state) => {
-        readState.value = state;
-      })
-      .catch(() => undefined),
-  ]);
-  void loadProfiles(contactPubkeys.value);
+  await getReadState()
+    .then((state) => {
+      readState.value = state;
+    })
+    .catch(() => undefined);
   await poll();
 }
 
@@ -261,6 +262,7 @@ onBeforeUnmount(() => {
               :selected-peer="selectedPeer"
               :name-of="nameOf"
               :picture-of="pictureOf"
+              :loading="contactsLoading"
               @select="selectConversation"
             />
           </div>

@@ -46,7 +46,7 @@ describe('contact list (#240)', () => {
     const state = await fetchContactList(storedKey);
 
     expect(state.pubkey).toBe(ACCOUNT);
-    expect(mocks.get).toHaveBeenCalledWith(mocks.relays, { authors: [ACCOUNT], kinds: [3] });
+    expect(mocks.get).toHaveBeenCalledWith(mocks.relays, { authors: [ACCOUNT], kinds: [3] }, expect.anything());
   });
 
   it('has the background sign the kind 3 as the account, then publishes it', async () => {

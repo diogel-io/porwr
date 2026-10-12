@@ -57,6 +57,7 @@ vi.mock('@/../src-bex/handlers/messaging', () => ({
   handleMessagesReadState: vi.fn(), handleMessagesMarkRead: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/account-signing', () => ({ handleAccountSignEvent: vi.fn() }));
+vi.mock('@/../src-bex/handlers/contacts', () => ({ handleContactsRefresh: vi.fn() }));
 vi.mock('@/../src-bex/handlers/accounts', () => ({
   handleVaultGetView: vi.fn(), handleAccountsAdd: vi.fn(), handleAccountsRename: vi.fn(),
   handleAccountsRemove: vi.fn(), handleAccountsRevealSecret: vi.fn(),
@@ -78,6 +79,7 @@ import * as nip04 from '@/../src-bex/handlers/nip04';
 import * as nip44 from '@/../src-bex/handlers/nip44';
 import * as relays from '@/../src-bex/handlers/relay-browser-handler';
 import * as nip47 from '@/../src-bex/handlers/nip47';
+import * as contacts from '@/../src-bex/handlers/contacts';
 import * as nip57 from '@/../src-bex/handlers/nip57';
 import * as webln from '@/../src-bex/handlers/webln';
 import * as messaging from '@/../src-bex/handlers/messaging';
@@ -236,6 +238,9 @@ const cases: Case[] = [
   { action: 'messaging.markRead', payload: { peer: 'b', readAt: 7 },
     handler: vi.mocked(messaging.handleMessagesMarkRead), name: 'handleMessagesMarkRead',
     resolves: ok({ b: 7 }), expected: { b: 7 }, expectArgs: [expect.objectContaining({ peer: 'b', readAt: 7 })] },
+  { action: 'contacts.refresh', payload: { force: true }, handler: vi.mocked(contacts.handleContactsRefresh),
+    name: 'handleContactsRefresh', resolves: ok({ accountPubkey: 'a' }), expected: { accountPubkey: 'a' },
+    expectArgs: [expect.objectContaining({ force: true })] },
   { action: 'account.signEvent', payload: { accountPubkey: 'a', template: { kind: 1, content: '', tags: [] } },
     handler: vi.mocked(accountSigning.handleAccountSignEvent), name: 'handleAccountSignEvent',
     resolves: ok({ id: 'e', kind: 1 }), expected: { id: 'e', kind: 1 },

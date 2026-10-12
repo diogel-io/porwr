@@ -18,6 +18,7 @@ import type {
   SendMessageResult,
 } from './messaging';
 import type { AccountSignRequest } from './account-signing';
+import type { ContactRefreshRequest, ContactRefreshResult } from './contact-list';
 import type {
   AccountRequest,
   AccountSummary,
@@ -171,6 +172,7 @@ export type BridgeAction =
   | 'messaging.fetch'
   | 'messaging.readState'
   | 'messaging.markRead'
+  | 'contacts.refresh'
   | 'account.signEvent'
   | 'nip57.getCapabilities'
   | 'nip57.sendZap'
@@ -450,6 +452,10 @@ export interface BridgeRequestMap {
     id: string;
     action: 'messaging.markRead';
   } & MarkReadRequest;
+  'contacts.refresh': {
+    id: string;
+    action: 'contacts.refresh';
+  } & ContactRefreshRequest;
   'account.signEvent': {
     id: string;
     action: 'account.signEvent';
@@ -539,6 +545,7 @@ export interface BridgeResponseMap {
   'messaging.fetch': FetchMessagesResult | { success: false; error: string };
   'messaging.readState': MessagingReadState | { success: false; error: string };
   'messaging.markRead': MessagingReadState | { success: false; error: string };
+  'contacts.refresh': ContactRefreshResult | { success: false; error: string };
   'account.signEvent': SignedNostrEvent | { success: false; error: string };
   'nip57.getCapabilities': ZapCapabilities | { success: false; error: string };
   'nip57.sendZap': SendZapResult | { success: false; error: string };

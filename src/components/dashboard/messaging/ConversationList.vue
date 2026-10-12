@@ -10,6 +10,8 @@ const props = defineProps<{
   selectedPeer?: string | undefined;
   nameOf: (peer: string) => string;
   pictureOf: (peer: string) => string | undefined;
+  /** Contacts have not arrived yet: an empty list here would wrongly say there are none (#257). */
+  loading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -72,7 +74,16 @@ function preview(conversation: ConversationSummary): string {
       </q-list>
     </template>
 
-    <div v-if="conversations.length === 0" class="text-center q-pa-md text-grey">
+    <div
+      v-if="conversations.length === 0 && loading"
+      class="text-center q-pa-md text-grey"
+      role="status"
+      data-testid="conversation-list-loading"
+    >
+      <q-spinner color="primary" size="2em" />
+      <div class="q-mt-sm">{{ t('messaging.list.loading') }}</div>
+    </div>
+    <div v-else-if="conversations.length === 0" class="text-center q-pa-md text-grey">
       {{ t('messaging.list.empty') }}
     </div>
   </nav>

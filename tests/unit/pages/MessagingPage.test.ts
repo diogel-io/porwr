@@ -11,8 +11,10 @@ const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   getReadState: vi.fn(),
   markConversationRead: vi.fn(),
-  fetchContactList: vi.fn(),
   fetchContactProfiles: vi.fn(),
+  requestContactRefresh: vi.fn(),
+  observeContactCache: vi.fn(),
+  cachedContacts: {} as Record<string, { pubkey: string; relayUrl: string; petname: string }[] | undefined>,
   notify: vi.fn(),
   getKeys: vi.fn(),
   setActiveKey: vi.fn(),
@@ -31,10 +33,14 @@ vi.mock('@/services/messaging-service', () => ({
 }));
 
 vi.mock('@/services/contact-list-service', () => ({
-  fetchContactList: mocks.fetchContactList,
   fetchContactProfiles: mocks.fetchContactProfiles,
+  requestContactRefresh: mocks.requestContactRefresh,
   getContactDisplayName: (contact: { pubkey: string; petname: string }, profile?: { name: string }) =>
     profile?.name || contact.petname || `npub-${contact.pubkey.slice(0, 4)}`,
+}));
+
+vi.mock('@/services/contact-cache', () => ({
+  observeContactCache: mocks.observeContactCache,
 }));
 
 vi.mock('@/stores/account-store', () => ({
@@ -128,7 +134,15 @@ beforeEach(() => {
   mocks.store.hasNoAccounts = false;
   mocks.store.activeAccountOrFirst = { id: ME, alias: 'alice', createdAt: '', account: { privkey: '' } };
   mocks.getKeys.mockResolvedValue(undefined);
-  mocks.fetchContactList.mockResolvedValue({ contacts: [{ pubkey: BOB, relayUrl: '', petname: 'Bob' }] });
+  mocks.cachedContacts = { [ME]: [{ pubkey: BOB, relayUrl: '', petname: 'Bob' }] };
+  mocks.observeContactCache.mockImplementation(
+    (accountPubkey: string, onChange: (snapshot: unknown) => void) => {
+      const contacts = mocks.cachedContacts[accountPubkey];
+      onChange({ list: contacts ? { accountPubkey, contacts, fetchedAt: 1 } : undefined, profiles: {} });
+      return () => undefined;
+    },
+  );
+  mocks.requestContactRefresh.mockResolvedValue(undefined);
   mocks.fetchContactProfiles.mockResolvedValue({});
   mocks.getReadState.mockResolvedValue({});
   mocks.markConversationRead.mockImplementation((peer: string, readAt: number) => Promise.resolve({ [peer]: readAt }));
@@ -257,16 +271,48 @@ describe('MessagingPage', () => {
     expect(wrapper.find('[data-testid="load-failed"]').exists()).toBe(true);
   });
 
+  it('shows a loading indicator, not "no contacts", before contacts are cached (#257)', async () => {
+    mocks.cachedContacts = {};
+
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('messaging.list.empty');
+  });
+
+  it('shows cached contacts without asking relays for the contact list (#257)', async () => {
+    const wrapper = await mountPage();
+
+    expect(wrapper.find(`li[data-peer="${BOB}"]`).exists()).toBe(true);
+    expect(mocks.requestContactRefresh).toHaveBeenCalled();
+    // Contacts' profiles come from the cache; nothing to look up when nobody else wrote.
+    expect(mocks.fetchContactProfiles).not.toHaveBeenCalled();
+  });
+
+  it('looks up profiles only for writers who are not contacts', async () => {
+    mocks.fetchMessages.mockResolvedValue({
+      inbox: 'ready',
+      messages: [msg('1', BOB, BOB, 10), msg('2', STRANGER, STRANGER, 20)],
+      dropped: 0,
+    });
+
+    await mountPage();
+
+    expect(mocks.fetchContactProfiles).toHaveBeenCalledWith([STRANGER]);
+  });
+
   it('starts over when the active account changes', async () => {
     const wrapper = await mountPage();
-    expect(mocks.fetchContactList).toHaveBeenCalledTimes(1);
+    expect(mocks.observeContactCache).toHaveBeenCalledTimes(1);
 
     mocks.store.activeAccountOrFirst = { id: STRANGER, alias: 'other', createdAt: '', account: { privkey: '' } };
     // The store is not reactive in this test; re-mounting stands in for the switch the watcher covers.
     wrapper.unmount();
-    await mountPage();
+    const next = await mountPage();
 
-    expect(mocks.fetchContactList).toHaveBeenLastCalledWith(expect.objectContaining({ alias: 'other' }));
+    expect(mocks.observeContactCache).toHaveBeenLastCalledWith(STRANGER, expect.any(Function), expect.any(Function));
+    // The other account has no cached contacts, so Bob must not appear under it.
+    expect(next.find(`li[data-peer="${BOB}"]`).exists()).toBe(false);
   });
 
   it('asks for an account when there is none', async () => {
