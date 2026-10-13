@@ -8,6 +8,7 @@ import { hexToBytes } from '@noble/hashes/utils';
 import { isVaultUnlocked } from '../vault';
 import { checkPermission } from './permission-handler';
 import { resolveSigningAccount } from '../services/signing-account';
+import { messagingRelays, type Nip07RelayMap } from '../services/messaging-relays';
 import { logService } from '@/services/log-service';
 import { ErrorCode } from '@/types/error-codes.d';
 
@@ -33,6 +34,28 @@ export const handleGetPublicKey = logWrapper(async (
 
   return { success: true, data: resolved.account.id };
 }, 'getPublicKey');
+
+/**
+ * The relays the site's account publishes in its kind 10002, never the active account's (#116).
+ * Clients put these in the `relays` tag of a zap request, so an empty answer leaves zap receipts
+ * with nowhere to go (#270).
+ */
+export const handleGetRelays = logWrapper(async (
+  _payload: unknown,
+  origin: string
+): Promise<HandlerResult<Nip07RelayMap>> => {
+  void _payload;
+  if (!isVaultUnlocked()) {
+    return { success: false, error: 'Vault is locked', code: ErrorCode.VLT_LOCKED };
+  }
+
+  const resolved = await resolveSigningAccount(origin);
+  if ('error' in resolved) {
+    return { success: false, error: resolved.error, code: resolved.code };
+  }
+
+  return { success: true, data: await messagingRelays.loadRelayMap(resolved.account.id) };
+}, 'getRelays');
 
 export const handleSignEvent = logWrapper(async (
   payload: { event: UnsignedEvent },

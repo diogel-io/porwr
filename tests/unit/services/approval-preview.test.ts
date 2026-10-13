@@ -13,6 +13,7 @@ import {
   httpAuthTarget,
   shouldDefaultToFullEvent,
   truncateForPreview,
+  ZAP_REQUEST_KIND,
 } from '@/services/approval-preview';
 
 describe('approval preview rules', () => {
@@ -70,6 +71,7 @@ describe('approval preview rules', () => {
       expect(getRiskWarning('elevated', 5)).toContain('deletion');
       expect(getRiskWarning('elevated', 3)).toContain('follow');
       expect(getRiskWarning('elevated', 22242)).toContain('identity');
+      expect(getRiskWarning('elevated', 9734)).toContain('zap');
     });
 
     it('tells the user to read the full event for an unknown kind', () => {
@@ -136,6 +138,66 @@ describe('approval preview rules', () => {
   });
 
   // NIP-98: Bancwr signs its users in with one, bound to its login URL (#215).
+  describe('zap request (kind 9734, #270)', () => {
+    const recipient = 'a'.repeat(64);
+    const zap = (tags: string[][], content = '') => ({
+      kind: ZAP_REQUEST_KIND,
+      content,
+      tags,
+      created_at: 1_700_000_000,
+    });
+    const field = (fields: { label: string; value: string }[], label: string) =>
+      fields.find((f) => f.label === label)?.value;
+
+    it('shows the amount in sats, the recipient as an npub, the zapped event and the comment', () => {
+      const fields = formatEventFields(
+        zap(
+          [
+            ['relays', 'wss://relay.example'],
+            ['amount', '21000'],
+            ['p', recipient],
+            ['e', 'b'.repeat(64)],
+          ],
+          'Great post',
+        ),
+      );
+
+      expect(field(fields, 'Zap amount')).toBe('21 sats');
+      expect(field(fields, 'Zap recipient')).toMatch(/^npub1/);
+      expect(field(fields, 'Zapped event')).toBe('b'.repeat(64));
+      expect(field(fields, 'Zap comment')).toBe('Great post');
+    });
+
+    it('shows an addressable event coordinate when there is no event id', () => {
+      const coordinate = `30023:${recipient}:article`;
+      const fields = formatEventFields(zap([['amount', '1000'], ['p', recipient], ['a', coordinate]]));
+      expect(field(fields, 'Zapped event')).toBe(coordinate);
+    });
+
+    it('calls a zap with no event a profile zap', () => {
+      const fields = formatEventFields(zap([['amount', '1000'], ['p', recipient]]));
+      expect(field(fields, 'Zapped event')).toBe('None (profile zap)');
+      expect(field(fields, 'Zap comment')).toBeUndefined();
+    });
+
+    it('shows a sub-sat amount in millisats', () => {
+      expect(field(formatEventFields(zap([['amount', '1500'], ['p', recipient]])), 'Zap amount')).toBe(
+        `${(1500).toLocaleString()} millisats`,
+      );
+    });
+
+    it('says when the amount or recipient is missing or invalid rather than leaving it out', () => {
+      expect(field(formatEventFields(zap([['p', recipient]])), 'Zap amount')).toBe('Not stated');
+      expect(field(formatEventFields(zap([['amount', '-5']])), 'Zap amount')).toBe('Invalid (-5)');
+      expect(field(formatEventFields(zap([['amount', '1000']])), 'Zap recipient')).toBe('Missing');
+    });
+
+    it('adds no zap fields to other kinds', () => {
+      const labels = formatEventFields({ ...zap([['amount', '1000']]), kind: 1 }).map((f) => f.label);
+      expect(labels).not.toContain('Zap amount');
+    });
+  });
+
   describe('HTTP authentication (kind 27235)', () => {
     const httpAuth = (tags: string[][]) => ({
       kind: HTTP_AUTH_KIND,

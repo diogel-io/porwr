@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { UnsignedEvent } from '@/../src-bex/types/background';
-import { handleGetPublicKey, handleSignEvent } from '@/../src-bex/handlers/nip07';
+import { handleGetPublicKey, handleGetRelays, handleSignEvent } from '@/../src-bex/handlers/nip07';
+import { messagingRelays } from '@/../src-bex/services/messaging-relays';
 import { isVaultUnlocked, getVaultData } from '@/../src-bex/vault';
 import { storageService } from '@/services/storage-service';
 import { checkPermission } from '@/../src-bex/handlers/permission-handler';
@@ -40,6 +41,10 @@ vi.mock('@noble/hashes/utils', () => ({
   hexToBytes: vi.fn((hex) => Buffer.from(hex, 'hex')),
 }));
 
+vi.mock('@/../src-bex/services/messaging-relays', () => ({
+  messagingRelays: { loadRelayMap: vi.fn() },
+}));
+
 // Mock logService to avoid issues with wrapWithLogging
 vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 'debug', INFO: 'info', WARN: 'warn', ERROR: 'error' },
@@ -65,6 +70,44 @@ describe('Nip07Handler', () => {
     // Bindings are cached in module scope, so one test's binding would decide the next one's
     // signing account.
     clearSiteBindingCache();
+  });
+
+  describe('handleGetRelays', () => {
+    const relayMap = {
+      'wss://relay.one/': { read: true, write: true },
+      'wss://relay.two/': { read: false, write: true },
+    };
+
+    it("returns the site's account relay list", async () => {
+      vi.mocked(isVaultUnlocked).mockReturnValue(true);
+      vi.mocked(storageService['get']).mockResolvedValue('test-alias');
+      vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [mockAccount] } });
+      vi.mocked(messagingRelays.loadRelayMap).mockResolvedValue(relayMap);
+
+      const result = await handleGetRelays({}, mockOrigin);
+
+      expect(result).toEqual({ success: true, data: relayMap });
+      expect(messagingRelays.loadRelayMap).toHaveBeenCalledWith('test-pubkey');
+    });
+
+    it('does not look relays up while the vault is locked', async () => {
+      vi.mocked(isVaultUnlocked).mockReturnValue(false);
+
+      const result = await handleGetRelays({}, mockOrigin);
+
+      expect(result).toMatchObject({ success: false, code: ErrorCode.VLT_LOCKED });
+      expect(messagingRelays.loadRelayMap).not.toHaveBeenCalled();
+    });
+
+    it('returns an error when the site has no account', async () => {
+      vi.mocked(isVaultUnlocked).mockReturnValue(true);
+      vi.mocked(storageService['get']).mockResolvedValue(null);
+
+      const result = await handleGetRelays({}, mockOrigin);
+
+      expect(result).toMatchObject({ success: false, code: ErrorCode.SIG_NO_ACTIVE_KEY });
+      expect(messagingRelays.loadRelayMap).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleGetPublicKey', () => {

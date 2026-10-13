@@ -16,7 +16,7 @@ import {
   startAutoLockTimer,
   stopAutoLockTimer,
 } from './services/auto-lock';
-import { handleGetPublicKey, handleSignEvent } from './handlers/nip07';
+import { handleGetPublicKey, handleGetRelays, handleSignEvent } from './handlers/nip07';
 import {
   getCurrentRequest,
   getPendingCount,
@@ -117,7 +117,11 @@ export async function dispatchMessage<K extends BridgeAction>(
     }
 
     case 'nostr.getRelays': {
-      return {} as BridgeResponsePayload<K>;
+      const result = await handleGetRelays(payload, origin);
+      if (result.success) {
+        return result.data as BridgeResponsePayload<K>;
+      }
+      throw new Error(result.error);
     }
 
     case 'nostr.nip04.encrypt': {

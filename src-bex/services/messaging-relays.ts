@@ -70,6 +70,29 @@ export function parseDmRelayList(event: Pick<Event, 'tags'>): string[] {
   );
 }
 
+/** A relay list in the shape NIP-07 `getRelays` returns. */
+export type Nip07RelayMap = Record<string, { read: boolean; write: boolean }>;
+
+/**
+ * A kind 10002 (NIP-65) as NIP-07 `getRelays` returns it. An `r` tag with no marker is both read
+ * and write; a relay listed twice with different markers is both.
+ */
+export function parseNip07RelayMap(event: Pick<Event, 'tags'>): Nip07RelayMap {
+  const map: Nip07RelayMap = {};
+  for (const tag of event.tags) {
+    if (tag[0] !== 'r' || typeof tag[1] !== 'string') continue;
+    const normalized = normalizeRelayUrl(tag[1]);
+    if (!normalized.valid || !normalized.url) continue;
+    const marker = tag[2];
+    const entry = map[normalized.url] ?? { read: false, write: false };
+    map[normalized.url] = {
+      read: entry.read || marker === undefined || marker === 'read',
+      write: entry.write || marker === undefined || marker === 'write',
+    };
+  }
+  return map;
+}
+
 /** The write relays of a kind 10002 (NIP-65): `r` tags with no marker or a `write` marker. */
 export function parseWriteRelays(event: Pick<Event, 'tags'>): string[] {
   return normalizeAll(
@@ -273,6 +296,20 @@ export class MessagingRelays {
       this.dmRelayCache.set(pubkey, { list: { relays: [...relays], updatedAt: event.created_at }, at: this.now() });
     }
     return { relays: [...relays], accepted, rejected };
+  }
+
+  /**
+   * The account's published relay list (kind 10002) for NIP-07 `getRelays`, or an empty map when
+   * none is found in time. Clients use it for the `relays` tag of a zap request (#270).
+   */
+  async loadRelayMap(pubkey: string): Promise<Nip07RelayMap> {
+    const fallback = await getFallbackRelays();
+    const { event } = await this.queryNewest(
+      fallback,
+      { kinds: [RELAY_LIST_KIND], authors: [pubkey], limit: 1 },
+      this.now() + LOAD_DEADLINE_MS,
+    );
+    return event ? parseNip07RelayMap(event) : {};
   }
 
   private async fetchWriteRelays(pubkey: string, fallback: string[], deadlineAt: number): Promise<string[]> {

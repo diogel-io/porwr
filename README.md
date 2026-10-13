@@ -47,6 +47,27 @@ Moving a site disconnects it, removing its standing permissions, and connects it
 account. Sign out of the site and sign in again so it picks up the new key. Disconnecting the site
 in **Connected Sites** and then signing in again does the same.
 
+##### Zaps
+
+Nostr clients zap through Porwr the same way they do through any browser signer. The client builds
+the zap and Porwr signs and pays it, each only after you approve:
+
+1. The client asks for your relays with `window.nostr.getRelays()`. Porwr answers with the relay
+   list (kind 10002) published by the account the site is connected as.
+2. The client asks Porwr to sign its zap request (kind 9734) with `window.nostr.signEvent()`. The
+   approval shows the amount, the recipient, the zapped event and any comment. A zap request can be
+   remembered for at most 8 hours.
+3. The client fetches the invoice from the recipient's Lightning address and pays it with
+   `window.webln.sendPayment()`. Porwr pays through your active wallet connection (NIP-47). The
+   site must have been allowed WebLN access once with `window.webln.enable()`, and every payment
+   asks for approval.
+
+Porwr never builds zap requests or fetches invoices itself. If another wallet extension already
+provides `window.webln`, Porwr leaves it in place and offers its own as `window.diogelWebln`. Of
+the WebLN methods, Porwr supports `enable`, `getInfo` and `sendPayment`. The others
+(`sendPaymentAsync`, `keysend`, `makeInvoice`, `signMessage`, `verifyMessage`, `lnurl`) reject
+with an `UnsupportedMethodError`, so a client can fall back.
+
 #### Privacy Focused
 
 - No data collection or analytics
