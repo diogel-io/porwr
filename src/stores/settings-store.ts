@@ -143,8 +143,10 @@ const useSettingsStore = defineStore('settings', {
 
     async setProfileSearchRelays(relays: string[]): Promise<void> {
       const filtered = Array.isArray(relays) ? normalizeRelayList(relays) : [];
-      this.profileSearchRelays = filtered.length > 0 ? filtered : DEFAULT_PROFILE_SEARCH_RELAYS;
-      await setStoredProfileSearchRelays(this.profileSearchRelays);
+      const next = filtered.length > 0 ? filtered : DEFAULT_PROFILE_SEARCH_RELAYS;
+      this.profileSearchRelays = next;
+      // A plain copy: IndexedDB cannot clone the store's reactive proxy (#263).
+      await setStoredProfileSearchRelays([...next]);
     },
 
     async addProfileSearchRelay(relay: string): Promise<void> {

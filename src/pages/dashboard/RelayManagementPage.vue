@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import useAccountStore from '@/stores/account-store';
 import RelayEditor from '@/components/dashboard/RelayEditor.vue';
 import DmRelayEditor from '@/components/dashboard/DmRelayEditor.vue';
+import ProfileSearchRelayEditor from '@/components/dashboard/ProfileSearchRelayEditor.vue';
 
 const { t } = useI18n();
 const accountStore = useAccountStore();
@@ -27,7 +28,7 @@ onMounted(async () => {
       <p class="dashboard-hero-caption">{{ t('navigation.relays.caption') }}</p>
     </section>
 
-    <q-card class="dashboard-card relay-page__card">
+    <q-card class="dashboard-card relay-page__card" data-testid="account-relays-card">
       <div v-if="activeStoredKey">
         <RelayEditor :stored-key="activeStoredKey" />
       </div>
@@ -49,8 +50,20 @@ onMounted(async () => {
       </div>
     </q-card>
 
-    <q-card v-if="activeStoredKey" class="dashboard-card relay-page__card q-mt-lg">
+    <q-card
+      v-if="activeStoredKey"
+      class="dashboard-card relay-page__card q-mt-lg"
+      data-testid="dm-relays-card"
+    >
       <DmRelayEditor :stored-key="activeStoredKey" />
+    </q-card>
+
+    <!-- Used by every account, so it shows with no account too (#263). -->
+    <q-card
+      class="dashboard-card relay-page__card q-mt-lg"
+      data-testid="profile-search-relays-card"
+    >
+      <ProfileSearchRelayEditor />
     </q-card>
   </q-page>
 </template>

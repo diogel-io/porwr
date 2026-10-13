@@ -10,13 +10,10 @@ const store = vi.hoisted(() => ({
   quickPublishClientTag: true,
   vaultAutoLockMinutes: 15,
   requestExpiryMinutes: 5,
-  profileSearchRelays: [] as string[],
   getSettings: vi.fn(() => Promise.resolve()),
   setQuickPublishClientTag: vi.fn(() => Promise.resolve()),
   setVaultAutoLockMinutes: vi.fn(),
   setRequestExpiryMinutes: vi.fn(),
-  addProfileSearchRelay: vi.fn(),
-  setProfileSearchRelays: vi.fn(),
 }));
 
 vi.mock('@/stores/settings-store', () => ({ default: () => store }));
@@ -82,5 +79,15 @@ describe('ExtensionSettings: Quick Publish client tag', () => {
     await clientTagToggle(wrapper).setValue(false);
 
     expect(store.setQuickPublishClientTag).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('ExtensionSettings: relays', () => {
+  it('no longer shows Profile Search Relays, which moved to the Relays page (#263)', async () => {
+    const wrapper = await mountPage();
+
+    expect(wrapper.text()).not.toContain('settings.profileSearchRelays');
+    expect(wrapper.text()).not.toContain('relays.profileSearch.title');
+    expect(wrapper.text()).toContain('settings.vaultManagement');
   });
 });

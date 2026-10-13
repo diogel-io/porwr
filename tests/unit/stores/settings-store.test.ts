@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
+import { isProxy } from 'vue';
 import useSettingsStore from '@/stores/settings-store';
 import { FALLBACK_RELAYS, QUICK_PUBLISH_CLIENT_TAG, storageService } from '@/services/storage-service';
 import {
@@ -162,6 +163,17 @@ describe('SettingsStore', () => {
     /* eslint-disable @typescript-eslint/unbound-method */
     expect(setStoredProfileSearchRelays).toHaveBeenCalledWith(['wss://profiles.example.com']);
     /* eslint-enable @typescript-eslint/unbound-method */
+  });
+
+  it('stores profile search relays as a plain array IndexedDB can clone (#263)', async () => {
+    const store = useSettingsStore();
+
+    await store.setProfileSearchRelays(['wss://profiles.example.com/']);
+    await store.setProfileSearchRelays([]);
+
+    const written = vi.mocked(setStoredProfileSearchRelays).mock.calls.map(([relays]) => relays);
+    expect(written).toEqual([['wss://profiles.example.com'], DEFAULT_PROFILE_SEARCH_RELAYS]);
+    expect(written.some((relays) => isProxy(relays))).toBe(false);
   });
 
   it('should add and remove profile search relays', async () => {
