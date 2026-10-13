@@ -163,4 +163,17 @@ describe('DmRelayEditor', () => {
 
     expect(mocks.notify).toHaveBeenCalledWith({ type: 'negative', message: 'relays.dmRelays.saveError' });
   });
+
+  it('logs why a publish failed', async () => {
+    const error = new Error('Direct background timeout for messaging.dmRelays.publish');
+    mocks.publishDmRelays.mockRejectedValue(error);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const wrapper = await mountEditor();
+
+    await wrapper.find('button[aria-label="relays.save"]').trigger('click');
+    await flushPromises();
+
+    expect(consoleError).toHaveBeenCalledWith('Error publishing direct message relays:', error);
+    consoleError.mockRestore();
+  });
 });

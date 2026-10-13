@@ -11,6 +11,9 @@ import type { BridgeAction, BridgeRequestMap, BridgeResponsePayload } from '@/ty
  * single failed call is not evidence that the channel is gone. Calls are retried with a short
  * backoff before the caller sees a failure; the background restarts quickly, and a panel that
  * silently stops talking to it is worse than one that never opened.
+ *
+ * A call that times out is never retried or sent again another way. The background may have
+ * received it and still be working, so sending it again could sign or publish twice (#265).
  */
 
 const CALL_TIMEOUT_MS = 5000;
@@ -37,13 +40,23 @@ const getBridge = (): BridgeLike | undefined => {
   return bridgeHost.bridge || bridgeHost.$q?.bex;
 };
 
+/** The background did not answer in time. It may still have received and handled the call. */
+export class BackgroundTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BackgroundTimeoutError';
+  }
+}
+
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 const withTimeout = <T>(operation: Promise<T>, message: string): Promise<T> =>
   Promise.race([
     operation,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(message)), CALL_TIMEOUT_MS)),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new BackgroundTimeoutError(message)), CALL_TIMEOUT_MS),
+    ),
   ]);
 
 async function attempt<T extends BridgeAction>(
@@ -64,6 +77,7 @@ async function attempt<T extends BridgeAction>(
       }
       return response ?? undefined;
     } catch (error: unknown) {
+      if (error instanceof BackgroundTimeoutError) throw error;
       logService.log(
         LogLevel.WARN,
         `[BridgeClient] Bridge call failed for ${type}, falling back to direct messaging`,
@@ -102,6 +116,7 @@ export async function sendBexMessage<T extends BridgeAction>(
     try {
       return await attempt(type, payload);
     } catch (error: unknown) {
+      if (error instanceof BackgroundTimeoutError) throw error;
       lastError = error;
       const retryDelay = RETRY_DELAYS_MS[index];
       if (retryDelay === undefined) break;

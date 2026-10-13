@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { sendBexMessage } from '@/services/bridge-client';
+import { BackgroundTimeoutError, sendBexMessage } from '@/services/bridge-client';
 
 vi.mock('@/services/log-service', () => ({
   LogLevel: { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 },
@@ -63,5 +63,49 @@ describe('bridge client', () => {
     await expect(sendBexMessage('vault.isUnlocked')).rejects.toThrow();
     // One initial attempt plus the configured retries.
     expect(send).toHaveBeenCalledTimes(3);
+  });
+
+  describe('a call the background does not answer in time (#265)', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('is not retried, since the background may have handled it', async () => {
+      const send = vi.fn(() => new Promise(() => {}));
+      setBridge({ send });
+
+      const result = sendBexMessage('messaging.dmRelays.publish', { relays: [] });
+      const assertion = expect(result).rejects.toBeInstanceOf(BackgroundTimeoutError);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await assertion;
+
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('is not sent again through runtime messaging', async () => {
+      const send = vi.fn(() => new Promise(() => {}));
+      const sendMessage = vi.fn();
+      setBridge({ send });
+      setChrome({ runtime: { sendMessage, lastError: undefined } });
+
+      const result = sendBexMessage('messaging.dmRelays.publish', { relays: [] });
+      const assertion = expect(result).rejects.toThrow('Bridge timeout');
+      await vi.advanceTimersByTimeAsync(20_000);
+      await assertion;
+
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('is not retried over runtime messaging either', async () => {
+      const sendMessage = vi.fn();
+      setChrome({ runtime: { sendMessage, lastError: undefined } });
+
+      const result = sendBexMessage('messaging.dmRelays.publish', { relays: [] });
+      const assertion = expect(result).rejects.toBeInstanceOf(BackgroundTimeoutError);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await assertion;
+
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    });
   });
 });
