@@ -5,6 +5,8 @@ import { useI18n } from 'vue-i18n';
 import { normalizeRelayUrl } from '@/services/relay-url';
 import { getDmRelays, publishDmRelays } from '@/services/messaging-service';
 import type { AccountSummary } from '@/types/accounts';
+import type { RelayCatalogEntry } from '@/types/relay';
+import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
 
 defineOptions({ name: 'DmRelayEditor' });
 
@@ -29,6 +31,7 @@ const loading = ref(false);
 const saving = ref(false);
 const loadFailed = ref(false);
 const neverPublished = ref(false);
+const showRelayBrowser = ref(false);
 
 const overRecommended = computed(() => relays.value.length > RECOMMENDED_MAX);
 
@@ -61,6 +64,10 @@ function addRelay() {
 
 function removeRelay(index: number) {
   relays.value = relays.value.filter((_, i) => i !== index);
+}
+
+function handleRelaySelected(relay: RelayCatalogEntry) {
+  newRelayUrl.value = relay.url;
 }
 
 async function saveDmRelays() {
@@ -117,7 +124,13 @@ watch(
             dense
             outlined
             @keyup.enter="addRelay"
-          />
+          >
+            <template #append>
+              <q-btn flat round dense icon="explore" @click="showRelayBrowser = true">
+                <q-tooltip>{{ t('relays.browse') }}</q-tooltip>
+              </q-btn>
+            </template>
+          </q-input>
         </div>
         <div class="col-auto">
           <q-btn
@@ -162,13 +175,15 @@ watch(
 
       <div class="row justify-end q-mt-lg">
         <q-btn
-          :label="t('relays.dmRelays.save')"
+          :label="t('relays.save')"
           :loading="saving"
           class="diogel-btn-primary"
           @click="saveDmRelays"
         />
       </div>
     </template>
+
+    <relay-browser-modal v-model="showRelayBrowser" @select="handleRelaySelected" />
   </div>
 </template>
 

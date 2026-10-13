@@ -24,6 +24,7 @@ vi.mock('quasar', () => ({
 }));
 
 import DmRelayEditor from '@/components/dashboard/DmRelayEditor.vue';
+import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
 
 const storedKey = { id: 'a'.repeat(64), alias: 'alice', createdAt: '', account: { privkey: '' } };
 
@@ -38,16 +39,23 @@ const mountEditor = async () => {
         'q-item': { template: '<li class="dm-relay"><slot /></li>' },
         'q-item-section': { template: '<div><slot /></div>' },
         'q-item-label': { template: '<span><slot /></span>' },
+        'q-tooltip': true,
         'q-input': {
           template:
-            '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" @keyup.enter="$emit(\'keyup\', $event)" />',
+            '<div><input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" @keyup.enter="$emit(\'keyup\', $event)" /><slot name="append" /></div>',
           props: ['modelValue'],
           emits: ['update:modelValue', 'keyup'],
         },
         'q-btn': {
-          template: '<button :aria-label="ariaLabel || label" @click="$emit(\'click\')">{{ label }}</button>',
-          props: ['label', 'ariaLabel', 'loading'],
+          template:
+            '<button :aria-label="ariaLabel || label" :data-icon="icon" @click="$emit(\'click\')">{{ label }}</button>',
+          props: ['label', 'ariaLabel', 'loading', 'icon'],
           emits: ['click'],
+        },
+        'relay-browser-modal': {
+          template: '<div v-if="modelValue" class="mock-relay-browser" />',
+          props: ['modelValue'],
+          emits: ['update:modelValue', 'select'],
         },
       },
     },
@@ -111,6 +119,21 @@ describe('DmRelayEditor', () => {
     expect(relayItems(wrapper)).toEqual([]);
   });
 
+  it('fills the relay input from the relay browser', async () => {
+    const wrapper = await mountEditor();
+
+    expect(wrapper.find('.mock-relay-browser').exists()).toBe(false);
+    await wrapper.find('button[data-icon="explore"]').trigger('click');
+    expect(wrapper.find('.mock-relay-browser').exists()).toBe(true);
+
+    wrapper
+      .getComponent(RelayBrowserModal)
+      .vm.$emit('select', { url: 'wss://picked.example', hostname: 'picked.example' });
+    await flushPromises();
+
+    expect((wrapper.find('input').element as HTMLInputElement).value).toBe('wss://picked.example');
+  });
+
   it('suggests a smaller list once there are more than three relays', async () => {
     mocks.getDmRelays.mockResolvedValue({
       relays: ['wss://a.example', 'wss://b.example', 'wss://c.example', 'wss://d.example'],
@@ -124,7 +147,7 @@ describe('DmRelayEditor', () => {
   it('publishes the list through the background and reports how many relays took it', async () => {
     const wrapper = await mountEditor();
 
-    await wrapper.find('button[aria-label="relays.dmRelays.save"]').trigger('click');
+    await wrapper.find('button[aria-label="relays.save"]').trigger('click');
     await flushPromises();
 
     expect(mocks.publishDmRelays).toHaveBeenCalledWith(['wss://inbox.example']);
@@ -135,7 +158,7 @@ describe('DmRelayEditor', () => {
     mocks.publishDmRelays.mockRejectedValue(new Error('No relay accepted the direct message relay list'));
     const wrapper = await mountEditor();
 
-    await wrapper.find('button[aria-label="relays.dmRelays.save"]').trigger('click');
+    await wrapper.find('button[aria-label="relays.save"]').trigger('click');
     await flushPromises();
 
     expect(mocks.notify).toHaveBeenCalledWith({ type: 'negative', message: 'relays.dmRelays.saveError' });

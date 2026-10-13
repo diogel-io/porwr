@@ -51,9 +51,11 @@ test.describe('signing in the background', () => {
 
     await page.goto(page.url().replace(/#.*$/, '#/relays'));
     await page.reload();
-    await page.getByLabel('Relay URL', { exact: true }).fill(relays.plain);
-    await page.getByLabel('Relay URL', { exact: true }).press('Enter');
-    await page.getByRole('button', { name: 'Save Relay List' }).click();
+    // Every card on the page has a Save button (#263), so work inside the account relay card.
+    const card = page.getByTestId('account-relays-card');
+    await card.getByLabel('Relay URL', { exact: true }).fill(relays.plain);
+    await card.getByLabel('Relay URL', { exact: true }).press('Enter');
+    await card.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('Relay list updated successfully')).toBeVisible();
 
     const event = await latest(relays.plain, 10002, TEST_ACCOUNT.pubkey);
