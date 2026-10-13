@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 
 /**
- * The Profile Search Relays card on the Relays page (#263): edits stay local until Save, and only
+ * The Profile Search Relays card on the Relays page (#263): changes stay local until Save, and only
  * Save writes the list through the settings store.
  */
 
@@ -42,11 +42,12 @@ const mountEditor = async () => {
         'q-list': { template: '<ul><slot /></ul>' },
         'q-item': { template: '<li class="search-relay"><slot /></li>' },
         'q-item-section': { template: '<div><slot /></div>' },
+        'q-item-label': { template: '<span><slot /></span>' },
         'q-input': {
           template:
-            '<div><input :value="modelValue" :aria-label="ariaLabel" @input="$emit(\'update:modelValue\', $event.target.value)" @change="$emit(\'change\', $event.target.value)" /><slot name="append" /></div>',
-          props: ['modelValue', 'ariaLabel'],
-          emits: ['update:modelValue', 'change'],
+            '<div><input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /><slot name="append" /></div>',
+          props: ['modelValue'],
+          emits: ['update:modelValue'],
         },
         'q-btn': {
           template:
@@ -68,12 +69,9 @@ const mountEditor = async () => {
 
 type Wrapper = Awaited<ReturnType<typeof mountEditor>>;
 
-const listed = (wrapper: Wrapper) =>
-  wrapper
-    .findAll('input[aria-label="relays.profileSearch.edit"]')
-    .map((input) => (input.element as HTMLInputElement).value);
+const listed = (wrapper: Wrapper) => wrapper.findAll('li.search-relay').map((item) => item.text());
 
-const newRelayInput = (wrapper: Wrapper) => wrapper.find('input:not([aria-label])');
+const newRelayInput = (wrapper: Wrapper) => wrapper.find('input');
 
 const add = async (wrapper: Wrapper, url: string) => {
   await newRelayInput(wrapper).setValue(url);
@@ -133,18 +131,6 @@ describe('ProfileSearchRelayEditor', () => {
 
     expect(listed(wrapper)).toEqual(['wss://search.example']);
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'negative' }));
-  });
-
-  it('edits a relay in place', async () => {
-    const wrapper = await mountEditor();
-
-    await wrapper
-      .find('input[aria-label="relays.profileSearch.edit"]')
-      .setValue('wss://edited.example');
-    await wrapper.find('input[aria-label="relays.profileSearch.edit"]').trigger('change');
-
-    expect(listed(wrapper)).toEqual(['wss://edited.example']);
-    expect(unsavedHint(wrapper).exists()).toBe(true);
   });
 
   it('removes a relay', async () => {

@@ -619,7 +619,6 @@ export default {
         'Used by all accounts when searching for Nostr profiles by name, npub, hex pubkey, or NIP-05 identifier.',
       url: 'Profile search relay URL',
       add: 'Add profile search relay',
-      edit: 'Edit profile search relay',
       remove: 'Remove {url}',
       empty: 'No profile search relays. Saving an empty list restores the default relays.',
       unsavedChanges: 'Unsaved changes',

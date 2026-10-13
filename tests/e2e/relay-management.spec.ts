@@ -12,10 +12,7 @@ import { createVault } from './fixtures/vault';
 
 const go = (page: Page, route: string) => page.goto(page.url().replace(/#.*$/, `#${route}`));
 
-const listed = (card: Locator) =>
-  card
-    .getByLabel('Edit profile search relay', { exact: true })
-    .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value));
+const listed = (card: Locator) => card.locator('.q-list .q-item__label').allInnerTexts();
 
 async function addRelay(card: Locator, url: string) {
   await card.getByLabel('Profile search relay URL', { exact: true }).fill(url);

@@ -36,31 +36,16 @@ function showStored() {
   savedSnapshot.value = [...settingsStore.profileSearchRelays];
 }
 
-function normalizeOrNotify(value: string): string | null {
-  const normalized = normalizeRelayUrl(value);
+function addRelay() {
+  const normalized = normalizeRelayUrl(newRelayUrl.value);
   if (!normalized.valid || !normalized.url) {
     $q.notify({ type: 'negative', message: normalized.error ?? t('relays.invalidUrl') });
-    return null;
+    return;
   }
-  return normalized.url;
-}
-
-function addRelay() {
-  const url = normalizeOrNotify(newRelayUrl.value);
-  if (!url) return;
-  if (!relays.value.includes(url)) {
-    relays.value = [...relays.value, url];
+  if (!relays.value.includes(normalized.url)) {
+    relays.value = [...relays.value, normalized.url];
   }
   newRelayUrl.value = '';
-}
-
-function updateRelay(index: number, value: string | number | null) {
-  const url = normalizeOrNotify(String(value ?? ''));
-  if (!url) return;
-  // Editing a row into one already listed merges the two.
-  relays.value = relays.value.includes(url)
-    ? relays.value.filter((relay, i) => i !== index || relay === url)
-    : relays.value.map((relay, i) => (i === index ? url : relay));
 }
 
 function removeRelay(index: number) {
@@ -136,13 +121,7 @@ onMounted(async () => {
       <q-list v-if="relays.length > 0" bordered separator>
         <q-item v-for="(relay, index) in relays" :key="relay">
           <q-item-section>
-            <q-input
-              dense
-              outlined
-              :model-value="relay"
-              :aria-label="t('relays.profileSearch.edit')"
-              @change="updateRelay(index, $event)"
-            />
+            <q-item-label>{{ relay }}</q-item-label>
           </q-item-section>
           <q-item-section side>
             <q-btn
