@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils';
 import type { DirectMessage } from '@/types/messaging';
+import { SUPPORT_PUBKEY } from '@/data/support';
 
 const ME = 'a'.repeat(64);
 const BOB = 'b'.repeat(64);
@@ -168,6 +169,41 @@ afterEach(() => {
 });
 
 describe('MessagingPage', () => {
+  it('keeps the support conversation on the Support page when support is not a contact (#228)', async () => {
+    mocks.fetchMessages.mockResolvedValue({
+      inbox: 'ready',
+      messages: [msg('s', SUPPORT_PUBKEY, SUPPORT_PUBKEY, 30, 'support reply'), msg('1', BOB, BOB, 10, 'hi from bob')],
+      dropped: 0,
+    });
+
+    const wrapper = await mountPage();
+    expect(wrapper.find(`li[data-peer="${BOB}"]`).exists()).toBe(true);
+    expect(wrapper.find('[data-testid="conversation-tab-requests"] .unread').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');
+
+    expect(wrapper.find(`li[data-peer="${SUPPORT_PUBKEY}"]`).exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('support reply');
+  });
+
+  it('lists the support conversation when support is one of the contacts (#228)', async () => {
+    mocks.cachedContacts = {
+      [ME]: [
+        { pubkey: BOB, relayUrl: '', petname: 'Bob' },
+        { pubkey: SUPPORT_PUBKEY, relayUrl: '', petname: 'Diogel' },
+      ],
+    };
+    mocks.fetchMessages.mockResolvedValue({
+      inbox: 'ready',
+      messages: [msg('s', SUPPORT_PUBKEY, SUPPORT_PUBKEY, 30, 'support reply')],
+      dropped: 0,
+    });
+
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="conversation-list-chats"]').text()).toContain('Diogel');
+  });
+
   it('lists conversations under Chats and non-contacts under Requests, with unread counts', async () => {
     mocks.fetchMessages.mockResolvedValue({
       inbox: 'ready',

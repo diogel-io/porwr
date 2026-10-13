@@ -26,6 +26,10 @@ function navigateTo(item: NavigationItem) {
 }*/
 
 function openUtilityLink(item: UtilityLinkItem) {
+  if (item.target) {
+    if (!item.isActive()) void router.push(item.target);
+    return;
+  }
   if (item.href === '#') {
     return;
   }
@@ -84,6 +88,8 @@ function openUtilityLink(item: UtilityLinkItem) {
         v-ripple
         clickable
         :disable="item.href === '#'"
+        :active="item.target ? item.isActive() : false"
+        active-class="main-navigation__item--active"
         class="main-navigation__item"
         @click="openUtilityLink(item)"
       >

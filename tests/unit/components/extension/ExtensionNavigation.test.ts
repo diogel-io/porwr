@@ -73,6 +73,17 @@ describe('ExtensionNavigation', () => {
     ]);
   });
 
+  it('opens Support inside Porwr at /support, and Documentation on the web (#228)', async () => {
+    const { wrapper } = await mountNavigation();
+
+    await wrapper.findAll('li.nav-item').find((item) => item.text() === 'navigation.support.label')!.trigger('click');
+    await wrapper.findAll('li.nav-item').find((item) => item.text() === 'navigation.documentation.label')!.trigger('click');
+
+    expect(created).toEqual(['chrome-extension://porwr/www/index.html#/support']);
+    expect(window.open).toHaveBeenCalledWith('https://diogel.io/docs/porwr', '_blank', 'noopener,noreferrer');
+    expect(window.open).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the profile tab query', async () => {
     const { wrapper } = await mountNavigation();
 

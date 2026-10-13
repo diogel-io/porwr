@@ -457,7 +457,7 @@ export default {
     },
     support: {
       label: 'Support',
-      caption: 'Support link coming soon',
+      caption: 'Message the Diogel support team',
     },
     documentation: {
       label: 'Documentation',
@@ -468,6 +468,14 @@ export default {
       caption: 'Lock the vault immediately',
     },
     newSignature: 'New Signature',
+  },
+  support: {
+    title: 'Support',
+    dashboardCaption:
+      'Message the Diogel support team. Messages are private and end-to-end encrypted (NIP-17), and replies appear here.',
+    peerName: 'Diogel Support',
+    notReachable:
+      "Diogel Support can't receive messages right now. Please try again later.",
   },
   messaging: {
     title: 'Messaging',

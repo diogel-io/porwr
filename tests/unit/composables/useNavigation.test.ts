@@ -93,13 +93,25 @@ describe('useNavigation', () => {
     expect(active[0]?.target).toEqual({ name: 'media-management' });
   });
 
-  it('provides two utility links pointing at support and documentation', () => {
+  it('provides two utility links: support inside Porwr and documentation on the web', () => {
     const wrapper = mount(TestHarness);
     const vm = wrapper.vm as unknown as HarnessVm;
 
     expect(vm.utilityLinks.map((link) => link.id)).toEqual(['support', 'documentation']);
-    expect(vm.utilityLinks.find((l) => l.id === 'support')?.href).toBe(
-      'https://github.com/threenine/diogel/issues',
-    );
+    const support = vm.utilityLinks.find((l) => l.id === 'support');
+    // An in-app support chat, not the GitHub issue tracker (#228).
+    expect(support?.target).toEqual({ name: 'support' });
+    expect(support?.href).toBeUndefined();
+    expect(vm.utilityLinks.find((l) => l.id === 'documentation')?.href).toBe('https://diogel.io/docs/porwr');
+  });
+
+  it('marks support active only on the support route', () => {
+    testState.route.name = 'support';
+    const wrapper = mount(TestHarness);
+    const vm = wrapper.vm as unknown as HarnessVm;
+
+    const support = vm.utilityLinks.find((l) => l.id === 'support');
+    expect(support?.target && support.isActive()).toBe(true);
+    expect(vm.navigationItems.filter((item) => item.isActive())).toEqual([]);
   });
 });

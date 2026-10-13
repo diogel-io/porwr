@@ -23,7 +23,12 @@ function openNavigationItem(item: NavigationItem) {
   openInTab(router.resolve(item.target).fullPath);
 }
 
+/** An item inside Porwr opens its page in a new tab, as the main items do; a link opens the site. */
 function openUtilityLink(item: UtilityLinkItem) {
+  if (item.target) {
+    openInTab(router.resolve(item.target).fullPath);
+    return;
+  }
   if (item.href === '#') {
     return;
   }
