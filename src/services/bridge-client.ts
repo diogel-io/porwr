@@ -12,12 +12,26 @@ import type { BridgeAction, BridgeRequestMap, BridgeResponsePayload } from '@/ty
  * backoff before the caller sees a failure; the background restarts quickly, and a panel that
  * silently stops talking to it is worse than one that never opened.
  *
- * A call that times out is never retried or sent again another way. The background may have
- * received it and still be working, so sending it again could sign or publish twice (#265).
+ * A call that signs, publishes, sends or pays is not retried, or sent again another way, once it
+ * has timed out. The background may have received it and still be working, so sending it again
+ * could sign, publish or pay twice (#265). Every other call is safe to repeat and retries as above.
  */
 
 const CALL_TIMEOUT_MS = 5000;
 const RETRY_DELAYS_MS = [100, 400];
+
+/** Calls a timeout must not repeat: each one signs, publishes, sends or pays. */
+const NOT_REPEATED_AFTER_TIMEOUT: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
+  'account.signEvent',
+  'blossom.upload',
+  'messaging.dmRelays.publish',
+  'messaging.send',
+  'nip47.payInvoice',
+  'nostr.requests.respond',
+]);
+
+const mustNotRepeat = (type: BridgeAction, error: unknown): boolean =>
+  error instanceof BackgroundTimeoutError && NOT_REPEATED_AFTER_TIMEOUT.has(type);
 
 interface BridgeEnvelope<T> {
   data: T;
@@ -77,7 +91,7 @@ async function attempt<T extends BridgeAction>(
       }
       return response ?? undefined;
     } catch (error: unknown) {
-      if (error instanceof BackgroundTimeoutError) throw error;
+      if (mustNotRepeat(type, error)) throw error;
       logService.log(
         LogLevel.WARN,
         `[BridgeClient] Bridge call failed for ${type}, falling back to direct messaging`,
@@ -116,7 +130,7 @@ export async function sendBexMessage<T extends BridgeAction>(
     try {
       return await attempt(type, payload);
     } catch (error: unknown) {
-      if (error instanceof BackgroundTimeoutError) throw error;
+      if (mustNotRepeat(type, error)) throw error;
       lastError = error;
       const retryDelay = RETRY_DELAYS_MS[index];
       if (retryDelay === undefined) break;

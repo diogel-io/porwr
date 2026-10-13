@@ -65,7 +65,7 @@ describe('bridge client', () => {
     expect(send).toHaveBeenCalledTimes(3);
   });
 
-  describe('a call the background does not answer in time (#265)', () => {
+  describe('a call that signs, publishes, sends or pays and times out (#265)', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
@@ -106,6 +106,25 @@ describe('bridge client', () => {
       await assertion;
 
       expect(sendMessage).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('a call that is safe to repeat and times out', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('is retried, as a slow read may answer the next time', async () => {
+      const send = vi
+        .fn()
+        .mockImplementationOnce(() => new Promise(() => {}))
+        .mockResolvedValueOnce({ data: { relays: [], updatedAt: null } });
+      setBridge({ send });
+
+      const result = sendBexMessage('messaging.dmRelays.get');
+      await vi.advanceTimersByTimeAsync(5_100);
+
+      await expect(result).resolves.toEqual({ relays: [], updatedAt: null });
+      expect(send).toHaveBeenCalledTimes(2);
     });
   });
 });
