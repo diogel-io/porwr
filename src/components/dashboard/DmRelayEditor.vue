@@ -80,7 +80,8 @@ async function saveDmRelays() {
       type: 'positive',
       message: t('relays.dmRelays.saveSuccess', { count: result.accepted.length }),
     });
-  } catch {
+  } catch (error) {
+    console.error('Error publishing direct message relays:', error);
     $q.notify({ type: 'negative', message: t('relays.dmRelays.saveError') });
   } finally {
     saving.value = false;

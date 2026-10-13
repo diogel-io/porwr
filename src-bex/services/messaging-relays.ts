@@ -10,13 +10,18 @@ import type { DmRelayList, DmRelayPublishResult } from '@/types/messaging';
 
 const RELAY_LIST_KIND = 10002;
 
-/**
- * Relay waits stay well inside the 5 s a page waits for any background answer
- * (`src/services/bridge-client.ts`). A publish reads the user's kind 10002 first, so the two
- * waits together still leave room for the reply to travel back.
- */
+/** How long a read of a public list waits for relays to answer. */
 const FETCH_WAIT_MS = 1_500;
-const PUBLISH_WAIT_MS = 2_500;
+
+/**
+ * The whole of a DM relay publish, from reading the user's kind 10002 to the last relay's answer.
+ *
+ * A page waits 5 s for any background answer (`src/services/bridge-client.ts`). nostr-tools'
+ * own waits cannot keep inside that: it allows 3 s to connect and 4.4 s for each relay to accept,
+ * whatever `maxWait` says, so one slow relay used to run the publish past the page's limit (#265).
+ * This deadline leaves about a second for signing and the reply.
+ */
+const PUBLISH_DEADLINE_MS = 4_000;
 
 /**
  * How long a looked-up DM relay list is reused when sending. A kind 10050 rarely changes, and
@@ -94,6 +99,35 @@ function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Settles as `promise` does, or with `onTimeout()` once the clock passes `deadlineAt`, whichever
+ * comes first.
+ */
+export function withDeadline<T>(
+  promise: Promise<T>,
+  deadlineAt: number,
+  onTimeout: () => T | Promise<T>,
+  now: () => number = Date.now,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve, reject) => {
+    timer = setTimeout(
+      () => {
+        try {
+          resolve(onTimeout());
+        } catch (error: unknown) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      },
+      Math.max(0, deadlineAt - now()),
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** nostr-tools resolves, rather than rejects, a publish to a relay it could not connect to. */
+const CONNECTION_FAILURE = 'connection failure';
+
 export class MessagingRelays {
   private readonly dmRelayCache = new Map<string, { list: DmRelayList; at: number }>();
 
@@ -146,21 +180,42 @@ export class MessagingRelays {
    * relays, the user's NIP-65 write relays, and the DM relays themselves. Inbox relays often require
    * NIP-42 AUTH before accepting an event, so this authenticates as the account, on a pool opened
    * for this publish alone and closed afterwards.
+   *
+   * Everything happens inside `PUBLISH_DEADLINE_MS`. A relay that has not answered by then counts
+   * as rejected; when the user's kind 10002 is not back in time, the list goes to the fallback and
+   * DM relays only.
    */
   async publishDmRelays(secretKey: Uint8Array, relays: readonly string[]): Promise<DmRelayPublishResult> {
+    const deadlineAt = this.now() + PUBLISH_DEADLINE_MS;
     const pubkey = getPublicKey(secretKey);
     const fallback = await getFallbackRelays();
-    const ownWriteRelays = await this.fetchWriteRelays(pubkey, fallback);
+    const ownWriteRelays = await withDeadline(
+      this.fetchWriteRelays(pubkey, fallback),
+      deadlineAt,
+      () => [],
+      this.now,
+    );
     const targets = normalizeAll([...fallback, ...ownWriteRelays, ...relays]);
 
     const event = finalizeEvent(buildDmRelayListTemplate(relays, Math.floor(Date.now() / 1000)), secretKey);
     const publishPool = this.createPool();
+    const abort = new AbortController();
     let outcomes: PromiseSettledResult<string>[];
     try {
       outcomes = await Promise.allSettled(
-        publishPool.publish(targets, event, { maxWait: PUBLISH_WAIT_MS, onauth: authSigner(secretKey) }),
+        publishPool
+          .publish(targets, event, {
+            maxWait: Math.max(0, deadlineAt - this.now()),
+            abort: abort.signal,
+            onauth: authSigner(secretKey),
+          })
+          .map((publish) =>
+            withDeadline(publish, deadlineAt, () => Promise.reject(new Error('timed out')), this.now),
+          ),
       );
     } finally {
+      // Stops connections still being opened, then closes the ones that were.
+      abort.abort();
       publishPool.destroy();
     }
 
@@ -168,8 +223,13 @@ export class MessagingRelays {
     const rejected: { url: string; reason: string }[] = [];
     outcomes.forEach((outcome, index) => {
       const url = targets[index]!;
-      if (outcome.status === 'fulfilled') accepted.push(url);
-      else rejected.push({ url, reason: reasonOf(outcome.reason) });
+      if (outcome.status === 'rejected') {
+        rejected.push({ url, reason: reasonOf(outcome.reason) });
+      } else if (String(outcome.value).startsWith(CONNECTION_FAILURE)) {
+        rejected.push({ url, reason: String(outcome.value) });
+      } else {
+        accepted.push(url);
+      }
     });
 
     if (accepted.length > 0) {

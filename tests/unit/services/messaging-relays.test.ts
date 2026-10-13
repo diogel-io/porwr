@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools';
 import type { Event, Filter, SimplePool } from 'nostr-tools';
 
@@ -16,6 +16,7 @@ import {
   parseDmRelayList,
   parseWriteRelays,
   validateDmRelays,
+  withDeadline,
 } from '@/../src-bex/services/messaging-relays';
 import { RELAY_SEEDS } from '@/data/relay-seeds';
 
@@ -178,5 +179,91 @@ describe('MessagingRelays', () => {
     clock = 11 * 60 * 1000;
     await relays.lookupDmRelays('a'.repeat(64));
     expect(get.mock.calls.filter(([, f]) => f.kinds?.[0] === 10050)).toHaveLength(2);
+  });
+});
+
+describe('withDeadline', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('settles as the promise does when it is in time', async () => {
+    await expect(withDeadline(Promise.resolve('ok'), Date.now() + 1_000, () => 'late')).resolves.toBe('ok');
+  });
+
+  it('settles with the timeout value once the deadline passes', async () => {
+    const result = withDeadline(new Promise<string>(() => {}), Date.now() + 1_000, () => 'late');
+    await vi.advanceTimersByTimeAsync(1_000);
+    await expect(result).resolves.toBe('late');
+  });
+});
+
+describe('MessagingRelays publish deadline (#265)', () => {
+  const never = <T>() => new Promise<T>(() => {});
+
+  /** Relays named `slow` never answer; `unreachable` ones fail to connect, which nostr-tools resolves. */
+  function slowPool(options: { relayListNeverArrives?: boolean } = {}) {
+    const get = vi.fn((_relays: string[], filter: Filter) =>
+      filter.kinds?.[0] === 10002 && options.relayListNeverArrives ? never<Event | null>() : Promise.resolve(null),
+    );
+    const publish = vi.fn((relays: string[], _event?: Event, _params?: { abort?: AbortSignal }) =>
+      relays.map((url) => {
+        if (url.includes('slow')) return never<string>();
+        if (url.includes('unreachable')) return Promise.resolve('connection failure: Error: connection timed out');
+        return Promise.resolve('');
+      }),
+    );
+    const destroy = vi.fn();
+    return { pool: { get, publish, destroy } as unknown as SimplePool, get, publish, destroy };
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('answers within 4 s, counting a relay that never answers as timed out', async () => {
+    const { pool, publish, destroy } = slowPool();
+    let settled = false;
+    const result = new MessagingRelays(() => pool)
+      .publishDmRelays(generateSecretKey(), ['wss://inbox.example', 'wss://slow.example'])
+      .finally(() => {
+        settled = true;
+      });
+
+    await vi.advanceTimersByTimeAsync(3_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    const { accepted, rejected } = await result;
+    expect(accepted).toEqual([...FALLBACK, 'wss://inbox.example']);
+    expect(rejected).toEqual([{ url: 'wss://slow.example', reason: 'timed out' }]);
+    // Signed and sent once; pending connections are stopped and the pool closed.
+    expect(publish).toHaveBeenCalledTimes(1);
+    const params = publish.mock.calls[0]![2]!;
+    expect(params.abort?.aborted).toBe(true);
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts a relay it could not connect to as rejected, not accepted', async () => {
+    const { pool } = slowPool();
+
+    const result = await new MessagingRelays(() => pool).publishDmRelays(generateSecretKey(), [
+      'wss://unreachable.example',
+    ]);
+
+    expect(result.accepted).toEqual(FALLBACK);
+    expect(result.rejected).toEqual([
+      { url: 'wss://unreachable.example', reason: 'connection failure: Error: connection timed out' },
+    ]);
+  });
+
+  it('publishes to the fallback and DM relays when the relay list does not arrive in time', async () => {
+    const { pool, publish } = slowPool({ relayListNeverArrives: true });
+
+    const result = new MessagingRelays(() => pool).publishDmRelays(generateSecretKey(), ['wss://inbox.example']);
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    const { accepted, rejected } = await result;
+    expect(publish.mock.calls[0]![0]).toEqual([...FALLBACK, 'wss://inbox.example']);
+    expect(accepted).toEqual([...FALLBACK, 'wss://inbox.example']);
+    expect(rejected).toEqual([]);
   });
 });
