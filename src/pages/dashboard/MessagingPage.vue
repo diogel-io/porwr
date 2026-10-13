@@ -7,6 +7,7 @@ import ConversationList from '@/components/dashboard/messaging/ConversationList.
 import ConversationView from '@/components/dashboard/messaging/ConversationView.vue';
 import { useContactCache } from '@/composables/useContactCache';
 import { useDirectMessages } from '@/composables/useDirectMessages';
+import { SUPPORT_PUBKEY } from '@/data/support';
 import { fetchContactProfiles, formatContactNpub, getContactDisplayName } from '@/services/contact-list-service';
 import { addSavedPeer, getSavedPeers, removeSavedPeer } from '@/services/messaging-service';
 import { buildConversations, conversationMessages } from '@/utils/conversations';
@@ -63,8 +64,17 @@ const {
 });
 
 const contactPubkeys = computed(() => contacts.value.map((contact) => contact.pubkey));
+/**
+ * The support conversation lives on the Support page, so it is listed here only when the support
+ * account is one of the user's contacts (#228).
+ */
+const listedMessages = computed(() =>
+  contactPubkeys.value.includes(SUPPORT_PUBKEY)
+    ? [...messages.value.values()]
+    : [...messages.value.values()].filter((message) => message.peer !== SUPPORT_PUBKEY),
+);
 const conversations = computed(() =>
-  buildConversations(messages.value.values(), contactPubkeys.value, savedPeers.value, readState.value),
+  buildConversations(listedMessages.value, contactPubkeys.value, savedPeers.value, readState.value),
 );
 const selectedMessages = computed(() =>
   selectedPeer.value ? conversationMessages(messages.value.values(), selectedPeer.value) : [],

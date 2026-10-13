@@ -107,6 +107,17 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    path: '/support',
+    component: () => import('@/layouts/dashboard/Layout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'support',
+        component: () => import('@/pages/dashboard/SupportPage.vue'),
+      },
+    ],
+  },
+  {
     path: '/wallet-connections',
     component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [

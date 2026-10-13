@@ -10,6 +10,7 @@ type NavigationRouteName =
   | 'connected-sites'
   | 'contacts'
   | 'messaging'
+  | 'support'
   | 'media-management'
   | 'wallet-connections'
   | 'settings'
@@ -44,13 +45,17 @@ interface NavigationItem {
   isActive: () => boolean;
 }
 
-interface UtilityLinkItem {
+interface UtilityLinkBase {
   id: 'support' | 'documentation';
   icon: string;
   label: string;
   caption: string;
-  href: string;
 }
+
+/** A footer item: a page inside Porwr, or an external link opened in a new tab. */
+type UtilityLinkItem =
+  | (UtilityLinkBase & { target: NavigationTarget; isActive: () => boolean; href?: never })
+  | (UtilityLinkBase & { href: string; target?: never })
 
 interface UseNavigationResult {
   navigationItems: ComputedRef<NavigationItem[]>;

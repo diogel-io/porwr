@@ -17,7 +17,9 @@ export function useNavigation(): UseNavigationResult {
       icon: 'support_agent',
       label: t('navigation.support.label'),
       caption: t('navigation.support.caption'),
-      href: 'https://github.com/threenine/diogel/issues',
+      // An in-app NIP-17 chat with Diogel support, not an external issue tracker (#228).
+      target: { name: 'support' },
+      isActive: () => routeName.value === 'support',
     },
     {
       id: 'documentation',
