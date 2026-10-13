@@ -1,41 +1,24 @@
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import useAccountStore from '@/stores/account-store';
 import ConversationList from '@/components/dashboard/messaging/ConversationList.vue';
 import ConversationView from '@/components/dashboard/messaging/ConversationView.vue';
 import { useContactCache } from '@/composables/useContactCache';
+import { useDirectMessages } from '@/composables/useDirectMessages';
 import { fetchContactProfiles, formatContactNpub, getContactDisplayName } from '@/services/contact-list-service';
-import {
-  addSavedPeer,
-  fetchMessages,
-  getReadState,
-  getSavedPeers,
-  markConversationRead,
-  removeSavedPeer,
-  sendMessage,
-} from '@/services/messaging-service';
-import { buildConversations, conversationMessages, mergeMessages, newestFrom } from '@/utils/conversations';
+import { addSavedPeer, getSavedPeers, removeSavedPeer } from '@/services/messaging-service';
+import { buildConversations, conversationMessages } from '@/utils/conversations';
 import { searchCachedContacts } from '@/utils/contact-search';
 import type { ContactProfile } from '@/types/contact-list';
-import type { DirectMessage, MessagingReadState, PendingMessage } from '@/types/messaging';
 
 /**
  * NIP-17 private messages with the account's contacts.
  *
- * Messages are fetched only while this page is open and visible: there is no background listening,
- * badge or notification. Everything cryptographic happens in the background; this page sees
- * decrypted text and outcomes only.
+ * Fetching, sending and read state are shared with the Support page through `useDirectMessages`;
+ * this page adds the conversation list, contact search and Chats it keeps per account (#258).
  */
-
-/** How often to look for new messages while the page is visible. */
-const POLL_INTERVAL_MS = 15_000;
-/**
- * Overlap between fetches. A peer's clock can run behind ours, so the next fetch looks back a little
- * further than the newest message held; duplicates are dropped by id.
- */
-const FETCH_OVERLAP_S = 10 * 60;
 
 const $q = useQuasar();
 const { t } = useI18n();
@@ -54,19 +37,30 @@ const profiles = computed<Record<string, ContactProfile>>(() => ({
   ...requestProfiles.value,
   ...contactCache.profiles.value,
 }));
-const messages = shallowRef<Map<string, DirectMessage>>(new Map());
-const readState = ref<MessagingReadState>({});
 /** Contacts added to Chats through search, kept in the vault per account (#258). */
 const savedPeers = ref<string[]>([]);
-const inbox = ref<'unknown' | 'ready' | 'none'>('unknown');
-const loadFailed = ref(false);
 const selectedPeer = ref<string | undefined>();
-const pending = ref<PendingMessage[]>([]);
-const notReadyPeers = ref(new Set<string>());
 
-let newestFetched: number | undefined;
-let pollTimer: ReturnType<typeof setInterval> | undefined;
-let polling = false;
+const {
+  messages,
+  readState,
+  inbox,
+  loadFailed,
+  pending,
+  notReadyPeers,
+  poll,
+  startPolling,
+  loadReadState,
+  markRead,
+  send: sendTo,
+  retry,
+  reset,
+} = useDirectMessages({
+  hasAccount: () => Boolean(activeKey.value),
+  onMessages: (fetched) => loadRequestProfiles(fetched.map((message) => message.peer)),
+  onRecipientNotReady: (peer) =>
+    $q.notify({ type: 'warning', message: t('messaging.view.recipientNotReady', { name: nameOf(peer) }) }),
+});
 
 const contactPubkeys = computed(() => contacts.value.map((contact) => contact.pubkey));
 const conversations = computed(() =>
@@ -115,57 +109,6 @@ async function loadRequestProfiles(pubkeys: string[]) {
   }
 }
 
-async function poll() {
-  if (polling || !activeKey.value) return;
-  polling = true;
-  try {
-    const since = newestFetched === undefined ? undefined : newestFetched - FETCH_OVERLAP_S;
-    const result = await fetchMessages(since);
-    inbox.value = result.inbox;
-    loadFailed.value = false;
-    if (result.messages.length > 0) {
-      messages.value = mergeMessages(messages.value, result.messages);
-      newestFetched = Math.max(newestFetched ?? 0, ...result.messages.map((message) => message.created_at));
-      await loadRequestProfiles(result.messages.map((message) => message.peer));
-    }
-  } catch {
-    loadFailed.value = true;
-  } finally {
-    polling = false;
-  }
-}
-
-function onVisibilityChange() {
-  if (document.visibilityState === 'visible') void poll();
-}
-
-function startPolling() {
-  stopPolling();
-  pollTimer = setInterval(() => {
-    if (document.visibilityState === 'visible') void poll();
-  }, POLL_INTERVAL_MS);
-  document.addEventListener('visibilitychange', onVisibilityChange);
-}
-
-function stopPolling() {
-  if (pollTimer !== undefined) clearInterval(pollTimer);
-  pollTimer = undefined;
-  document.removeEventListener('visibilitychange', onVisibilityChange);
-}
-
-async function markSelectedRead() {
-  const peer = selectedPeer.value;
-  if (!peer) return;
-  const newest = newestFrom(selectedMessages.value, peer);
-  if (newest === undefined || newest <= (readState.value[peer] ?? 0)) return;
-  readState.value = { ...readState.value, [peer]: newest };
-  try {
-    readState.value = await markConversationRead(peer, newest);
-  } catch {
-    // Read state is a convenience; the next open tries again.
-  }
-}
-
 function selectConversation(peer: string) {
   selectedPeer.value = peer;
 }
@@ -203,63 +146,23 @@ async function removeConversation(peer: string) {
   }
 }
 
-async function deliver(message: PendingMessage) {
-  try {
-    const result = await sendMessage({
-      clientMessageId: message.clientMessageId,
-      recipient: message.peer,
-      content: message.content,
-    });
-    pending.value = pending.value.filter((entry) => entry.clientMessageId !== message.clientMessageId);
-    if (result.status === 'sent') {
-      messages.value = mergeMessages(messages.value, [result.message]);
-    } else {
-      notReadyPeers.value = new Set([...notReadyPeers.value, message.peer]);
-      $q.notify({ type: 'warning', message: t('messaging.view.recipientNotReady', { name: nameOf(message.peer) }) });
-    }
-  } catch {
-    pending.value = pending.value.map((entry) =>
-      entry.clientMessageId === message.clientMessageId ? { ...entry, status: 'failed' } : entry,
-    );
-  }
-}
-
 function send(content: string) {
   const peer = selectedPeer.value;
   if (!peer) return;
-  const message: PendingMessage = { clientMessageId: crypto.randomUUID(), peer, content, status: 'sending' };
-  pending.value = [...pending.value, message];
-  void deliver(message);
-}
-
-function retry(clientMessageId: string) {
-  const message = pending.value.find((entry) => entry.clientMessageId === clientMessageId);
-  if (!message) return;
-  const again: PendingMessage = { ...message, status: 'sending' };
-  pending.value = pending.value.map((entry) => (entry.clientMessageId === clientMessageId ? again : entry));
-  void deliver(again);
+  sendTo(peer, content);
 }
 
 function resetState() {
+  reset();
   requestProfiles.value = {};
   savedPeers.value = [];
-  messages.value = new Map();
-  readState.value = {};
-  inbox.value = 'unknown';
   selectedPeer.value = undefined;
-  pending.value = [];
-  notReadyPeers.value = new Set();
-  newestFetched = undefined;
 }
 
 async function load() {
   if (!activeKey.value) return;
   await Promise.all([
-    getReadState()
-      .then((state) => {
-        readState.value = state;
-      })
-      .catch(() => undefined),
+    loadReadState(),
     getSavedPeers()
       .then((peers) => {
         savedPeers.value = peers;
@@ -270,7 +173,7 @@ async function load() {
 }
 
 watch([selectedPeer, selectedMessages], () => {
-  void markSelectedRead();
+  if (selectedPeer.value) void markRead(selectedPeer.value);
 });
 
 watch(
@@ -290,10 +193,6 @@ onMounted(async () => {
   }
   await load();
   startPolling();
-});
-
-onBeforeUnmount(() => {
-  stopPolling();
 });
 </script>
 
