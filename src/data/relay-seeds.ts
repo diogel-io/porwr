@@ -2,7 +2,6 @@ export const RELAY_SEEDS: string[] = [
   'wss://relay.damus.io',
   'wss://relay.threenine.services',
   'wss://nos.lol',
-  'wss://relay.nostr.band',
   'wss://relay.snort.social',
   'wss://purplepag.es',
   'wss://relay.primal.net',
