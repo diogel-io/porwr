@@ -48,6 +48,12 @@ describe('SettingsStore', () => {
     expect(store.profileSearchRelays).toEqual(DEFAULT_PROFILE_SEARCH_RELAYS);
   });
 
+  it('leaves relay.nostr.band out of both default lists, as it no longer answers (#267)', () => {
+    const store = useSettingsStore();
+    expect(store.fallbackRelays).not.toContain('wss://relay.nostr.band');
+    expect(store.profileSearchRelays).not.toContain('wss://relay.nostr.band');
+  });
+
   it('should read stored fallback relays during getSettings', async () => {
     const storedRelays = ['wss://my-relay.com'];
     /* eslint-disable @typescript-eslint/unbound-method */
