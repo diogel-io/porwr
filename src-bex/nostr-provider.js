@@ -136,13 +136,34 @@ const nostr = {
   },
 };
 
+/**
+ * A WebLN method Porwr does not offer. It is defined, so a client that calls it gets a rejection it
+ * can catch and fall back from, not a TypeError (#270). The name follows the WebLN error types.
+ */
+const unsupportedWebLnMethod = (method) => async () => {
+  const error = new Error(`Porwr does not support WebLN ${method}`);
+  error.name = 'UnsupportedMethodError';
+  throw error;
+};
+
+/**
+ * WebLN pays invoices a client has already fetched, which is how a client completes a zap whose
+ * request Porwr signed. Porwr never fetches invoices or builds zap requests itself.
+ */
 const webln = {
   enable: async () => callDiogelBridge('webln.enable', {}),
   getInfo: async () => callDiogelBridge('webln.getInfo', {}),
   sendPayment: async (paymentRequest) => callDiogelBridge('webln.sendPayment', { paymentRequest }),
+  sendPaymentAsync: unsupportedWebLnMethod('sendPaymentAsync'),
+  keysend: unsupportedWebLnMethod('keysend'),
+  makeInvoice: unsupportedWebLnMethod('makeInvoice'),
+  signMessage: unsupportedWebLnMethod('signMessage'),
+  verifyMessage: unsupportedWebLnMethod('verifyMessage'),
+  lnurl: unsupportedWebLnMethod('lnurl'),
 };
 
 window.nostr = nostr;
+// Another wallet extension's WebLN is left in place; Porwr's stays reachable as window.diogelWebln.
 if (!window.webln) {
   window.webln = webln;
 } else {

@@ -6,6 +6,7 @@
  * surface describe a request identically, and so the rules are testable on their own.
  */
 
+import { nip19 } from 'nostr-tools';
 import type { ApprovalDuration } from '@/../src-bex/types/background';
 
 export type RequestRiskClass = 'standard' | 'elevated' | 'unknown' | 'payment';
@@ -67,7 +68,8 @@ const PAYMENT_REQUEST_TYPES: readonly string[] = ['webln_send_payment', 'send_za
 const ELEVATED_KIND_EFFECTS: Readonly<Record<number, string>> = {
   3: 'replace the list of accounts you follow',
   5: 'request deletion of events you previously published',
-  9734: 'authorise a Lightning payment',
+  // Signing a zap request attributes the zap to you; paying it is a separate WebLN approval (#270).
+  9734: 'attach your identity to a Lightning zap',
   10002: 'replace the list of relays your identity advertises',
   22242: 'prove your identity to this site for a session',
   // NIP-98 (#215): Bancwr signs its users in with one, bound to its login URL.
@@ -151,6 +153,10 @@ export const formatEventFields = (event: UnsignedEventPreview): FormattedEventFi
     fields.push({ label: 'Method', value: tagValue(event, 'method')?.toUpperCase() ?? missing });
   }
 
+  // A zap request is built by the client and only signed here, so the panel says what the
+  // signature attaches your identity to: who is zapped, how much, and for what (#270, NIP-57).
+  if (event.kind === ZAP_REQUEST_KIND) fields.push(...zapRequestFields(event));
+
   const mentions = event.tags.filter((tag) => tag[0] === 'p').length;
   if (mentions > 0) fields.push({ label: 'Mentions', value: String(mentions) });
 
@@ -180,6 +186,43 @@ export const truncateForPreview = (
     return { text: normalized, truncated: false, fullLength: normalized.length };
   }
   return { text: normalized.slice(0, limit), truncated: true, fullLength: normalized.length };
+};
+
+/** NIP-57 zap request. */
+export const ZAP_REQUEST_KIND = 9734;
+
+/** A millisat amount as the user reads it: whole sats where it divides, millisats otherwise. */
+const formatMillisats = (value: string): string | undefined => {
+  if (!/^\d+$/.test(value)) return undefined;
+  const msat = BigInt(value);
+  if (msat === 0n) return undefined;
+  return msat % 1000n === 0n ? `${(msat / 1000n).toLocaleString()} sats` : `${msat.toLocaleString()} millisats`;
+};
+
+const formatPubkey = (hex: string): string => {
+  try {
+    return nip19.npubEncode(hex);
+  } catch {
+    return hex;
+  }
+};
+
+const zapRequestFields = (event: UnsignedEventPreview): FormattedEventField[] => {
+  const fields: FormattedEventField[] = [];
+  const amount = tagValue(event, 'amount');
+  fields.push({
+    label: 'Zap amount',
+    value: amount ? (formatMillisats(amount) ?? `Invalid (${amount})`) : 'Not stated',
+  });
+  const recipient = tagValue(event, 'p');
+  fields.push({ label: 'Zap recipient', value: recipient ? formatPubkey(recipient) : 'Missing' });
+  const zappedEvent = tagValue(event, 'e');
+  const zappedAddress = tagValue(event, 'a');
+  if (zappedEvent) fields.push({ label: 'Zapped event', value: zappedEvent });
+  else if (zappedAddress) fields.push({ label: 'Zapped event', value: zappedAddress });
+  else if (recipient) fields.push({ label: 'Zapped event', value: 'None (profile zap)' });
+  if (event.content.trim()) fields.push({ label: 'Zap comment', value: event.content.trim() });
+  return fields;
 };
 
 /** NIP-98 HTTP Auth. */

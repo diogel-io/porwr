@@ -24,7 +24,11 @@ vi.mock('@/../src-bex/handlers/vault-handler', () => ({
 vi.mock('@/../src-bex/services/auto-lock', () => ({
   resetAutoLockTimer: vi.fn(), startAutoLockTimer: vi.fn(), stopAutoLockTimer: vi.fn(),
 }));
-vi.mock('@/../src-bex/handlers/nip07', () => ({ handleGetPublicKey: vi.fn(), handleSignEvent: vi.fn() }));
+vi.mock('@/../src-bex/handlers/nip07', () => ({
+  handleGetPublicKey: vi.fn(),
+  handleGetRelays: vi.fn(),
+  handleSignEvent: vi.fn(),
+}));
 vi.mock('@/../src-bex/services/request-queue', () => ({
   getCurrentRequest: vi.fn(), getPendingCount: vi.fn(), getRequestContent: vi.fn(),
   listPendingRequests: vi.fn(), markPresented: vi.fn(), requeuePresented: vi.fn(), submitDecision: vi.fn(),
@@ -107,7 +111,7 @@ const ok = (data: unknown): unknown => ({ success: true, data });
  * They are exercised in `dispatcher.test.ts`; they are listed here so the completeness check below
  * can tell "covered elsewhere" from "not covered at all".
  */
-const NO_HANDLER = new Set(['ping', 'nostr.getRelays', 'activity.mark', 'vault.lock']);
+const NO_HANDLER = new Set(['ping', 'activity.mark', 'vault.lock']);
 
 interface Case {
   action: BridgeAction;
@@ -125,6 +129,9 @@ const cases: Case[] = [
   { action: 'nostr.signEvent', payload: { event: { kind: 1 } }, handler: vi.mocked(nip07.handleSignEvent),
     name: 'handleSignEvent', resolves: ok({ id: 'signed' }), expected: { id: 'signed' },
     expectArgs: [{ event: { kind: 1 } }, ORIGIN] },
+  { action: 'nostr.getRelays', payload: {}, handler: vi.mocked(nip07.handleGetRelays), name: 'handleGetRelays',
+    resolves: ok({ 'wss://relay.one/': { read: true, write: true } }),
+    expected: { 'wss://relay.one/': { read: true, write: true } }, expectArgs: [{}, ORIGIN] },
   { action: 'nostr.nip04.encrypt', payload: { pubkey: 'p', plaintext: 't' },
     handler: vi.mocked(nip04.handleNip04Encrypt), name: 'handleNip04Encrypt', resolves: ok('cipher'), expected: 'cipher' },
   { action: 'nostr.nip04.decrypt', payload: { pubkey: 'p', ciphertext: 'c' },

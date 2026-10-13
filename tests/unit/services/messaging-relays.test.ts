@@ -15,6 +15,7 @@ import {
   buildDmRelayListTemplate,
   getFallbackRelays,
   parseDmRelayList,
+  parseNip07RelayMap,
   parseWriteRelays,
   validateDmRelays,
   withDeadline,
@@ -342,5 +343,66 @@ describe('MessagingRelays publish deadline (#265)', () => {
     expect(publish.mock.calls[0]![0]).toEqual(['wss://fallback.one', 'wss://slow.example', 'wss://inbox.example']);
     expect(accepted).toEqual(['wss://fallback.one', 'wss://inbox.example']);
     expect(rejected).toEqual([{ url: 'wss://slow.example', reason: 'timed out' }]);
+  });
+});
+
+describe('relay list for NIP-07 getRelays (#270)', () => {
+  it('reads read and write markers, treating an unmarked relay as both', () => {
+    expect(
+      parseNip07RelayMap({
+        tags: [
+          ['r', 'wss://both.example'],
+          ['r', 'wss://read.example', 'read'],
+          ['r', 'wss://write.example', 'write'],
+          ['p', 'not-a-relay'],
+          ['r', 'not a url'],
+        ],
+      }),
+    ).toEqual({
+      'wss://both.example': { read: true, write: true },
+      'wss://read.example': { read: true, write: false },
+      'wss://write.example': { read: false, write: true },
+    });
+  });
+
+  it('merges a relay listed once for reading and once for writing', () => {
+    expect(
+      parseNip07RelayMap({ tags: [['r', 'wss://relay.example', 'read'], ['r', 'wss://relay.example/', 'write']] }),
+    ).toEqual({ 'wss://relay.example': { read: true, write: true } });
+  });
+
+  it("loads the account's kind 10002 from the fallback relays", async () => {
+    const { pool, askedFor } = fakePool({
+      relayList: { created_at: 1, tags: [['r', 'wss://write.example', 'write']] },
+    });
+
+    await expect(new MessagingRelays(() => pool).loadRelayMap('a'.repeat(64))).resolves.toEqual({
+      'wss://write.example': { read: false, write: true },
+    });
+    expect(askedFor(10002)).toEqual(FALLBACK);
+  });
+
+  it('answers with an empty list when the account has published none', async () => {
+    const { pool } = fakePool();
+    await expect(new MessagingRelays(() => pool).loadRelayMap('a'.repeat(64))).resolves.toEqual({});
+  });
+
+  describe('deadline', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('answers within 4 s when a relay never answers', async () => {
+      storage.fallback = ['wss://slow.example'];
+      const { pool } = fakePool();
+      let settled = false;
+      const result = new MessagingRelays(() => pool).loadRelayMap('a'.repeat(64)).finally(() => {
+        settled = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(3_999);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(result).resolves.toEqual({});
+    });
   });
 });
