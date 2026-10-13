@@ -1,5 +1,6 @@
 import { finalizeEvent, getPublicKey, SimplePool } from 'nostr-tools';
-import type { Event, EventTemplate } from 'nostr-tools';
+import type { Event, EventTemplate, Filter } from 'nostr-tools';
+import type { SubCloser } from 'nostr-tools/abstract-pool';
 
 import { FALLBACK_RELAYS, storageService } from '@/services/storage-service';
 import { normalizeRelayUrl } from '@/services/relay-url';
@@ -10,8 +11,14 @@ import type { DmRelayList, DmRelayPublishResult } from '@/types/messaging';
 
 const RELAY_LIST_KIND = 10002;
 
-/** How long a read of a public list waits for relays to answer. */
+/** How long reading the user's kind 10002 may take, so the rest of a load or publish has time. */
 const FETCH_WAIT_MS = 1_500;
+
+/**
+ * The whole of a DM relay list load, inside the 5 s a page waits for any background answer
+ * (`src/services/bridge-client.ts`). A relay that never answers used to hold the load past it (#265).
+ */
+const LOAD_DEADLINE_MS = 4_000;
 
 /**
  * The whole of a DM relay publish, from reading the user's kind 10002 to the last relay's answer.
@@ -145,32 +152,63 @@ export class MessagingRelays {
    * A DM relay list for sending or reading messages, reused for a few minutes.
    *
    * The Relays page uses `fetchDmRelays` instead, so what it shows is never stale.
+   *
+   * When no relay answers in time this reports no list, as before, but does not keep it.
    */
   async lookupDmRelays(pubkey: string): Promise<DmRelayList> {
     const cached = this.dmRelayCache.get(pubkey);
     if (cached && this.now() - cached.at < DM_RELAY_CACHE_MS) {
       return cached.list;
     }
-    return this.fetchDmRelays(pubkey);
+    const { list, answered } = await this.readDmRelays(pubkey);
+    if (answered) this.dmRelayCache.set(pubkey, { list, at: this.now() });
+    return list;
   }
 
   clearCache(): void {
     this.dmRelayCache.clear();
   }
 
+  /**
+   * The user's DM relay list, read now, for the Relays page.
+   *
+   * Throws when no relay answered in time: "no list" would then be a guess, and the page would
+   * offer to publish over a list that may exist.
+   */
   async fetchDmRelays(pubkey: string): Promise<DmRelayList> {
-    const fallback = await getFallbackRelays();
-    const ownWriteRelays = await this.fetchWriteRelays(pubkey, fallback);
-    const event = await this.pool.get(
-      normalizeAll([...fallback, ...ownWriteRelays]),
-      { kinds: [DM_RELAY_LIST_KIND], authors: [pubkey] },
-      { maxWait: FETCH_WAIT_MS },
-    );
-    const list: DmRelayList = event
-      ? { relays: parseDmRelayList(event), updatedAt: event.created_at }
-      : { relays: [], updatedAt: null };
+    const { list, answered } = await this.readDmRelays(pubkey);
+    if (!answered) {
+      throw new Error('No relay answered in time');
+    }
     this.dmRelayCache.set(pubkey, { list, at: this.now() });
     return list;
+  }
+
+  /**
+   * Looks for the newest kind 10050 on the fallback relays and, once known, the user's NIP-65 write
+   * relays, all within `LOAD_DEADLINE_MS`. The fallback relays are asked straight away rather than
+   * after the write relays are known, so one slow relay is waited on once, not twice.
+   */
+  private async readDmRelays(pubkey: string): Promise<{ list: DmRelayList; answered: boolean }> {
+    const start = this.now();
+    const deadlineAt = start + LOAD_DEADLINE_MS;
+    const fallback = await getFallbackRelays();
+    const filter: Filter = { kinds: [DM_RELAY_LIST_KIND], authors: [pubkey], limit: 1 };
+
+    const [onFallback, ownWriteRelays] = await Promise.all([
+      this.queryNewest(fallback, filter, deadlineAt),
+      this.fetchWriteRelays(pubkey, fallback, Math.min(deadlineAt, start + FETCH_WAIT_MS)),
+    ]);
+    const writeOnly = ownWriteRelays.filter((url) => !fallback.includes(url));
+    const onWrite = await this.queryNewest(writeOnly, filter, deadlineAt);
+
+    const event = newest(onFallback.event, onWrite.event);
+    return {
+      list: event
+        ? { relays: parseDmRelayList(event), updatedAt: event.created_at }
+        : { relays: [], updatedAt: null },
+      answered: onFallback.answered || onWrite.answered,
+    };
   }
 
   /**
@@ -189,11 +227,10 @@ export class MessagingRelays {
     const deadlineAt = this.now() + PUBLISH_DEADLINE_MS;
     const pubkey = getPublicKey(secretKey);
     const fallback = await getFallbackRelays();
-    const ownWriteRelays = await withDeadline(
-      this.fetchWriteRelays(pubkey, fallback),
-      deadlineAt,
-      () => [],
-      this.now,
+    const ownWriteRelays = await this.fetchWriteRelays(
+      pubkey,
+      fallback,
+      Math.min(deadlineAt, this.now() + FETCH_WAIT_MS),
     );
     const targets = normalizeAll([...fallback, ...ownWriteRelays, ...relays]);
 
@@ -238,14 +275,77 @@ export class MessagingRelays {
     return { relays: [...relays], accepted, rejected };
   }
 
-  private async fetchWriteRelays(pubkey: string, fallback: string[]): Promise<string[]> {
-    const event = await this.pool.get(
+  private async fetchWriteRelays(pubkey: string, fallback: string[], deadlineAt: number): Promise<string[]> {
+    const { event } = await this.queryNewest(
       fallback,
-      { kinds: [RELAY_LIST_KIND], authors: [pubkey] },
-      { maxWait: FETCH_WAIT_MS },
+      { kinds: [RELAY_LIST_KIND], authors: [pubkey], limit: 1 },
+      deadlineAt,
     );
     return event ? parseWriteRelays(event) : [];
   }
+
+  /**
+   * The newest event matching `filter` that the relays return by `deadlineAt`, without waiting
+   * past it for relays that have not answered.
+   *
+   * Each relay is asked on its own, so events from fast relays are kept when a slow one is still
+   * pending. `answered` says whether any relay finished answering; without that, finding nothing
+   * means nothing.
+   */
+  private queryNewest(
+    relays: readonly string[],
+    filter: Filter,
+    deadlineAt: number,
+  ): Promise<{ event: Event | null; answered: boolean }> {
+    return new Promise((resolve) => {
+      let found: Event | null = null;
+      let answered = false;
+      let pending = relays.length;
+      let finished = false;
+      const subs: SubCloser[] = [];
+
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        subs.forEach((sub) => sub.close());
+        resolve({ event: found, answered });
+      };
+      const timer = setTimeout(finish, Math.max(0, deadlineAt - this.now()));
+      if (pending === 0) finish();
+
+      // nostr-tools' own waits run a little past the deadline, so only ours decides.
+      const maxWait = Math.max(0, deadlineAt - this.now()) + 1_000;
+      for (const url of relays) {
+        let done = false;
+        const settle = (eose: boolean) => {
+          if (done) return;
+          done = true;
+          if (eose) answered = true;
+          pending -= 1;
+          if (pending === 0) finish();
+        };
+        subs.push(
+          this.pool.subscribeMany([url], filter, {
+            maxWait,
+            onevent: (event) => {
+              found = newest(found, event);
+            },
+            oneose: () => settle(true),
+            onclose: () => settle(false),
+          }),
+        );
+      }
+      // Covers a relay that settled before every subscription had been opened.
+      if (finished) subs.forEach((sub) => sub.close());
+    });
+  }
+}
+
+function newest(a: Event | null, b: Event | null): Event | null {
+  if (!a) return b;
+  if (!b) return a;
+  return b.created_at > a.created_at ? b : a;
 }
 
 export const messagingRelays = new MessagingRelays();

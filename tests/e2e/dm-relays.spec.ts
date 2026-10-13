@@ -7,11 +7,12 @@ import { expect, test } from './fixtures/relays';
 import { createVault, seedAccount, TEST_ACCOUNT } from './fixtures/vault';
 
 /**
- * Saving Direct Message Relays with one relay that never answers (#265).
+ * Loading and saving Direct Message Relays with one relay that never answers (#265).
  *
- * The save used to wait on the slow relay past the page's 5 s limit, get sent again, and then
- * report a failure although the list had been published. Now the background stops at its own
- * deadline, counts the slow relay as rejected, and the save succeeds.
+ * Both used to wait on the slow relay past the page's 5 s limit. The save was then sent again and
+ * reported a failure although the list had been published. Now the background stops at its own
+ * deadlines: the card loads from the relays that answered, and the save counts the slow relay as
+ * rejected.
  */
 
 /** Accepts TCP connections and never completes the WebSocket handshake, like an unreachable relay. */
@@ -32,7 +33,7 @@ async function latest(relay: string, kind: number, author: string): Promise<Even
   }
 }
 
-test('saving Direct Message Relays succeeds when one relay never answers', async ({
+test('Direct Message Relays load and save when one relay never answers', async ({
   openPage,
   relays,
 }) => {
@@ -50,7 +51,9 @@ test('saving Direct Message Relays succeeds when one relay never answers', async
 
     const card = page.getByTestId('dm-relays-card');
     const save = card.getByRole('button', { name: 'Save', exact: true });
-    await expect(save).toBeVisible({ timeout: 30_000 });
+    await expect(save).toBeVisible({ timeout: 6_000 });
+    await expect(card.getByText('You have not published a direct message relay list yet.')).toBeVisible();
+    await expect(card.getByText(/Could not load your direct message relays/)).toHaveCount(0);
     await card.getByLabel('Direct message relay URL', { exact: true }).fill(relays.plain);
     await card.getByRole('button', { name: 'Add direct message relay', exact: true }).click();
 

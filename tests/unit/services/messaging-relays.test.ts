@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools';
 import type { Event, Filter, SimplePool } from 'nostr-tools';
+import type { SubscribeManyParams } from 'nostr-tools/abstract-pool';
 
 const storage = vi.hoisted(() => ({ fallback: undefined as unknown }));
 
@@ -22,18 +23,52 @@ import { RELAY_SEEDS } from '@/data/relay-seeds';
 
 const FALLBACK = ['wss://fallback.one', 'wss://fallback.two'];
 
-function fakePool(events: { relayList?: Partial<Event> | null; dmList?: Partial<Event> | null } = {}) {
-  const get = vi.fn((_relays: string[], filter: Filter) => {
+/**
+ * A pool whose relays answer by URL: `slow` relays never answer, `down` ones fail to connect, and the
+ * rest answer at once. `dmListOn` limits which relays hold the kind 10050.
+ */
+function fakePool(
+  events: {
+    relayList?: Partial<Event> | null;
+    dmList?: Partial<Event> | null;
+    dmListOn?: (url: string) => boolean;
+  } = {},
+) {
+  const subscribeMany = vi.fn((relays: string[], filter: Filter, params: SubscribeManyParams) => {
+    const url = relays[0]!;
     const kind = filter.kinds?.[0];
-    if (kind === 10002) return Promise.resolve(events.relayList ?? null);
-    if (kind === 10050) return Promise.resolve(events.dmList ?? null);
-    return Promise.resolve(null);
+    if (!url.includes('slow')) {
+      void Promise.resolve().then(() => {
+        if (url.includes('down')) {
+          params.onclose?.(['connection failed']);
+          return;
+        }
+        const event =
+          kind === 10002
+            ? events.relayList
+            : kind === 10050 && (events.dmListOn?.(url) ?? true)
+              ? events.dmList
+              : null;
+        if (event) params.onevent?.(event as Event);
+        params.oneose?.();
+      });
+    }
+    return { close: vi.fn() };
   });
-  const publish = vi.fn((relays: string[], _event?: Event, _params?: { onauth?: unknown }) =>
-    relays.map((url) => (url.includes('down') ? Promise.reject(new Error('connection failed')) : Promise.resolve('ok'))),
+  const publish = vi.fn((relays: string[], _event?: Event, _params?: { onauth?: unknown; abort?: AbortSignal }) =>
+    relays.map((url) => {
+      if (url.includes('slow')) return new Promise<string>(() => {});
+      if (url.includes('unreachable')) return Promise.resolve('connection failure: Error: connection timed out');
+      if (url.includes('down')) return Promise.reject(new Error('connection failed'));
+      return Promise.resolve('');
+    }),
   );
   const destroy = vi.fn();
-  return { pool: { get, publish, destroy } as unknown as SimplePool, get, publish, destroy };
+  const pool = { subscribeMany, publish, destroy } as unknown as SimplePool;
+  /** The relays asked for `kind`, in the order they were asked. */
+  const askedFor = (kind: number) =>
+    subscribeMany.mock.calls.filter(([, filter]) => filter.kinds?.[0] === kind).map(([relays]) => relays[0]);
+  return { pool, subscribeMany, publish, destroy, askedFor };
 }
 
 beforeEach(() => {
@@ -112,21 +147,20 @@ describe('validateDmRelays', () => {
   });
 });
 
+
 describe('MessagingRelays', () => {
   it('returns the newest kind 10050, looking on the fallback and NIP-65 write relays', async () => {
-    const { pool, get } = fakePool({
+    const { pool, askedFor } = fakePool({
       relayList: { tags: [['r', 'wss://write.example', 'write']] },
       dmList: { created_at: 1_700_000_000, tags: [['relay', 'wss://inbox.example']] },
+      dmListOn: (url) => url === 'wss://write.example',
     });
 
     await expect(new MessagingRelays(() => pool).fetchDmRelays('a'.repeat(64))).resolves.toEqual({
       relays: ['wss://inbox.example'],
       updatedAt: 1_700_000_000,
     });
-
-    const dmCall = get.mock.calls.find(([, filter]) => filter.kinds?.[0] === 10050)!;
-    expect(dmCall[0]).toEqual([...FALLBACK, 'wss://write.example']);
-    expect(dmCall[1]).toEqual({ kinds: [10050], authors: ['a'.repeat(64)] });
+    expect(askedFor(10050)).toEqual([...FALLBACK, 'wss://write.example']);
   });
 
   it('reports no list when the user has never published one', async () => {
@@ -169,16 +203,16 @@ describe('MessagingRelays', () => {
 
   it('reuses a looked-up list for a while, then looks again', async () => {
     let clock = 0;
-    const { pool, get } = fakePool({ dmList: { created_at: 1, tags: [['relay', 'wss://inbox.example']] } });
+    const { pool, askedFor } = fakePool({ dmList: { created_at: 1, tags: [['relay', 'wss://inbox.example']] } });
     const relays = new MessagingRelays(() => pool, () => clock);
 
     await relays.lookupDmRelays('a'.repeat(64));
     await relays.lookupDmRelays('a'.repeat(64));
-    expect(get.mock.calls.filter(([, f]) => f.kinds?.[0] === 10050)).toHaveLength(1);
+    expect(askedFor(10050)).toHaveLength(FALLBACK.length);
 
     clock = 11 * 60 * 1000;
     await relays.lookupDmRelays('a'.repeat(64));
-    expect(get.mock.calls.filter(([, f]) => f.kinds?.[0] === 10050)).toHaveLength(2);
+    expect(askedFor(10050)).toHaveLength(FALLBACK.length * 2);
   });
 });
 
@@ -197,30 +231,69 @@ describe('withDeadline', () => {
   });
 });
 
+describe('MessagingRelays load deadline (#265)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('answers within 4 s with what the other relays returned when one never answers', async () => {
+    storage.fallback = ['wss://fallback.one', 'wss://slow.example'];
+    const { pool } = fakePool({ dmList: { created_at: 5, tags: [['relay', 'wss://inbox.example']] } });
+    let settled = false;
+    const result = new MessagingRelays(() => pool).fetchDmRelays('a'.repeat(64)).finally(() => {
+      settled = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(3_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(result).resolves.toEqual({ relays: ['wss://inbox.example'], updatedAt: 5 });
+  });
+
+  it('asks the fallback relays without waiting for the write relays, so a slow relay is waited on once', async () => {
+    storage.fallback = ['wss://fallback.one', 'wss://slow.example'];
+    const { pool, askedFor } = fakePool();
+
+    const result = new MessagingRelays(() => pool).fetchDmRelays('a'.repeat(64));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(askedFor(10050)).toEqual(['wss://fallback.one', 'wss://slow.example']);
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    await expect(result).resolves.toEqual({ relays: [], updatedAt: null });
+  });
+
+  it('fails the Relays page load when no relay answers, rather than reporting no list', async () => {
+    storage.fallback = ['wss://slow.one', 'wss://down.example'];
+    const { pool } = fakePool();
+
+    const result = new MessagingRelays(() => pool).fetchDmRelays('a'.repeat(64));
+    const assertion = expect(result).rejects.toThrow('No relay answered in time');
+    await vi.advanceTimersByTimeAsync(4_000);
+    await assertion;
+  });
+
+  it('reports no list for messaging when no relay answers, and does not keep it', async () => {
+    storage.fallback = ['wss://slow.one'];
+    const { pool, askedFor } = fakePool();
+    const relays = new MessagingRelays(() => pool);
+
+    const first = relays.lookupDmRelays('a'.repeat(64));
+    await vi.advanceTimersByTimeAsync(4_000);
+    await expect(first).resolves.toEqual({ relays: [], updatedAt: null });
+
+    const second = relays.lookupDmRelays('a'.repeat(64));
+    await vi.advanceTimersByTimeAsync(4_000);
+    await second;
+    expect(askedFor(10050)).toHaveLength(2);
+  });
+});
+
 describe('MessagingRelays publish deadline (#265)', () => {
-  const never = <T>() => new Promise<T>(() => {});
-
-  /** Relays named `slow` never answer; `unreachable` ones fail to connect, which nostr-tools resolves. */
-  function slowPool(options: { relayListNeverArrives?: boolean } = {}) {
-    const get = vi.fn((_relays: string[], filter: Filter) =>
-      filter.kinds?.[0] === 10002 && options.relayListNeverArrives ? never<Event | null>() : Promise.resolve(null),
-    );
-    const publish = vi.fn((relays: string[], _event?: Event, _params?: { abort?: AbortSignal }) =>
-      relays.map((url) => {
-        if (url.includes('slow')) return never<string>();
-        if (url.includes('unreachable')) return Promise.resolve('connection failure: Error: connection timed out');
-        return Promise.resolve('');
-      }),
-    );
-    const destroy = vi.fn();
-    return { pool: { get, publish, destroy } as unknown as SimplePool, get, publish, destroy };
-  }
-
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
   it('answers within 4 s, counting a relay that never answers as timed out', async () => {
-    const { pool, publish, destroy } = slowPool();
+    const { pool, publish, destroy } = fakePool();
     let settled = false;
     const result = new MessagingRelays(() => pool)
       .publishDmRelays(generateSecretKey(), ['wss://inbox.example', 'wss://slow.example'])
@@ -237,13 +310,12 @@ describe('MessagingRelays publish deadline (#265)', () => {
     expect(rejected).toEqual([{ url: 'wss://slow.example', reason: 'timed out' }]);
     // Signed and sent once; pending connections are stopped and the pool closed.
     expect(publish).toHaveBeenCalledTimes(1);
-    const params = publish.mock.calls[0]![2]!;
-    expect(params.abort?.aborted).toBe(true);
+    expect(publish.mock.calls[0]![2]!.abort?.aborted).toBe(true);
     expect(destroy).toHaveBeenCalledTimes(1);
   });
 
   it('counts a relay it could not connect to as rejected, not accepted', async () => {
-    const { pool } = slowPool();
+    const { pool } = fakePool();
 
     const result = await new MessagingRelays(() => pool).publishDmRelays(generateSecretKey(), [
       'wss://unreachable.example',
@@ -255,15 +327,20 @@ describe('MessagingRelays publish deadline (#265)', () => {
     ]);
   });
 
-  it('publishes to the fallback and DM relays when the relay list does not arrive in time', async () => {
-    const { pool, publish } = slowPool({ relayListNeverArrives: true });
+  it('stops looking for write relays after 1.5 s, leaving the rest of the deadline to publish', async () => {
+    storage.fallback = ['wss://fallback.one', 'wss://slow.example'];
+    const { pool, publish } = fakePool();
 
     const result = new MessagingRelays(() => pool).publishDmRelays(generateSecretKey(), ['wss://inbox.example']);
-    await vi.advanceTimersByTimeAsync(4_000);
+    await vi.advanceTimersByTimeAsync(1_499);
+    expect(publish).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(publish).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(2_500);
 
     const { accepted, rejected } = await result;
-    expect(publish.mock.calls[0]![0]).toEqual([...FALLBACK, 'wss://inbox.example']);
-    expect(accepted).toEqual([...FALLBACK, 'wss://inbox.example']);
-    expect(rejected).toEqual([]);
+    expect(publish.mock.calls[0]![0]).toEqual(['wss://fallback.one', 'wss://slow.example', 'wss://inbox.example']);
+    expect(accepted).toEqual(['wss://fallback.one', 'wss://inbox.example']);
+    expect(rejected).toEqual([{ url: 'wss://slow.example', reason: 'timed out' }]);
   });
 });
