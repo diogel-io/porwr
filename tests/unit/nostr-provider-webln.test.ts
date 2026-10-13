@@ -90,3 +90,18 @@ describe('injected provider zap route (#270)', () => {
     expect(typeof page.diogelWebln!.sendPayment).toBe('function');
   });
 });
+
+describe('injected provider without Porwr-originated zaps (#271)', () => {
+  it('exposes no window.nostr.diogel zap API and does not advertise one', () => {
+    const registrations: string[][] = [];
+    const onRegistration = (event: Event) =>
+      registrations.push((event as CustomEvent<{ methods: string[] }>).detail.methods);
+    window.addEventListener('nostr:registration', onRegistration);
+    loadProvider();
+    window.removeEventListener('nostr:registration', onRegistration);
+
+    expect((page.nostr as Record<string, unknown>).diogel).toBeUndefined();
+    expect(registrations).toHaveLength(1);
+    expect(registrations[0]!.filter((method) => method.startsWith('diogel.'))).toEqual([]);
+  });
+});

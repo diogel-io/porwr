@@ -174,7 +174,7 @@ describe('deciding a site request', () => {
     it('writes nothing when the request type may not be remembered', async () => {
       enqueueResolving({ approved: true, duration: 'always' });
 
-      await requestApproval(ORIGIN, 1, { requestType: 'send_zap', allowRemember: false });
+      await requestApproval(ORIGIN, 1, { requestType: 'webln_send_payment', allowRemember: false });
 
       // Payments are one-time whatever else is true (D11).
       expect(mocks.grantPermission).not.toHaveBeenCalled();

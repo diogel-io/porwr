@@ -47,12 +47,6 @@ import type {
   ProbeNip47AuthorizationRequest,
 } from './nip47';
 import type {
-  Nip57ZapHistoryEntry,
-  SendZapRequest,
-  SendZapResult,
-  ZapCapabilities,
-} from './nip57';
-import type {
   WebLnEnableRequest,
   WebLnGetInfoRequest,
   WebLnGetInfoResponse,
@@ -116,7 +110,6 @@ export interface VaultData {
   createdAt?: string;
   nip47Connections?: Nip47Connection[];
   nip47PaymentHistory?: Nip47PaymentHistoryEntry[];
-  nip57ZapHistory?: Nip57ZapHistoryEntry[];
   webLnPermissions?: WebLnPermissionGrant[];
   /** NIP-17 read state: account pubkey -> peer pubkey -> newest read message `created_at`. */
   messagingReadState?: Record<string, MessagingReadState>;
@@ -188,9 +181,6 @@ export type BridgeAction =
   | 'messaging.savedPeers.remove'
   | 'contacts.refresh'
   | 'account.signEvent'
-  | 'nip57.getCapabilities'
-  | 'nip57.sendZap'
-  | 'nip57.zaps.list'
   | 'webln.enable'
   | 'webln.getInfo'
   | 'webln.sendPayment';
@@ -498,22 +488,6 @@ export interface BridgeRequestMap {
     id: string;
     action: 'account.signEvent';
   } & AccountSignRequest;
-  'nip57.getCapabilities': {
-    id: string;
-    action: 'nip57.getCapabilities';
-    origin: string;
-  };
-  'nip57.sendZap': {
-    id: string;
-    action: 'nip57.sendZap';
-    origin: string;
-    request: SendZapRequest;
-    approved?: boolean;
-  };
-  'nip57.zaps.list': {
-    id: string;
-    action: 'nip57.zaps.list';
-  };
   'webln.enable': {
     id: string;
     action: 'webln.enable';
@@ -591,9 +565,6 @@ export interface BridgeResponseMap {
   'messaging.savedPeers.remove': MessagingSavedPeers | { success: false; error: string };
   'contacts.refresh': ContactRefreshResult | { success: false; error: string };
   'account.signEvent': SignedNostrEvent | { success: false; error: string };
-  'nip57.getCapabilities': ZapCapabilities | { success: false; error: string };
-  'nip57.sendZap': SendZapResult | { success: false; error: string };
-  'nip57.zaps.list': Nip57ZapHistoryEntry[] | { success: false; error: string };
   'webln.enable': true | { success: false; error: string; code?: string };
   'webln.getInfo': WebLnGetInfoResponse | { success: false; error: string; code?: string };
   'webln.sendPayment': WebLnSendPaymentResponse | { success: false; error: string; code?: string };

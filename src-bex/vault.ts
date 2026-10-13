@@ -190,8 +190,11 @@ export async function createNewVault(password: string, vaultData: unknown) {
   }
 }
 
-/** Fields only vaults created before #244 carry, never read, so not written back. */
-const RETIRED_VAULT_FIELDS = ['mnemonic', 'passphrase'];
+/**
+ * Fields older vaults carry, never read, so not written back: the mnemonic and passphrase from
+ * before #244, and the history of zaps Porwr sent itself, which it no longer does (#271).
+ */
+const RETIRED_VAULT_FIELDS = ['mnemonic', 'passphrase', 'nip57ZapHistory'];
 
 /** The vault as it is written: without the retired fields, and otherwise exactly as given. */
 const withoutRetiredFields = (vaultData: unknown): unknown =>

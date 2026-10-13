@@ -54,9 +54,6 @@ vi.mock('@/../src-bex/handlers/nip47', () => ({
   handleNip47AuthorizationBegin: vi.fn(), handleNip47AuthorizationComplete: vi.fn(),
   handleNip47AuthorizationProbe: vi.fn(),
 }));
-vi.mock('@/../src-bex/handlers/nip57', () => ({
-  handleNip57GetCapabilities: vi.fn(), handleNip57SendZap: vi.fn(), handleNip57ZapHistoryList: vi.fn(),
-}));
 vi.mock('@/../src-bex/handlers/messaging', () => ({
   handleDmRelaysGet: vi.fn(), handleDmRelaysPublish: vi.fn(),
   handleMessagesSend: vi.fn(), handleMessagesFetch: vi.fn(),
@@ -87,7 +84,6 @@ import * as nip44 from '@/../src-bex/handlers/nip44';
 import * as relays from '@/../src-bex/handlers/relay-browser-handler';
 import * as nip47 from '@/../src-bex/handlers/nip47';
 import * as contacts from '@/../src-bex/handlers/contacts';
-import * as nip57 from '@/../src-bex/handlers/nip57';
 import * as webln from '@/../src-bex/handlers/webln';
 import * as messaging from '@/../src-bex/handlers/messaging';
 import * as accountSigning from '@/../src-bex/handlers/account-signing';
@@ -100,7 +96,7 @@ type Mock = ReturnType<typeof vi.fn>;
 /** Every mocked handler, so a case reaching the wrong one can be detected. */
 const allMocks = (): Array<[string, Mock]> =>
   Object.entries({ ...vault, ...nip07, ...queue, ...pages, ...sites, ...siteAccount, ...blossom, ...nip04,
-    ...nip44, ...relays, ...nip47, ...nip57, ...webln })
+    ...nip44, ...relays, ...nip47, ...webln })
     .filter(([, value]) => typeof value === 'function') as Array<[string, Mock]>;
 
 const ok = (data: unknown): unknown => ({ success: true, data });
@@ -272,13 +268,6 @@ const cases: Case[] = [
     handler: vi.mocked(accountSigning.handleAccountSignEvent), name: 'handleAccountSignEvent',
     resolves: ok({ id: 'e', kind: 1 }), expected: { id: 'e', kind: 1 },
     expectArgs: [expect.objectContaining({ accountPubkey: 'a' })] },
-  { action: 'nip57.getCapabilities', handler: vi.mocked(nip57.handleNip57GetCapabilities),
-    name: 'handleNip57GetCapabilities', resolves: ok({ available: true }), expected: { available: true } },
-  { action: 'nip57.sendZap', payload: { request: {}, origin: ORIGIN, approved: true },
-    handler: vi.mocked(nip57.handleNip57SendZap), name: 'handleNip57SendZap',
-    resolves: ok({ status: 'paid' }), expected: { status: 'paid' } },
-  { action: 'nip57.zaps.list', handler: vi.mocked(nip57.handleNip57ZapHistoryList),
-    name: 'handleNip57ZapHistoryList', resolves: ok([]), expected: [] },
   { action: 'webln.enable', payload: {}, handler: vi.mocked(webln.handleWebLnEnable),
     name: 'handleWebLnEnable', resolves: ok({ enabled: true }), expected: { enabled: true } },
   { action: 'webln.getInfo', payload: {}, handler: vi.mocked(webln.handleWebLnGetInfo),

@@ -10,12 +10,10 @@ import { describe, it, expect } from 'vitest';
  * calls `finalizeEvent` or reads `account.privkey` is holding key material it should not have.
  *
  * Revealing or exporting a key goes through `accounts.revealSecret`, which hands over one nsec; nothing
- * in a page reads `account.privkey`. The only exception:
+ * in a page reads `account.privkey`. There are no exceptions: the last one, the zap-request signer
+ * the background used to call, went with Porwr-originated zaps (#271).
  */
-const ALLOWED: Record<string, string> = {
-  // Lives under src/ but is only ever called by src-bex/handlers/nip57.ts, in the background.
-  'src/services/nip57-zap-request.ts': 'background-only',
-};
+const ALLOWED: Record<string, string> = {};
 
 
 const ROOT = resolve(__dirname, '../../..');
@@ -51,11 +49,6 @@ describe('extension pages never hold a private key', () => {
       expect(file, `${path} no longer exists`).toBeDefined();
       expect(/\bfinalizeEvent\b|account\.privkey/.test(file!.source), `${path} no longer needs the exception`).toBe(true);
     }
-  });
-
-  it('has only the background call the zap-request signer', () => {
-    const callers = files.filter(({ path, source }) => path !== 'src/services/nip57-zap-request.ts' && /nip57-zap-request/.test(source));
-    expect(callers.map(({ path }) => path)).toEqual([]);
   });
 
   // `StoredKey` and `VaultData` carry private keys and wallet secrets. Pages use `AccountSummary` and

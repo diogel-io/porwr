@@ -35,7 +35,8 @@ describe('approval preview rules', () => {
 
     it('treats payment requests as payments whatever their kind', () => {
       expect(classifyRequest('webln_send_payment', -1)).toBe('payment');
-      expect(classifyRequest('send_zap', 9734)).toBe('payment');
+      // A zap request is signed, not paid, so it is classified by its kind (#271).
+      expect(classifyRequest('sign_event', 9734)).toBe('elevated');
     });
 
     it('does not treat the no-kind sentinel as an unknown kind', () => {

@@ -13,11 +13,11 @@ describe('messaging read state', () => {
   });
 
   it('records a read conversation per account, leaving the rest of the vault alone', () => {
-    const next = markConversationRead({ ...base, nip57ZapHistory: [] }, ME, PEER, 100);
+    const next = markConversationRead({ ...base, nip47PaymentHistory: [] }, ME, PEER, 100);
 
     expect(readStateFor(next, ME)).toEqual({ [PEER]: 100 });
     expect(readStateFor(next, 'c'.repeat(64))).toEqual({});
-    expect(next.nip57ZapHistory).toEqual([]);
+    expect(next.nip47PaymentHistory).toEqual([]);
   });
 
   it('never moves a conversation backwards', () => {

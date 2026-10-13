@@ -27,7 +27,6 @@ export const REQUEST_TYPE_LABELS: Readonly<Record<string, string>> = {
   nip04_decrypt: 'NIP-04 decryption request',
   nip44_encrypt: 'NIP-44 encryption request',
   nip44_decrypt: 'NIP-44 decryption request',
-  send_zap: 'Lightning zap payment request',
   webln_enable: 'WebLN wallet access request',
   webln_send_payment: 'WebLN payment request',
 };
@@ -62,7 +61,7 @@ export const NOSTR_KIND_LABELS: Readonly<Record<number, string>> = {
  */
 export const ELEVATED_EVENT_KINDS: readonly number[] = [3, 5, 9734, 10002, 22242, 27235];
 
-const PAYMENT_REQUEST_TYPES: readonly string[] = ['webln_send_payment', 'send_zap'];
+const PAYMENT_REQUEST_TYPES: readonly string[] = ['webln_send_payment'];
 
 /** Effects named in the warning, so the user is told what the kind actually does. */
 const ELEVATED_KIND_EFFECTS: Readonly<Record<number, string>> = {
