@@ -76,7 +76,6 @@ describe('routing a raw runtime message', () => {
         'nostr.nip04.decrypt',
         'nostr.nip44.encrypt',
         'nostr.nip44.decrypt',
-        'nip57.sendZap',
         'webln.sendPayment',
       ]) {
         expect(ORIGIN_SCOPED_ACTIONS.has(action)).toBe(true);

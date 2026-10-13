@@ -94,14 +94,6 @@ const nostr = {
       return nostr.call('nip44.decrypt', { pubkey, ciphertext });
     },
   },
-  diogel: {
-    getZapCapabilities: async () => {
-      return nostr.call('diogel.getZapCapabilities', {});
-    },
-    sendZap: async (request) => {
-      return nostr.call('diogel.sendZap', { request });
-    },
-  },
 
   // Internal call helper
   call: callDiogelBridge,
@@ -184,8 +176,6 @@ window.dispatchEvent(
         'nip04.decrypt',
         'nip44.encrypt',
         'nip44.decrypt',
-        'diogel.getZapCapabilities',
-        'diogel.sendZap',
       ],
     },
   }),

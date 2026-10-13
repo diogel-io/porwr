@@ -15,8 +15,6 @@ export const PAGE_METHOD_TO_ACTION = {
   'nip04.decrypt': 'nostr.nip04.decrypt',
   'nip44.encrypt': 'nostr.nip44.encrypt',
   'nip44.decrypt': 'nostr.nip44.decrypt',
-  'diogel.getZapCapabilities': 'nip57.getCapabilities',
-  'diogel.sendZap': 'nip57.sendZap',
   'webln.enable': 'webln.enable',
   'webln.getInfo': 'webln.getInfo',
   'webln.sendPayment': 'webln.sendPayment',

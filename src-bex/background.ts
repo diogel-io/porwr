@@ -442,41 +442,6 @@ const pageActionHandlers: PageActionHandlers = {
     return await dispatchMessage('nostr.nip44.decrypt', createBridgeRequest('nostr.nip44.decrypt', { ...payload, origin }), origin) ?? '';
   },
 
-  'nip57.getCapabilities': async (_payload, origin) =>
-    dispatchMessage(
-      'nip57.getCapabilities',
-      createBridgeRequest('nip57.getCapabilities', { origin }),
-      origin,
-    ),
-
-  'nip57.sendZap': async (payload, origin) => {
-    const amountMsat = payload.request.amountMsat ?? (payload.request.amountSats !== undefined ? payload.request.amountSats * 1000 : 0);
-    const amountSatsLabel = amountMsat > 0 ? `${amountMsat / 1000} sats` : 'unknown amount';
-    const contentDescription = trimApprovalContentDescription(
-      `Zap ${amountSatsLabel} to ${payload.request.target.recipientPubkey}${payload.request.comment ? ` — ${payload.request.comment}` : ''}`,
-    );
-    const approved = await requestApproval(origin, 9734, {
-      requestType: 'send_zap',
-      ...(contentDescription ? { contentDescription } : {}),
-      allowRemember: false,
-      skipPermissionCheck: true,
-    });
-    if (!approved) {
-      return {
-        status: 'cancelled',
-        amountMsat,
-        recipientPubkey: payload.request.target.recipientPubkey,
-        error: 'User rejected the zap payment',
-        code: 'USER_REJECTED',
-      };
-    }
-    return await dispatchMessage(
-      'nip57.sendZap',
-      createBridgeRequest('nip57.sendZap', { origin, request: payload.request, approved: true }),
-      origin,
-    );
-  },
-
   'webln.enable': async (_payload, origin) => {
     const approved = await requestApproval(origin, -1, {
       requestType: 'webln_enable',

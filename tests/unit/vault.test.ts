@@ -278,6 +278,23 @@ describe('Vault', () => {
       expect(written.vaultData).toEqual({ accounts: TEST_DATA.accounts, createdAt: '2026-01-01' });
     });
 
+    it('drops the zap history Porwr no longer keeps on the next write (#271)', async () => {
+      const oldVault = { ...TEST_DATA, nip57ZapHistory: [{ id: 'zap-1', status: 'paid' }] };
+      await createNewVault(TEST_PASSWORD, oldVault);
+      await lockVault();
+
+      // A vault holding zap history still unlocks.
+      const unlocked = await unlockVault(TEST_PASSWORD);
+      expect(unlocked.success).toBe(true);
+
+      const { vaultData } = (await getVaultData()) as { vaultData: VaultData };
+      await updateVaultData(vaultData);
+
+      const written = (await getVaultData()) as { vaultData: Record<string, unknown> };
+      expect(written.vaultData).not.toHaveProperty('nip57ZapHistory');
+      expect(written.vaultData).toEqual(TEST_DATA);
+    });
+
     it('should export and import vault', async () => {
       const { encryptedVault } = await createNewVault(TEST_PASSWORD, TEST_DATA);
       expect(encryptedVault).toBeDefined();

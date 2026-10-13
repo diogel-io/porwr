@@ -35,8 +35,6 @@ export const ORIGIN_SCOPED_ACTIONS: ReadonlySet<string> = new Set([
   'nostr.nip04.decrypt',
   'nostr.nip44.encrypt',
   'nostr.nip44.decrypt',
-  'nip57.getCapabilities',
-  'nip57.sendZap',
   'webln.enable',
   'webln.getInfo',
   'webln.sendPayment',

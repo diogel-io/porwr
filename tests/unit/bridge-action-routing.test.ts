@@ -102,7 +102,7 @@ describe('bridge action routing', () => {
     expect(actions.length).toBeGreaterThan(40);
     expect(dispatcherCases().length).toBeGreaterThan(30);
     expect(bridgeRegistrations().length).toBe(1);
-    expect(pageHandlers().length).toBeGreaterThan(10);
+    expect(pageHandlers().length).toBeGreaterThan(8);
   });
 
   it('routes every declared action except the ones known to be unrouted', () => {
@@ -151,7 +151,8 @@ describe('bridge action routing', () => {
 
   it('serves exactly the page allowlist over the page channel (#246)', () => {
     const pages = pageActions();
-    expect(pages.length).toBe(12);
+    // Ten since Porwr stopped originating zaps: diogel.getZapCapabilities and diogel.sendZap went (#271).
+    expect(pages.length).toBe(10);
 
     expect([...pageHandlers()].sort()).toEqual([...pages].sort());
   });
