@@ -105,6 +105,14 @@ describe('Nip17Messaging', () => {
   };
   let inboxes: Record<string, DmRelayList>;
   let stored: Event[];
+  /** Event ids each relay keeps, as read back after a send. */
+  let heldOn: Map<string, Set<string>>;
+  /** Relays that reply OK to a gift wrap and throw it away, like relay.damus.io (#276). */
+  let drops: Set<string>;
+  /** Relays that close a read-back with this reason instead of answering it. */
+  let refusals: Map<string, string>;
+  /** Relays that never answer a read-back. */
+  let silent: Set<string>;
   let publish: ReturnType<typeof vi.fn>;
   let subscribeEose: ReturnType<typeof vi.fn>;
   let relays: MessagingRelays;
@@ -125,19 +133,42 @@ describe('Nip17Messaging', () => {
   beforeEach(() => {
     inboxes = { ...INBOX };
     stored = [];
+    heldOn = new Map();
+    drops = new Set();
+    refusals = new Map();
+    silent = new Set();
     pools = [];
     clock = 1_800_000_000_000;
     publish = vi.fn((targets: string[], event: Event) => {
       stored.push(event);
-      return targets.map(() => Promise.resolve('ok'));
+      for (const url of targets) {
+        if (drops.has(url)) continue;
+        heldOn.set(url, new Set([...(heldOn.get(url) ?? []), event.id]));
+      }
+      return targets.map(() => Promise.resolve(''));
     });
-    subscribeEose = vi.fn((_relays: string[], filter: Filter, params: { onevent: (e: Event) => void; onclose: () => void }) => {
+    type ReadParams = { onevent: (e: Event) => void; onclose: (reasons: string[]) => void };
+    subscribeEose = vi.fn((targets: string[], filter: Filter, params: ReadParams) => {
+      if (filter.ids) {
+        const url = targets[0]!;
+        if (silent.has(url)) return { close: vi.fn() };
+        const refusal = refusals.get(url);
+        if (refusal) {
+          params.onclose([refusal]);
+          return { close: vi.fn() };
+        }
+        stored
+          .filter((event) => filter.ids!.includes(event.id) && heldOn.get(url)?.has(event.id))
+          .forEach((event) => params.onevent(event));
+        params.onclose(['closed automatically on eose']);
+        return { close: vi.fn() };
+      }
       stored
         .filter((event) => event.kind === filter.kinds?.[0])
         .filter((event) => event.tags.some((tag) => tag[0] === 'p' && filter['#p']?.includes(tag[1]!)))
         .filter((event) => filter.since === undefined || event.created_at >= filter.since)
         .forEach((event) => params.onevent(event));
-      params.onclose();
+      params.onclose([]);
       return { close: vi.fn() };
     });
     relays = {
@@ -158,7 +189,7 @@ describe('Nip17Messaging', () => {
   it("delivers one copy to the recipient's inbox and one to the sender's, carrying the same message", async () => {
     const result = await service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'hello bob' });
 
-    expect(result).toMatchObject({ status: 'sent', accepted: ['wss://bob.inbox'], selfCopy: 'stored' });
+    expect(result).toMatchObject({ status: 'sent', accepted: ['wss://bob.inbox'], unverified: [], selfCopy: 'stored' });
     const [toBob, toAlice] = [
       publish.mock.calls.find(([targets]) => targets[0] === 'wss://bob.inbox')![1] as Event,
       publish.mock.calls.find(([targets]) => targets[0] === 'wss://alice.inbox')![1] as Event,
@@ -195,6 +226,118 @@ describe('Nip17Messaging', () => {
     await expect(messaging.send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' })).resolves.toMatchObject({
       status: 'sent',
     });
+  });
+
+  it('reports a message as not sent when the only relay that said OK did not keep it (#276)', async () => {
+    drops.add('wss://bob.inbox');
+
+    await expect(service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' })).rejects.toThrow(
+      'No relay kept the message',
+    );
+  });
+
+  it('lists only the relays that keep the message', async () => {
+    inboxes[BOB] = { relays: ['wss://damus.example', 'wss://keeps.example'], updatedAt: 1 };
+    drops.add('wss://damus.example');
+
+    const result = await service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' });
+
+    expect(result).toMatchObject({
+      status: 'sent',
+      accepted: ['wss://keeps.example'],
+      unverified: [],
+      rejected: [{ url: 'wss://damus.example', reason: 'accepted but not stored' }],
+    });
+  });
+
+  it("reads the wrap back by id, authenticating as the sender, from each relay on its own", async () => {
+    inboxes[BOB] = { relays: ['wss://one.example', 'wss://two.example'], updatedAt: 1 };
+
+    await service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' });
+
+    const toBob = publish.mock.calls.find(([targets]) => targets[0] === 'wss://one.example')![1] as Event;
+    const reads = subscribeEose.mock.calls.filter(([, filter]) => (filter as Filter).ids?.includes(toBob.id));
+    expect(reads.map(([targets]) => targets)).toEqual([['wss://one.example'], ['wss://two.example']]);
+    for (const [, , params] of reads) expect((params as { onauth?: unknown }).onauth).toBeTypeOf('function');
+  });
+
+  it.each(['restricted: gift wraps are only served to their recipient', 'auth-required: sign in first'])(
+    'counts an inbox that will not show the sender the wrap as delivered, unverified (%s)',
+    async (reason) => {
+      refusals.set('wss://bob.inbox', reason);
+
+      await expect(service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' })).resolves.toMatchObject({
+        status: 'sent',
+        accepted: ['wss://bob.inbox'],
+        unverified: ['wss://bob.inbox'],
+      });
+    },
+  );
+
+  it("does not count a relay it could not reach while reading back", async () => {
+    refusals.set('wss://bob.inbox', 'connection failure');
+
+    await expect(service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' })).rejects.toThrow(
+      'No relay kept the message',
+    );
+  });
+
+  it("does not count a relay that said OK without connecting", async () => {
+    publish.mockImplementationOnce((targets: string[]) => targets.map(() => Promise.resolve('connection failure: refused')));
+
+    await expect(service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' })).rejects.toThrow(
+      'No relay accepted the message',
+    );
+  });
+
+  it("keeps no copy for the sender when the recipient's relays did not keep theirs", async () => {
+    drops.add('wss://bob.inbox');
+
+    await expect(service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' })).rejects.toThrow();
+    // Otherwise the sender's next load would show the lost message as sent.
+    expect(publish.mock.calls.map(([targets]) => targets)).toEqual([['wss://bob.inbox']]);
+  });
+
+  it("reports the sender's own copy as failed when none of their relays keep it", async () => {
+    drops.add('wss://alice.inbox');
+
+    await expect(service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' })).resolves.toMatchObject({
+      status: 'sent',
+      selfCopy: 'failed',
+    });
+  });
+
+  it('finishes inside the deadline when a relay never answers the read-back', async () => {
+    vi.useFakeTimers();
+    try {
+      inboxes[BOB] = { relays: ['wss://keeps.example', 'wss://silent.example'], updatedAt: 1 };
+      silent.add('wss://silent.example');
+
+      const result = service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' });
+      await vi.advanceTimersByTimeAsync(4_000);
+
+      await expect(result).resolves.toMatchObject({
+        status: 'sent',
+        accepted: ['wss://keeps.example'],
+        rejected: [{ url: 'wss://silent.example', reason: 'could not confirm the relay stored it' }],
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives up on a publish that runs past its share of the deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      publish.mockImplementationOnce((targets: string[]) => targets.map(() => new Promise(() => {})));
+
+      const result = service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' });
+      const settled = expect(result).rejects.toThrow('No relay accepted the message');
+      await vi.advanceTimersByTimeAsync(1_500);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('notes when the sender has no inbox to keep their own copy', async () => {

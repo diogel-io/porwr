@@ -53,6 +53,7 @@
     "@types/file-saver": "^2.0.7",
     "@types/node": "^25.3.0",
     "@types/selenium-webdriver": "^4.35.6",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.10",
     "@vue/eslint-config-prettier": "^10.1.0",
@@ -70,7 +71,8 @@
     "vite-plugin-checker": "^0.14.5",
     "vitest": "^4.0.15",
     "vue-eslint-parser": "^10.4.0",
-    "vue-tsc": "^3.2.4"
+    "vue-tsc": "^3.2.4",
+    "ws": "^8.22.0"
   },
   "engines": {
     "node": "^22.22 || ^24 || ^26 || ^28"

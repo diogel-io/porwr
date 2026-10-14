@@ -1,16 +1,18 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { connect, createServer } from 'node:net';
 
+import { startDroppingRelay } from './dropping-relay';
 import { test as extensionTest } from './extension';
 
 /**
  * Local Nostr relays for end-to-end tests, run with `nak serve` (https://github.com/fiatjaf/nak).
  *
- * Two relays, because real messaging touches two kinds:
+ * Three relays, because real messaging touches three kinds:
  * - `plain`: an open relay standing in for the fallback relays — profiles, contact lists and the
  *   kind 10050 DM relay lists everyone reads.
  * - `inbox`: a DM inbox relay that, like real ones, requires NIP-42 AUTH, so the tests prove Porwr
  *   authenticates before it can read or deliver gift wraps.
+ * - `dropping`: a relay that says OK to gift wraps and never stores them, like relay.damus.io (#276).
  *
  * CI installs a pinned `nak` (see `.github/workflows/e2e.yml`). Locally, a spec using this fixture is
  * skipped with a reason when `nak` is not on the PATH, rather than failing for a missing tool.
@@ -18,6 +20,7 @@ import { test as extensionTest } from './extension';
 export interface LocalRelays {
   plain: string;
   inbox: string;
+  dropping: string;
 }
 
 const START_TIMEOUT_MS = 10_000;
@@ -73,11 +76,13 @@ export const test = extensionTest.extend<{ relays: LocalRelays }>({
 
     const plain = await startRelay([]);
     const inbox = await startRelay(['--auth', '--eager-auth']);
+    const dropping = await startDroppingRelay();
     try {
-      await use({ plain: plain.url, inbox: inbox.url });
+      await use({ plain: plain.url, inbox: inbox.url, dropping: dropping.url });
     } finally {
       plain.process.kill();
       inbox.process.kill();
+      await dropping.close();
     }
   },
 });

@@ -60,7 +60,14 @@ export type SendMessageResult =
   | {
       status: 'sent';
       message: DirectMessage;
+      /** Relays that hold the message, read back after sending, or that refused to show it to the sender. */
       accepted: string[];
+      /**
+       * The accepted relays that would not show the sender the recipient's copy, as NIP-17 inbox relays
+       * may, so whether they hold it is not known.
+       */
+      unverified: string[];
+      /** Relays that refused the message, said OK without storing it, or could not be checked in time. */
       rejected: { url: string; reason: string }[];
       /** Whether the sender's own copy reached the sender's inbox relays. */
       selfCopy: 'stored' | 'no-inbox' | 'failed';
