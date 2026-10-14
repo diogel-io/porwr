@@ -13,8 +13,11 @@ import { createVault, TEST_ACCOUNT, seedAccounts } from './fixtures/vault';
  */
 
 async function seed(page: Page, fallbackRelay: string): Promise<void> {
-  await seedAccounts(page, [TEST_ACCOUNT]);
+  // Point the background at the local relay before adding accounts: adding one starts reads from
+  // the fallback relays, and reads from the real seed relays would make Chrome hold back this
+  // extension's later WebSocket connections, the local relay's included, for seconds.
   await page.evaluate((relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }), fallbackRelay);
+  await seedAccounts(page, [TEST_ACCOUNT]);
 }
 
 async function openSupportFromMenu(page: Page): Promise<void> {
