@@ -156,7 +156,7 @@ export function withDeadline<T>(
 }
 
 /** nostr-tools resolves, rather than rejects, a publish to a relay it could not connect to. */
-const CONNECTION_FAILURE = 'connection failure';
+export const CONNECTION_FAILURE = 'connection failure';
 
 export class MessagingRelays {
   private readonly dmRelayCache = new Map<string, { list: DmRelayList; at: number }>();

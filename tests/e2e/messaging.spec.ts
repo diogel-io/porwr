@@ -191,6 +191,45 @@ test.describe('messaging', () => {
     await expect(page.getByText('hi alice')).toHaveCount(0);
   });
 
+  test('a message shows as sent only once a relay keeps it (#276)', async ({ openPage, relays }) => {
+    const page = await openPage('/login');
+    await createVault(page);
+    await seedAccounts(page, relays.plain);
+    await publishContacts(relays.plain, ALICE.privkey, [{ pubkey: BOB.pubkey, petname: 'Bob' }]);
+
+    await useAccount(page, ALICE.alias);
+    await publishDmRelays(page, [relays.inbox]);
+    // Bob's only DM relay says OK to gift wraps and throws them away.
+    await useAccount(page, BOB.alias);
+    await publishDmRelays(page, [relays.dropping]);
+
+    await useAccount(page, ALICE.alias);
+    await openMessaging(page);
+    await startWith(page, 'bob', BOB.pubkey);
+    await send(page, 'lost on the way');
+    const failed = page.locator('[data-status="failed"]');
+    await expect(failed).toContainText('lost on the way');
+    await expect(failed).toContainText('Not sent.');
+    await expect(failed.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(page.locator('[data-from="me"]')).toHaveCount(0);
+
+    // With a relay that keeps messages beside it, the next message is sent and arrives.
+    await useAccount(page, BOB.alias);
+    await publishDmRelays(page, [relays.dropping, relays.inbox]);
+    await useAccount(page, ALICE.alias);
+    await openMessaging(page);
+    await conversation(page, BOB.pubkey).click();
+    await send(page, 'kept this time');
+    // Only the kept message: the lost one left no copy for Alice to load back as sent.
+    await expect(page.locator('[data-from="me"]')).toHaveText([/kept this time/]);
+
+    await useAccount(page, BOB.alias);
+    await openMessaging(page);
+    await page.getByTestId('conversation-tab-requests').click();
+    await conversation(page, ALICE.pubkey).click();
+    await expect(page.locator('[data-from="peer"]')).toHaveText([/kept this time/]);
+  });
+
   test('contacts are cached in the background and updates arrive without a reload (#257)', async ({ openPage, relays }) => {
     const page = await openPage('/login');
     await createVault(page);

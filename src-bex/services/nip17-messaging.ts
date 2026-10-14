@@ -9,7 +9,7 @@ import type {
   SendMessageRequest,
   SendMessageResult,
 } from '@/types/messaging';
-import { messagingRelays, type MessagingRelays } from './messaging-relays';
+import { CONNECTION_FAILURE, messagingRelays, withDeadline, type MessagingRelays } from './messaging-relays';
 import { authSigner } from './relay-auth';
 
 export { authSigner };
@@ -20,6 +20,47 @@ const TIMESTAMP_TWEAK_S = 2 * 24 * 60 * 60;
 /** Waits stay inside the 5 s a page waits for any background answer (`bridge-client.ts`). */
 const FETCH_WAIT_MS = 3_000;
 const PUBLISH_WAIT_MS = 1_500;
+
+/**
+ * The whole of a send, from looking up both inboxes to reading the wraps back. It leaves about a
+ * second of the page's 5 s for the reply.
+ */
+const SEND_DEADLINE_MS = 4_000;
+
+/** The end of a send kept for the sender's own copy, which goes only once the recipient has theirs. */
+const SELF_COPY_WAIT_MS = 1_250;
+
+/** The end of each publish kept for reading the wrap back, so a slow publish cannot use all of it. */
+const CONFIRM_WAIT_MS = 750;
+
+/** How nostr-tools closes a `subscribeEose` once the relay has sent everything it holds. */
+const CLOSED_ON_EOSE = 'closed automatically on eose';
+
+/**
+ * A relay that will not show the sender a wrap addressed to someone else. NIP-17 asks inbox relays to
+ * serve gift wraps only to their recipient, so this is expected and counts as delivered, unverified.
+ */
+const REFUSED_TO_SERVE = /^(auth-required|restricted):/;
+
+/**
+ * What one relay did with a wrap it said OK to. `missing` is a relay that answered without it: some,
+ * like relay.damus.io, accept gift wraps and never store them (#276).
+ */
+type Storage =
+  | { url: string; storage: 'held' }
+  | { url: string; storage: 'refused' }
+  | { url: string; storage: 'missing'; reason: string }
+  | { url: string; storage: 'unanswered'; reason: string };
+
+interface DeliveryOutcome {
+  /** Relays that hold the wrap, or that refused to show it to the sender. */
+  kept: string[];
+  /** The kept relays that refused to show the wrap, so whether they hold it is not known. */
+  unverified: string[];
+  rejected: { url: string; reason: string }[];
+  /** Whether any relay replied OK to the publish. */
+  anyAccepted: boolean;
+}
 
 /** How long a finished send is remembered, so a page retrying the same message gets its result. */
 const SEND_MEMORY_MS = 5 * 60 * 1000;
@@ -179,6 +220,7 @@ export class Nip17Messaging {
   }
 
   private async deliver(secretKey: Uint8Array, me: string, request: SendMessageRequest): Promise<SendMessageResult> {
+    const deadlineAt = this.now() + SEND_DEADLINE_MS;
     const [ownInbox, recipientInbox] = await Promise.all([
       this.relays.lookupDmRelays(me),
       this.relays.lookupDmRelays(request.recipient),
@@ -202,14 +244,26 @@ export class Nip17Messaging {
     const [selfWrap, recipientWrap] = nip59.wrapManyEvents(rumorTemplate, secretKey, [request.recipient]);
     const rumorId = getEventHash({ ...rumorTemplate, pubkey: me });
 
-    const [recipientOutcome, selfOutcome] = await Promise.all([
-      this.publish(secretKey, me, recipientInbox.relays, recipientWrap!),
-      ownInbox.relays.length > 0 ? this.publish(secretKey, me, ownInbox.relays, selfWrap!) : Promise.resolve(null),
-    ]);
-
-    if (recipientOutcome.accepted.length === 0) {
+    const recipientOutcome = await this.publishAndConfirm(
+      secretKey,
+      me,
+      recipientInbox.relays,
+      recipientWrap!,
+      deadlineAt - SELF_COPY_WAIT_MS,
+    );
+    if (!recipientOutcome.anyAccepted) {
       throw new Error('No relay accepted the message');
     }
+    if (recipientOutcome.kept.length === 0) {
+      throw new Error('No relay kept the message');
+    }
+
+    // The sender's copy waits for the recipient's: kept on its own, it would show a message that never
+    // arrived as sent the next time the sender's messages load.
+    const selfOutcome =
+      ownInbox.relays.length > 0
+        ? await this.publishAndConfirm(secretKey, me, ownInbox.relays, selfWrap!, deadlineAt)
+        : null;
 
     const message: DirectMessage = {
       id: rumorId,
@@ -223,10 +277,42 @@ export class Nip17Messaging {
     return {
       status: 'sent',
       message,
-      accepted: recipientOutcome.accepted,
+      accepted: recipientOutcome.kept,
+      unverified: recipientOutcome.unverified,
       rejected: recipientOutcome.rejected,
-      selfCopy: selfOutcome === null ? 'no-inbox' : selfOutcome.accepted.length > 0 ? 'stored' : 'failed',
+      selfCopy: selfOutcome === null ? 'no-inbox' : selfOutcome.kept.length > 0 ? 'stored' : 'failed',
     };
+  }
+
+  /**
+   * Publishes `event` and then reads it back from every relay that replied OK, because an OK does not
+   * mean a relay keeps the event (#276). Everything ends by `deadlineAt`; publishing stops early enough
+   * to leave time to read back.
+   */
+  private async publishAndConfirm(
+    secretKey: Uint8Array,
+    me: string,
+    relays: string[],
+    event: Event,
+    deadlineAt: number,
+  ): Promise<DeliveryOutcome> {
+    const publishBy = Math.min(this.now() + PUBLISH_WAIT_MS, deadlineAt - CONFIRM_WAIT_MS);
+    const { accepted, rejected } = await this.publish(secretKey, me, relays, event, publishBy);
+    const checks = await Promise.all(accepted.map((url) => this.checkStored(secretKey, me, url, event.id, deadlineAt)));
+
+    const kept: string[] = [];
+    const unverified: string[] = [];
+    for (const check of checks) {
+      if (check.storage === 'held') {
+        kept.push(check.url);
+      } else if (check.storage === 'refused') {
+        kept.push(check.url);
+        unverified.push(check.url);
+      } else {
+        rejected.push({ url: check.url, reason: check.reason });
+      }
+    }
+    return { kept, unverified, rejected, anyAccepted: accepted.length > 0 };
   }
 
   private async publish(
@@ -234,18 +320,80 @@ export class Nip17Messaging {
     me: string,
     relays: string[],
     event: Event,
+    publishBy: number,
   ): Promise<{ accepted: string[]; rejected: { url: string; reason: string }[] }> {
     const outcomes = await Promise.allSettled(
-      this.poolFor(me).publish(relays, event, { maxWait: PUBLISH_WAIT_MS, onauth: authSigner(secretKey) }),
+      this.poolFor(me)
+        .publish(relays, event, {
+          maxWait: Math.max(0, publishBy - this.now()),
+          onauth: authSigner(secretKey),
+        })
+        // nostr-tools' own waits run past `maxWait`, so only ours decides (#265).
+        .map((publish) => withDeadline(publish, publishBy, () => Promise.reject(new Error('timed out')), this.now)),
     );
     const accepted: string[] = [];
     const rejected: { url: string; reason: string }[] = [];
     outcomes.forEach((outcome, index) => {
       const url = relays[index]!;
-      if (outcome.status === 'fulfilled') accepted.push(url);
-      else rejected.push({ url, reason: reasonOf(outcome.reason) });
+      if (outcome.status === 'rejected') {
+        rejected.push({ url, reason: reasonOf(outcome.reason) });
+      } else if (String(outcome.value).startsWith(CONNECTION_FAILURE)) {
+        rejected.push({ url, reason: String(outcome.value) });
+      } else {
+        accepted.push(url);
+      }
     });
     return { accepted, rejected };
+  }
+
+  /**
+   * Asks one relay for the wrap it accepted, authenticating as the sender where it asks. Each relay
+   * gets its own request, so one slow relay cannot hide what the others answered.
+   */
+  private checkStored(
+    secretKey: Uint8Array,
+    me: string,
+    url: string,
+    wrapId: string,
+    deadlineAt: number,
+  ): Promise<Storage> {
+    return new Promise((resolve) => {
+      let held = false;
+      let settled = false;
+      const finish = (storage: Storage) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(storage);
+      };
+      const timer = setTimeout(
+        () => {
+          finish({ url, storage: 'unanswered', reason: 'could not confirm the relay stored it' });
+          closer.close();
+        },
+        Math.max(0, deadlineAt - this.now()),
+      );
+      const closer = this.poolFor(me).subscribeEose(
+        [url],
+        { ids: [wrapId] },
+        {
+          // nostr-tools treats its own timeout as the end of what a relay holds, so it must never
+          // come first: a slow relay would look like one that dropped the wrap.
+          maxWait: Math.max(0, deadlineAt - this.now()) + 1_000,
+          onauth: authSigner(secretKey),
+          onevent: (event) => {
+            if (event.id === wrapId) held = true;
+          },
+          onclose: (reasons) => {
+            const reason = reasons[0] ?? '';
+            if (held) finish({ url, storage: 'held' });
+            else if (REFUSED_TO_SERVE.test(reason)) finish({ url, storage: 'refused' });
+            else if (reason === CLOSED_ON_EOSE) finish({ url, storage: 'missing', reason: 'accepted but not stored' });
+            else finish({ url, storage: 'unanswered', reason: reason || 'could not confirm the relay stored it' });
+          },
+        },
+      );
+    });
   }
 
   /**
