@@ -76,6 +76,12 @@ beforeEach(() => {
 });
 
 describe('DmRelayEditor', () => {
+  it('says which relays keep private messages (#278)', async () => {
+    const wrapper = await mountEditor();
+
+    expect(wrapper.find('[data-testid="dm-relays-keeps-messages"]').text()).toBe('relays.dmRelays.keepsMessages');
+  });
+
   it('shows the published direct message relays', async () => {
     const wrapper = await mountEditor();
 

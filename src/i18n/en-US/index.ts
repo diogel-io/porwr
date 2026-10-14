@@ -474,6 +474,11 @@ export default {
     dashboardCaption:
       'Message the Diogel support team. Messages are private and end-to-end encrypted (NIP-17), and replies appear here.',
     peerName: 'Diogel Support',
+    relayNote: {
+      title: 'Make sure replies can reach you',
+      body: "Diogel Support replies to your Direct Message Relays. Choose relays that keep private messages, such as wss://nos.lol or wss://relay.primal.net. Some relays, including relay.damus.io, accept private messages but don't keep them, so replies sent there never arrive.",
+      action: 'Check your relays',
+    },
     notReachable:
       "Diogel Support can't receive messages right now. Please try again later.",
   },
@@ -616,6 +621,8 @@ export default {
       empty: 'No direct message relays. Without any, other people cannot send you private messages.',
       notPublished: 'You have not published a direct message relay list yet.',
       loadError: 'Could not load your direct message relays. Saving will publish the list shown here.',
+      keepsMessages:
+        "Choose relays that keep private messages, such as wss://nos.lol or wss://relay.primal.net. Some relays, including relay.damus.io, accept private messages but don't keep them, so nothing sent there reaches you.",
       recommendedSize: 'NIP-17 recommends keeping this list small: 1 to 3 relays.',
       tooMany: 'More than 3 relays. NIP-17 recommends 1 to 3, so messages reach you reliably.',
       saveSuccess: 'Direct message relays published to {count} relays',
