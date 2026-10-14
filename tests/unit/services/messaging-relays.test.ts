@@ -27,6 +27,8 @@ const FALLBACK = ['wss://fallback.one', 'wss://fallback.two'];
 /**
  * A pool whose relays answer by URL: `slow` relays never answer, `down` ones fail to connect, and the
  * rest answer at once. `dmListOn` limits which relays hold the kind 10050.
+ *
+ * A `down` relay is reported as nostr-tools reports it: `oneose` and then, at once, `onclose`.
  */
 function fakePool(
   events: {
@@ -41,7 +43,8 @@ function fakePool(
     if (!url.includes('slow')) {
       void Promise.resolve().then(() => {
         if (url.includes('down')) {
-          params.onclose?.(['connection failed']);
+          params.oneose?.();
+          params.onclose?.(['connection timed out']);
           return;
         }
         const event =
@@ -214,6 +217,42 @@ describe('MessagingRelays', () => {
     clock = 11 * 60 * 1000;
     await relays.lookupDmRelays('a'.repeat(64));
     expect(askedFor(10050)).toHaveLength(FALLBACK.length * 2);
+  });
+
+  it('reuses an answer of no list for 30 s only, so a newly published list is found soon', async () => {
+    let clock = 0;
+    const { pool, askedFor } = fakePool();
+    const relays = new MessagingRelays(() => pool, () => clock);
+
+    await expect(relays.lookupDmRelays('a'.repeat(64))).resolves.toEqual({ relays: [], updatedAt: null });
+    clock = 29 * 1000;
+    await relays.lookupDmRelays('a'.repeat(64));
+    expect(askedFor(10050)).toHaveLength(FALLBACK.length);
+
+    clock = 30 * 1000;
+    await relays.lookupDmRelays('a'.repeat(64));
+    expect(askedFor(10050)).toHaveLength(FALLBACK.length * 2);
+  });
+
+  it('does not take a relay it could not connect to for one that holds no list', async () => {
+    storage.fallback = ['wss://down.example'];
+    const { pool, askedFor } = fakePool({ dmList: { created_at: 1, tags: [['relay', 'wss://inbox.example']] } });
+    const relays = new MessagingRelays(() => pool);
+
+    await expect(relays.fetchDmRelays('a'.repeat(64))).rejects.toThrow('No relay answered in time');
+    await expect(relays.lookupDmRelays('a'.repeat(64))).resolves.toEqual({ relays: [], updatedAt: null });
+    await relays.lookupDmRelays('a'.repeat(64));
+    expect(askedFor(10050)).toHaveLength(3);
+  });
+
+  it('finds the list on the relays that answer when another could not be reached', async () => {
+    storage.fallback = ['wss://down.example', 'wss://fallback.one'];
+    const { pool } = fakePool({ dmList: { created_at: 1, tags: [['relay', 'wss://inbox.example']] } });
+
+    await expect(new MessagingRelays(() => pool).lookupDmRelays('a'.repeat(64))).resolves.toEqual({
+      relays: ['wss://inbox.example'],
+      updatedAt: 1,
+    });
   });
 });
 

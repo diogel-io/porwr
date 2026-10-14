@@ -36,6 +36,12 @@ const PUBLISH_DEADLINE_MS = 4_000;
  */
 const DM_RELAY_CACHE_MS = 10 * 60 * 1000;
 
+/**
+ * How long an answer of "no DM relay list" is reused. Someone who has just published their first
+ * kind 10050 should be reachable within a send or two, not after `DM_RELAY_CACHE_MS`.
+ */
+const EMPTY_DM_RELAY_CACHE_MS = 30 * 1000;
+
 function normalizeAll(urls: readonly string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -176,11 +182,13 @@ export class MessagingRelays {
    *
    * The Relays page uses `fetchDmRelays` instead, so what it shows is never stale.
    *
-   * When no relay answers in time this reports no list, as before, but does not keep it.
+   * When no relay answers in time this reports no list, as before, but does not keep it. An answer
+   * of no list is kept only for `EMPTY_DM_RELAY_CACHE_MS`.
    */
   async lookupDmRelays(pubkey: string): Promise<DmRelayList> {
     const cached = this.dmRelayCache.get(pubkey);
-    if (cached && this.now() - cached.at < DM_RELAY_CACHE_MS) {
+    const ttl = cached && cached.list.relays.length === 0 ? EMPTY_DM_RELAY_CACHE_MS : DM_RELAY_CACHE_MS;
+    if (cached && this.now() - cached.at < ttl) {
       return cached.list;
     }
     const { list, answered } = await this.readDmRelays(pubkey);
@@ -328,6 +336,11 @@ export class MessagingRelays {
    * Each relay is asked on its own, so events from fast relays are kept when a slow one is still
    * pending. `answered` says whether any relay finished answering; without that, finding nothing
    * means nothing.
+   *
+   * nostr-tools reports a subscription that closes without an EOSE — a relay it could not connect
+   * to, or one that refused the request — by calling `oneose` and then, in the same turn, `onclose`.
+   * So an EOSE only counts once that turn has passed without a close; otherwise a connection that
+   * timed out would read as a relay saying it holds nothing.
    */
   private queryNewest(
     relays: readonly string[],
@@ -368,7 +381,7 @@ export class MessagingRelays {
             onevent: (event) => {
               found = newest(found, event);
             },
-            oneose: () => settle(true),
+            oneose: () => queueMicrotask(() => settle(true)),
             onclose: () => settle(false),
           }),
         );

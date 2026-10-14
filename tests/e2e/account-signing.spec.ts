@@ -20,8 +20,11 @@ const SECOND = {
 };
 
 async function seedTwoAccounts(page: Page, fallbackRelay: string): Promise<void> {
-  await seedVaultAccounts(page, [TEST_ACCOUNT, SECOND]);
+  // Point the background at the local relay before adding accounts: adding one starts reads from
+  // the fallback relays, and reads from the real seed relays would make Chrome hold back this
+  // extension's later WebSocket connections, the local relay's included, for seconds.
   await page.evaluate((relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }), fallbackRelay);
+  await seedVaultAccounts(page, [TEST_ACCOUNT, SECOND]);
 }
 
 async function latest(relay: string, kind: number, author: string): Promise<Event | null> {
