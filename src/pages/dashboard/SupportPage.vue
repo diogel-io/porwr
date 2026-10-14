@@ -84,6 +84,14 @@ onMounted(async () => {
     </div>
 
     <template v-else>
+      <!-- Until relays are checked automatically (#277), say which ones keep messages (#278). -->
+      <q-banner class="q-mb-md" rounded data-testid="support-relay-note">
+        <div class="text-weight-medium">{{ t('support.relayNote.title') }}</div>
+        {{ t('support.relayNote.body') }}
+        <template #action>
+          <q-btn flat :label="t('support.relayNote.action')" :to="{ name: 'relays' }" />
+        </template>
+      </q-banner>
       <q-banner v-if="inbox === 'none'" class="q-mb-md" rounded data-testid="no-inbox">
         {{ t('messaging.noInbox') }}
         <template #action>

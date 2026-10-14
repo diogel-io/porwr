@@ -130,6 +130,16 @@ describe('SupportPage (#228)', () => {
     expect(wrapper.text()).not.toContain('from bob');
   });
 
+  it('explains which relays let replies reach the user, linking to Relays, even with an inbox (#278)', async () => {
+    const wrapper = await mountPage();
+
+    const note = wrapper.find('[data-testid="support-relay-note"]');
+    expect(note.text()).toContain('support.relayNote.title');
+    expect(note.text()).toContain('support.relayNote.body');
+    expect(note.find('button').text()).toBe('support.relayNote.action');
+    expect(wrapper.find('[data-testid="no-inbox"]').exists()).toBe(false);
+  });
+
   it('sends to the Diogel support account', async () => {
     mocks.sendMessage.mockResolvedValue({
       status: 'sent',

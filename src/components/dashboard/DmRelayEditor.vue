@@ -103,7 +103,11 @@ watch(
 <template>
   <div class="q-pa-md dm-relay-editor">
     <div class="text-h6">{{ t('relays.dmRelays.title') }}</div>
-    <p class="text-caption text-grey-7 q-mb-md">{{ t('relays.dmRelays.caption') }}</p>
+    <p class="text-caption text-grey-7 q-mb-sm">{{ t('relays.dmRelays.caption') }}</p>
+    <!-- Until relays are checked automatically (#277), say which ones keep messages (#278). -->
+    <p class="text-caption text-grey-7 q-mb-md" data-testid="dm-relays-keeps-messages">
+      {{ t('relays.dmRelays.keepsMessages') }}
+    </p>
 
     <div v-if="loading" class="flex justify-center q-my-md" role="status">
       <q-spinner color="primary" size="3em" />
