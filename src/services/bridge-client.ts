@@ -20,10 +20,14 @@ import type { BridgeAction, BridgeRequestMap, BridgeResponsePayload } from '@/ty
 const CALL_TIMEOUT_MS = 5000;
 const RETRY_DELAYS_MS = [100, 400];
 
-/** Calls a timeout must not repeat: each one signs, publishes, sends or pays. */
+/**
+ * Calls a timeout must not repeat: each one signs, publishes, sends or pays. A DM relay check
+ * publishes a test gift wrap to every relay it checks.
+ */
 const NOT_REPEATED_AFTER_TIMEOUT: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
   'account.signEvent',
   'blossom.upload',
+  'messaging.dmRelays.check',
   'messaging.dmRelays.publish',
   'messaging.send',
   'nip47.payInvoice',
