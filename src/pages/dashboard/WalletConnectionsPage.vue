@@ -158,7 +158,7 @@ function getCapabilitySummary(connection: Nip47ConnectionSummary): string {
 
 function getActiveConnectionStatus(connection: Nip47ConnectionSummary): string {
   if (connection.capabilities.includes('pay_invoice')) {
-    return t('walletManagement.status.readyForManualPayments');
+    return t('walletManagement.status.readyForPayments');
   }
 
   if (connection.capabilities.length > 0) {
@@ -564,7 +564,7 @@ onMounted(() => {
           <div class="wallet-active-card__metric">
             <span class="wallet-active-card__metric-label">{{ $t('walletManagement.security.label') }}</span>
             <strong>{{ $t('walletManagement.security.vaultStored') }}</strong>
-            <small>{{ $t('walletManagement.security.noWebsiteApi') }}</small>
+            <small>{{ $t('walletManagement.security.websitePayments') }}</small>
           </div>
         </q-card-section>
 
