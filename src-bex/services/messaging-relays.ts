@@ -188,7 +188,7 @@ export class MessagingRelays {
     if (cached && this.now() - cached.at < ttl) {
       return cached.list;
     }
-    const { list, answered } = await this.readDmRelays(pubkey);
+    const { list, answered } = await this.readDmRelays(this.pool, pubkey);
     if (answered) this.dmRelayCache.set(pubkey, { list, at: this.now() });
     return list;
   }
@@ -202,9 +202,21 @@ export class MessagingRelays {
    *
    * Throws when no relay answered in time: "no list" would then be a guess, and the page would
    * offer to publish over a list that may exist.
+   *
+   * Reads through a pool opened for this load and closed after it. A shared pool hands a load any
+   * connection attempt an earlier load started, and with it that load's connect timeout, so it could
+   * give up on a relay before its own deadline (#288).
    */
   async fetchDmRelays(pubkey: string): Promise<DmRelayList> {
-    const { list, answered } = await this.readDmRelays(pubkey);
+    const loadPool = this.createPool();
+    let read: { list: DmRelayList; answered: boolean };
+    try {
+      read = await this.readDmRelays(loadPool, pubkey);
+    } finally {
+      // Also closes connections still being opened (nostr-tools 2.25, #287).
+      loadPool.destroy();
+    }
+    const { list, answered } = read;
     if (!answered) {
       throw new Error('No relay answered in time');
     }
@@ -217,18 +229,21 @@ export class MessagingRelays {
    * relays, all within `LOAD_DEADLINE_MS`. The fallback relays are asked straight away rather than
    * after the write relays are known, so one slow relay is waited on once, not twice.
    */
-  private async readDmRelays(pubkey: string): Promise<{ list: DmRelayList; answered: boolean }> {
+  private async readDmRelays(
+    pool: SimplePool,
+    pubkey: string,
+  ): Promise<{ list: DmRelayList; answered: boolean }> {
     const start = this.now();
     const deadlineAt = start + LOAD_DEADLINE_MS;
     const fallback = await getFallbackRelays();
     const filter: Filter = { kinds: [DM_RELAY_LIST_KIND], authors: [pubkey], limit: 1 };
 
     const [onFallback, ownWriteRelays] = await Promise.all([
-      this.queryNewest(fallback, filter, deadlineAt),
-      this.fetchWriteRelays(pubkey, fallback, Math.min(deadlineAt, start + FETCH_WAIT_MS)),
+      this.queryNewest(pool, fallback, filter, deadlineAt),
+      this.fetchWriteRelays(pool, pubkey, fallback, Math.min(deadlineAt, start + FETCH_WAIT_MS)),
     ]);
     const writeOnly = ownWriteRelays.filter((url) => !fallback.includes(url));
-    const onWrite = await this.queryNewest(writeOnly, filter, deadlineAt);
+    const onWrite = await this.queryNewest(pool, writeOnly, filter, deadlineAt);
 
     const event = newest(onFallback.event, onWrite.event);
     return {
@@ -256,6 +271,7 @@ export class MessagingRelays {
     const pubkey = getPublicKey(secretKey);
     const fallback = await getFallbackRelays();
     const ownWriteRelays = await this.fetchWriteRelays(
+      this.pool,
       pubkey,
       fallback,
       Math.min(deadlineAt, this.now() + FETCH_WAIT_MS),
@@ -309,6 +325,7 @@ export class MessagingRelays {
   async loadRelayMap(pubkey: string): Promise<Nip07RelayMap> {
     const fallback = await getFallbackRelays();
     const { event } = await this.queryNewest(
+      this.pool,
       fallback,
       { kinds: [RELAY_LIST_KIND], authors: [pubkey], limit: 1 },
       this.now() + LOAD_DEADLINE_MS,
@@ -316,8 +333,14 @@ export class MessagingRelays {
     return event ? parseNip07RelayMap(event) : {};
   }
 
-  private async fetchWriteRelays(pubkey: string, fallback: string[], deadlineAt: number): Promise<string[]> {
+  private async fetchWriteRelays(
+    pool: SimplePool,
+    pubkey: string,
+    fallback: string[],
+    deadlineAt: number,
+  ): Promise<string[]> {
     const { event } = await this.queryNewest(
+      pool,
       fallback,
       { kinds: [RELAY_LIST_KIND], authors: [pubkey], limit: 1 },
       deadlineAt,
@@ -339,6 +362,7 @@ export class MessagingRelays {
    * timed out would read as a relay saying it holds nothing.
    */
   private queryNewest(
+    pool: SimplePool,
     relays: readonly string[],
     filter: Filter,
     deadlineAt: number,
@@ -372,7 +396,7 @@ export class MessagingRelays {
           if (pending === 0) finish();
         };
         subs.push(
-          this.pool.subscribeMany([url], filter, {
+          pool.subscribeMany([url], filter, {
             maxWait,
             onevent: (event) => {
               found = newest(found, event);

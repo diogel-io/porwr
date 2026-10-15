@@ -84,6 +84,37 @@ test('Direct Message Relays load and save when one relay never answers', async (
   }
 });
 
+test('Direct Message Relays load when the Relays page is opened again straight away (#288)', async ({
+  openPage,
+  relays,
+}) => {
+  const silent = await startSilentRelay();
+  try {
+    const page = await openPage('/login');
+    await createVault(page);
+    // Unlike the other tests, the account comes first, on purpose: its reads from the real seed relays
+    // make Chrome hold back the extension's next WebSocket connections, so the first load is still
+    // connecting to the local relay when the second starts. That is when a shared attempt bit.
+    await seedAccount(page);
+    await page.evaluate(
+      (list) => chrome.storage.local.set({ 'nostr:fallback-relays': list }),
+      [relays.plain, silent.url],
+    );
+    // Two loads, the second starting while the first is still connecting. It used to share the first
+    // load's connection attempts, and gave up on the local relay when the first load's timer did.
+    await page.goto(page.url().replace(/#.*$/, '#/relays'));
+    await page.reload();
+
+    const card = page.getByTestId('dm-relays-card');
+    await expect(card.getByRole('button', { name: 'Save', exact: true })).toBeVisible({ timeout: 6_000 });
+    await expect(card.getByText('You have not published a direct message relay list yet.')).toBeVisible();
+    await expect(card.getByText(/Could not load your direct message relays/)).toHaveCount(0);
+  } finally {
+    silent.sockets.forEach((socket) => socket.destroy());
+    silent.server.close();
+  }
+});
+
 /**
  * Saving checks each DM relay with a throwaway gift wrap first (#277). `dropping` says OK to gift
  * wraps and keeps none, like relay.damus.io; `inbox` requires NIP-42 AUTH and keeps them.
