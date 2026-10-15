@@ -328,6 +328,109 @@ describe('MessagingRelays load deadline (#265)', () => {
   });
 });
 
+describe('MessagingRelays load pool (#288)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** Hands out `pools` in order: the first is the shared one the constructor takes. */
+  function poolsInOrder(...pools: SimplePool[]) {
+    let next = 0;
+    return vi.fn(() => pools[next++] ?? fakePool().pool);
+  }
+
+  /**
+   * A pool whose relays all settle at `at` ms: with an EOSE and `dmList`, or as a connection that
+   * timed out. Stands in for a connection that opens, or fails, at a given moment.
+   */
+  function timedPool(at: number, outcome: 'answers' | 'times out', dmList?: Partial<Event>) {
+    const subscribeMany = vi.fn((relays: string[], filter: Filter, params: SubscribeManyParams) => {
+      const url = relays[0]!;
+      setTimeout(() => {
+        if (outcome === 'times out') {
+          params.oneose?.();
+          params.onclose?.([{ url, reason: 'connection timed out' }]);
+          return;
+        }
+        if (dmList && filter.kinds?.[0] === 10050) params.onevent?.(dmList as Event);
+        params.oneose?.();
+      }, Math.max(0, at - Date.now()));
+      return { close: vi.fn() };
+    });
+    const destroy = vi.fn();
+    return { pool: { subscribeMany, destroy } as unknown as SimplePool, subscribeMany, destroy };
+  }
+
+  it('reads each Relays page load through a pool of its own, and closes it afterwards', async () => {
+    const shared = fakePool();
+    const load = fakePool({ dmList: { created_at: 2, tags: [['relay', 'wss://inbox.example']] } });
+    const createPool = poolsInOrder(shared.pool, load.pool);
+
+    await expect(new MessagingRelays(createPool).fetchDmRelays('a'.repeat(64))).resolves.toEqual({
+      relays: ['wss://inbox.example'],
+      updatedAt: 2,
+    });
+    expect(createPool).toHaveBeenCalledTimes(2);
+    expect(load.subscribeMany).toHaveBeenCalled();
+    expect(load.destroy).toHaveBeenCalledTimes(1);
+    expect(shared.subscribeMany).not.toHaveBeenCalled();
+  });
+
+  it('closes the load pool when no relay answers', async () => {
+    storage.fallback = ['wss://down.example'];
+    const shared = fakePool();
+    const load = fakePool();
+
+    await expect(
+      new MessagingRelays(poolsInOrder(shared.pool, load.pool)).fetchDmRelays('a'.repeat(64)),
+    ).rejects.toThrow('No relay answered in time');
+    expect(load.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives overlapping loads a pool each', async () => {
+    const shared = fakePool();
+    const first = fakePool();
+    const second = fakePool();
+    const relays = new MessagingRelays(poolsInOrder(shared.pool, first.pool, second.pool));
+
+    await Promise.all([relays.fetchDmRelays('a'.repeat(64)), relays.fetchDmRelays('a'.repeat(64))]);
+
+    expect(first.subscribeMany).toHaveBeenCalled();
+    expect(second.subscribeMany).toHaveBeenCalled();
+    expect(first.destroy).toHaveBeenCalledTimes(1);
+    expect(second.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps reading lists for messaging through the shared pool', async () => {
+    const shared = fakePool();
+    const createPool = poolsInOrder(shared.pool);
+
+    await new MessagingRelays(createPool).lookupDmRelays('a'.repeat(64));
+
+    expect(createPool).toHaveBeenCalledTimes(1);
+    expect(shared.subscribeMany).toHaveBeenCalled();
+    expect(shared.destroy).not.toHaveBeenCalled();
+  });
+
+  it("is not failed by an earlier load's connection attempt when the relay answers in its own time", async () => {
+    storage.fallback = ['wss://fallback.one'];
+    // The shared pool's attempt fails at 3.6 s, as one started by an earlier caller would.
+    const shared = timedPool(3_600, 'times out');
+    const earlier = timedPool(3_600, 'times out');
+    const later = timedPool(4_000, 'answers', { created_at: 3, tags: [['relay', 'wss://inbox.example']] });
+    const relays = new MessagingRelays(poolsInOrder(shared.pool, earlier.pool, later.pool));
+
+    const first = relays.fetchDmRelays('a'.repeat(64));
+    const firstFails = expect(first).rejects.toThrow('No relay answered in time');
+    await vi.advanceTimersByTimeAsync(300);
+    const second = relays.fetchDmRelays('a'.repeat(64));
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    await firstFails;
+    // The later load started at 0.3 s, so its deadline is 4.3 s and the 4 s answer counts.
+    await expect(second).resolves.toEqual({ relays: ['wss://inbox.example'], updatedAt: 3 });
+  });
+});
+
 describe('MessagingRelays publish deadline (#265)', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
