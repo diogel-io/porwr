@@ -7,6 +7,8 @@ import type {
 } from '@/../src-bex/types/background';
 import type { RelayCatalogEntry, RelayDiscoveryState } from './relay';
 import type {
+  DmRelayCheckRequest,
+  DmRelayCheckResult,
   DmRelayList,
   DmRelayPublishRequest,
   DmRelayPublishResult,
@@ -172,6 +174,7 @@ export type BridgeAction =
   | 'nip47.authorization.probe'
   | 'messaging.dmRelays.get'
   | 'messaging.dmRelays.publish'
+  | 'messaging.dmRelays.check'
   | 'messaging.send'
   | 'messaging.fetch'
   | 'messaging.readState'
@@ -452,6 +455,10 @@ export interface BridgeRequestMap {
     id: string;
     action: 'messaging.dmRelays.publish';
   } & DmRelayPublishRequest;
+  'messaging.dmRelays.check': {
+    id: string;
+    action: 'messaging.dmRelays.check';
+  } & DmRelayCheckRequest;
   'messaging.send': {
     id: string;
     action: 'messaging.send';
@@ -556,6 +563,7 @@ export interface BridgeResponseMap {
   'nip47.authorization.probe': Nip47ConnectionSummary | null | { success: false; error: string };
   'messaging.dmRelays.get': DmRelayList | { success: false; error: string };
   'messaging.dmRelays.publish': DmRelayPublishResult | { success: false; error: string };
+  'messaging.dmRelays.check': DmRelayCheckResult | { success: false; error: string };
   'messaging.send': SendMessageResult | { success: false; error: string };
   'messaging.fetch': FetchMessagesResult | { success: false; error: string };
   'messaging.readState': MessagingReadState | { success: false; error: string };

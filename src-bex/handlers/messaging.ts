@@ -2,6 +2,8 @@ import { getPublicKey } from 'nostr-tools';
 
 import type { VaultData } from '@/types/bridge';
 import type {
+  DmRelayCheckRequest,
+  DmRelayCheckResult,
   DmRelayList,
   DmRelayPublishRequest,
   DmRelayPublishResult,
@@ -20,6 +22,7 @@ import { mutateVault } from '../services/vault-mutation';
 import { getActiveSecretKey } from './active-key';
 import { messagingRelays, validateDmRelays } from '../services/messaging-relays';
 import { nip17Messaging } from '../services/nip17-messaging';
+import { dmRelayProbe } from '../services/dm-relay-probe';
 import { markConversationRead, readStateFor } from '../services/messaging-read-state-store';
 import { addSavedPeer, removeSavedPeer, savedPeersFor } from '../services/messaging-saved-peers-store';
 
@@ -61,6 +64,18 @@ export async function handleDmRelaysPublish(
     };
   }
   return { success: true, data: result };
+}
+
+/**
+ * Tests whether each relay keeps gift wraps, before the user publishes them as their inbox (#277).
+ * The test uses throwaway keys, so it needs no unlocked account.
+ */
+export async function handleDmRelaysCheck(payload: DmRelayCheckRequest): Promise<HandlerResult<DmRelayCheckResult>> {
+  const validation = validateDmRelays(Array.isArray(payload?.relays) ? payload.relays : []);
+  if (!validation.valid) {
+    return { success: false, error: validation.error };
+  }
+  return { success: true, data: await dmRelayProbe.check(validation.relays) };
 }
 
 export async function handleMessagesSend(payload: SendMessageRequest): Promise<HandlerResult<SendMessageResult>> {

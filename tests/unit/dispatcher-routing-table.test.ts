@@ -56,6 +56,7 @@ vi.mock('@/../src-bex/handlers/nip47', () => ({
 }));
 vi.mock('@/../src-bex/handlers/messaging', () => ({
   handleDmRelaysGet: vi.fn(), handleDmRelaysPublish: vi.fn(),
+  handleDmRelaysCheck: vi.fn(),
   handleMessagesSend: vi.fn(), handleMessagesFetch: vi.fn(),
   handleMessagesReadState: vi.fn(), handleMessagesMarkRead: vi.fn(),
   handleSavedPeersGet: vi.fn(), handleSavedPeersAdd: vi.fn(), handleSavedPeersRemove: vi.fn(),
@@ -241,6 +242,11 @@ const cases: Case[] = [
     resolves: ok({ relays: ['wss://dm'], accepted: ['wss://dm'], rejected: [] }),
     expected: { relays: ['wss://dm'], accepted: ['wss://dm'], rejected: [] },
     expectArgs: [expect.objectContaining({ relays: ['wss://dm'] })] },
+  { action: 'messaging.dmRelays.check', payload: { relays: ['wss://dm'] },
+    handler: vi.mocked(messaging.handleDmRelaysCheck), name: 'handleDmRelaysCheck',
+    resolves: ok({ checks: [{ url: 'wss://dm', status: 'keeps' }] }),
+    expected: { checks: [{ url: 'wss://dm', status: 'keeps' }] },
+    expectArgs: [expect.objectContaining({ relays: ['wss://dm'] })] },
   { action: 'messaging.send', payload: { clientMessageId: 'c1', recipient: 'b', content: 'hi' },
     handler: vi.mocked(messaging.handleMessagesSend), name: 'handleMessagesSend',
     resolves: ok({ status: 'recipient-not-ready' }), expected: { status: 'recipient-not-ready' },
@@ -377,6 +383,7 @@ describe('messaging actions report failures to the page', () => {
 
   it('covers every messaging action', () => {
     expect(messagingCases.map((entry) => entry.action).sort()).toEqual([
+      'messaging.dmRelays.check',
       'messaging.dmRelays.get',
       'messaging.dmRelays.publish',
       'messaging.fetch',

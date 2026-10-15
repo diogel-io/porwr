@@ -25,6 +25,28 @@ export interface DmRelayPublishResult {
   rejected: { url: string; reason: string }[];
 }
 
+export interface DmRelayCheckRequest {
+  relays: string[];
+}
+
+/**
+ * What a relay did with a test gift wrap. `keeps` stored it and served it back, `drops` refused it or
+ * said OK and never stored it, so nobody can message the user there, and `unchecked` could not be
+ * tested: unreachable, slow, rate-limited or refusing to serve it (#277).
+ */
+export type DmRelayCheckStatus = 'keeps' | 'drops' | 'unchecked';
+
+export interface DmRelayCheck {
+  url: string;
+  status: DmRelayCheckStatus;
+  reason?: string;
+}
+
+/** One check per relay asked about, in the same order. */
+export interface DmRelayCheckResult {
+  checks: readonly DmRelayCheck[];
+}
+
 /** NIP-59 gift wrap, NIP-59 seal and NIP-17 chat message kinds. */
 export const GIFT_WRAP_KIND = 1059;
 export const SEAL_KIND = 13;

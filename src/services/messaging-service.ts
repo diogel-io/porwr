@@ -1,5 +1,6 @@
 import { sendBexMessage } from './vault-service';
 import type {
+  DmRelayCheckResult,
   DmRelayList,
   DmRelayPublishResult,
   FetchMessagesResult,
@@ -38,6 +39,17 @@ export async function publishDmRelays(relays: string[]): Promise<DmRelayPublishR
   if (error) throw new Error(error);
   if (!response || !('accepted' in response)) {
     throw new Error('Invalid direct message relay publish response');
+  }
+  return response;
+}
+
+/** Tests each relay with a throwaway gift wrap and reports whether it keeps them (#277). */
+export async function checkDmRelays(relays: string[]): Promise<DmRelayCheckResult> {
+  const response = await sendBexMessage('messaging.dmRelays.check', { relays });
+  const error = errorOf(response);
+  if (error) throw new Error(error);
+  if (!response || !('checks' in response) || !Array.isArray(response.checks)) {
+    throw new Error('Invalid direct message relay check response');
   }
   return response;
 }

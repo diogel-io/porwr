@@ -622,7 +622,21 @@ export default {
       notPublished: 'You have not published a direct message relay list yet.',
       loadError: 'Could not load your direct message relays. Saving will publish the list shown here.',
       keepsMessages:
-        "Choose relays that keep private messages, such as wss://nos.lol or wss://relay.primal.net. Some relays, including relay.damus.io, accept private messages but don't keep them, so nothing sent there reaches you.",
+        "When you save, Porwr checks that each relay keeps private messages by sending it a test message from a throwaway key. Inbox relays that use NIP-42 authentication work best, because they show your messages only to you. Some relays, including relay.damus.io, accept private messages but don't keep them, so nothing sent there reaches you.",
+      checking: 'Checking that each relay keeps private messages…',
+      checkFailed: "Couldn't check the relays. Publishing the list anyway.",
+      status: {
+        keeps: 'Keeps messages',
+        drops: 'Drops messages',
+        unchecked: "Couldn't check",
+      },
+      allDrop:
+        "None of these relays keep private messages, so nobody could reach you: {relays}. Add a relay that keeps them, then save again.",
+      someDropTitle: 'Some relays drop messages',
+      someDropBody:
+        "{relays} accept private messages but don't keep them, so anything sent there never reaches you. Publish the list anyway?",
+      publishAnyway: 'Publish anyway',
+      cancel: 'Cancel',
       recommendedSize: 'NIP-17 recommends keeping this list small: 1 to 3 relays.',
       tooMany: 'More than 3 relays. NIP-17 recommends 1 to 3, so messages reach you reliably.',
       saveSuccess: 'Direct message relays published to {count} relays',

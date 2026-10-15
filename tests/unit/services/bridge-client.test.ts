@@ -81,6 +81,18 @@ describe('bridge client', () => {
       expect(send).toHaveBeenCalledTimes(1);
     });
 
+    it('includes a DM relay check, which publishes test messages (#277)', async () => {
+      const send = vi.fn(() => new Promise(() => {}));
+      setBridge({ send });
+
+      const result = sendBexMessage('messaging.dmRelays.check', { relays: [] });
+      const assertion = expect(result).rejects.toBeInstanceOf(BackgroundTimeoutError);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await assertion;
+
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
     it('is not sent again through runtime messaging', async () => {
       const send = vi.fn(() => new Promise(() => {}));
       const sendMessage = vi.fn();
