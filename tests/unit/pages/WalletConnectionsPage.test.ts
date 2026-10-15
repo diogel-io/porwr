@@ -22,8 +22,9 @@ vi.mock('@/services/nip47-service', () => ({
   setActiveNip47Connection: vi.fn(),
 }));
 
-vi.mock('@/composables/useWalletAuthorization', () => ({
-  useWalletAuthorization: () => ({ connecting: ref(null), connect: mocks.connect }),
+// The page connects through a separate window (workspace#76); that window is tested on its own.
+vi.mock('@/composables/useWalletConnectWindow', () => ({
+  useWalletConnectWindow: () => ({ connecting: ref(null), connect: mocks.connect }),
 }));
 
 vi.mock('vue-i18n', () => ({
@@ -156,6 +157,18 @@ describe('the wallet connections page (#110)', () => {
       type: 'warning',
       message: 'walletManagement.notifications.popupBlocked',
     });
+  });
+
+  it('says nothing when the user closes the connect window', async () => {
+    mocks.connect.mockResolvedValue({ status: 'cancelled' });
+    const wrapper = await mountPage();
+    mocks.notify.mockClear();
+
+    await wrapper.find('[data-testid="connect-coinos"]').trigger('click');
+    await flushPromises();
+
+    expect(mocks.notify).not.toHaveBeenCalled();
+    expect(mocks.listNip47Connections).toHaveBeenCalledOnce();
   });
 
   it('shows an error when connecting fails', async () => {
