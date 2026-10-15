@@ -61,7 +61,7 @@ export function checkStored(
           if (event.id === wrapId) held = true;
         },
         onclose: (reasons) => {
-          const reason = reasons[0] ?? '';
+          const reason = reasons[0]?.reason ?? '';
           if (held) finish({ url, storage: 'held' });
           else if (REFUSED_TO_SERVE.test(reason)) finish({ url, storage: 'refused' });
           else if (reason === CLOSED_ON_EOSE) finish({ url, storage: 'missing', reason: 'accepted but not stored' });

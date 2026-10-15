@@ -8,7 +8,7 @@ type ReadParams = {
   maxWait: number;
   onauth?: unknown;
   onevent: (event: Event) => void;
-  onclose: (reasons: string[]) => void;
+  onclose: (reasons: { url: string; reason: string }[]) => void;
 };
 
 const KEY = generateSecretKey();
@@ -32,7 +32,7 @@ afterEach(() => vi.useRealTimers());
 
 describe('checkStored', () => {
   it('asks only that relay for that wrap, authenticating where it asks', async () => {
-    const { pool, subscribeEose } = poolAnswering((params) => params.onclose(['closed automatically on eose']));
+    const { pool, subscribeEose } = poolAnswering((params) => params.onclose([{ url: URL, reason: 'closed automatically on eose' }]));
 
     await read(pool);
 
@@ -47,7 +47,7 @@ describe('checkStored', () => {
   it('reports a wrap the relay served back as held', async () => {
     const { pool } = poolAnswering((params) => {
       params.onevent({ id: WRAP_ID } as Event);
-      params.onclose(['closed automatically on eose']);
+      params.onclose([{ url: URL, reason: 'closed automatically on eose' }]);
     });
 
     await expect(read(pool)).resolves.toEqual({ url: URL, storage: 'held' });
@@ -56,14 +56,14 @@ describe('checkStored', () => {
   it('ignores an event that is not the wrap', async () => {
     const { pool } = poolAnswering((params) => {
       params.onevent({ id: 'b'.repeat(64) } as Event);
-      params.onclose(['closed automatically on eose']);
+      params.onclose([{ url: URL, reason: 'closed automatically on eose' }]);
     });
 
     await expect(read(pool)).resolves.toMatchObject({ storage: 'missing' });
   });
 
   it('reports a relay that answered without the wrap as missing', async () => {
-    const { pool } = poolAnswering((params) => params.onclose(['closed automatically on eose']));
+    const { pool } = poolAnswering((params) => params.onclose([{ url: URL, reason: 'closed automatically on eose' }]));
 
     await expect(read(pool)).resolves.toEqual({ url: URL, storage: 'missing', reason: 'accepted but not stored' });
   });
@@ -71,14 +71,14 @@ describe('checkStored', () => {
   it.each(['restricted: only for the recipient', 'auth-required: sign in'])(
     'reports a relay that would not serve the wrap as refused (%s)',
     async (reason) => {
-      const { pool } = poolAnswering((params) => params.onclose([reason]));
+      const { pool } = poolAnswering((params) => params.onclose([{ url: URL, reason }]));
 
       await expect(read(pool)).resolves.toEqual({ url: URL, storage: 'refused' });
     },
   );
 
   it('reports any other close as unanswered, with its reason', async () => {
-    const { pool } = poolAnswering((params) => params.onclose(['connection failure']));
+    const { pool } = poolAnswering((params) => params.onclose([{ url: URL, reason: 'connection failure' }]));
 
     await expect(read(pool)).resolves.toEqual({ url: URL, storage: 'unanswered', reason: 'connection failure' });
   });

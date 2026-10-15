@@ -3,7 +3,7 @@ import { generateSecretKey, getPublicKey, nip59, SimplePool } from 'nostr-tools'
 import { CHAT_MESSAGE_KIND } from '@/types/messaging';
 import type { DmRelayCheck, DmRelayCheckResult } from '@/types/messaging';
 import { checkStored } from './gift-wrap-storage';
-import { CONNECTION_FAILURE, withDeadline } from './messaging-relays';
+import { withDeadline } from './messaging-relays';
 import { authSigner } from './relay-auth';
 
 /** The whole check, every relay at once. It leaves about a second of the page's 5 s for the reply. */
@@ -95,22 +95,14 @@ export class DmRelayProbe {
         onauth: authSigner(secretKey),
       });
 
-      let reply: string;
       try {
-        // nostr-tools' own waits run past `maxWait`, so only ours decides (#265).
-        reply = String(
-          await withDeadline(
-            publish!,
-            publishBy,
-            () => Promise.reject(new Error('timed out')),
-            this.now,
-          ),
-        );
+        // nostr-tools' own waits run past `maxWait`, so only ours decides (#265). A relay it could not
+        // connect to rejects with "connection failure: …", which leaves the relay unchecked.
+        await withDeadline(publish!, publishBy, () => Promise.reject(new Error('timed out')), this.now);
       } catch (error) {
         const reason = reasonOf(error);
         return { url, status: REFUSES_EVENT.test(reason) ? 'drops' : 'unchecked', reason };
       }
-      if (reply.startsWith(CONNECTION_FAILURE)) return { url, status: 'unchecked', reason: reply };
 
       const stored = await checkStored(pool, secretKey, url, wrap.id, deadlineAt, this.now);
       switch (stored.storage) {

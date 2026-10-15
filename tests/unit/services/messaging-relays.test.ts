@@ -44,7 +44,7 @@ function fakePool(
       void Promise.resolve().then(() => {
         if (url.includes('down')) {
           params.oneose?.();
-          params.onclose?.(['connection timed out']);
+          params.onclose?.([{ url, reason: 'connection timed out' }]);
           return;
         }
         const event =
@@ -62,7 +62,7 @@ function fakePool(
   const publish = vi.fn((relays: string[], _event?: Event, _params?: { onauth?: unknown; abort?: AbortSignal }) =>
     relays.map((url) => {
       if (url.includes('slow')) return new Promise<string>(() => {});
-      if (url.includes('unreachable')) return Promise.resolve('connection failure: Error: connection timed out');
+      if (url.includes('unreachable')) return Promise.reject('connection failure: Error: connection timed out');
       if (url.includes('down')) return Promise.reject(new Error('connection failed'));
       return Promise.resolve('');
     }),

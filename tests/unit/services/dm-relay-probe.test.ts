@@ -7,7 +7,7 @@ type PublishParams = { maxWait: number; abort: AbortSignal; onauth: (t: EventTem
 type ReadParams = {
   onauth: (t: EventTemplate) => Promise<VerifiedEvent>;
   onevent: (event: Event) => void;
-  onclose: (reasons: string[]) => void;
+  onclose: (reasons: { url: string; reason: string }[]) => void;
 };
 
 /**
@@ -27,7 +27,7 @@ function fakePool() {
     const url = relays[0]!;
     published.push({ url, event, params });
     const mode = behaviour[url] ?? 'keeps';
-    if (mode === 'down') return [Promise.resolve('connection failure: Error: refused')];
+    if (mode === 'down') return [Promise.reject(new Error('connection failure: Error: refused'))];
     if (mode === 'slow') return [new Promise(() => {})];
     if (mode.startsWith('refuses:')) return [Promise.reject(new Error(mode.slice('refuses:'.length)))];
     if (mode !== 'drops') held.set(event.id, event);
@@ -37,14 +37,14 @@ function fakePool() {
     const mode = behaviour[relays[0]!] ?? 'keeps';
     if (mode === 'silent') return { close: vi.fn() };
     if (mode === 'hides') {
-      params.onclose(['restricted: gift wraps are only served to their recipient']);
+      params.onclose([{ url: relays[0]!, reason: 'restricted: gift wraps are only served to their recipient' }]);
       return { close: vi.fn() };
     }
     for (const id of filter.ids ?? []) {
       const event = held.get(id);
       if (event) params.onevent(event);
     }
-    params.onclose(['closed automatically on eose']);
+    params.onclose([{ url: relays[0]!, reason: 'closed automatically on eose' }]);
     return { close: vi.fn() };
   });
   const pool = { publish, subscribeEose, destroy: vi.fn() };

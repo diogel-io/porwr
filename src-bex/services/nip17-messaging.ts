@@ -9,7 +9,7 @@ import type {
   SendMessageRequest,
   SendMessageResult,
 } from '@/types/messaging';
-import { CONNECTION_FAILURE, messagingRelays, withDeadline, type MessagingRelays } from './messaging-relays';
+import { messagingRelays, withDeadline, type MessagingRelays } from './messaging-relays';
 import { checkStored } from './gift-wrap-storage';
 import { authSigner } from './relay-auth';
 
@@ -320,10 +320,9 @@ export class Nip17Messaging {
     const rejected: { url: string; reason: string }[] = [];
     outcomes.forEach((outcome, index) => {
       const url = relays[index]!;
+      // nostr-tools rejects a publish to a relay it could not connect to, with "connection failure: …".
       if (outcome.status === 'rejected') {
         rejected.push({ url, reason: reasonOf(outcome.reason) });
-      } else if (String(outcome.value).startsWith(CONNECTION_FAILURE)) {
-        rejected.push({ url, reason: String(outcome.value) });
       } else {
         accepted.push(url);
       }
