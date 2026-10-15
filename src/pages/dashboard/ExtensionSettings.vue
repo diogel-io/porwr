@@ -3,7 +3,6 @@ import { onMounted } from 'vue';
 import ThemeSwitch from '@/components/dashboard/ThemeSwitch.vue';
 import useSettingsStore from '@/stores/settings-store';
 import { useI18n } from 'vue-i18n';
-import { useVaultManagement } from '@/composables/useVaultManagement';
 import { REQUEST_EXPIRY_OPTION_MINUTES } from '@/services/request-expiry';
 
 const { t } = useI18n();
@@ -14,9 +13,6 @@ const requestExpiryOptions = REQUEST_EXPIRY_OPTION_MINUTES.map((minutes: number)
   label: t('settings.requestExpiryOptions.minutes', minutes),
   value: minutes,
 }));
-
-const { fileInput, handleExportVault, triggerImport, handleFileImport } =
-  useVaultManagement();
 
 onMounted(async () => {
   await settingsStore.getSettings();
@@ -101,50 +97,6 @@ onMounted(async () => {
                 dense
                 outlined
                 @update:model-value="(val) => settingsStore.setRequestExpiryMinutes(Number(val))"
-              />
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card-section>
-
-      <q-separator />
-
-      <q-card-section>
-        <h2 class="text-subtitle1 q-mb-md">{{ t('settings.vaultManagement') }}</h2>
-        <q-list>
-          <q-item>
-            <q-item-section>
-              <q-item-label>{{ t('settings.exportVault') }}</q-item-label>
-              <q-item-label caption>{{ t('settings.exportVaultCaption') }}</q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <q-btn
-                class="diogel-btn-ghost"
-                icon="download"
-                :label="t('settings.export')"
-                @click="handleExportVault"
-              />
-            </q-item-section>
-          </q-item>
-
-          <q-item>
-            <q-item-section>
-              <q-item-label>{{ t('settings.importVault') }}</q-item-label>
-              <q-item-label caption>{{ t('settings.importVaultCaption') }}</q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <q-btn
-                class="diogel-btn-ghost"
-                icon="upload"
-                :label="t('settings.import')"
-                @click="triggerImport"
-              />
-              <input
-                ref="fileInput"
-                accept=".json"
-                style="display: none"
-                type="file"
-                @change="handleFileImport"
               />
             </q-item-section>
           </q-item>
