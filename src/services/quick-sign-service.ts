@@ -3,10 +3,11 @@ import { signAsAccount } from './account-signing-client';
 import { get, getActive } from './dexie-storage';
 import { LogLevel, logService } from './log-service';
 import { isVaultUnlocked } from './vault-service';
-import { extractWritePreferredRelayUrls, fetchAccountRelayListEvent } from './relay-discovery';
+import { extractWritePreferredRelayUrls, fetchAccountRelayList } from './relay-discovery';
 import { ErrorCode } from '@/types/error-codes.d';
 import type {
   QuickSignAccountOption,
+  QuickSignAccountRelays,
   QuickSignAvailabilityResult,
   QuickSignContentValidationResult,
   QuickSignFormInput,
@@ -133,24 +134,32 @@ export async function listQuickSignAccounts(): Promise<QuickSignAccountOption[]>
   }));
 }
 
-export async function listQuickSignAccountRelayUrls(accountAlias: string): Promise<string[]> {
+/**
+ * The selected account's write-preferred relays from its kind 10002, or `unreachable` when the
+ * fallback relays could not be reached, so the card does not mistake a failed lookup for an
+ * account with no relay list (#285).
+ */
+export async function listQuickSignAccountRelayUrls(accountAlias: string): Promise<QuickSignAccountRelays> {
   const alias = accountAlias.trim();
   if (!alias) {
-    return [];
+    return { state: 'ready', relayUrls: [] };
   }
 
   const keys = await get();
   const selectedAccount = keys[alias];
   if (!selectedAccount) {
-    return [];
+    return { state: 'ready', relayUrls: [] };
   }
 
-  const event = await fetchAccountRelayListEvent(selectedAccount.id);
-  if (!event) {
-    return [];
+  const lookup = await fetchAccountRelayList(selectedAccount.id);
+  if (lookup.status === 'unreachable') {
+    return { state: 'unreachable' };
+  }
+  if (lookup.status === 'not-found') {
+    return { state: 'ready', relayUrls: [] };
   }
 
-  return extractWritePreferredRelayUrls(event);
+  return { state: 'ready', relayUrls: extractWritePreferredRelayUrls(lookup.event) };
 }
 
 function isQuickSignSupportedKind(kind: number): kind is QuickSignSupportedKind {

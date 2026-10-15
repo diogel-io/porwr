@@ -30,6 +30,8 @@ const content = ref('');
 const tags = ref<QuickSignTagInput[]>([]);
 const relayOptions = ref<string[]>([]);
 const selectedRelayUrls = ref<string[]>([]);
+const relayState = ref<'loading' | 'ready' | 'unreachable'>('loading');
+let relayRequest = 0;
 const showPreviewDialog = ref(false);
 const errorMessage = ref<string | null>(null);
 const successMessage = ref<string | null>(null);
@@ -103,13 +105,42 @@ async function loadOptions(): Promise<void> {
     accountAlias.value = loadedAccounts[0]?.value ?? '';
   }
 
-  relayOptions.value = await listQuickSignAccountRelayUrls(accountAlias.value);
-  selectedRelayUrls.value = relayOptions.value;
+  // With no account there is nothing to look up, and the watcher below does not fire.
+  if (!accountAlias.value) {
+    relayState.value = 'ready';
+  }
 }
 
-watch(accountAlias, async (alias) => {
-  relayOptions.value = await listQuickSignAccountRelayUrls(alias);
-  selectedRelayUrls.value = relayOptions.value;
+/**
+ * Loads the selected account's relays. Only the latest lookup is applied, so a slow answer for an
+ * account the user has since switched away from cannot overwrite the current one (#285).
+ */
+async function loadRelays(): Promise<void> {
+  const request = ++relayRequest;
+  relayState.value = 'loading';
+  relayOptions.value = [];
+  selectedRelayUrls.value = [];
+
+  const result = await listQuickSignAccountRelayUrls(accountAlias.value);
+  if (request !== relayRequest) {
+    return;
+  }
+
+  if (result.state === 'unreachable') {
+    relayState.value = 'unreachable';
+    return;
+  }
+
+  relayOptions.value = result.relayUrls;
+  selectedRelayUrls.value = result.relayUrls;
+  relayState.value = 'ready';
+}
+
+// The one place a lookup starts: on account change, and when the fallback relays it runs against
+// change. The settings store follows `nostr:fallback-relays` from storage, including edits made in
+// another extension page.
+watch([accountAlias, () => settingsStore.fallbackRelays], () => {
+  void loadRelays();
 });
 
 async function openPreview(): Promise<void> {
@@ -305,9 +336,33 @@ onMounted(async () => {
         }}
       </p>
 
+      <p v-if="relayState === 'loading'" class="quick-sign-card__hint" data-testid="quick-sign-relays-loading">
+        {{ t('dashboard.widgets.quickSign.relaysLoading') }}
+      </p>
+
+      <div
+        v-else-if="relayState === 'unreachable'"
+        class="quick-sign-card__relay-failure"
+        data-testid="quick-sign-relays-unreachable"
+      >
+        <p class="quick-sign-card__hint quick-sign-card__hint--warning">
+          {{ t('dashboard.widgets.quickSign.relaysUnreachable') }}
+        </p>
+        <q-btn
+          flat
+          dense
+          no-caps
+          icon="refresh"
+          :label="t('dashboard.widgets.quickSign.retryRelays')"
+          data-testid="quick-sign-retry-relays"
+          @click="loadRelays"
+        />
+      </div>
+
       <p
-        v-if="selectedRelayUrls.length === 0"
+        v-else-if="selectedRelayUrls.length === 0"
         class="quick-sign-card__hint quick-sign-card__hint--warning"
+        data-testid="quick-sign-no-relay-meta"
       >
         {{ t('dashboard.widgets.quickSign.noRelayMeta') }}
       </p>
@@ -436,6 +491,13 @@ onMounted(async () => {
 
 .quick-sign-card__hint--warning {
   color: #c62828;
+}
+
+.quick-sign-card__relay-failure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .quick-sign-card__tags-header {
