@@ -342,7 +342,7 @@ export default {
     security: {
       label: 'Security',
       vaultStored: 'Vault stored',
-      noWebsiteApi: 'No website API',
+      noWebsiteApi: 'Website payments via WebLN only',
     },
     details: {
       technicalDetails: 'Technical details',
@@ -359,12 +359,12 @@ export default {
       emptyCaption: 'Import another NWC connection if you want a backup or alternate wallet.',
     },
     safety: {
-      title: 'Manual payments only',
-      caption: 'Websites cannot trigger NWC payments in this MVP. Every invoice still requires explicit approval.',
+      title: 'Every payment needs your approval',
+      caption: 'Websites can request payments only through WebLN, and only after you enable WebLN for them. Every payment, whether from a website or made here, still needs your approval.',
     },
     empty: {
       title: 'No wallet connections yet',
-      caption: 'Import a Nostr Wallet Connect URI from a wallet such as Alby Hub to test balance checks and manual invoice payments.',
+      caption: 'Import a Nostr Wallet Connect URI from a wallet such as Alby Hub to check balances, pay invoices here, and approve WebLN payment requests from websites you enable.',
     },
     history: {
       title: 'Payment history',
