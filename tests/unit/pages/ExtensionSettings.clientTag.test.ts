@@ -17,14 +17,6 @@ const store = vi.hoisted(() => ({
 }));
 
 vi.mock('@/stores/settings-store', () => ({ default: () => store }));
-vi.mock('@/composables/useVaultManagement', () => ({
-  useVaultManagement: () => ({
-    fileInput: null,
-    handleExportVault: vi.fn(),
-    triggerImport: vi.fn(),
-    handleFileImport: vi.fn(),
-  }),
-}));
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 vi.mock('quasar', () => ({ useQuasar: () => ({ notify: vi.fn() }) }));
 
@@ -88,6 +80,16 @@ describe('ExtensionSettings: relays', () => {
 
     expect(wrapper.text()).not.toContain('settings.profileSearchRelays');
     expect(wrapper.text()).not.toContain('relays.profileSearch.title');
-    expect(wrapper.text()).toContain('settings.vaultManagement');
+    expect(wrapper.text()).toContain('settings.autoLockVault');
+  });
+});
+
+describe('ExtensionSettings: vault backup', () => {
+  it('no longer shows vault export or import, which moved to the Keys page (#297)', async () => {
+    const wrapper = await mountPage();
+
+    expect(wrapper.text()).not.toContain('settings.exportVault');
+    expect(wrapper.text()).not.toContain('settings.importVault');
+    expect(wrapper.find('input[type="file"]').exists()).toBe(false);
   });
 });

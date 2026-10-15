@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import useAccountStore from '@/stores/account-store';
 import KeyManagementTable from '@/components/dashboard/key-management/KeyManagementTable.vue';
 import SecurityWarning from '@/components/dashboard/SecurityWarning.vue';
+import VaultBackupCard from '@/components/dashboard/key-management/VaultBackupCard.vue';
 
 const { t } = useI18n();
 const accountStore = useAccountStore();
@@ -52,6 +53,8 @@ onMounted(async () => {
         <key-management-table :keys="storedKeys" />
       </q-card-section>
     </q-card>
+
+    <vault-backup-card />
   </q-page>
 </template>
 

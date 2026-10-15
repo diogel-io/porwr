@@ -42,6 +42,7 @@ describe('KeyManagementPage.vue', () => {
             props: ['label', 'to'],
           },
           'q-icon': true,
+          'vault-backup-card': { template: '<div class="vault-backup-card-stub" />' },
           'key-management-table': {
             template: '<div class="key-management-table-stub" :data-keys-count="keys.length" />',
             props: ['keys'],
@@ -67,5 +68,10 @@ describe('KeyManagementPage.vue', () => {
     const table = wrapper.find('.key-management-table-stub');
     expect(table.exists()).toBe(true);
     expect(table.attributes('data-keys-count')).toBe('1');
+
+    // Vault backup and restore sit in their own card below the keys (#297).
+    const html = wrapper.html();
+    expect(wrapper.find('.vault-backup-card-stub').exists()).toBe(true);
+    expect(html.indexOf('vault-backup-card-stub')).toBeGreaterThan(html.indexOf('key-management-table-stub'));
   });
 });

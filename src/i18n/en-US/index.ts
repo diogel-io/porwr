@@ -57,6 +57,9 @@ export default {
   },
   keyManagement: {
     title: 'Key Management',
+    vaultBackup: {
+      title: 'Vault Backup & Restore',
+    },
     importKey: 'Import Key',
     addNewKey: 'Add New Key',
     saveAlias: 'Update',
@@ -537,7 +540,6 @@ export default {
     quickPublishClientTag: 'Tag Quick Publish notes as from Porwr',
     quickPublishClientTagCaption:
       'Adds a NIP-89 client tag so other Nostr clients can show which app published the note. Turn off to leave no trace of the client.',
-    vaultManagement: 'Vault Management',
     exportVault: 'Export Vault',
     exportVaultCaption: 'Download an encrypted backup of your entire vault.',
     importVault: 'Import Vault',
@@ -559,7 +561,7 @@ export default {
     exportDeny: 'Browser denied file download',
     title: 'Extension Settings',
     dashboardCaption:
-      'Configure extension preferences, vault locking, and vault import/export.',
+      'Configure extension preferences and vault locking. Vault backup and restore are on the Keys page.',
     export: 'Export',
     import: 'Import',
     autoLockOptions: {
