@@ -139,14 +139,6 @@ test.describe('Direct Message Relays are checked before they are published (#277
       ['relay', relays.inbox],
       ['relay', relays.dropping],
     ]);
-    // Nothing the check published was signed by the account.
-    const pool = new SimplePool();
-    try {
-      const own = await pool.querySync([relays.dropping], { kinds: [1059], authors: [TEST_ACCOUNT.pubkey] }, { maxWait: 2_000 });
-      expect(own).toEqual([]);
-    } finally {
-      pool.close([relays.dropping]);
-    }
   });
 
   test("an unreachable relay is shown as couldn't check and does not block the list", async ({ openPage, relays }) => {
@@ -165,6 +157,21 @@ test.describe('Direct Message Relays are checked before they are published (#277
       await expect(row(card, relays.plain).getByTestId('dm-relay-status-keeps')).toBeVisible();
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await expect(page.getByText('Direct message relays published to 1 relays')).toBeVisible({ timeout: 6_000 });
+
+      // The plain relay keeps everything, so it holds the check's test wrap. The wrap is addressed to
+      // a throwaway key, never to the account, and the account itself published only its 10050.
+      const pool = new SimplePool();
+      try {
+        const wraps = await pool.querySync([relays.plain], { kinds: [1059] }, { maxWait: 2_000 });
+        expect(wraps.length).toBeGreaterThan(0);
+        for (const wrap of wraps) {
+          expect(wrap.tags.filter((tag) => tag[0] === 'p').map((tag) => tag[1])).not.toContain(TEST_ACCOUNT.pubkey);
+        }
+        const own = await pool.querySync([relays.plain], { authors: [TEST_ACCOUNT.pubkey] }, { maxWait: 2_000 });
+        expect(own.map((event) => event.kind)).toEqual([10050]);
+      } finally {
+        pool.close([relays.plain]);
+      }
     } finally {
       silent.sockets.forEach((socket) => socket.destroy());
       silent.server.close();
