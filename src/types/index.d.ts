@@ -75,6 +75,11 @@ export interface QuickSignAvailabilityResult {
   error?: string;
 }
 
+/** The account's publish relays, or that the fallback relays could not be reached to find them (#285). */
+export type QuickSignAccountRelays =
+  | { state: 'ready'; relayUrls: string[] }
+  | { state: 'unreachable' };
+
 export interface QuickSignValidationResult {
   valid: boolean;
   errors: string[];

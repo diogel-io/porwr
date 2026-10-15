@@ -253,6 +253,10 @@ export default {
           'Relay Meta List destinations: {count} relay | Relay Meta List destinations: {count} relays',
         noRelayMeta:
           'No eligible relays found in this account’s kind 10002 Relay Meta List. Publish relay metadata first in Relay Management.',
+        relaysLoading: 'Loading this account’s Relay Meta List…',
+        relaysUnreachable:
+          'Couldn’t reach the fallback relays to load this account’s Relay Meta List.',
+        retryRelays: 'Retry',
         preview: 'Preview',
         previewTitle: 'Review before signing and publishing',
         previewAccountAlias: 'Account alias:',

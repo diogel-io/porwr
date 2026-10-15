@@ -67,30 +67,77 @@ export function extractWritePreferredRelayUrls(event: Event): string[] {
 }
 
 /**
- * Fetches the kind 10002 relay list event for a given pubkey using fallback relays.
- * @param pubkey The public key to fetch the relay list for
- * @returns The kind 10002 event or null if not found
+ * What a relay list lookup found. `not-found` means at least one relay answered without one;
+ * `unreachable` means none of the fallback relays answered at all (#285).
  */
-export async function fetchAccountRelayListEvent(pubkey: string): Promise<Event | null> {
+export type AccountRelayListLookup =
+  | { status: 'found'; event: Event }
+  | { status: 'not-found' }
+  | { status: 'unreachable' };
+
+/**
+ * The reason nostr-tools gives a relay's subscription when it closes after EOSE, i.e. the relay
+ * answered. Any other reason (connection failed or timed out, auth failed) means it did not.
+ * nostr-tools does not export it, so it is pinned here; the relay list tests catch a change.
+ */
+const CLOSED_ON_EOSE = 'closed automatically on eose';
+
+/**
+ * Looks up the kind 10002 relay list for a pubkey on the fallback relays, telling an account with
+ * no relay list apart from relays that could not be reached.
+ *
+ * `SimplePool.get` cannot do this: it resolves `null` both when the relays answered with nothing
+ * and when none of them connected, so this reads each relay's close reason instead (#285).
+ * @param pubkey The public key to fetch the relay list for
+ */
+export async function fetchAccountRelayList(pubkey: string): Promise<AccountRelayListLookup> {
   const settingsStore = useSettingsStore();
   const relays = await settingsStore.getFallbackRelays();
 
   if (relays.length === 0) {
-    return null;
+    return { status: 'unreachable' };
   }
 
   const relayMetadataPool = new SimplePool();
   try {
-    const event = await relayMetadataPool.get(relays, {
-      kinds: [10002],
-      authors: [pubkey],
+    return await new Promise<AccountRelayListLookup>((resolve) => {
+      let newest: Event | null = null;
+      relayMetadataPool.subscribeEose(
+        relays,
+        { kinds: [10002], authors: [pubkey], limit: 1 },
+        {
+          onevent(event) {
+            if (!newest || event.created_at > newest.created_at) {
+              newest = event;
+            }
+          },
+          onclose(closes) {
+            if (newest) {
+              resolve({ status: 'found', event: newest });
+            } else if (closes.some((close) => close.reason === CLOSED_ON_EOSE)) {
+              resolve({ status: 'not-found' });
+            } else {
+              resolve({ status: 'unreachable' });
+            }
+          },
+        },
+      );
     });
-    return event;
   } catch {
-    return null;
+    return { status: 'unreachable' };
   } finally {
     relayMetadataPool.close(relays);
   }
+}
+
+/**
+ * Fetches the kind 10002 relay list event for a given pubkey using fallback relays.
+ * @param pubkey The public key to fetch the relay list for
+ * @returns The kind 10002 event, or null if there is none or the relays could not be reached
+ */
+export async function fetchAccountRelayListEvent(pubkey: string): Promise<Event | null> {
+  const lookup = await fetchAccountRelayList(pubkey);
+  return lookup.status === 'found' ? lookup.event : null;
 }
 
 export interface DiscoveryResult {

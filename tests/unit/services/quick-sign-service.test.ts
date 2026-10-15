@@ -24,8 +24,8 @@ vi.mock('@/services/vault-service', () => ({
   sendBexMessage: vi.fn(),
 }));
 
-const { poolGetMock, poolCloseMock, poolPublishMock, verifyEventMock, signAsAccountMock } = vi.hoisted(() => ({
-  poolGetMock: vi.fn(),
+const { relayListAnswerMock, poolCloseMock, poolPublishMock, verifyEventMock, signAsAccountMock } = vi.hoisted(() => ({
+  relayListAnswerMock: vi.fn(),
   poolCloseMock: vi.fn(),
   poolPublishMock: vi.fn(),
   verifyEventMock: vi.fn(),
@@ -55,7 +55,27 @@ vi.mock('nostr-tools', async () => {
     verifyEvent: verifyEventMock,
     SimplePool: vi.fn().mockImplementation(function MockSimplePool(this: unknown) {
       return {
-        get: poolGetMock,
+        // Stands in for one relay answering the kind 10002 lookup: the answer is the event, or null
+        // for none; a rejection is a relay that could not be reached (#285).
+        subscribeEose: (
+          relays: string[],
+          filter: unknown,
+          params: {
+            onevent?: (event: unknown) => void;
+            onclose?: (closes: { url: string; reason: string }[]) => void;
+          },
+        ) => {
+          Promise.resolve()
+            .then(() => relayListAnswerMock(relays, filter))
+            .then(
+              (event) => {
+                if (event) params.onevent?.(event);
+                params.onclose?.(relays.map((url) => ({ url, reason: 'closed automatically on eose' })));
+              },
+              () => params.onclose?.(relays.map((url) => ({ url, reason: 'relay connection failed' }))),
+            );
+          return { close: vi.fn() };
+        },
         close: poolCloseMock,
         publish: poolPublishMock,
       };
@@ -491,7 +511,7 @@ describe('quick-sign-service', () => {
   });
 
   it('lists selected account relay meta list relays and prefers write-capable markers', async () => {
-    poolGetMock.mockResolvedValueOnce({
+    relayListAnswerMock.mockResolvedValueOnce({
       kind: 10002,
       tags: [
         ['r', 'wss://write.example', 'write'],
@@ -499,11 +519,11 @@ describe('quick-sign-service', () => {
       ],
     });
 
-    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual(['wss://write.example']);
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'ready', relayUrls: ['wss://write.example'] });
   });
 
   it('deduplicates selected account relay meta list relays', async () => {
-    poolGetMock.mockResolvedValueOnce({
+    relayListAnswerMock.mockResolvedValueOnce({
       kind: 10002,
       tags: [
         ['r', 'wss://relay.example/'],
@@ -511,11 +531,11 @@ describe('quick-sign-service', () => {
       ],
     });
 
-    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual(['wss://relay.example']);
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'ready', relayUrls: ['wss://relay.example'] });
   });
 
   it('filters malformed relay urls from selected account relay meta list', async () => {
-    poolGetMock.mockResolvedValueOnce({
+    relayListAnswerMock.mockResolvedValueOnce({
       kind: 10002,
       tags: [
         ['r', 'bad-url'],
@@ -523,25 +543,31 @@ describe('quick-sign-service', () => {
       ],
     });
 
-    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual(['wss://valid.example']);
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'ready', relayUrls: ['wss://valid.example'] });
   });
 
   it('returns empty relay list when selected account has no relay meta list event', async () => {
-    poolGetMock.mockResolvedValueOnce(null);
+    relayListAnswerMock.mockResolvedValueOnce(null);
 
-    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual([]);
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'ready', relayUrls: [] });
+  });
+
+  it('says the relays were unreachable rather than that there is no relay list (#285)', async () => {
+    relayListAnswerMock.mockRejectedValueOnce(new Error('relay connection failed'));
+
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'unreachable' });
   });
 
   it('returns empty relay list for unknown account alias', async () => {
-    await expect(listQuickSignAccountRelayUrls('unknown')).resolves.toEqual([]);
-    expect(poolGetMock).not.toHaveBeenCalled();
+    await expect(listQuickSignAccountRelayUrls('unknown')).resolves.toEqual({ state: 'ready', relayUrls: [] });
+    expect(relayListAnswerMock).not.toHaveBeenCalled();
   });
 
-  it('returns empty relay list when no fallback relays are available for metadata lookup', async () => {
+  it('says the relays were unreachable when there are no fallback relays to look up on (#285)', async () => {
     settingsStoreMock.fallbackRelays = [];
 
-    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual([]);
-    expect(poolGetMock).not.toHaveBeenCalled();
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'unreachable' });
+    expect(relayListAnswerMock).not.toHaveBeenCalled();
   });
 
   it('has the background sign as the chosen account, even one that is not active, without the key', async () => {
