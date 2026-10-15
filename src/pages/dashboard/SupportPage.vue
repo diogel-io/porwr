@@ -84,7 +84,7 @@ onMounted(async () => {
     </div>
 
     <template v-else>
-      <!-- Until relays are checked automatically (#277), say which ones keep messages (#278). -->
+      <!-- The DM relay editor checks relays on save (#277); this note says which ones keep messages (#278). -->
       <q-banner class="q-mb-md" rounded data-testid="support-relay-note">
         <div class="text-weight-medium">{{ t('support.relayNote.title') }}</div>
         {{ t('support.relayNote.body') }}

@@ -40,6 +40,7 @@ import { handleRelayBrowserList, handleRelayBrowserGetStatus, handleRelayBrowser
 import {
   handleDmRelaysGet,
   handleDmRelaysPublish,
+  handleDmRelaysCheck,
   handleMessagesFetch,
   handleMessagesMarkRead,
   handleMessagesReadState,
@@ -522,6 +523,18 @@ export async function dispatchMessage<K extends BridgeAction>(
     case 'messaging.dmRelays.publish': {
       try {
         const result = await handleDmRelaysPublish(payload as BridgeRequestMap['messaging.dmRelays.publish']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'messaging.dmRelays.check': {
+      try {
+        const result = await handleDmRelaysCheck(payload as BridgeRequestMap['messaging.dmRelays.check']);
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }

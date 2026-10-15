@@ -4,6 +4,7 @@ const send = vi.hoisted(() => vi.fn());
 vi.mock('@/services/vault-service', () => ({ sendBexMessage: send }));
 
 import {
+  checkDmRelays,
   fetchMessages,
   getDmRelays,
   getReadState,
@@ -27,6 +28,17 @@ describe('messaging-service', () => {
     send.mockResolvedValue({ relays: ['wss://a'], accepted: ['wss://a'], rejected: [] });
     await expect(publishDmRelays(['wss://a'])).resolves.toMatchObject({ accepted: ['wss://a'] });
     expect(send).toHaveBeenCalledWith('messaging.dmRelays.publish', { relays: ['wss://a'] });
+  });
+
+  it('checks the DM relays (#277)', async () => {
+    send.mockResolvedValue({ checks: [{ url: 'wss://a', status: 'drops' }] });
+    await expect(checkDmRelays(['wss://a'])).resolves.toEqual({ checks: [{ url: 'wss://a', status: 'drops' }] });
+    expect(send).toHaveBeenCalledWith('messaging.dmRelays.check', { relays: ['wss://a'] });
+  });
+
+  it('rejects a check response without checks', async () => {
+    send.mockResolvedValue({});
+    await expect(checkDmRelays(['wss://a'])).rejects.toThrow('Invalid direct message relay check response');
   });
 
   it('sends a message', async () => {
@@ -54,6 +66,7 @@ describe('messaging-service', () => {
   it.each([
     ['getDmRelays', () => getDmRelays()],
     ['publishDmRelays', () => publishDmRelays([])],
+    ['checkDmRelays', () => checkDmRelays([])],
     ['sendMessage', () => sendMessage({ clientMessageId: 'c', recipient: 'b', content: 'x' })],
     ['fetchMessages', () => fetchMessages()],
     ['getReadState', () => getReadState()],

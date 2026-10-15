@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getActiveSecretKey: vi.fn(),
   fetchDmRelays: vi.fn(),
   publishDmRelays: vi.fn(),
+  check: vi.fn(),
   send: vi.fn(),
   fetch: vi.fn(),
   clear: vi.fn(),
@@ -28,6 +29,8 @@ vi.mock('@/../src-bex/services/nip17-messaging', () => ({
   nip17Messaging: { send: mocks.send, fetch: mocks.fetch, clear: mocks.clear },
 }));
 
+vi.mock('@/../src-bex/services/dm-relay-probe', () => ({ dmRelayProbe: { check: mocks.check } }));
+
 vi.mock('@/../src-bex/handlers/active-key', () => ({ getActiveSecretKey: mocks.getActiveSecretKey }));
 
 vi.mock('@/../src-bex/services/messaging-relays', async () => {
@@ -41,6 +44,7 @@ vi.mock('@/../src-bex/services/messaging-relays', async () => {
 });
 
 import {
+  handleDmRelaysCheck,
   handleDmRelaysGet,
   handleDmRelaysPublish,
   handleMessagesFetch,
@@ -109,6 +113,33 @@ describe('handleDmRelaysPublish', () => {
     const result = await handleDmRelaysPublish({ relays: ['wss://inbox.example'] });
 
     expect(result).toMatchObject({ success: false, error: 'No relay accepted the direct message relay list' });
+  });
+});
+
+describe('handleDmRelaysCheck (#277)', () => {
+  it('checks the normalised list without touching the active key', async () => {
+    const outcome = { checks: [{ url: 'wss://inbox.example', status: 'keeps' }] };
+    mocks.check.mockResolvedValue(outcome);
+
+    await expect(handleDmRelaysCheck({ relays: ['wss://inbox.example/'] })).resolves.toEqual({
+      success: true,
+      data: outcome,
+    });
+    expect(mocks.check).toHaveBeenCalledWith(['wss://inbox.example']);
+    expect(mocks.getActiveSecretKey).not.toHaveBeenCalled();
+  });
+
+  it('refuses a list with an invalid relay without checking anything', async () => {
+    const result = await handleDmRelaysCheck({ relays: ['https://web.example'] });
+
+    expect(result.success).toBe(false);
+    expect(mocks.check).not.toHaveBeenCalled();
+  });
+
+  it('treats a missing list as empty', async () => {
+    mocks.check.mockResolvedValue({ checks: [] });
+
+    await expect(handleDmRelaysCheck(undefined as never)).resolves.toEqual({ success: true, data: { checks: [] } });
   });
 });
 
