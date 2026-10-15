@@ -41,7 +41,6 @@ describe('useNavigation', () => {
 
     expect(vm.navigationItems.map((item) => item.id)).toEqual([
       'dashboard',
-      'keys',
       'profile',
       'relays',
       'connected-sites',
@@ -50,7 +49,6 @@ describe('useNavigation', () => {
       'media-management',
       'wallet-connections',
       'event-history',
-      'settings',
     ]);
   });
 
@@ -68,8 +66,8 @@ describe('useNavigation', () => {
       testState.route.name = routeName;
       const wrapper = mount(TestHarness);
       const vm = wrapper.vm as unknown as HarnessVm;
-      const keysItem = vm.navigationItems.find((item) => item.id === 'keys');
-      expect(keysItem?.isActive(), `expected keys active for route "${routeName}"`).toBe(true);
+      const keysItem = vm.utilityLinks.find((item) => item.id === 'keys');
+      expect(keysItem?.target && keysItem.isActive(), `expected keys active for route "${routeName}"`).toBe(true);
     }
   });
 
@@ -93,16 +91,34 @@ describe('useNavigation', () => {
     expect(active[0]?.target).toEqual({ name: 'media-management' });
   });
 
-  it('provides two utility links: support inside Porwr and documentation on the web', () => {
+  it('puts the app-wide pages and help in the footer, in order (#294)', () => {
     const wrapper = mount(TestHarness);
     const vm = wrapper.vm as unknown as HarnessVm;
 
-    expect(vm.utilityLinks.map((link) => link.id)).toEqual(['support', 'documentation']);
+    expect(vm.utilityLinks.map((link) => link.id)).toEqual(['keys', 'settings', 'documentation', 'support']);
+    expect(vm.utilityLinks.find((l) => l.id === 'keys')?.target).toEqual({ name: 'keys' });
+    expect(vm.utilityLinks.find((l) => l.id === 'settings')?.target).toEqual({ name: 'settings' });
+  });
+
+  it('provides support inside Porwr and documentation on the web', () => {
+    const wrapper = mount(TestHarness);
+    const vm = wrapper.vm as unknown as HarnessVm;
+
     const support = vm.utilityLinks.find((l) => l.id === 'support');
     // An in-app support chat, not the GitHub issue tracker (#228).
     expect(support?.target).toEqual({ name: 'support' });
     expect(support?.href).toBeUndefined();
     expect(vm.utilityLinks.find((l) => l.id === 'documentation')?.href).toBe('https://diogel.io/docs/porwr');
+  });
+
+  it('marks settings active only on the settings route', () => {
+    testState.route.name = 'settings';
+    const wrapper = mount(TestHarness);
+    const vm = wrapper.vm as unknown as HarnessVm;
+
+    const active = vm.utilityLinks.filter((link) => link.target && link.isActive());
+    expect(active.map((link) => link.id)).toEqual(['settings']);
+    expect(vm.navigationItems.filter((item) => item.isActive())).toEqual([]);
   });
 
   it('marks support active only on the support route', () => {
