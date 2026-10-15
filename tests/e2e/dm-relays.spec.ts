@@ -41,11 +41,14 @@ test('Direct Message Relays load and save when one relay never answers', async (
   try {
     const page = await openPage('/login');
     await createVault(page);
-    await seedAccount(page);
+    // Point the app at the local relays before adding the account: adding one starts reads from the
+    // fallback relays, and reads from the real seed relays would make Chrome hold back this
+    // extension's later WebSocket connections, the local relay's included, for seconds.
     await page.evaluate(
       (list) => chrome.storage.local.set({ 'nostr:fallback-relays': list }),
       [relays.plain, silent.url],
     );
+    await seedAccount(page);
     // Load the Relays page once, fresh, so the card's first load is the one asserted on. A hash change
     // followed by a reload mounted it twice: the old page also opened its seed relays at that moment,
     // and with that many sockets pending Chromium delays each new one by 1 to 5 s at random. The
