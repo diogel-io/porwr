@@ -790,8 +790,7 @@ export default {
     },
   },
   warning: {
-    icon: 'info',
-    title: 'important',
+    title: 'Important',
     message: `Ensure you export and securely store your keys.
       If you lose them, you will lose access to your account and there is no way to recover them.`,
     exportKeys: 'Ensure you export and securely store your keys',

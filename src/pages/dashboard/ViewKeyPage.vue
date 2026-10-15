@@ -97,13 +97,11 @@ async function saveAlias() {
       <p class="dashboard-hero-caption">{{ t('keyManagement.viewCaption') }}</p>
     </section>
 
-    <security-warning
-      :icon="t('warning.icon')"
-      :title="t('warning.title')"
-      :message="t('warning.message')"
-    />
-
     <q-card v-if="storedKey" class="dashboard-card view-key-page__card">
+      <q-card-section class="q-pa-lg q-pb-none">
+        <security-warning :title="t('warning.title')" :message="t('warning.message')" />
+      </q-card-section>
+
       <q-card-section class="q-pa-lg">
         <div class="row items-end q-col-gutter-md">
           <q-input
