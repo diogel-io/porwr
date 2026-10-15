@@ -147,20 +147,20 @@ describe('Nip17Messaging', () => {
       }
       return targets.map(() => Promise.resolve(''));
     });
-    type ReadParams = { onevent: (e: Event) => void; onclose: (reasons: string[]) => void };
+    type ReadParams = { onevent: (e: Event) => void; onclose: (reasons: { url: string; reason: string }[]) => void };
     subscribeEose = vi.fn((targets: string[], filter: Filter, params: ReadParams) => {
       if (filter.ids) {
         const url = targets[0]!;
         if (silent.has(url)) return { close: vi.fn() };
         const refusal = refusals.get(url);
         if (refusal) {
-          params.onclose([refusal]);
+          params.onclose([{ url, reason: refusal }]);
           return { close: vi.fn() };
         }
         stored
           .filter((event) => filter.ids!.includes(event.id) && heldOn.get(url)?.has(event.id))
           .forEach((event) => params.onevent(event));
-        params.onclose(['closed automatically on eose']);
+        params.onclose([{ url, reason: 'closed automatically on eose' }]);
         return { close: vi.fn() };
       }
       stored
@@ -282,8 +282,8 @@ describe('Nip17Messaging', () => {
     );
   });
 
-  it("does not count a relay that said OK without connecting", async () => {
-    publish.mockImplementationOnce((targets: string[]) => targets.map(() => Promise.resolve('connection failure: refused')));
+  it("does not count a relay it could not connect to when sending", async () => {
+    publish.mockImplementationOnce((targets: string[]) => targets.map(() => Promise.reject('connection failure: refused')));
 
     await expect(service().send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'x' })).rejects.toThrow(
       'No relay accepted the message',
