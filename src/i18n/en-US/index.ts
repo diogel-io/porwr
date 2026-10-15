@@ -335,14 +335,14 @@ export default {
       paymentUnavailable: 'payment unavailable',
     },
     status: {
-      readyForManualPayments: 'Ready for manual payments',
+      readyForPayments: 'Ready for payments',
       paymentsUnavailable: 'Connected, payments unavailable',
       checkCapabilities: 'Check capabilities before paying',
     },
     security: {
       label: 'Security',
       vaultStored: 'Vault stored',
-      noWebsiteApi: 'Website payments via WebLN only',
+      websitePayments: 'Website payments via WebLN only',
     },
     details: {
       technicalDetails: 'Technical details',

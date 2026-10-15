@@ -190,4 +190,25 @@ describe('the wallet connections page (#110)', () => {
     expect(mocks.importNip47Connection).toHaveBeenCalledWith({ uri: VALID_URI });
     expect(mocks.getNip47Info).toHaveBeenCalledWith('pasted');
   });
+
+  it('says a paying wallet is ready for payments and that websites pay only through WebLN (#291)', async () => {
+    mocks.listNip47Connections.mockResolvedValue([
+      {
+        id: 'w',
+        label: 'Alby Hub',
+        walletServicePubkey: 'b'.repeat(64),
+        clientPubkey: 'c'.repeat(64),
+        relays: ['wss://relay.example.com'],
+        capabilities: ['pay_invoice'],
+        createdAt: '2026-10-12T00:00:00.000Z',
+        updatedAt: '2026-10-12T00:00:00.000Z',
+        isActive: true,
+        hasClientSecret: true,
+      },
+    ]);
+    const wrapper = await mountPage();
+
+    expect(wrapper.text()).toContain('walletManagement.status.readyForPayments');
+    expect(wrapper.text()).toContain('walletManagement.security.websitePayments');
+  });
 });
