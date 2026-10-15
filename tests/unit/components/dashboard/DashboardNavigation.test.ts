@@ -69,3 +69,47 @@ describe('DashboardNavigation support (#228)', () => {
     expect(window.open).toHaveBeenCalledWith('https://diogel.io/docs/porwr', '_blank', 'noopener,noreferrer');
   });
 });
+
+describe('DashboardNavigation footer (#294)', () => {
+  it('lists Keys, Settings, Documentation, Support and Lock after the primary items, in that order', async () => {
+    const { wrapper } = await mountNavigation();
+    const labels = wrapper.findAll('li.nav-item').map((entry) => entry.text());
+
+    expect(labels.slice(-5)).toEqual([
+      'navigation.keys.label',
+      'navigation.settings.label',
+      'navigation.documentation.label',
+      'navigation.support.label',
+      'navigation.lock.label',
+    ]);
+    expect(labels.filter((label) => label === 'navigation.keys.label')).toHaveLength(1);
+    expect(labels.filter((label) => label === 'navigation.settings.label')).toHaveLength(1);
+  });
+
+  it('opens Keys and Settings inside Porwr', async () => {
+    const { wrapper, router } = await mountNavigation();
+    const push = vi.spyOn(router, 'push').mockResolvedValue(undefined);
+
+    await item(wrapper, 'navigation.keys.label').trigger('click');
+    await item(wrapper, 'navigation.settings.label').trigger('click');
+
+    expect(push).toHaveBeenCalledWith({ name: 'keys' });
+    expect(push).toHaveBeenCalledWith({ name: 'settings' });
+    expect(window.open).not.toHaveBeenCalled();
+  });
+
+  it('marks Keys active on its sub-routes', async () => {
+    for (const path of ['/keys', '/keys/new', '/keys/import']) {
+      const { wrapper } = await mountNavigation(path);
+      expect(item(wrapper, 'navigation.keys.label').classes(), path).toContain('active');
+      expect(item(wrapper, 'navigation.settings.label').classes(), path).not.toContain('active');
+    }
+  });
+
+  it('marks Settings active on the Settings page', async () => {
+    const { wrapper } = await mountNavigation('/settings');
+
+    expect(item(wrapper, 'navigation.settings.label').classes()).toContain('active');
+    expect(item(wrapper, 'navigation.keys.label').classes()).not.toContain('active');
+  });
+});

@@ -65,6 +65,8 @@ function openUtilityLink(item: UtilityLinkItem) {
           v-ripple
           clickable
           :disable="item.href === '#'"
+          :active="item.target ? item.isActive() : false"
+          active-class="main-navigation__item--active"
           class="main-navigation__item"
           @click="openUtilityLink(item)"
         >

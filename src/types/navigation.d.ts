@@ -28,7 +28,6 @@ interface NavigationTarget {
 interface NavigationItem {
   id:
     | 'dashboard'
-    | 'keys'
     | 'profile'
     | 'relays'
     | 'connected-sites'
@@ -36,8 +35,7 @@ interface NavigationItem {
     | 'messaging'
     | 'media-management'
     | 'wallet-connections'
-    | 'event-history'
-    | 'settings';
+    | 'event-history';
   icon: string;
   label: string;
   caption: string;
@@ -46,7 +44,7 @@ interface NavigationItem {
 }
 
 interface UtilityLinkBase {
-  id: 'support' | 'documentation';
+  id: 'keys' | 'settings' | 'documentation' | 'support';
   icon: string;
   label: string;
   caption: string;

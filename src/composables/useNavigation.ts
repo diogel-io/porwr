@@ -11,34 +11,9 @@ export function useNavigation(): UseNavigationResult {
 
   const routeName = computed(() => (typeof route.name === 'string' ? route.name : ''));
 
+  // Keys and Settings act on the whole app rather than the selected profile, so they sit in the
+  // footer instead of the primary list (#294).
   const utilityLinks = computed<UtilityLinkItem[]>(() => [
-    {
-      id: 'support',
-      icon: 'support_agent',
-      label: t('navigation.support.label'),
-      caption: t('navigation.support.caption'),
-      // An in-app NIP-17 chat with Diogel support, not an external issue tracker (#228).
-      target: { name: 'support' },
-      isActive: () => routeName.value === 'support',
-    },
-    {
-      id: 'documentation',
-      icon: 'description',
-      label: t('navigation.documentation.label'),
-      caption: t('navigation.documentation.caption'),
-      href: 'https://diogel.io/docs/porwr',
-    },
-  ]);
-
-  const navigationItems = computed<NavigationItem[]>(() => [
-    {
-      id: 'dashboard',
-      icon: 'dashboard',
-      label: t('navigation.dashboard.label'),
-      caption: t('navigation.dashboard.caption'),
-      target: { name: 'dashboard' },
-      isActive: () => routeName.value === 'dashboard',
-    },
     {
       id: 'keys',
       icon: 'key',
@@ -51,6 +26,41 @@ export function useNavigation(): UseNavigationResult {
         routeName.value === 'import-key' ||
         routeName.value === 'add-new-key' ||
         routeName.value === 'edit-account',
+    },
+    {
+      id: 'settings',
+      icon: 'settings',
+      label: t('navigation.settings.label'),
+      caption: t('navigation.settings.caption'),
+      target: { name: 'settings' },
+      isActive: () => routeName.value === 'settings',
+    },
+    {
+      id: 'documentation',
+      icon: 'description',
+      label: t('navigation.documentation.label'),
+      caption: t('navigation.documentation.caption'),
+      href: 'https://diogel.io/docs/porwr',
+    },
+    {
+      id: 'support',
+      icon: 'support_agent',
+      label: t('navigation.support.label'),
+      caption: t('navigation.support.caption'),
+      // An in-app NIP-17 chat with Diogel support, not an external issue tracker (#228).
+      target: { name: 'support' },
+      isActive: () => routeName.value === 'support',
+    },
+  ]);
+
+  const navigationItems = computed<NavigationItem[]>(() => [
+    {
+      id: 'dashboard',
+      icon: 'dashboard',
+      label: t('navigation.dashboard.label'),
+      caption: t('navigation.dashboard.caption'),
+      target: { name: 'dashboard' },
+      isActive: () => routeName.value === 'dashboard',
     },
     {
       id: 'profile',
@@ -115,14 +125,6 @@ export function useNavigation(): UseNavigationResult {
       caption: t('navigation.logs.caption'),
       target: { name: 'event-history' },
       isActive: () => routeName.value === 'event-history' || routeName.value === 'logs',
-    },
-    {
-      id: 'settings',
-      icon: 'settings',
-      label: t('navigation.settings.label'),
-      caption: t('navigation.settings.caption'),
-      target: { name: 'settings' },
-      isActive: () => routeName.value === 'settings',
     },
   ]);
 

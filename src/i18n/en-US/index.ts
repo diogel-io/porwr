@@ -420,7 +420,7 @@ export default {
       caption: 'Overview and quick shortcuts',
     },
     keys: {
-      label: 'Key Management',
+      label: 'Keys',
       caption: 'Securely manage your Nostr Identity keys and backups',
     },
     profile: {
