@@ -91,10 +91,12 @@ test('Direct Message Relays load and save when one relay never answers', async (
 test.describe('Direct Message Relays are checked before they are published (#277)', () => {
   async function openRelaysPage(page: Page, fallback: string) {
     await createVault(page);
-    await seedAccount(page);
+    // As above: the local relay first, then the account, then one fresh load of the Relays page.
     await page.evaluate((list) => chrome.storage.local.set({ 'nostr:fallback-relays': list }), [fallback]);
-    await page.goto(page.url().replace(/#.*$/, '#/relays'));
-    await page.reload();
+    await seedAccount(page);
+    const relaysPage = page.url().replace(/#.*$/, '#/relays');
+    await page.goto('about:blank');
+    await page.goto(relaysPage);
     const card = page.getByTestId('dm-relays-card');
     await expect(card.getByRole('button', { name: 'Save', exact: true })).toBeVisible({ timeout: 6_000 });
     return card;
