@@ -45,11 +45,14 @@ test('Quick Publish adds the client tag by default, and not once it is turned of
 }) => {
   const page = await openPage('/login');
   await createVault(page);
-  await seedAccount(page);
+  // Point the app at the local relay before adding the account: adding one starts reads from the
+  // fallback relays, and reads from the real seed relays would make Chrome hold back this
+  // extension's later WebSocket connections, the local relay's included, for seconds.
   await page.evaluate(
     (relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }),
     relays.plain,
   );
+  await seedAccount(page);
   await publishRelayList(relays.plain);
 
   const tagged = await openPreview(page, 'tagged note');
