@@ -161,9 +161,6 @@ export function withDeadline<T>(
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-/** nostr-tools resolves, rather than rejects, a publish to a relay it could not connect to. */
-export const CONNECTION_FAILURE = 'connection failure';
-
 export class MessagingRelays {
   private readonly dmRelayCache = new Map<string, { list: DmRelayList; at: number }>();
 
@@ -291,10 +288,9 @@ export class MessagingRelays {
     const rejected: { url: string; reason: string }[] = [];
     outcomes.forEach((outcome, index) => {
       const url = targets[index]!;
+      // nostr-tools rejects a publish to a relay it could not connect to, with "connection failure: …".
       if (outcome.status === 'rejected') {
         rejected.push({ url, reason: reasonOf(outcome.reason) });
-      } else if (String(outcome.value).startsWith(CONNECTION_FAILURE)) {
-        rejected.push({ url, reason: String(outcome.value) });
       } else {
         accepted.push(url);
       }
