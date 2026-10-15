@@ -631,10 +631,10 @@ export default {
         unchecked: "Couldn't check",
       },
       allDrop:
-        "None of these relays keep private messages, so nobody could reach you: {relays}. Add a relay that keeps them, then save again.",
+        'No relay in this list keeps private messages, so nobody could reach you: {relays}. Add a relay that keeps them, then save again.',
       someDropTitle: 'Some relays drop messages',
       someDropBody:
-        "{relays} accept private messages but don't keep them, so anything sent there never reaches you. Publish the list anyway?",
+        "Private messages sent to {relays} are accepted but not kept, so they never reach you. Publish the list anyway?",
       publishAnyway: 'Publish anyway',
       cancel: 'Cancel',
       recommendedSize: 'NIP-17 recommends keeping this list small: 1 to 3 relays.',
