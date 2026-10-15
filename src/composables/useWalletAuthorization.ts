@@ -78,8 +78,9 @@ function waitForPopup(
  * values. If the popup closes without one, the background checks with the wallet directly where it
  * can (Coinos), so a lost message does not lose an approved connection.
  *
- * Call `connect` from a click handler in a full-tab page: the popup is opened before anything is
- * awaited so the click still counts as the user gesture browsers require.
+ * Call `connect` only from `WalletConnectPage`, the window `useWalletConnectWindow` opens, because
+ * the wallet can navigate whichever window opens its popup. The popup is opened before anything is
+ * awaited, so a click there still counts as the user gesture browsers require when one is needed.
  */
 export function useWalletAuthorization(options: WalletAuthorizationOptions = {}): UseWalletAuthorizationResult {
   const connecting = ref<WalletProviderId | null>(null);
@@ -91,7 +92,11 @@ export function useWalletAuthorization(options: WalletAuthorizationOptions = {})
     customOrigin?: string,
   ): Promise<WalletAuthorizationResult> => {
     const host = options.host ?? window;
-    // No `noopener`: the wallet posts its result to `window.opener`.
+    // No `noopener`: the wallet posts its result to `window.opener`, so the popup keeps a reference to
+    // `host` and could navigate it. That is why `host` is the throwaway connect window
+    // (`WalletConnectPage`), never a page holding user state (workspace#76). The connect window has no
+    // opener of its own, and Porwr cannot sever the popup's opener afterwards: the popup is
+    // cross-origin by then, so assigning `popup.opener` throws. Closing the popup ends the exposure.
     const popup = host.open('about:blank', 'porwr-wallet-connect', POPUP_FEATURES);
     if (!popup) {
       return { status: 'popup-blocked' };

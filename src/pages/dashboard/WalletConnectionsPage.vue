@@ -14,7 +14,7 @@ import {
 } from '@/services/nip47-service';
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import { parseNwcUri } from '@/services/nip47-uri';
-import { useWalletAuthorization } from '@/composables/useWalletAuthorization';
+import { useWalletConnectWindow } from '@/composables/useWalletConnectWindow';
 import { WALLET_PROVIDERS, type WalletProviderId } from '@/types/wallet-provider';
 import type { Nip47ConnectionSummary, Nip47PaymentHistoryEntry } from '@/types/nip47';
 
@@ -39,7 +39,7 @@ const importPanelOpen = ref(false);
 const customHubOpen = ref(false);
 const customHubOrigin = ref('');
 const pasteOpen = ref(false);
-const { connecting, connect } = useWalletAuthorization();
+const { connecting, connect } = useWalletConnectWindow();
 const providers = Object.values(WALLET_PROVIDERS);
 const balanceDisplayUnit = ref<'sats' | 'btc'>('sats');
 
@@ -236,7 +236,7 @@ async function connectWallet(provider: WalletProviderId): Promise<void> {
       await refreshConnections();
     } else if (result.status === 'popup-blocked') {
       $q.notify({ type: 'warning', message: t('walletManagement.notifications.popupBlocked') });
-    } else {
+    } else if (result.status === 'no-response') {
       pasteOpen.value = true;
       $q.notify({
         type: 'warning',

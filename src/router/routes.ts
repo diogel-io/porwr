@@ -30,6 +30,19 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    // The throwaway window a wallet's approval popup opens from (workspace#76). It deliberately uses
+    // a layout with no navigation or account, because the wallet can navigate this window.
+    path: '/wallet-connect',
+    component: () => import('@/layouts/extension/LoginLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'wallet-connect',
+        component: () => import('@/pages/wallet/WalletConnectPage.vue'),
+      },
+    ],
+  },
+  {
     path: '/dashboard',
     component: () => import('@/layouts/dashboard/Layout.vue'),
     children: [

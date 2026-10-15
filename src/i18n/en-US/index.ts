@@ -302,6 +302,15 @@ export default {
       remove: 'Remove',
       approveAndPay: 'Approve and pay',
     },
+    connectWindow: {
+      title: 'Connect {provider}',
+      opening: 'Opening {provider}…',
+      waiting: 'Approve Porwr in the {provider} window. This window closes when you are done.',
+      needsClick: 'Your browser needs one more click to open {provider}.',
+      continue: 'Continue to {provider}',
+      finished: 'Connection finished. You can close this window.',
+      invalid: 'This connection request is not valid. Close this window and try again from Wallet Management.',
+    },
     import: {
       title: 'Connect a wallet',
       caption:
