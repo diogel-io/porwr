@@ -9,7 +9,7 @@ import type {
   SendMessageRequest,
   SendMessageResult,
 } from '@/types/messaging';
-import { CONNECTION_FAILURE, messagingRelays, withDeadline, type MessagingRelays } from './messaging-relays';
+import { messagingRelays, withDeadline, type MessagingRelays } from './messaging-relays';
 import { authSigner } from './relay-auth';
 
 export { authSigner };
@@ -335,10 +335,9 @@ export class Nip17Messaging {
     const rejected: { url: string; reason: string }[] = [];
     outcomes.forEach((outcome, index) => {
       const url = relays[index]!;
+      // nostr-tools rejects a publish to a relay it could not connect to, with "connection failure: …".
       if (outcome.status === 'rejected') {
         rejected.push({ url, reason: reasonOf(outcome.reason) });
-      } else if (String(outcome.value).startsWith(CONNECTION_FAILURE)) {
-        rejected.push({ url, reason: String(outcome.value) });
       } else {
         accepted.push(url);
       }
@@ -385,7 +384,7 @@ export class Nip17Messaging {
             if (event.id === wrapId) held = true;
           },
           onclose: (reasons) => {
-            const reason = reasons[0] ?? '';
+            const reason = reasons[0]?.reason ?? '';
             if (held) finish({ url, storage: 'held' });
             else if (REFUSED_TO_SERVE.test(reason)) finish({ url, storage: 'refused' });
             else if (reason === CLOSED_ON_EOSE) finish({ url, storage: 'missing', reason: 'accepted but not stored' });

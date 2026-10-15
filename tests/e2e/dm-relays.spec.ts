@@ -49,8 +49,14 @@ test('Direct Message Relays load and save when one relay never answers', async (
       [relays.plain, silent.url],
     );
     await seedAccount(page);
-    await page.goto(page.url().replace(/#.*$/, '#/relays'));
-    await page.reload();
+    // Load the Relays page once, fresh, so the card's first load is the one asserted on. A hash change
+    // followed by a reload mounted it twice: the old page also opened its seed relays at that moment,
+    // and with that many sockets pending Chromium delays each new one by 1 to 5 s at random. The
+    // background's connection to the local relay then often missed the 4 s load deadline, and the
+    // load after the reload shared that same pending connection.
+    const relaysPage = page.url().replace(/#.*$/, '#/relays');
+    await page.goto('about:blank');
+    await page.goto(relaysPage);
 
     const card = page.getByTestId('dm-relays-card');
     const save = card.getByRole('button', { name: 'Save', exact: true });
