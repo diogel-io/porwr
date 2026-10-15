@@ -23,13 +23,14 @@ onMounted(async () => {
       <p class="dashboard-hero-caption">{{ t('navigation.keys.caption') }}</p>
     </section>
 
-    <security-warning
-      :title="t('keyManagement.securityWarning.title')"
-      :message="t('keyManagement.securityWarning.message')"
-    />
-
     <q-card class="dashboard-card key-management-page__card">
-      <q-card-section class="row q-col-gutter-sm justify-end items-center">
+      <q-card-section class="row q-col-gutter-sm justify-between items-center">
+        <div>
+          <security-warning
+            :title="t('keyManagement.securityWarning.title')"
+            :message="t('keyManagement.securityWarning.message')"
+          />
+        </div>
         <div>
           <q-btn
             :label="t('keyManagement.importKey')"

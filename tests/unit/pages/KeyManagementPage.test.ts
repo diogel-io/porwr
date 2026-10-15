@@ -28,7 +28,7 @@ vi.mock('vue-i18n', () => ({
 }));
 
 describe('KeyManagementPage.vue', () => {
-  it('renders security warning, key actions, and passes keys to table', async () => {
+  it('renders the security warning in the card header, key actions, and passes keys to table', async () => {
     const wrapper = mount(KeyManagementPage, {
       global: {
         stubs: {
@@ -53,9 +53,14 @@ describe('KeyManagementPage.vue', () => {
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find('.security-warning').exists()).toBe(true);
-    expect(wrapper.text()).toContain('keyManagement.securityWarning.title');
-    expect(wrapper.text()).toContain('keyManagement.securityWarning.message');
+    // The warning is a corner icon in the Keys card header, before the key actions (#298).
+    const warning = wrapper.find('.security-warning');
+    expect(warning.exists()).toBe(true);
+    expect(warning.attributes('aria-label')).toBe('keyManagement.securityWarning.title');
+    expect(warning.text()).toContain('keyManagement.securityWarning.message');
+    const markup = wrapper.html();
+    expect(markup.indexOf('security-warning')).toBeLessThan(markup.indexOf('keyManagement.importKey'));
+    expect(markup.indexOf('security-warning')).toBeGreaterThan(markup.indexOf('navigation.keys.caption'));
 
     const importButton = wrapper.find('[data-label="keyManagement.importKey"]');
     expect(importButton.exists()).toBe(true);
