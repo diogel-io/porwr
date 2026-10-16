@@ -1,12 +1,20 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
 import GenerateKeyForm from '@/components/dashboard/key-management/GenerateKeyForm.vue';
+import DashboardBreadcrumbs from '@/components/dashboard/DashboardBreadcrumbs.vue';
 
 const { t } = useI18n();
 </script>
 
 <template>
-  <q-page class="dashboard-page add-new-key-page">
+  <q-page class="dashboard-page dashboard-page--with-breadcrumbs add-new-key-page">
+    <dashboard-breadcrumbs
+      :items="[
+        { label: t('navigation.keys.label'), to: { name: 'keys' } },
+        { label: t('keyManagement.addNewTitle') },
+      ]"
+    />
+
     <section class="dashboard-hero">
       <h1 class="dashboard-hero-title">{{ t('keyManagement.addNewTitle') }}</h1>
       <p class="dashboard-hero-caption">{{ t('keyManagement.addNewCaption') }}</p>

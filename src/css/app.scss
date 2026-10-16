@@ -640,6 +640,13 @@ html.extension-popup body {
   gap: 16px;
 }
 
+// A page with a breadcrumb packs its rows to the top. `q-page` has a min-height, and a grid
+// otherwise shares the spare height between its rows, which opens a gap under the one-line
+// breadcrumb as tall as the hero (#302).
+.dashboard-page--with-breadcrumbs {
+  align-content: start;
+}
+
 .dashboard-hero {
   display: flex;
   flex-direction: column;
