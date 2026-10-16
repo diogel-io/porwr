@@ -2,6 +2,7 @@ import * as nip19 from 'nostr-tools/nip19';
 
 import { expect, test } from './fixtures/extension';
 import { createVault, seedAccount, TEST_ACCOUNT } from './fixtures/vault';
+import { readBannerPaint } from './fixtures/banner';
 
 /**
  * The account npub on the panel's profile card (#303).
@@ -60,4 +61,23 @@ test.describe('the profile card npub', () => {
     const written = await page.evaluate(() => (window as unknown as { __written: string[] }).__written);
     expect(written).toEqual([npub, npub]);
   });
+});
+
+test('the profile card shows a neutral placeholder for an empty banner (#301)', async ({ openPage }) => {
+  const page = await openPage('/login');
+  await createVault(page);
+  await seedAccount(page);
+  await page.goto(page.url().replace(/#.*$/, '#/sidebar'));
+  await page.locator('.banner-placeholder').waitFor({ state: 'visible', timeout: 20_000 });
+
+  const dark = await readBannerPaint(page, '.banner-placeholder', true);
+  const light = await readBannerPaint(page, '.banner-placeholder', false);
+
+  for (const paint of [dark, light]) {
+    expect(paint).not.toBeNull();
+    expect(paint!.backgroundImage).toBe('none');
+    expect(paint!.backgroundColor).toBe(paint!.surfaceSoft);
+  }
+  expect(dark!.backgroundColor).not.toBe(light!.backgroundColor);
+  await expect(page.locator('.banner-container--has-image')).toHaveCount(0);
 });

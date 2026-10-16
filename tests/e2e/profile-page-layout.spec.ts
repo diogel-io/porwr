@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures/extension';
 import { createVault, seedAccount } from './fixtures/vault';
+import { readBannerPaint } from './fixtures/banner';
 
 /**
  * The Profile page's avatar is shown whole, at a size that reads as an avatar (#200).
@@ -84,4 +85,19 @@ test('the Profile page has no preview of its own', async ({ openPage }) => {
   await expect(page.getByText('Profile Details', { exact: true })).toBeVisible();
   await expect(page.getByText('Identity & Payments', { exact: true })).toBeVisible();
   await expect(page.getByText('Profile Preview', { exact: true })).toHaveCount(0);
+});
+
+test('an empty banner is neutral and follows the theme, not brand orange (#301)', async ({ openPage }) => {
+  const page = await openProfile(openPage, 1100);
+  await expect(page.locator('.profile-header__banner-image')).toHaveCount(0);
+
+  const dark = await readBannerPaint(page, '.profile-header__banner', true);
+  const light = await readBannerPaint(page, '.profile-header__banner', false);
+
+  for (const paint of [dark, light]) {
+    expect(paint).not.toBeNull();
+    expect(paint!.backgroundImage).toBe('none');
+    expect(paint!.backgroundColor).toBe(paint!.surfaceSoft);
+  }
+  expect(dark!.backgroundColor).not.toBe(light!.backgroundColor);
 });
