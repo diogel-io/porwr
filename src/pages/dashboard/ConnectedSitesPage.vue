@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -21,12 +21,30 @@ const sites = ref<ConnectedSite[]>([]);
 const loading = ref(true);
 const disconnecting = ref<string | null>(null);
 
+/**
+ * The account whose sites this page shows: the active one (#309).
+ *
+ * Every account's sites on one page let a user managing one account disconnect another's. The page
+ * follows the account selector, as Wallet Management does (#304), and names the account it shows.
+ */
+const account = computed(() => accountStore.activeAccount);
+const accountPubkey = computed(() => account.value?.id ?? '');
+
 const hasSites = computed(() => sites.value.length > 0);
 
 async function refresh(): Promise<void> {
+  const owner = accountPubkey.value;
+  if (!owner) {
+    sites.value = [];
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   try {
-    sites.value = await listConnectedSites();
+    const listed = await listConnectedSites(owner);
+    // The account changed while this was loading: that account's own refresh is on its way.
+    if (owner !== accountPubkey.value) return;
+    sites.value = listed;
   } catch {
     $q.notify({ type: 'negative', message: t('dashboard.connectedSites.loadFailed') });
   } finally {
@@ -53,9 +71,11 @@ function confirmDisconnect(site: ConnectedSite): void {
 }
 
 async function disconnect(site: ConnectedSite): Promise<void> {
+  const owner = accountPubkey.value;
+  if (!owner) return;
   disconnecting.value = site.origin;
   try {
-    const done = await disconnectSite(site.origin);
+    const done = await disconnectSite(site.origin, owner);
     if (!done) {
       $q.notify({
         type: 'negative',
@@ -78,15 +98,6 @@ async function disconnect(site: ConnectedSite): Promise<void> {
 const aliasFor = (pubkey: string): string | null =>
   Array.from(accountStore.storedKeys).find((key) => key.id === pubkey)?.alias ?? null;
 
-/**
- * A site keeps the account it connected with, whichever account is active (#116). Saying when that
- * is not the active one is what makes "it signed as the wrong user" explicable (workspace#23).
- */
-const isNotActive = (pubkey: string): boolean => {
-  const active = accountStore.activeAccount;
-  return active !== undefined && active.id !== pubkey;
-};
-
 /** Public keys are shown truncated: enough to tell two identities apart, not enough to swamp a row. */
 const shortPubkey = (pubkey: string): string => `${pubkey.slice(0, 8)}…${pubkey.slice(-8)}`;
 
@@ -96,9 +107,16 @@ const grantLabel = (requestType: string, eventKind: number | 'any' | null): stri
   return `${getRequestTypeLabel(requestType)} · ${getEventKindLabel(eventKind)}`;
 };
 
-onMounted(() => {
+watch(accountPubkey, (next, previous) => {
+  if (next === previous) return;
+  sites.value = [];
   void refresh();
-  void accountStore.getKeys();
+});
+
+onMounted(async () => {
+  // Read the vault first: before that there is no active account, and the page would say so.
+  await accountStore.getKeys();
+  await refresh();
 });
 </script>
 
@@ -107,17 +125,24 @@ onMounted(() => {
     <header class="connected-sites__header">
       <h1 class="text-h5">{{ t('dashboard.connectedSites.title') }}</h1>
       <p class="text-grey-7">{{ t('dashboard.connectedSites.caption') }}</p>
+      <p class="text-grey-7" data-testid="sites-account">
+        {{
+          account
+            ? t('dashboard.connectedSites.accountCaption', { alias: account.alias })
+            : t('dashboard.connectedSites.noAccount')
+        }}
+      </p>
     </header>
 
     <q-inner-loading :showing="loading" />
 
-    <div v-if="!loading && !hasSites" class="connected-sites__empty">
+    <div v-if="!loading && account && !hasSites" class="connected-sites__empty">
       <q-icon color="grey-5" name="link_off" size="3em" />
       <p class="text-subtitle1 q-mt-sm">{{ t('dashboard.connectedSites.empty') }}</p>
       <p class="text-grey-6">{{ t('dashboard.connectedSites.emptyHint') }}</p>
     </div>
 
-    <div v-else class="connected-sites__list">
+    <div v-else-if="account" class="connected-sites__list">
       <q-card v-for="site in sites" :key="site.origin" flat bordered class="connected-sites__card">
         <q-card-section class="connected-sites__row">
           <div class="connected-sites__detail">
@@ -130,14 +155,6 @@ onMounted(() => {
                   {{ aliasFor(site.boundPubkey) }}
                 </strong>
                 <code>{{ shortPubkey(site.boundPubkey) }}</code>
-                <q-badge
-                  v-if="isNotActive(site.boundPubkey)"
-                  outline
-                  color="warning"
-                  class="q-ml-xs"
-                  data-testid="not-active"
-                  :label="t('dashboard.connectedSites.notActive')"
-                />
               </template>
               <span v-else class="text-grey-6">
                 {{ t('dashboard.connectedSites.unbound') }}

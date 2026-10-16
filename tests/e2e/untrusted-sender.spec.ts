@@ -56,7 +56,7 @@ test.describe('the background checks who is asking', () => {
       { type: 'vault.getView', payload: {} },
       { type: 'accounts.revealSecret', payload: { accountPubkey: TEST_ACCOUNT.pubkey } },
       { type: 'nostr.requests.respond', payload: { requestId: 'any', decision: 'approve' } },
-      { type: 'sites.revoke', payload: { origin: 'https://example.com' } },
+      { type: 'sites.revoke', payload: { origin: 'https://example.com', accountPubkey: 'a'.repeat(64) } },
     ]) {
       expect(await sendFromContentScript(cdp, contextId, message)).toEqual({ success: false, error: 'Untrusted sender' });
     }

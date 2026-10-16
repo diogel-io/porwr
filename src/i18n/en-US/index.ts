@@ -164,10 +164,11 @@ export default {
     connectedSites: {
       title: 'Connected Sites',
       caption: 'Sites that can act with one of your identities',
+      accountCaption: 'Sites connected as {alias}. Each account has its own connected sites.',
+      noAccount: 'Select an account to see its connected sites.',
       empty: 'No site has connected yet.',
       emptyHint: 'A site appears here once it asks to use one of your keys.',
       signsAs: 'Signs as',
-      notActive: 'Not your active account',
       unbound: 'Not bound to an account',
       grants: 'Standing permissions',
       noGrants: 'Asks every time',
@@ -177,7 +178,7 @@ export default {
       disconnect: 'Disconnect',
       disconnectTitle: 'Disconnect {origin}?',
       disconnectBody:
-        'This removes every standing permission and forgets which account the site signs as. The site will ask again the next time it needs anything.',
+        "This removes this account's standing permissions for the site and forgets that it signs as this account. Your other accounts are not affected. The site will ask again the next time it needs anything.",
       disconnectConfirm: 'Disconnect',
       disconnectCancel: 'Cancel',
       disconnected: 'Disconnected {origin}',

@@ -11,6 +11,8 @@ import {
   switchSiteToActiveAccount,
 } from '@/services/connected-sites-service';
 
+const ALICE = 'a'.repeat(64);
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -20,34 +22,36 @@ describe('reading connected sites from the background', () => {
     // A cached list would show a user authority that has already been revoked.
     sendBexMessage.mockResolvedValue([{ origin: 'https://example.com' }]);
 
-    await listConnectedSites();
-    await listConnectedSites();
+    await listConnectedSites(ALICE);
+    await listConnectedSites(ALICE);
 
     expect(sendBexMessage).toHaveBeenCalledTimes(2);
-    expect(sendBexMessage).toHaveBeenCalledWith('sites.list');
+    // Names the account: the page shows one account's sites, not every account's (#309).
+    expect(sendBexMessage).toHaveBeenCalledWith('sites.list', { accountPubkey: ALICE });
   });
 
   it('reports nothing rather than undefined when the background has no answer', async () => {
     sendBexMessage.mockResolvedValue(undefined);
 
-    await expect(listConnectedSites()).resolves.toEqual([]);
+    await expect(listConnectedSites(ALICE)).resolves.toEqual([]);
   });
 });
 
 describe('disconnecting through the background', () => {
-  it('names the origin', async () => {
+  it('names the origin and the account it is disconnected for', async () => {
     sendBexMessage.mockResolvedValue(true);
 
-    await expect(disconnectSite('https://example.com')).resolves.toBe(true);
+    await expect(disconnectSite('https://example.com', ALICE)).resolves.toBe(true);
     expect(sendBexMessage).toHaveBeenCalledWith('sites.revoke', {
       origin: 'https://example.com',
+      accountPubkey: ALICE,
     });
   });
 
   it('reports failure rather than assuming success', async () => {
     sendBexMessage.mockResolvedValue(undefined);
 
-    await expect(disconnectSite('https://example.com')).resolves.toBe(false);
+    await expect(disconnectSite('https://example.com', ALICE)).resolves.toBe(false);
   });
 });
 

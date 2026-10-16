@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   revokePermission: vi.fn(),
   listBindings: vi.fn(),
   removeBinding: vi.fn(),
+  getBinding: vi.fn(),
 }));
 
 vi.mock('@/../src-bex/handlers/permission-handler', () => ({
@@ -14,12 +15,15 @@ vi.mock('@/../src-bex/handlers/permission-handler', () => ({
 vi.mock('@/../src-bex/services/site-binding-store', () => ({
   listBindings: mocks.listBindings,
   removeBinding: mocks.removeBinding,
+  getBinding: mocks.getBinding,
 }));
 
 import {
   countSitesHoldingGrantsFor,
   disconnectSite,
+  disconnectSiteFor,
   listConnectedSites,
+  listConnectedSitesFor,
 } from '@/../src-bex/services/connected-sites';
 
 const ALICE = 'a'.repeat(64);
@@ -41,6 +45,7 @@ beforeEach(() => {
   mocks.getGrantedPermissions.mockResolvedValue([]);
   mocks.revokePermission.mockResolvedValue(undefined);
   mocks.removeBinding.mockResolvedValue(undefined);
+  mocks.getBinding.mockResolvedValue(null);
 });
 
 describe('what a site holds', () => {
@@ -216,5 +221,93 @@ describe('counting sites that hold a standing permission', () => {
     mocks.getGrantedPermissions.mockResolvedValue([grant()]);
 
     await expect(countSitesHoldingGrantsFor('')).resolves.toBe(0);
+  });
+});
+
+describe('one account’s sites (#309)', () => {
+  const binding = (origin: string, pubkey: string) => ({ origin, pubkey, boundAt: 500 });
+
+  beforeEach(() => {
+    mocks.listBindings.mockResolvedValue([
+      binding('https://alice.example', ALICE),
+      binding('https://bob.example', BOB),
+    ]);
+    mocks.getGrantedPermissions.mockResolvedValue([
+      grant({ origin: 'https://alice.example', accountPubkey: ALICE }),
+      grant({ origin: 'https://bob.example', accountPubkey: BOB }),
+      // Left over from before bindings: inert, since signing uses the bound account.
+      grant({ origin: 'https://bob.example', accountPubkey: ALICE, requestType: 'nip04_encrypt' }),
+      // Unbound, holding grants for each account.
+      grant({ origin: 'https://unbound.example', accountPubkey: ALICE }),
+      grant({ origin: 'https://unbound.example', accountPubkey: BOB, requestType: 'nip44_encrypt' }),
+      // Unbound, Bob's only.
+      grant({ origin: 'https://bob-only.example', accountPubkey: BOB }),
+    ]);
+  });
+
+  it('lists sites bound to the account, and unbound ones it holds grants on', async () => {
+    const sites = await listConnectedSitesFor(ALICE);
+
+    expect(sites.map((site) => site.origin)).toEqual(['https://alice.example', 'https://unbound.example']);
+  });
+
+  it('lists only the account’s own grants on each site', async () => {
+    const sites = await listConnectedSitesFor(ALICE);
+
+    for (const site of sites) {
+      expect(site.grants.every((item) => item.accountPubkey === ALICE)).toBe(true);
+    }
+    expect(sites.find((site) => site.origin === 'https://unbound.example')?.grants).toHaveLength(1);
+  });
+
+  it('does not list a site bound to another account, even with a stale grant for this one', async () => {
+    const sites = await listConnectedSitesFor(ALICE);
+
+    expect(sites.some((site) => site.origin === 'https://bob.example')).toBe(false);
+  });
+
+  it('lists nothing for no account', async () => {
+    await expect(listConnectedSitesFor('')).resolves.toEqual([]);
+  });
+});
+
+describe('disconnecting for one account (#309)', () => {
+  beforeEach(() => {
+    mocks.getGrantedPermissions.mockResolvedValue([
+      grant({ accountPubkey: ALICE }),
+      grant({ accountPubkey: BOB, requestType: 'nip44_encrypt' }),
+    ]);
+  });
+
+  it('revokes only that account’s grants and its binding', async () => {
+    mocks.getBinding.mockResolvedValue({ origin: 'https://example.com', pubkey: ALICE, boundAt: 500 });
+
+    await expect(disconnectSiteFor('https://example.com', ALICE)).resolves.toBe(true);
+
+    expect(mocks.revokePermission).toHaveBeenCalledTimes(1);
+    expect(mocks.revokePermission).toHaveBeenCalledWith('https://example.com', ALICE, 'sign_event', 1);
+    expect(mocks.removeBinding).toHaveBeenCalledWith('https://example.com');
+  });
+
+  it('keeps a binding that belongs to another account', async () => {
+    mocks.getBinding.mockResolvedValue({ origin: 'https://example.com', pubkey: BOB, boundAt: 500 });
+
+    await disconnectSiteFor('https://example.com', ALICE);
+
+    expect(mocks.removeBinding).not.toHaveBeenCalled();
+    expect(mocks.revokePermission).not.toHaveBeenCalledWith('https://example.com', BOB, 'nip44_encrypt', 1);
+  });
+
+  it('refuses an origin it cannot normalise, or no account', async () => {
+    await expect(disconnectSiteFor('not a url', ALICE)).resolves.toBe(false);
+    await expect(disconnectSiteFor('https://example.com', '')).resolves.toBe(false);
+    expect(mocks.revokePermission).not.toHaveBeenCalled();
+  });
+
+  it('leaves the whole-origin disconnect the panel’s switch relies on unchanged (#166)', async () => {
+    await disconnectSite('https://example.com');
+
+    expect(mocks.revokePermission).toHaveBeenCalledTimes(2);
+    expect(mocks.removeBinding).toHaveBeenCalledWith('https://example.com');
   });
 });

@@ -12,11 +12,13 @@ import { ErrorCode } from '@/types/error-codes.d';
 
 export type { ConnectedSite, SiteAccount, SwitchSiteAccountResult };
 
-export const listConnectedSites = async (): Promise<ConnectedSite[]> =>
-  (await sendBexMessage('sites.list')) ?? [];
+/** The sites one account is connected to, with only that account's grants (#309). */
+export const listConnectedSites = async (accountPubkey: string): Promise<ConnectedSite[]> =>
+  (await sendBexMessage('sites.list', { accountPubkey })) ?? [];
 
-export const disconnectSite = async (origin: string): Promise<boolean> =>
-  (await sendBexMessage('sites.revoke', { origin })) ?? false;
+/** Disconnect a site for one account; other accounts' grants on it are left alone (#309). */
+export const disconnectSite = async (origin: string, accountPubkey: string): Promise<boolean> =>
+  (await sendBexMessage('sites.revoke', { origin, accountPubkey })) ?? false;
 
 /** How many sites hold a standing permission for an account. */
 export const countSitesHoldingGrantsFor = async (accountPubkey: string): Promise<number> =>
