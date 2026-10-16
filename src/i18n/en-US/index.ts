@@ -157,6 +157,8 @@ export default {
     theme: 'Theme',
     themeCaption: 'Use light or dark mode',
     edit: 'edit',
+    copyNpub: 'Copy npub',
+    copyNpubAriaLabel: 'Copy npub {npub}',
   },
   dashboard: {
     connectedSites: {

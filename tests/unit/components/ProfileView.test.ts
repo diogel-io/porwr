@@ -15,10 +15,15 @@ const state = vi.hoisted(() => ({
   set: vi.fn(),
   removeOnChanged: vi.fn(),
   fetchProfile: vi.fn(),
+  notify: vi.fn(),
 }));
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock('quasar', () => ({
+  useQuasar: () => ({ notify: state.notify }),
 }));
 
 vi.mock('@/services/profile-service', () => ({
@@ -36,6 +41,7 @@ vi.mock('@/services/storage-service', () => ({
   },
 }));
 
+import * as nip19 from 'nostr-tools/nip19';
 import ProfileView from '@/components/shared/ProfileView.vue';
 
 const STORED_KEY = {
@@ -45,9 +51,9 @@ const STORED_KEY = {
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
-const mountView = async () => {
+const mountView = async (storedKey = STORED_KEY) => {
   const wrapper = mount(ProfileView, {
-    props: { storedKey: STORED_KEY },
+    props: { storedKey },
     global: {
       // The export-keys warning uses the global `$t`, not the composable, so both need providing.
       mocks: { $t: (key: string) => key },
@@ -159,5 +165,84 @@ describe('staying current with saves from another surface', () => {
     // The panel mounts and unmounts this card as the vault locks and unlocks; a listener left
     // behind would fetch on behalf of a component that is gone.
     expect(state.removeOnChanged).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the account npub (#303)', () => {
+  const npub = nip19.npubEncode(STORED_KEY.id);
+  const writeText = vi.fn();
+
+  beforeEach(() => {
+    writeText.mockReset().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
+  it('shows the npub shortened, with the full value in its title', async () => {
+    state.profile = { name: 'alice', display_name: 'Alice' };
+
+    const button = (await mountView()).get('button.profile-npub');
+
+    expect(button.text()).toContain(`${npub.slice(0, 14)}…${npub.slice(-10)}`);
+    expect(button.text()).not.toContain(npub);
+    expect(button.attributes('title')).toBe(npub);
+    expect(button.attributes('type')).toBe('button');
+  });
+
+  it('shows it for an account that has never published a profile', async () => {
+    state.profile = {};
+
+    expect((await mountView()).find('button.profile-npub').exists()).toBe(true);
+  });
+
+  it('copies the full npub, not the shortened one', async () => {
+    state.profile = { name: 'alice' };
+    const wrapper = await mountView();
+
+    await wrapper.get('button.profile-npub').trigger('click');
+    await flushPromises();
+
+    expect(writeText).toHaveBeenCalledWith(npub);
+    expect(state.notify).toHaveBeenCalledWith({
+      type: 'positive',
+      message: 'account.copySuccess',
+    });
+  });
+
+  it('says so when the clipboard refuses the write', async () => {
+    state.profile = { name: 'alice' };
+    writeText.mockRejectedValue(new Error('denied'));
+    const wrapper = await mountView();
+
+    await wrapper.get('button.profile-npub').trigger('click');
+    await flushPromises();
+
+    expect(state.notify).toHaveBeenCalledWith({
+      type: 'negative',
+      message: 'keyManagement.table.copyPublicKeyFailed',
+    });
+  });
+
+  it('follows an account switch', async () => {
+    state.profile = { name: 'alice' };
+    const wrapper = await mountView();
+    const other = { ...STORED_KEY, id: 'c'.repeat(64), alias: 'bob' };
+
+    await wrapper.setProps({ storedKey: other });
+    await flushPromises();
+
+    expect(wrapper.get('button.profile-npub').attributes('title')).toBe(
+      nip19.npubEncode(other.id),
+    );
+  });
+
+  it('shows nothing for a key that cannot be encoded', async () => {
+    state.profile = { name: 'alice' };
+
+    const wrapper = await mountView({ ...STORED_KEY, id: 'not-hex' });
+
+    expect(wrapper.find('button.profile-npub').exists()).toBe(false);
   });
 });

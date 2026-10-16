@@ -2,9 +2,8 @@
 import { computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
-import * as nip19 from 'nostr-tools/nip19';
-
 import type { AccountSummary } from '@/types/accounts';
+import { encodeNpub, formatNpubDisplay } from '@/utils/npub-format';
 
 const { t, d } = useI18n();
 const $q = useQuasar();
@@ -21,9 +20,6 @@ interface KeyRow {
   createdAt: string | null;
   isActive: boolean;
 }
-
-const NPUB_DISPLAY_HEAD_LENGTH = 14;
-const NPUB_DISPLAY_TAIL_LENGTH = 10;
 
 const columns = computed(() => [
   { name: 'alias', label: t('keyManagement.table.name'), field: 'alias', align: 'left' as const },
@@ -49,12 +45,7 @@ const columns = computed(() => [
 
 const rows = computed<KeyRow[]>(() =>
   props.keys.map((key) => {
-    let npub: string;
-    try {
-      npub = nip19.npubEncode(key.id);
-    } catch {
-      npub = '';
-    }
+    const npub = encodeNpub(key.id);
 
     return {
       alias: key.alias,
@@ -66,14 +57,6 @@ const rows = computed<KeyRow[]>(() =>
     };
   }),
 );
-
-function formatNpubDisplay(npub: string): string {
-  if (npub.length <= NPUB_DISPLAY_HEAD_LENGTH + NPUB_DISPLAY_TAIL_LENGTH + 1) {
-    return npub;
-  }
-
-  return `${npub.slice(0, NPUB_DISPLAY_HEAD_LENGTH)}…${npub.slice(-NPUB_DISPLAY_TAIL_LENGTH)}`;
-}
 
 function formatCreatedDate(value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
