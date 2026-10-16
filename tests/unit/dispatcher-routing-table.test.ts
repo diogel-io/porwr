@@ -35,7 +35,7 @@ vi.mock('@/../src-bex/services/request-queue', () => ({
 }));
 vi.mock('@/../src-bex/services/page-origin-registry', () => ({ getPageOrigin: vi.fn() }));
 vi.mock('@/../src-bex/services/connected-sites', () => ({
-  countSitesHoldingGrantsFor: vi.fn(), disconnectSite: vi.fn(), listConnectedSites: vi.fn(),
+  countSitesHoldingGrantsFor: vi.fn(), disconnectSiteFor: vi.fn(), listConnectedSitesFor: vi.fn(),
 }));
 vi.mock('@/../src-bex/services/site-account', () => ({
   getSiteAccount: vi.fn(), switchSiteToActiveAccount: vi.fn(),
@@ -91,6 +91,8 @@ import * as accountSigning from '@/../src-bex/handlers/account-signing';
 import * as accounts from '@/../src-bex/handlers/accounts';
 
 const ORIGIN = 'https://example.com';
+/** A real-shaped account: `sites.list` and `sites.revoke` refuse anything else (#309). */
+const SITE_ACCOUNT = 'a'.repeat(64);
 
 type Mock = ReturnType<typeof vi.fn>;
 
@@ -165,10 +167,12 @@ const cases: Case[] = [
     name: 'requeuePresented', resolves: undefined, expected: null },
   { action: 'pages.originForTab', payload: { tabId: 7 }, handler: vi.mocked(pages.getPageOrigin),
     name: 'getPageOrigin', resolves: ORIGIN, expected: ORIGIN, expectArgs: [7] },
-  { action: 'sites.list', handler: vi.mocked(sites.listConnectedSites), name: 'listConnectedSites',
-    resolves: [{ origin: ORIGIN }], expected: [{ origin: ORIGIN }] },
-  { action: 'sites.revoke', payload: { origin: ORIGIN }, handler: vi.mocked(sites.disconnectSite),
-    name: 'disconnectSite', resolves: true, expected: true, expectArgs: [ORIGIN] },
+  { action: 'sites.list', payload: { accountPubkey: SITE_ACCOUNT }, handler: vi.mocked(sites.listConnectedSitesFor),
+    name: 'listConnectedSitesFor', resolves: [{ origin: ORIGIN }], expected: [{ origin: ORIGIN }],
+    expectArgs: [SITE_ACCOUNT] },
+  { action: 'sites.revoke', payload: { origin: ORIGIN, accountPubkey: SITE_ACCOUNT },
+    handler: vi.mocked(sites.disconnectSiteFor), name: 'disconnectSiteFor', resolves: true, expected: true,
+    expectArgs: [ORIGIN, SITE_ACCOUNT] },
   { action: 'sites.binding', payload: { origin: ORIGIN }, handler: vi.mocked(siteAccount.getSiteAccount),
     name: 'getSiteAccount', resolves: { origin: ORIGIN }, expected: { origin: ORIGIN }, expectArgs: [ORIGIN] },
   { action: 'sites.useActiveAccount', payload: { origin: ORIGIN },
@@ -329,6 +333,18 @@ describe('every declared action reaches its own handler', () => {
 });
 
 describe('dispatcher decisions that are not pass-through', () => {
+  it('answers no sites, and disconnects nothing, for a missing or malformed account (#309)', async () => {
+    for (const accountPubkey of [undefined, '', 'npub1x']) {
+      await expect(dispatchMessage('sites.list', { accountPubkey } as never, '')).resolves.toEqual([]);
+      await expect(
+        dispatchMessage('sites.revoke', { origin: ORIGIN, accountPubkey } as never, ''),
+      ).resolves.toBe(false);
+    }
+    // Never a vault-wide answer in place of one account's.
+    expect(sites.listConnectedSitesFor).not.toHaveBeenCalled();
+    expect(sites.disconnectSiteFor).not.toHaveBeenCalled();
+  });
+
   it('stops the auto-lock timer when the vault is locked', async () => {
     vi.mocked(vault.handleVaultLock).mockResolvedValue({ success: true } as never);
 

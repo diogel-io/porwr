@@ -29,10 +29,11 @@ import {
 import { getPageOrigin } from './services/page-origin-registry';
 import {
   countSitesHoldingGrantsFor,
-  disconnectSite,
-  listConnectedSites,
+  disconnectSiteFor,
+  listConnectedSitesFor,
 } from './services/connected-sites';
 import { getSiteAccount, switchSiteToActiveAccount } from './services/site-account';
+import { createPubkey } from '@/types/pubkey';
 import { handleBlossomUpload } from './handlers/blossom-handler';
 import { handleNip04Encrypt, handleNip04Decrypt } from './handlers/nip04';
 import { handleNip44Encrypt, handleNip44Decrypt } from './handlers/nip44';
@@ -231,12 +232,18 @@ export async function dispatchMessage<K extends BridgeAction>(
       return (getPageOrigin(tabPayload.tabId) ?? null) as BridgeResponsePayload<K>;
     }
 
-    case 'sites.list':
-      return (await listConnectedSites()) as BridgeResponsePayload<K>;
+    // One account's sites, and a disconnect for that account only (#309). A missing or malformed
+    // account answers nothing rather than every account's sites.
+    case 'sites.list': {
+      const listPayload = payload as BridgeRequestMap['sites.list'];
+      const account = createPubkey(typeof listPayload?.accountPubkey === 'string' ? listPayload.accountPubkey : '');
+      return (account ? await listConnectedSitesFor(account) : []) as BridgeResponsePayload<K>;
+    }
 
     case 'sites.revoke': {
       const revokePayload = payload as BridgeRequestMap['sites.revoke'];
-      return (await disconnectSite(revokePayload.origin)) as BridgeResponsePayload<K>;
+      const account = createPubkey(typeof revokePayload?.accountPubkey === 'string' ? revokePayload.accountPubkey : '');
+      return (account ? await disconnectSiteFor(revokePayload.origin, account) : false) as BridgeResponsePayload<K>;
     }
 
     case 'sites.binding': {

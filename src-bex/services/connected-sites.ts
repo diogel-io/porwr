@@ -10,7 +10,7 @@
  */
 
 import { getGrantedPermissions, revokePermission } from '../handlers/permission-handler';
-import { listBindings, removeBinding } from './site-binding-store';
+import { getBinding, listBindings, removeBinding } from './site-binding-store';
 import { normalizeOrigin } from './origin';
 import type { PermissionEventKind } from '../types/background';
 
@@ -79,14 +79,6 @@ export const listConnectedSites = async (): Promise<ConnectedSite[]> => {
 };
 
 /**
- * Disconnect a site entirely: every grant it holds, and its binding.
- *
- * Deliberately all-or-nothing rather than per-grant. A site whose grants are revoked but whose
- * binding remains still signs as that identity the next time it asks, which is not what "disconnect"
- * means to anyone reading it. Removing the binding lets the next request bind afresh, and the user
- * is asked again for everything.
- */
-/**
  * How many sites hold at least one standing permission for an account.
  *
  * The dashboard's "Approved Clients" figure used to count distinct hostnames in the approvals log,
@@ -102,6 +94,18 @@ export const countSitesHoldingGrantsFor = async (accountPubkey: string): Promise
   ).length;
 };
 
+/**
+ * Disconnect a site entirely: every grant it holds, and its binding.
+ *
+ * Deliberately all-or-nothing rather than per-grant. A site whose grants are revoked but whose
+ * binding remains still signs as that identity the next time it asks, which is not what "disconnect"
+ * means to anyone reading it. Removing the binding lets the next request bind afresh, and the user
+ * is asked again for everything.
+ *
+ * Every account's grants go, not only the bound one's: this is what moving a site to another
+ * account relies on (#166). The Connected Sites page disconnects one account with
+ * `disconnectSiteFor` instead (#309).
+ */
 export const disconnectSite = async (origin: string): Promise<boolean> => {
   const normalized = normalizeOrigin(origin);
   if (!normalized) return false;
@@ -114,6 +118,56 @@ export const disconnectSite = async (origin: string): Promise<boolean> => {
   }
 
   await removeBinding(normalized);
+
+  return true;
+};
+
+/**
+ * The sites one account is connected to, and only that account's grants on each (#309).
+ *
+ * A site is the account's when it is bound to it, or when it is unbound and holds a grant for it. A
+ * site bound to another account is that account's, even if it still carries a grant for this one
+ * from before bindings existed (#116): signing uses the bound account, so such a grant does nothing.
+ *
+ * Built on `listConnectedSites` rather than beside it, so what "connected" means stays one answer.
+ */
+export const listConnectedSitesFor = async (accountPubkey: string): Promise<ConnectedSite[]> => {
+  if (!accountPubkey) return [];
+
+  const sites = await listConnectedSites();
+  return sites
+    .filter((site) =>
+      site.boundPubkey !== null
+        ? site.boundPubkey === accountPubkey
+        : site.grants.some((grant) => grant.accountPubkey === accountPubkey),
+    )
+    .map((site) => ({
+      ...site,
+      grants: site.grants.filter((grant) => grant.accountPubkey === accountPubkey),
+    }));
+};
+
+/**
+ * Disconnect a site for one account only (#309): that account's grants, and the binding when the
+ * site is bound to it. Another account's grants on the same origin are left exactly as they were.
+ *
+ * Removing the binding keeps "disconnect" meaning what it does in `disconnectSite`: the site is
+ * asked again, from scratch, the next time it wants a key.
+ */
+export const disconnectSiteFor = async (origin: string, accountPubkey: string): Promise<boolean> => {
+  const normalized = normalizeOrigin(origin);
+  if (!normalized || !accountPubkey) return false;
+
+  const grants = await getGrantedPermissions();
+  const held = grants.filter((grant) => grant.origin === normalized && grant.accountPubkey === accountPubkey);
+
+  for (const grant of held) {
+    await revokePermission(normalized, grant.accountPubkey, grant.requestType, grant.eventKind);
+  }
+
+  if ((await getBinding(normalized))?.pubkey === accountPubkey) {
+    await removeBinding(normalized);
+  }
 
   return true;
 };

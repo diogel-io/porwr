@@ -124,7 +124,7 @@ describe('routing a raw runtime message', () => {
         { type: 'vault.getData', payload: {} },
         { type: 'vault.updateData', payload: { vaultData: { accounts: [] } } },
         { type: 'nostr.requests.respond', payload: { requestId: 'r', decision: 'approve' } },
-        { type: 'sites.revoke', payload: { origin: 'https://example.com' } },
+        { type: 'sites.revoke', payload: { origin: 'https://example.com', accountPubkey: 'a'.repeat(64) } },
         { type: 'nostr.signEvent', payload: { origin: 'https://example.com' } },
         { type: 'ping' },
         {},

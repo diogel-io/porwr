@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 
 const mocks = vi.hoisted(() => ({
   listConnectedSites: vi.fn(),
@@ -25,26 +25,35 @@ vi.mock('quasar', () => ({
   useQuasar: () => ({ notify: mocks.notify, dialog: mocks.dialog }),
 }));
 
-const accounts = vi.hoisted(() => ({
-  storedKeys: new Set<{ id: string; alias: string }>(),
-  activeId: undefined as string | undefined,
-}));
+interface FakeAccounts {
+  storedKeys: Set<{ id: string; alias: string }>;
+  activeId: string | undefined;
+}
 
-vi.mock('@/stores/account-store', () => ({
-  default: () => ({
+// Reactive, so switching account in a test reaches the page's watcher as the real store would.
+vi.mock('@/stores/account-store', async () => {
+  const { computed, reactive } = await import('vue');
+  const state = reactive<FakeAccounts>({ storedKeys: new Set(), activeId: undefined });
+  (globalThis as { __sitesAccounts?: FakeAccounts }).__sitesAccounts = state;
+  const activeAccount = computed(() => Array.from(state.storedKeys).find((key) => key.id === state.activeId));
+  const store = {
     get storedKeys() {
-      return accounts.storedKeys;
+      return state.storedKeys;
     },
     get activeAccount() {
-      return Array.from(accounts.storedKeys).find((key) => key.id === accounts.activeId);
+      return activeAccount.value;
     },
-    getKeys: vi.fn(),
-  }),
-}));
+    getKeys: () => Promise.resolve(),
+  };
+  return { default: () => store };
+});
+
+const accounts = (): FakeAccounts => (globalThis as { __sitesAccounts?: FakeAccounts }).__sitesAccounts!;
 
 import ConnectedSitesPage from '@/pages/dashboard/ConnectedSitesPage.vue';
 
 const ALICE = 'a'.repeat(64);
+const BOB = 'b'.repeat(64);
 
 const site = (over: Record<string, unknown> = {}) => ({
   origin: 'https://example.com',
@@ -76,10 +85,17 @@ const mountPage = async () => {
   return wrapper;
 };
 
+// The page watches the account store; a page left mounted from an earlier test would react to the
+// next test's account and call the service on its behalf.
+enableAutoUnmount(afterEach);
+
 beforeEach(() => {
+  accounts().storedKeys = new Set([
+    { id: ALICE, alias: 'alice' },
+    { id: BOB, alias: 'bob' },
+  ]);
+  accounts().activeId = ALICE;
   vi.clearAllMocks();
-  accounts.storedKeys = new Set();
-  accounts.activeId = undefined;
   mocks.listConnectedSites.mockResolvedValue([]);
   mocks.disconnectSite.mockResolvedValue(true);
   // Confirmed by default; the cancel path is asserted separately.
@@ -166,7 +182,7 @@ describe('the connected sites page', () => {
       await wrapper.findAll('button').at(-1)?.trigger('click');
       await flushPromises();
 
-      expect(mocks.disconnectSite).toHaveBeenCalledWith('https://example.com');
+      expect(mocks.disconnectSite).toHaveBeenCalledWith('https://example.com', ALICE);
       expect(mocks.listConnectedSites).toHaveBeenCalled();
     });
 
@@ -194,40 +210,65 @@ describe('the connected sites page', () => {
 });
 
 describe('which account a site signs as (workspace#23)', () => {
-  const BOB = 'b'.repeat(64);
-
   it('names the bound account by its alias as well as its key', async () => {
-    accounts.storedKeys = new Set([{ id: ALICE, alias: 'alice' }]);
-    accounts.activeId = ALICE;
     mocks.listConnectedSites.mockResolvedValue([site()]);
 
     const wrapper = await mountPage();
 
     expect(wrapper.find('[data-testid="bound-alias"]').text()).toBe('alice');
-    expect(wrapper.find('[data-testid="not-active"]').exists()).toBe(false);
+  });
+});
+
+describe('one account’s sites at a time (#309)', () => {
+  it('names the account and lists only its sites', async () => {
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="sites-account"]').text()).toBe('dashboard.connectedSites.accountCaption:alice');
+    expect(mocks.listConnectedSites).toHaveBeenCalledWith(ALICE);
   });
 
-  it('marks a site connected as an account that is not the active one', async () => {
-    accounts.storedKeys = new Set([
-      { id: ALICE, alias: 'alice' },
-      { id: BOB, alias: 'bob' },
-    ]);
-    accounts.activeId = BOB;
+  it('no longer marks sites of another account, because it no longer lists them', async () => {
     mocks.listConnectedSites.mockResolvedValue([site()]);
 
     const wrapper = await mountPage();
 
-    expect(wrapper.find('[data-testid="not-active"]').text()).toBe(
-      'dashboard.connectedSites.notActive',
+    expect(wrapper.find('[data-testid="not-active"]').exists()).toBe(false);
+  });
+
+  it('re-lists for the new account when the user switches, dropping the old one’s sites', async () => {
+    mocks.listConnectedSites.mockImplementation((owner: string) =>
+      Promise.resolve(owner === ALICE ? [site({ origin: 'https://alice.example' })] : [site({ origin: 'https://bob.example', boundPubkey: BOB })]),
     );
+    const wrapper = await mountPage();
+    expect(wrapper.text()).toContain('https://alice.example');
+
+    accounts().activeId = BOB;
+    await flushPromises();
+
+    expect(mocks.listConnectedSites).toHaveBeenLastCalledWith(BOB);
+    expect(wrapper.text()).not.toContain('https://alice.example');
+    expect(wrapper.text()).toContain('https://bob.example');
+    expect(wrapper.find('[data-testid="sites-account"]').text()).toBe('dashboard.connectedSites.accountCaption:bob');
   });
 
-  it('claims no mismatch when the accounts are not known, as with the vault locked', async () => {
-    mocks.listConnectedSites.mockResolvedValue([site()]);
+  it('disconnects for the account the page is showing', async () => {
+    accounts().activeId = BOB;
+    mocks.listConnectedSites.mockResolvedValue([site({ boundPubkey: BOB })]);
+    const wrapper = await mountPage();
+
+    await wrapper.findAll('button').at(-1)?.trigger('click');
+    await flushPromises();
+
+    expect(mocks.disconnectSite).toHaveBeenCalledWith('https://example.com', BOB);
+  });
+
+  it('lists nothing, and says why, without an active account', async () => {
+    accounts().activeId = undefined;
 
     const wrapper = await mountPage();
 
-    expect(wrapper.find('[data-testid="bound-alias"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="not-active"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="sites-account"]').text()).toBe('dashboard.connectedSites.noAccount');
+    expect(mocks.listConnectedSites).not.toHaveBeenCalled();
+    expect(wrapper.text()).not.toContain('dashboard.connectedSites.empty');
   });
 });

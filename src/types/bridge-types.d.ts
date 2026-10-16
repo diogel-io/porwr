@@ -363,11 +363,15 @@ export interface BridgeRequestMap {
   'sites.list': {
     id: string;
     action: 'sites.list';
+    /** The account whose sites to list (#309). */
+    accountPubkey: string;
   };
   'sites.revoke': {
     id: string;
     action: 'sites.revoke';
     origin: string;
+    /** The account to disconnect the site for; other accounts' grants stay (#309). */
+    accountPubkey: string;
   };
   'sites.binding': {
     id: string;
