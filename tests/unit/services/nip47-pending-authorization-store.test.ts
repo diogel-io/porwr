@@ -30,6 +30,7 @@ import {
 
 const entry = (pendingId: string) => ({
   pendingId,
+  accountPubkey: 'a'.repeat(64),
   providerId: 'coinos' as const,
   origin: 'https://coinos.io',
   clientSecret: 'f'.repeat(64),

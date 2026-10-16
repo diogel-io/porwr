@@ -16,8 +16,21 @@ export type Nip47Command =
   | 'settle_hold_invoice'
   | 'notifications';
 
+/**
+ * Names the account a wallet action is for (#304).
+ *
+ * Wallet connections belong to one account. Every action that reads or changes them says which, and
+ * the background checks it against the vault rather than trusting a connection id on its own.
+ */
+export interface Nip47AccountRequest {
+  /** The account's hex public key. */
+  accountPubkey: string;
+}
+
 export interface Nip47PaymentHistoryEntry {
   id: string;
+  /** The account whose wallet made the payment (#304). */
+  accountPubkey: string;
   connectionId: string;
   connectionLabel: string;
   paymentHash?: string;
@@ -31,6 +44,8 @@ export interface Nip47PaymentHistoryEntry {
 
 export interface Nip47Connection {
   id: string;
+  /** The account this connection belongs to. Each account has at most one active connection (#304). */
+  accountPubkey: string;
   label: string;
   walletServicePubkey: string;
   clientSecret: string;
@@ -56,10 +71,14 @@ export interface ParsedNwcUri {
   lud16?: string;
 }
 
-export interface ImportNip47ConnectionRequest {
+export interface ImportNip47ConnectionRequest extends Nip47AccountRequest {
   uri: string;
   label?: string;
-  identityId?: string;
+}
+
+/** An action on one of an account's connections. */
+export interface Nip47ConnectionRequest extends Nip47AccountRequest {
+  connectionId: string;
 }
 
 /** The public wallet service details a wallet posts back after the user approves Porwr (#110). */
@@ -69,7 +88,7 @@ export interface Nip47AuthorizedWalletService {
   lud16?: string;
 }
 
-export interface BeginNip47AuthorizationRequest {
+export interface BeginNip47AuthorizationRequest extends Nip47AccountRequest {
   provider: string;
   customOrigin?: string;
 }
@@ -105,8 +124,7 @@ export interface Nip47BalanceResponse {
   raw: Record<string, unknown>;
 }
 
-export interface Nip47PayInvoiceRequest {
-  connectionId: string;
+export interface Nip47PayInvoiceRequest extends Nip47ConnectionRequest {
   invoice: string;
 }
 

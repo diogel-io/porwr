@@ -1,7 +1,7 @@
 import type { BrowserContext, Page } from '@playwright/test';
 
 import { expect, test } from './fixtures/extension';
-import { createVault } from './fixtures/vault';
+import { createVault, seedAccount } from './fixtures/vault';
 
 /**
  * The wallet's approval popup keeps `window.opener`, because that is how Alby Hub and Coinos post
@@ -63,6 +63,8 @@ test.describe('wallet connect popup opener (workspace#76)', () => {
     );
     const page = await openPage('/login');
     await createVault(page);
+    // Wallets belong to an account, so Wallet Management needs one to connect for (#304).
+    await seedAccount(page);
     await openWalletConnections(page);
     const walletConnectionsUrl = page.url();
 
@@ -94,6 +96,8 @@ test.describe('wallet connect popup opener (workspace#76)', () => {
     );
     const page = await openPage('/login');
     await createVault(page);
+    // Wallets belong to an account, so Wallet Management needs one to connect for (#304).
+    await seedAccount(page);
     await openWalletConnections(page);
 
     await page.getByTestId('connect-coinos').click();

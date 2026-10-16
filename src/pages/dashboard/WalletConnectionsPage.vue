@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import {
@@ -17,9 +17,21 @@ import { parseNwcUri } from '@/services/nip47-uri';
 import { useWalletConnectWindow } from '@/composables/useWalletConnectWindow';
 import { WALLET_PROVIDERS, type WalletProviderId } from '@/types/wallet-provider';
 import type { Nip47ConnectionSummary, Nip47PaymentHistoryEntry } from '@/types/nip47';
+import useAccountStore from '@/stores/account-store';
 
 const $q = useQuasar();
 const { t } = useI18n();
+const accountStore = useAccountStore();
+
+/**
+ * The account whose wallets this page shows: the active one (#304).
+ *
+ * Wallets belong to an account, so the page follows the account selector, and every call names the
+ * account rather than leaving the background to guess. With no active account there is nothing to
+ * show or connect.
+ */
+const account = computed(() => accountStore.activeAccount);
+const accountPubkey = computed(() => account.value?.id ?? '');
 const connections = ref<Nip47ConnectionSummary[]>([]);
 const nwcUri = ref('');
 const label = ref('');
@@ -69,7 +81,9 @@ const activeBalanceToggleLabel = computed(() => {
     ? t('walletManagement.balance.toggleDisabled')
     : t('walletManagement.balance.toggleAria', { unit: balanceDisplayUnit.value === 'btc' ? 'sats' : 'BTC' });
 });
-const importPanelVisible = computed(() => importPanelOpen.value || !hasConnections.value);
+const importPanelVisible = computed(
+  () => Boolean(accountPubkey.value) && (importPanelOpen.value || !hasConnections.value),
+);
 const parsedInvoiceAmount = computed(() => parseBolt11Amount(paymentInvoice.value));
 const nwcUriError = computed<string>(() => {
   if (!nwcUri.value.trim()) {
@@ -169,9 +183,14 @@ function getActiveConnectionStatus(connection: Nip47ConnectionSummary): string {
 }
 
 async function refreshPaymentHistory(): Promise<void> {
+  const owner = accountPubkey.value;
+  if (!owner) {
+    paymentHistory.value = [];
+    return;
+  }
   historyLoading.value = true;
   try {
-    paymentHistory.value = await listNip47PaymentHistory();
+    paymentHistory.value = await listNip47PaymentHistory(owner);
   } catch (error: unknown) {
     notifyError(error);
   } finally {
@@ -180,9 +199,18 @@ async function refreshPaymentHistory(): Promise<void> {
 }
 
 async function refreshConnections(): Promise<void> {
+  const owner = accountPubkey.value;
+  if (!owner) {
+    connections.value = [];
+    paymentHistory.value = [];
+    return;
+  }
   loading.value = true;
   try {
-    connections.value = sortConnections(await listNip47Connections());
+    const listed = sortConnections(await listNip47Connections(owner));
+    // The account changed while the list was loading: that account's own refresh is on its way.
+    if (owner !== accountPubkey.value) return;
+    connections.value = listed;
     importPanelOpen.value = connections.value.length === 0;
     await refreshPaymentHistory();
   } catch (error: unknown) {
@@ -206,6 +234,7 @@ async function importConnection(): Promise<void> {
   loading.value = true;
   try {
     const imported = await importNip47Connection({
+      accountPubkey: accountPubkey.value,
       uri: nwcUri.value,
       ...(label.value.trim() ? { label: label.value.trim() } : {}),
     });
@@ -228,6 +257,7 @@ async function connectWallet(provider: WalletProviderId): Promise<void> {
   try {
     const result = await connect(
       provider,
+      accountPubkey.value,
       provider === 'alby-hub' && customHubOpen.value ? customHubOrigin.value : undefined,
     );
     if (result.status === 'connected') {
@@ -251,7 +281,7 @@ async function connectWallet(provider: WalletProviderId): Promise<void> {
 async function refreshConnectionInfo(connectionId: string): Promise<void> {
   testingConnectionId.value = connectionId;
   try {
-    const info = await getNip47Info(connectionId);
+    const info = await getNip47Info(accountPubkey.value, connectionId);
     connections.value = sortConnections(
       connections.value.map((item) => item.id === connectionId
         ? {
@@ -277,7 +307,7 @@ async function testInfo(connection: Nip47ConnectionSummary): Promise<void> {
 async function testBalance(connection: Nip47ConnectionSummary): Promise<void> {
   testingConnectionId.value = connection.id;
   try {
-    const balance = await getNip47Balance(connection.id);
+    const balance = await getNip47Balance(connection.accountPubkey, connection.id);
     balances.value = {
       ...balances.value,
       [connection.id]: balance.balanceMsat,
@@ -305,7 +335,7 @@ async function makeActive(connection: Nip47ConnectionSummary): Promise<void> {
   notifySuccess(t('walletManagement.notifications.activeWallet', { label: connection.label }));
 
   try {
-    const activeWallet = await setActiveNip47Connection(connection.id);
+    const activeWallet = await setActiveNip47Connection(connection.accountPubkey, connection.id);
     connections.value = sortConnections(
       connections.value.map((item) => ({
         ...item,
@@ -344,7 +374,7 @@ async function approvePayment(): Promise<void> {
   payingConnectionId.value = connection.id;
   lastPaymentPreimage.value = null;
   try {
-    const payment = await payNip47Invoice(connection.id, paymentInvoice.value);
+    const payment = await payNip47Invoice(connection.accountPubkey, connection.id, paymentInvoice.value);
     lastPaymentPreimage.value = payment.preimage;
     notifySuccess(
       payment.feesPaidMsat !== undefined
@@ -381,7 +411,7 @@ function confirmRemoveConnection(connection: Nip47ConnectionSummary): void {
 async function removeConnection(connection: Nip47ConnectionSummary): Promise<void> {
   loading.value = true;
   try {
-    await removeNip47Connection(connection.id);
+    await removeNip47Connection(connection.accountPubkey, connection.id);
     notifySuccess(t('walletManagement.notifications.removed'));
     await refreshConnections();
   } catch (error: unknown) {
@@ -391,8 +421,26 @@ async function removeConnection(connection: Nip47ConnectionSummary): Promise<voi
   }
 }
 
-onMounted(() => {
+/**
+ * Another account's wallets, balances and half-filled payment must not linger after a switch: a
+ * payment dialog opened for one account's wallet would otherwise still be there for the next.
+ */
+watch(accountPubkey, (next, previous) => {
+  if (next === previous) return;
+  connections.value = [];
+  paymentHistory.value = [];
+  balances.value = {};
+  paymentDialogOpen.value = false;
+  selectedPaymentConnection.value = null;
+  lastPaymentPreimage.value = null;
+  importPanelOpen.value = false;
   void refreshConnections();
+});
+
+onMounted(async () => {
+  // Read the vault first: before that there is no active account, and the page would say so.
+  await accountStore.getKeys();
+  await refreshConnections();
 });
 </script>
 
@@ -404,11 +452,19 @@ onMounted(() => {
         <p class="dashboard-hero-caption">
           {{ $t('walletManagement.caption') }}
         </p>
+        <p class="dashboard-hero-caption wallet-connections-page__account" data-testid="wallet-account">
+          {{
+            account
+              ? $t('walletManagement.accountCaption', { alias: account.alias })
+              : $t('walletManagement.noAccount')
+          }}
+        </p>
       </div>
       <div class="wallet-connections-page__hero-actions">
         <q-btn
           class="diogel-btn-primary"
           icon="add"
+          :disable="!account"
           :label="hasConnections && importPanelVisible ? $t('walletManagement.actions.hideImport') : $t('walletManagement.actions.importWallet')"
           no-caps
           @click="importPanelOpen = !importPanelOpen"

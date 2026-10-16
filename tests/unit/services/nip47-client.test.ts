@@ -33,6 +33,7 @@ vi.mock('@noble/hashes/utils', () => ({
 function buildConnection(): Nip47Connection {
   return {
     id: 'wallet-a',
+    accountPubkey: 'a'.repeat(64),
     label: 'Wallet A',
     walletServicePubkey: 'wallet-service-pubkey',
     clientSecret: '00'.repeat(32),

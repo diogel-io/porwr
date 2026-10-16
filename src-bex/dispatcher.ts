@@ -381,11 +381,17 @@ export async function dispatchMessage<K extends BridgeAction>(
     }
 
     case 'nip47.connections.list': {
-      const result = await handleNip47ConnectionsList();
-      if (result.success) {
-        return result.data as BridgeResponsePayload<K>;
+      // An error, not an empty list: "this account has no wallets" and "you named no account" are
+      // different answers, and the page must not show the first for the second (#304).
+      try {
+        const result = await handleNip47ConnectionsList(payload as BridgeRequestMap['nip47.connections.list']);
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
       }
-      return [] as unknown as BridgeResponsePayload<K>;
     }
 
     case 'nip47.connections.import': {
@@ -462,7 +468,7 @@ export async function dispatchMessage<K extends BridgeAction>(
 
     case 'nip47.payments.list': {
       try {
-        const result = await handleNip47PaymentHistoryList();
+        const result = await handleNip47PaymentHistoryList(payload as BridgeRequestMap['nip47.payments.list']);
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }

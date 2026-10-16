@@ -5,15 +5,38 @@ import {
   handleWebLnGetInfo,
   handleWebLnSendPayment,
 } from '@/../src-bex/handlers/webln';
-import { getVaultData, updateVaultData } from '@/../src-bex/vault';
+import { getVaultData, isVaultUnlocked, updateVaultData } from '@/../src-bex/vault';
 import { handleNip47PayInvoice } from '@/../src-bex/handlers/nip47';
-import type { VaultData } from '@/types/bridge';
+import { resolveSigningAccount } from '@/../src-bex/services/signing-account';
+import type { StoredKey, VaultData } from '@/types/bridge';
 import type { Nip47Connection } from '@/types/nip47';
+import { ErrorCode } from '@/types/error-codes.d';
 
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(),
   updateVaultData: vi.fn(),
+  isVaultUnlocked: vi.fn(() => true),
 }));
+
+vi.mock('@/../src-bex/services/signing-account', () => ({
+  resolveSigningAccount: vi.fn(),
+}));
+
+const ALICE = 'a'.repeat(64);
+const BOB = 'b'.repeat(64);
+const account = (id: string, alias: string): StoredKey => ({
+  id,
+  alias,
+  account: { privkey: '1'.repeat(64) },
+  createdAt: '2026-01-01T00:00:00.000Z',
+});
+const ACCOUNTS = [account(ALICE, 'Main Account'), account(BOB, 'work')];
+
+/** The account the requesting site is connected as. */
+function siteConnectedAs(pubkey: string): void {
+  const found = ACCOUNTS.find((item) => item.id === pubkey)!;
+  vi.mocked(resolveSigningAccount).mockResolvedValue({ account: found });
+}
 
 vi.mock('@/../src-bex/handlers/nip47', () => ({
   handleNip47PayInvoice: vi.fn(),
@@ -22,6 +45,7 @@ vi.mock('@/../src-bex/handlers/nip47', () => ({
 function buildConnection(overrides: Partial<Nip47Connection> = {}): Nip47Connection {
   return {
     id: 'wallet-a',
+    accountPubkey: ALICE,
     label: 'Wallet A',
     walletServicePubkey: 'f'.repeat(64),
     clientSecret: 'secret',
@@ -43,10 +67,12 @@ describe('WebLN handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(updateVaultData).mockResolvedValue({ success: true });
+    vi.mocked(isVaultUnlocked).mockReturnValue(true);
+    siteConnectedAs(ALICE);
   });
 
   it('enables WebLN access for the active NIP-47 connection', async () => {
-    mockVault({ accounts: [], nip47Connections: [buildConnection()] });
+    mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
     const result = await handleWebLnEnable({ origin: 'https://jumble.social', approved: true });
 
@@ -62,7 +88,7 @@ describe('WebLN handlers', () => {
 
   it('returns WebLN getInfo for an enabled origin', async () => {
     mockVault({
-      accounts: [],
+      accounts: ACCOUNTS,
       nip47Connections: [buildConnection()],
       webLnPermissions: [{
         origin: 'https://jumble.social',
@@ -82,7 +108,7 @@ describe('WebLN handlers', () => {
 
   it('pays a BOLT11 invoice through the active NIP-47 connection', async () => {
     mockVault({
-      accounts: [],
+      accounts: ACCOUNTS,
       nip47Connections: [buildConnection()],
       webLnPermissions: [{
         origin: 'https://jumble.social',
@@ -104,13 +130,14 @@ describe('WebLN handlers', () => {
 
     expect(result).toEqual({ success: true, data: { preimage: 'preimage' } });
     expect(handleNip47PayInvoice).toHaveBeenCalledWith({
+      accountPubkey: ALICE,
       connectionId: 'wallet-a',
       invoice: 'lnbc1u1pjqxyz',
     });
   });
 
   it('rejects sendPayment when WebLN has not been enabled for the origin', async () => {
-    mockVault({ accounts: [], nip47Connections: [buildConnection()] });
+    mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
     await expect(handleWebLnSendPayment({
       origin: 'https://jumble.social',
@@ -120,10 +147,82 @@ describe('WebLN handlers', () => {
   });
 
   it('rejects wallets that do not advertise pay_invoice support', async () => {
-    mockVault({ accounts: [], nip47Connections: [buildConnection({ capabilities: ['get_info'] })] });
+    mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection({ capabilities: ['get_info'] })] });
 
     await expect(handleWebLnEnable({ origin: 'https://jumble.social', approved: true })).rejects.toThrow(
       'does not advertise pay_invoice support',
     );
+  });
+
+  describe('pays from the wallet of the account the site is connected as (#304)', () => {
+    const vault = (): VaultData => ({
+      accounts: ACCOUNTS,
+      nip47Connections: [buildConnection({ id: 'alice-wallet', accountPubkey: ALICE })],
+      webLnPermissions: [{
+        origin: 'https://jumble.social',
+        connectionId: 'alice-wallet',
+        methods: ['enable', 'getInfo'],
+        createdAt: '2026-06-23T00:00:00.000Z',
+      }],
+    });
+
+    it('will not let a site connected as Bob pay with Alice’s wallet', async () => {
+      mockVault(vault());
+      siteConnectedAs(BOB);
+
+      const request = { origin: 'https://jumble.social', paymentRequest: 'lnbc1u1pjqxyz', approved: true };
+      await expect(handleWebLnSendPayment(request)).rejects.toThrow('No wallet is configured for this account.');
+      await expect(handleWebLnGetInfo({ origin: 'https://jumble.social' })).rejects.toThrow('No wallet is configured');
+      await expect(handleWebLnEnable({ origin: 'https://jumble.social', approved: true })).rejects.toThrow('No wallet is configured');
+      expect(handleNip47PayInvoice).not.toHaveBeenCalled();
+    });
+
+    it('uses Bob’s own wallet once he has one, and needs it enabled separately', async () => {
+      const data = vault();
+      data.nip47Connections!.push(buildConnection({ id: 'bob-wallet', accountPubkey: BOB }));
+      mockVault(data);
+      siteConnectedAs(BOB);
+
+      // Alice's grant was on Alice's wallet; Bob's wallet has none yet.
+      await expect(handleWebLnSendPayment({
+        origin: 'https://jumble.social',
+        paymentRequest: 'lnbc1u1pjqxyz',
+        approved: true,
+      })).rejects.toThrow('has not been enabled');
+
+      await handleWebLnEnable({ origin: 'https://jumble.social', approved: true });
+      const saved = vi.mocked(updateVaultData).mock.calls.at(-1)?.[0] as VaultData;
+      expect(saved.webLnPermissions?.map((grant) => grant.connectionId)).toEqual(['alice-wallet', 'bob-wallet']);
+    });
+
+    it('fails closed when the site’s account is gone, rather than paying from the active one', async () => {
+      mockVault(vault());
+      vi.mocked(resolveSigningAccount).mockResolvedValue({
+        error: 'The account this site is connected to is no longer available',
+        code: ErrorCode.SIG_NO_ACTIVE_KEY,
+      });
+
+      await expect(handleWebLnSendPayment({
+        origin: 'https://jumble.social',
+        paymentRequest: 'lnbc1u1pjqxyz',
+        approved: true,
+      })).rejects.toThrow('no longer available');
+      expect(handleNip47PayInvoice).not.toHaveBeenCalled();
+    });
+
+    it('resolves the site’s account with the same rule as NIP-07', async () => {
+      mockVault(vault());
+
+      await handleWebLnGetInfo({ origin: 'https://jumble.social' });
+
+      expect(resolveSigningAccount).toHaveBeenCalledWith('https://jumble.social');
+    });
+
+    it('refuses while the vault is locked', async () => {
+      vi.mocked(isVaultUnlocked).mockReturnValue(false);
+
+      await expect(handleWebLnGetInfo({ origin: 'https://jumble.social' })).rejects.toThrow('Vault is locked');
+      expect(resolveSigningAccount).not.toHaveBeenCalled();
+    });
   });
 });

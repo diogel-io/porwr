@@ -13,9 +13,11 @@ import type {
   RevealedSecret,
   VaultView,
 } from '@/types/accounts';
+import { MAIN_ACCOUNT_ALIAS } from '@/types/accounts';
 import { createPubkey } from '@/types/pubkey';
 import type { HandlerResult } from '../types/background';
 import { mutateVault, readVault } from '../services/vault-mutation';
+import { removeAccountWalletData } from '../services/nip47-connection-store';
 
 /**
  * Accounts, for Porwr's own pages (#240).
@@ -25,7 +27,6 @@ import { mutateVault, readVault } from '../services/vault-mutation';
  * decrypted vault itself. The raw listener only accepts these from extension pages.
  */
 
-const RESERVED_ALIAS = 'Main Account';
 const HEX_64 = /^[0-9a-f]{64}$/;
 
 export const summarise = (account: StoredKey): AccountSummary => ({
@@ -50,7 +51,7 @@ const findByKey = (vault: VaultData, pubkey: string): StoredKey | undefined =>
 const checkAlias = (vault: VaultData, alias: unknown, ignore?: string): string => {
   const trimmed = typeof alias === 'string' ? alias.trim() : '';
   if (!trimmed) throw new Error('Alias is required.');
-  if (trimmed === RESERVED_ALIAS) throw new Error(`Alias "${RESERVED_ALIAS}" is reserved.`);
+  if (trimmed === MAIN_ACCOUNT_ALIAS) throw new Error(`Alias "${MAIN_ACCOUNT_ALIAS}" is reserved.`);
   if ((vault.accounts ?? []).some((account) => account.alias === trimmed && account.alias !== ignore)) {
     throw new Error('Key with the same alias already exists.');
   }
@@ -131,7 +132,13 @@ export async function handleAccountsRemove(payload: AccountRequest): Promise<Han
     const removedId = await mutateVault((vault) => {
       const target = findByKey(vault, pubkey) ?? (vault.accounts ?? []).find((account) => account.id === pubkey);
       if (!target) return { vault, result: undefined };
-      return { vault: { ...vault, accounts: (vault.accounts ?? []).filter((account) => account !== target) }, result: target.id };
+      // Its wallets go with it, in the same write (#304): a connection with no account behind it
+      // would otherwise be migrated to the main account on the next wallet action.
+      const withoutWallets = removeAccountWalletData(vault, target.id);
+      return {
+        vault: { ...withoutWallets, accounts: (vault.accounts ?? []).filter((account) => account !== target) },
+        result: target.id,
+      };
     });
     if (removedId !== undefined) {
       // Its cached contacts would otherwise outlive the account (#257). Best-effort: the account is gone.

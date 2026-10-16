@@ -295,6 +295,8 @@ export default {
   walletManagement: {
     title: 'Wallet Management',
     caption: 'Manage encrypted Nostr Wallet Connect links for Lightning payments.',
+    accountCaption: 'Wallets for {alias}. Each account has its own wallets.',
+    noAccount: 'Select an account to manage its wallets.',
     actions: {
       hideImport: 'Hide',
       importWallet: 'Connect wallet',
