@@ -41,22 +41,36 @@ describe('contact list (#240)', () => {
   it('reads the list for the account by its id, without touching the private key', async () => {
     mocks.get.mockResolvedValue(null);
     // A stored key whose private key would throw if anything tried to use it.
-    const storedKey = { id: ACCOUNT, alias: 'main', createdAt: '', account: { privkey: 'not-a-key' } } as StoredKey;
+    const storedKey = {
+      id: ACCOUNT,
+      alias: 'main',
+      createdAt: '',
+      account: { privkey: 'not-a-key' },
+    } as StoredKey;
 
     const state = await fetchContactList(storedKey);
 
     expect(state.pubkey).toBe(ACCOUNT);
-    expect(mocks.get).toHaveBeenCalledWith(mocks.relays, { authors: [ACCOUNT], kinds: [3] }, expect.anything());
+    expect(mocks.get).toHaveBeenCalledWith(
+      mocks.relays,
+      { authors: [ACCOUNT], kinds: [3] },
+      expect.anything(),
+    );
   });
 
   it('has the background sign the kind 3 as the account, then publishes it', async () => {
-    const result = await publishContactList(ACCOUNT, [{ pubkey: BOB, relayUrl: '', petname: 'Bob' }]);
+    const result = await publishContactList(ACCOUNT, [
+      { pubkey: BOB, relayUrl: '', petname: 'Bob' },
+    ]);
 
     expect(mocks.signAsAccount).toHaveBeenCalledWith(
       ACCOUNT,
       expect.objectContaining({ kind: 3, content: '', tags: [['p', BOB, '', 'Bob']] }),
     );
-    expect(mocks.publish).toHaveBeenCalledWith(mocks.relays, expect.objectContaining({ kind: 3, pubkey: ACCOUNT }));
+    expect(mocks.publish).toHaveBeenCalledWith(
+      mocks.relays,
+      expect.objectContaining({ kind: 3, pubkey: ACCOUNT }),
+    );
     expect(result.relayResults.every((relay) => relay.success)).toBe(true);
   });
 

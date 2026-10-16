@@ -134,10 +134,7 @@ export function getErrorMetadata(code: ErrorCode): ErrorMetadata {
  * Format error for user display
  * Returns a user-friendly string combining message and action
  */
-export function formatErrorForUser(
-  message: string | undefined,
-  code?: ErrorCode
-): string {
+export function formatErrorForUser(message: string | undefined, code?: ErrorCode): string {
   if (!message && !code) return 'An unexpected error occurred';
 
   const parts: string[] = [];
@@ -163,7 +160,7 @@ export function formatErrorForUser(
 export function formatErrorForLog(
   message: string | undefined,
   code?: ErrorCode,
-  technicalDetails?: string
+  technicalDetails?: string,
 ): string {
   const parts: string[] = [];
 

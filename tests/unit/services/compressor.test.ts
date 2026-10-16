@@ -22,7 +22,12 @@ afterAll(() => {
 function buildKey(overrides: Partial<AccountSummary> = {}): { key: AccountSummary; nsec: string } {
   const sk = generateSecretKey();
   return {
-    key: { id: getPublicKey(sk), alias: 'alpha', createdAt: '2026-01-01T00:00:00.000Z', ...overrides },
+    key: {
+      id: getPublicKey(sk),
+      alias: 'alpha',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      ...overrides,
+    },
     nsec: nip19.nsecEncode(sk),
   };
 }
@@ -78,7 +83,12 @@ describe('createEncryptedZipBytes', () => {
   it('produces a password-protected zip containing the key backup text', async () => {
     const { key, nsec } = buildKey();
 
-    const bytes = await createEncryptedZipBytes('correct horse battery staple', 'export.zip', key, nsec);
+    const bytes = await createEncryptedZipBytes(
+      'correct horse battery staple',
+      'export.zip',
+      key,
+      nsec,
+    );
     expect(bytes.byteLength).toBeGreaterThan(0);
 
     const reader = new ZipReader(new BlobReader(new Blob([bytes])), {

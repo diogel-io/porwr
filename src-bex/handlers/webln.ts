@@ -26,7 +26,9 @@ export const NO_WALLET_FOR_ACCOUNT = 'No wallet is configured for this account.'
  * account it signs as. An unbound site binds to the active account; a site whose account was
  * removed fails closed rather than paying from whichever account happens to be active.
  */
-async function resolveWebLnWallet(origin: string): Promise<{ vaultData: VaultData; connection: Nip47Connection }> {
+async function resolveWebLnWallet(
+  origin: string,
+): Promise<{ vaultData: VaultData; connection: Nip47Connection }> {
   if (!isVaultUnlocked()) {
     throw new Error('Vault is locked. Unlock Porwr before using WebLN.');
   }
@@ -77,9 +79,17 @@ export async function handleWebLnEnable(payload: WebLnEnableRequest): Promise<Ha
   return { success: true, data: true };
 }
 
-export async function handleWebLnGetInfo(payload: WebLnGetInfoRequest): Promise<HandlerResult<WebLnGetInfoResponse>> {
+export async function handleWebLnGetInfo(
+  payload: WebLnGetInfoRequest,
+): Promise<HandlerResult<WebLnGetInfoResponse>> {
   const { vaultData, connection } = await resolveWebLnWallet(payload.origin);
-  if (!hasWebLnPermission(vaultData, { origin: payload.origin, connectionId: connection.id, method: 'getInfo' })) {
+  if (
+    !hasWebLnPermission(vaultData, {
+      origin: payload.origin,
+      connectionId: connection.id,
+      method: 'getInfo',
+    })
+  ) {
     throw new Error('WebLN access has not been enabled for this site.');
   }
 
@@ -103,7 +113,13 @@ export async function handleWebLnSendPayment(
   const invoice = normalizeInvoice(payload.paymentRequest);
   const { vaultData, connection } = await resolveWebLnWallet(payload.origin);
   assertPayInvoiceSupport(connection);
-  if (!hasWebLnPermission(vaultData, { origin: payload.origin, connectionId: connection.id, method: 'enable' })) {
+  if (
+    !hasWebLnPermission(vaultData, {
+      origin: payload.origin,
+      connectionId: connection.id,
+      method: 'enable',
+    })
+  ) {
     throw new Error('WebLN access has not been enabled for this site.');
   }
 

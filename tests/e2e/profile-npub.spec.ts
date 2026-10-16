@@ -15,7 +15,9 @@ import { readBannerPaint } from './fixtures/banner';
  * that a real click in the panel hands the full npub, not the shortened one, to `writeText`.
  */
 test.describe('the profile card npub', () => {
-  test('shows the npub without overflowing at 320px and copies the full value', async ({ openPage }) => {
+  test('shows the npub without overflowing at 320px and copies the full value', async ({
+    openPage,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccount(page);
@@ -58,12 +60,16 @@ test.describe('the profile card npub', () => {
     await page.keyboard.press('Enter');
     await button.click();
 
-    const written = await page.evaluate(() => (window as unknown as { __written: string[] }).__written);
+    const written = await page.evaluate(
+      () => (window as unknown as { __written: string[] }).__written,
+    );
     expect(written).toEqual([npub, npub]);
   });
 });
 
-test('the profile card shows a neutral placeholder for an empty banner (#301)', async ({ openPage }) => {
+test('the profile card shows a neutral placeholder for an empty banner (#301)', async ({
+  openPage,
+}) => {
   const page = await openPage('/login');
   await createVault(page);
   await seedAccount(page);

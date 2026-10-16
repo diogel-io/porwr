@@ -1,7 +1,10 @@
 import type { ContactRefreshRequest, ContactRefreshResult } from '@/types/contact-list';
 import type { HandlerResult } from '../types/background';
 import { getActiveStoredKey } from './active-key';
-import { refreshContactsInBackground, type RefreshOptions } from '../services/contact-cache-refresher';
+import {
+  refreshContactsInBackground,
+  type RefreshOptions,
+} from '../services/contact-cache-refresher';
 
 /**
  * Contact cache actions for the extension's own pages (#257).

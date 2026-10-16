@@ -41,19 +41,23 @@ function parseRpcResponse(content: string): Nip47RpcResponse {
   const errorRecord = record.error;
   const resultRecord = record.result;
   return {
-    ...(typeof record.result_type === 'string' ? { result_type: record.result_type as Nip47Command } : {}),
+    ...(typeof record.result_type === 'string'
+      ? { result_type: record.result_type as Nip47Command }
+      : {}),
     ...(resultRecord && typeof resultRecord === 'object' && !Array.isArray(resultRecord)
       ? { result: resultRecord as Record<string, unknown> }
       : {}),
     ...(errorRecord && typeof errorRecord === 'object' && !Array.isArray(errorRecord)
       ? {
           error: {
-            code: typeof (errorRecord as Record<string, unknown>).code === 'string'
-              ? String((errorRecord as Record<string, unknown>).code)
-              : 'UNKNOWN',
-            message: typeof (errorRecord as Record<string, unknown>).message === 'string'
-              ? String((errorRecord as Record<string, unknown>).message)
-              : 'NIP-47 wallet returned an error',
+            code:
+              typeof (errorRecord as Record<string, unknown>).code === 'string'
+                ? String((errorRecord as Record<string, unknown>).code)
+                : 'UNKNOWN',
+            message:
+              typeof (errorRecord as Record<string, unknown>).message === 'string'
+                ? String((errorRecord as Record<string, unknown>).message)
+                : 'NIP-47 wallet returned an error',
           },
         }
       : {}),
@@ -137,14 +141,21 @@ export class Nip47Client {
     };
   }
 
-  async sendRequest(connection: Nip47Connection, request: Nip47RpcRequest): Promise<Nip47RpcResponse> {
+  async sendRequest(
+    connection: Nip47Connection,
+    request: Nip47RpcRequest,
+  ): Promise<Nip47RpcResponse> {
     const clientSecretBytes = hexToBytes(connection.clientSecret);
     const clientPubkey = getPublicKey(clientSecretBytes);
     const requestPayload = JSON.stringify({
       method: request.method,
       params: request.params,
     });
-    const encryptedContent = nip04.encrypt(clientSecretBytes, connection.walletServicePubkey, requestPayload);
+    const encryptedContent = nip04.encrypt(
+      clientSecretBytes,
+      connection.walletServicePubkey,
+      requestPayload,
+    );
 
     const since = Math.floor(Date.now() / 1000) - 10;
     const event = finalizeEvent(
@@ -156,7 +167,13 @@ export class Nip47Client {
       },
       clientSecretBytes,
     );
-    const pending = this.waitForResponse(connection, clientPubkey, event.id, since, clientSecretBytes);
+    const pending = this.waitForResponse(
+      connection,
+      clientPubkey,
+      event.id,
+      since,
+      clientSecretBytes,
+    );
 
     try {
       await Promise.any(this.pool.publish(connection.relays, event, { maxWait: 5000 }));

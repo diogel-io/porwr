@@ -12,7 +12,8 @@ const store = vi.hoisted(() => ({
 
 vi.mock('@/services/database', () => {
   const profileKey = (key: [string, string]) => key.join(':');
-  const profileRows = () => [...store.profiles.values()] as { accountPubkey: string; pubkey: string }[];
+  const profileRows = () =>
+    [...store.profiles.values()] as { accountPubkey: string; pubkey: string }[];
 
   const byAccount = (accountPubkey: string) => {
     const matching = () => profileRows().filter((row) => row.accountPubkey === accountPubkey);
@@ -43,9 +44,11 @@ vi.mock('@/services/database', () => {
         },
       },
       contactProfiles: {
-        bulkGet: (keys: [string, string][]) => Promise.resolve(keys.map((key) => store.profiles.get(profileKey(key)))),
+        bulkGet: (keys: [string, string][]) =>
+          Promise.resolve(keys.map((key) => store.profiles.get(profileKey(key)))),
         bulkPut: (rows: { accountPubkey: string; pubkey: string }[]) => {
-          for (const row of rows) store.profiles.set(profileKey([row.accountPubkey, row.pubkey]), structuredClone(row));
+          for (const row of rows)
+            store.profiles.set(profileKey([row.accountPubkey, row.pubkey]), structuredClone(row));
           return Promise.resolve();
         },
         where: () => ({ equals: (accountPubkey: string) => byAccount(accountPubkey) }),
@@ -114,15 +117,23 @@ describe('writeContactList', () => {
   it('replaces the list with a newer one from relays', async () => {
     await writeContactList(ALICE, { contacts: [bob], sourceCreatedAt: 100 });
 
-    await expect(writeContactList(ALICE, { contacts: [bob, dave], sourceCreatedAt: 200 }, 9)).resolves.toBe(true);
+    await expect(
+      writeContactList(ALICE, { contacts: [bob, dave], sourceCreatedAt: 200 }, 9),
+    ).resolves.toBe(true);
 
     expect((store.lists.get(ALICE) as CachedContactList).contacts).toEqual([bob, dave]);
   });
 
   it('keeps a newer published list when a slow relay answers with the old one', async () => {
-    await writeContactList(ALICE, { contacts: [bob, dave], sourceEventId: 'new', sourceCreatedAt: 200 }, 1);
+    await writeContactList(
+      ALICE,
+      { contacts: [bob, dave], sourceEventId: 'new', sourceCreatedAt: 200 },
+      1,
+    );
 
-    await expect(writeContactList(ALICE, { contacts: [bob], sourceEventId: 'old', sourceCreatedAt: 100 }, 7)).resolves.toBe(false);
+    await expect(
+      writeContactList(ALICE, { contacts: [bob], sourceEventId: 'old', sourceCreatedAt: 100 }, 7),
+    ).resolves.toBe(false);
 
     const cached = store.lists.get(ALICE) as CachedContactList;
     expect(cached.contacts).toEqual([bob, dave]);

@@ -148,7 +148,9 @@ export async function checkPermission(
     sameScope(grant, origin, accountPubkey, requestType, eventKind),
   );
   if (exactMatch) {
-    return isLive(exactMatch, now) ? { granted: true, always: exactMatch.expiry === undefined } : { granted: false };
+    return isLive(exactMatch, now)
+      ? { granted: true, always: exactMatch.expiry === undefined }
+      : { granted: false };
   }
 
   // A wildcard only ever answers a signing request, and only one written as a wildcard on purpose.

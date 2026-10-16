@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
-import { listRelayCatalog, refreshRelayCatalog, getRelayDiscoveryStatus } from '@/services/relay-service';
+import {
+  listRelayCatalog,
+  refreshRelayCatalog,
+  getRelayDiscoveryStatus,
+} from '@/services/relay-service';
 import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
 
 const i18nMock = {
@@ -33,7 +37,8 @@ const stubs = {
     template: '<div><slot /></div>',
   },
   'q-btn': {
-    template: '<button @click="$emit(\'click\')" :icon="icon">{{ label }}{{ icon }}<slot /></button>',
+    template:
+      '<button @click="$emit(\'click\')" :icon="icon">{{ label }}{{ icon }}<slot /></button>',
     props: ['label', 'icon'],
   },
   'q-spacer': {
@@ -73,19 +78,23 @@ const stubs = {
     template: '<div><slot /></div>',
   },
   'q-input': {
-    template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    template:
+      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
     props: ['modelValue', 'label'],
   },
   'q-toggle': {
-    template: '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
+    template:
+      '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
     props: ['modelValue', 'label'],
   },
   'q-pagination': {
-    template: '<div class="q-pagination"><button class="prev" @click="$emit(\'update:modelValue\', modelValue - 1)">prev</button><span class="current">{{ modelValue }}</span><button class="next" @click="$emit(\'update:modelValue\', modelValue + 1)">next</button></div>',
+    template:
+      '<div class="q-pagination"><button class="prev" @click="$emit(\'update:modelValue\', modelValue - 1)">prev</button><span class="current">{{ modelValue }}</span><button class="next" @click="$emit(\'update:modelValue\', modelValue + 1)">next</button></div>',
     props: ['modelValue', 'max'],
   },
   'q-select': {
-    template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', Number($event.target.value))"><option v-for="opt in options" :key="opt" :value="opt">{{ opt }}</option></select>',
+    template:
+      '<select :value="modelValue" @change="$emit(\'update:modelValue\', Number($event.target.value))"><option v-for="opt in options" :key="opt" :value="opt">{{ opt }}</option></select>',
     props: ['modelValue', 'options', 'label'],
   },
 };
@@ -330,7 +339,7 @@ describe('RelayBrowserModal.vue filtering and sorting', () => {
     });
     await flushPromises();
 
-    const items = wrapper.findAll('.q-item-label').filter(i => !i.classes('caption'));
+    const items = wrapper.findAll('.q-item-label').filter((i) => !i.classes('caption'));
     // Should be Zebra, then Apple (following mockRelays order)
     expect(items).toHaveLength(4);
     expect(items[0]!.text()).toContain('Zebra Relay');
@@ -358,7 +367,10 @@ describe('RelayBrowserModal.vue filtering and sorting', () => {
 
   it('triggers refresh automatically when catalog is empty', async () => {
     vi.mocked(listRelayCatalog).mockResolvedValue([]);
-    vi.mocked(getRelayDiscoveryStatus).mockResolvedValue({ isDiscoveryInProgress: false, lastGlobalDiscoveryAt: Date.now() } as RelayDiscoveryState);
+    vi.mocked(getRelayDiscoveryStatus).mockResolvedValue({
+      isDiscoveryInProgress: false,
+      lastGlobalDiscoveryAt: Date.now(),
+    } as RelayDiscoveryState);
 
     mount(RelayBrowserModal, {
       props: { modelValue: true },
@@ -370,8 +382,10 @@ describe('RelayBrowserModal.vue filtering and sorting', () => {
   });
 
   it('triggers refresh automatically when discovery state is stale', async () => {
-    vi.mocked(listRelayCatalog).mockResolvedValue([{ url: 'wss://relay1.com' }] as RelayCatalogEntry[]);
-    const staleTime = Date.now() - (25 * 60 * 60 * 1000); // 25 hours ago
+    vi.mocked(listRelayCatalog).mockResolvedValue([
+      { url: 'wss://relay1.com' },
+    ] as RelayCatalogEntry[]);
+    const staleTime = Date.now() - 25 * 60 * 60 * 1000; // 25 hours ago
     vi.mocked(getRelayDiscoveryStatus).mockResolvedValue({
       isDiscoveryInProgress: false,
       lastGlobalDiscoveryAt: staleTime,
@@ -387,7 +401,9 @@ describe('RelayBrowserModal.vue filtering and sorting', () => {
   });
 
   it('does not trigger refresh when catalog is not empty and state is fresh', async () => {
-    vi.mocked(listRelayCatalog).mockResolvedValue([{ url: 'wss://relay1.com' }] as RelayCatalogEntry[]);
+    vi.mocked(listRelayCatalog).mockResolvedValue([
+      { url: 'wss://relay1.com' },
+    ] as RelayCatalogEntry[]);
     vi.mocked(getRelayDiscoveryStatus).mockResolvedValue({
       isDiscoveryInProgress: false,
       lastGlobalDiscoveryAt: Date.now(),
@@ -459,7 +475,9 @@ describe('RelayBrowserModal.vue filtering and sorting', () => {
 
   it('polls status when discovery is in progress', async () => {
     vi.useFakeTimers();
-    vi.mocked(listRelayCatalog).mockResolvedValue([{ url: 'wss://relay1.com' }] as RelayCatalogEntry[]);
+    vi.mocked(listRelayCatalog).mockResolvedValue([
+      { url: 'wss://relay1.com' },
+    ] as RelayCatalogEntry[]);
     vi.mocked(getRelayDiscoveryStatus).mockResolvedValue({
       isDiscoveryInProgress: true,
       lastGlobalDiscoveryAt: Date.now(),

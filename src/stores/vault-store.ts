@@ -38,7 +38,6 @@ const useVaultStore = defineStore('vault', {
 
         this.vaultExists = !!exists;
         this.isUnlocked = !!unlocked;
-
       } catch (error: unknown) {
         logService.log(LogLevel.ERROR, '[VaultStore] Failed to refresh vault status', {
           error: error instanceof Error ? error.message : String(error),
@@ -56,7 +55,7 @@ const useVaultStore = defineStore('vault', {
       return {
         success: false,
         error: result.error,
-        errorCode: result.code
+        errorCode: result.code,
       };
     },
 
@@ -81,7 +80,7 @@ const useVaultStore = defineStore('vault', {
       return {
         success: false,
         error: result.error,
-        errorCode: result.code
+        errorCode: result.code,
       };
     },
   },

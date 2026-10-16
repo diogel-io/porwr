@@ -1,4 +1,3 @@
-
 export const NOSTR_ACTIVE = 'nostr:active' as const;
 export const BLOSSOM_SERVER = 'nostr:blossom-server' as const;
 export const DARK_MODE = 'nostr:dark-mode' as const;
@@ -61,7 +60,10 @@ class StorageServiceImpl implements StorageService {
     return result[key] as T | undefined;
   };
 
-  getMultiple = async (keys: string[], area: StorageArea = 'local'): Promise<Record<string, unknown>> => {
+  getMultiple = async (
+    keys: string[],
+    area: StorageArea = 'local',
+  ): Promise<Record<string, unknown>> => {
     return await this.getArea(area).get(keys);
   };
 
@@ -69,7 +71,10 @@ class StorageServiceImpl implements StorageService {
     await this.getArea(area).set({ [key]: value });
   };
 
-  setMultiple = async (items: Record<string, unknown>, area: StorageArea = 'local'): Promise<void> => {
+  setMultiple = async (
+    items: Record<string, unknown>,
+    area: StorageArea = 'local',
+  ): Promise<void> => {
     await this.getArea(area).set(items);
   };
 

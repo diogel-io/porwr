@@ -42,15 +42,11 @@ const rawContent = computed(() => event.value?.content ?? props.content?.content
 
 const truncated = computed(() => truncateForPreview(rawContent.value));
 
-const shownContent = computed(() =>
-  expanded.value ? rawContent.value : truncated.value.text,
-);
+const shownContent = computed(() => (expanded.value ? rawContent.value : truncated.value.text));
 
 const formattedFields = computed(() => (event.value ? formatEventFields(event.value) : []));
 
-const fullEventJson = computed(() =>
-  event.value ? JSON.stringify(event.value, null, 2) : '',
-);
+const fullEventJson = computed(() => (event.value ? JSON.stringify(event.value, null, 2) : ''));
 </script>
 
 <template>

@@ -42,7 +42,9 @@ describe('RelayBrowserHandler', () => {
         { url: 'wss://relay1.com', hostname: 'relay1.com', status: 'online' },
         { url: 'wss://relay2.com', hostname: 'relay2.com', status: 'offline' },
       ];
-      vi.mocked(relayCatalogService.getEntries).mockResolvedValue(mockEntries as unknown as RelayCatalogEntry[]);
+      vi.mocked(relayCatalogService.getEntries).mockResolvedValue(
+        mockEntries as unknown as RelayCatalogEntry[],
+      );
 
       const result = await handleRelayBrowserList();
 
@@ -73,7 +75,14 @@ describe('RelayBrowserHandler', () => {
         isDiscoveryInProgress: false,
         updatedAt: 123456789,
       };
-      vi.mocked(relayCatalogService.getDiscoveryState).mockResolvedValue(mockStatus as unknown as { id: string; lastGlobalDiscoveryAt: number; isDiscoveryInProgress: boolean; updatedAt: number });
+      vi.mocked(relayCatalogService.getDiscoveryState).mockResolvedValue(
+        mockStatus as unknown as {
+          id: string;
+          lastGlobalDiscoveryAt: number;
+          isDiscoveryInProgress: boolean;
+          updatedAt: number;
+        },
+      );
 
       const result = await handleRelayBrowserGetStatus();
 
@@ -133,7 +142,9 @@ describe('RelayBrowserHandler', () => {
     });
 
     it('does not propagate a rejection from the background refresh (fire-and-forget)', async () => {
-      vi.mocked(relayBrowserOrchestrator.refreshCatalog).mockRejectedValue(new Error('refresh failed'));
+      vi.mocked(relayBrowserOrchestrator.refreshCatalog).mockRejectedValue(
+        new Error('refresh failed'),
+      );
 
       const result = await handleRelayBrowserRefresh({ force: false });
       expect(result).toEqual({ success: true, data: undefined });

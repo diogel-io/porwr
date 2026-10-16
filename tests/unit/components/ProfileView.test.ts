@@ -233,9 +233,7 @@ describe('the account npub (#303)', () => {
     await wrapper.setProps({ storedKey: other });
     await flushPromises();
 
-    expect(wrapper.get('button.profile-npub').attributes('title')).toBe(
-      nip19.npubEncode(other.id),
-    );
+    expect(wrapper.get('button.profile-npub').attributes('title')).toBe(nip19.npubEncode(other.id));
   });
 
   it('shows nothing for a key that cannot be encoded', async () => {

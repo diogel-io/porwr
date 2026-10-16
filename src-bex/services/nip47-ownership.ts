@@ -18,7 +18,9 @@ import { MAIN_ACCOUNT_ALIAS } from '@/types/accounts';
 /** The account aliased "Main Account", or the vault's first account, or null for an empty vault. */
 export function mainAccountPubkey(vaultData: VaultData): string | null {
   const accounts = vaultData.accounts ?? [];
-  return (accounts.find((account) => account.alias === MAIN_ACCOUNT_ALIAS) ?? accounts[0])?.id ?? null;
+  return (
+    (accounts.find((account) => account.alias === MAIN_ACCOUNT_ALIAS) ?? accounts[0])?.id ?? null
+  );
 }
 
 const isUnowned = (item: { accountPubkey?: string }): boolean =>
@@ -35,7 +37,8 @@ function oneActivePerAccount(connections: Nip47Connection[]): Nip47Connection[] 
   for (const connection of connections) {
     if (!connection.isActive) continue;
     const current = winner.get(connection.accountPubkey);
-    if (!current || connection.updatedAt > current.updatedAt) winner.set(connection.accountPubkey, connection);
+    if (!current || connection.updatedAt > current.updatedAt)
+      winner.set(connection.accountPubkey, connection);
   }
   return connections.map((connection) =>
     connection.isActive && winner.get(connection.accountPubkey) !== connection
@@ -64,6 +67,8 @@ export function assignUnownedWalletData(vaultData: VaultData): VaultData {
     nip47Connections: oneActivePerAccount(
       connections.map((item) => (isUnowned(item) ? { ...item, accountPubkey: owner } : item)),
     ),
-    nip47PaymentHistory: history.map((item) => (isUnowned(item) ? { ...item, accountPubkey: owner } : item)),
+    nip47PaymentHistory: history.map((item) =>
+      isUnowned(item) ? { ...item, accountPubkey: owner } : item,
+    ),
   };
 }

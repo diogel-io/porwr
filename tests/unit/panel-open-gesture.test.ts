@@ -48,7 +48,8 @@ describe('opening the panel', () => {
     // The port is the only place either API is named. That is what makes the gesture rule
     // enforceable at all: one method, one caller, one place to read.
     const offenders = files.filter(
-      (file) => file !== PORT && PANEL_API.test(withoutComments(readFileSync(join(ROOT, file), 'utf8'))),
+      (file) =>
+        file !== PORT && PANEL_API.test(withoutComments(readFileSync(join(ROOT, file), 'utf8'))),
     );
 
     expect(offenders).toEqual([]);

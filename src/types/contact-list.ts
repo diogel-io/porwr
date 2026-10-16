@@ -74,7 +74,10 @@ export interface CachedContactProfile extends ContactProfile {
 }
 
 /** The contact list fields a fetch or a publish produces. */
-export type ContactListSnapshot = Pick<CachedContactList, 'contacts' | 'sourceEventId' | 'sourceCreatedAt'>;
+export type ContactListSnapshot = Pick<
+  CachedContactList,
+  'contacts' | 'sourceEventId' | 'sourceCreatedAt'
+>;
 
 /** Asks the background to refresh the active account's contact cache. */
 export interface ContactRefreshRequest {

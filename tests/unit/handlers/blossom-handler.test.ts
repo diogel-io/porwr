@@ -106,10 +106,13 @@ describe('BlossomHandler', () => {
     }
     expect(mockFetch).toHaveBeenCalled();
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(storageService.set).toHaveBeenCalledWith(BLOSSOM_UPLOAD_STATUS, expect.objectContaining({
-      uploading: false,
-      url: 'https://blossom.example.com/file.txt',
-    }));
+    expect(storageService.set).toHaveBeenCalledWith(
+      BLOSSOM_UPLOAD_STATUS,
+      expect.objectContaining({
+        uploading: false,
+        url: 'https://blossom.example.com/file.txt',
+      }),
+    );
   });
 
   it('should return error when vault is locked', async () => {
@@ -119,20 +122,29 @@ describe('BlossomHandler', () => {
 
     expect(result.success).toBe(false);
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(storageService.set).toHaveBeenCalledWith(BLOSSOM_UPLOAD_STATUS, expect.objectContaining({
-      uploading: false,
-      error: 'No active account found',
-    }));
+    expect(storageService.set).toHaveBeenCalledWith(
+      BLOSSOM_UPLOAD_STATUS,
+      expect.objectContaining({
+        uploading: false,
+        error: 'No active account found',
+      }),
+    );
   });
 
   it('should handle fetch failure and retry', async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Internal Error', text: () => Promise.resolve('error') })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Error',
+        text: () => Promise.resolve('error'),
+      })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ url: 'https://blossom.example.com/retry.txt' }),
-        text: () => Promise.resolve(JSON.stringify({ url: 'https://blossom.example.com/retry.txt' })),
+        text: () =>
+          Promise.resolve(JSON.stringify({ url: 'https://blossom.example.com/retry.txt' })),
       });
 
     const result = await handleBlossomUpload(payload);
@@ -156,9 +168,12 @@ describe('BlossomHandler', () => {
 
     expect(result.success).toBe(false);
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(storageService.set).toHaveBeenCalledWith(BLOSSOM_UPLOAD_STATUS, expect.objectContaining({
-      uploading: false,
-      error: expect.stringContaining('HTTP Error 500'),
-    }));
+    expect(storageService.set).toHaveBeenCalledWith(
+      BLOSSOM_UPLOAD_STATUS,
+      expect.objectContaining({
+        uploading: false,
+        error: expect.stringContaining('HTTP Error 500'),
+      }),
+    );
   });
 });

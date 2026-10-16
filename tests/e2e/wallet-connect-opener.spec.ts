@@ -22,10 +22,16 @@ async function fakeCoinos(context: BrowserContext, script: string): Promise<{ lo
   const served = { loads: 0 };
   await context.route('https://coinos.io/**', (route) => {
     served.loads += 1;
-    return route.fulfill({ contentType: 'text/html', body: `<!doctype html><title>Coinos</title><script>${script}</script>` });
+    return route.fulfill({
+      contentType: 'text/html',
+      body: `<!doctype html><title>Coinos</title><script>${script}</script>`,
+    });
   });
   await context.route(`${PHISH_URL}**`, (route) =>
-    route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Porwr</title><p>Enter your mnemonic</p>' }),
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><title>Porwr</title><p>Enter your mnemonic</p>',
+    }),
   );
   return served;
 }
@@ -37,7 +43,10 @@ async function openWalletConnections(page: Page): Promise<void> {
 }
 
 /** Clicks Connect Coinos and returns the connect window and the wallet popup it opens. */
-async function connectCoinos(context: BrowserContext, page: Page): Promise<{ connectWindow: Page; wallet: Page }> {
+async function connectCoinos(
+  context: BrowserContext,
+  page: Page,
+): Promise<{ connectWindow: Page; wallet: Page }> {
   await page.getByTestId('connect-coinos').click();
 
   // Both windows start at `about:blank` before they navigate, so they are found by where they end
@@ -45,15 +54,24 @@ async function connectCoinos(context: BrowserContext, page: Page): Promise<{ con
   // replaced by the time it is looked for.
   const find = (matches: (url: string) => boolean) => context.pages().find((p) => matches(p.url()));
   let wallet: Page | undefined;
-  await expect.poll(() => (wallet = find((url) => url.startsWith('https://coinos.io/'))) !== undefined, { timeout: 45_000 }).toBe(true);
+  await expect
+    .poll(() => (wallet = find((url) => url.startsWith('https://coinos.io/'))) !== undefined, {
+      timeout: 45_000,
+    })
+    .toBe(true);
   await wallet!.waitForLoadState();
 
-  const connectWindow = find((url) => url.includes('#/wallet-connect?') || url.startsWith(PHISH_URL))!;
+  const connectWindow = find(
+    (url) => url.includes('#/wallet-connect?') || url.startsWith(PHISH_URL),
+  )!;
   return { connectWindow, wallet: wallet! };
 }
 
 test.describe('wallet connect popup opener (workspace#76)', () => {
-  test('a wallet that navigates its opener replaces only the connect window', async ({ context, openPage }) => {
+  test('a wallet that navigates its opener replaces only the connect window', async ({
+    context,
+    openPage,
+  }) => {
     await fakeCoinos(
       context,
       `
@@ -71,7 +89,9 @@ test.describe('wallet connect popup opener (workspace#76)', () => {
     const { connectWindow, wallet } = await connectCoinos(context, page);
 
     // The opener the wallet holds is the connect window, and it leads nowhere further.
-    expect(await wallet.evaluate(() => (window as unknown as { openerOpener: string }).openerOpener)).toBe('null');
+    expect(
+      await wallet.evaluate(() => (window as unknown as { openerOpener: string }).openerOpener),
+    ).toBe('null');
     await expect(connectWindow).toHaveURL(PHISH_URL);
 
     // Wallet Connections, with the user's state, is untouched.
@@ -80,7 +100,10 @@ test.describe('wallet connect popup opener (workspace#76)', () => {
     expect(context.pages().filter((p) => p.url().startsWith(PHISH_URL))).toEqual([connectWindow]);
   });
 
-  test("the wallet's message still reaches Porwr, and the connect window closes", async ({ context, openPage }) => {
+  test("the wallet's message still reaches Porwr, and the connect window closes", async ({
+    context,
+    openPage,
+  }) => {
     // A well-formed message whose relay is unreachable: Porwr accepts it, then fails to confirm the
     // wallet with `get_info`, which reports back as an error. Reaching that error proves the round
     // trip from the wallet, through the connect window and the background, to Wallet Connections.
@@ -103,12 +126,13 @@ test.describe('wallet connect popup opener (workspace#76)', () => {
     await page.getByTestId('connect-coinos').click();
 
     // The error comes from confirming the wallet, so the message got all the way through.
-    await expect(page.locator('.q-notification.bg-negative .q-notification__message').first()).toHaveText(
-      /No NIP-47 wallet info event found/,
-      { timeout: 60_000 },
-    );
+    await expect(
+      page.locator('.q-notification.bg-negative .q-notification__message').first(),
+    ).toHaveText(/No NIP-47 wallet info event found/, { timeout: 60_000 });
     expect(coinos.loads).toBe(1);
-    await expect.poll(() => context.pages().filter((p) => p.url().includes('#/wallet-connect?')).length).toBe(0);
+    await expect
+      .poll(() => context.pages().filter((p) => p.url().includes('#/wallet-connect?')).length)
+      .toBe(0);
     await expect(page.getByTestId('connect-coinos')).toBeEnabled();
   });
 });

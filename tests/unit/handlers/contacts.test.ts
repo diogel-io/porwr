@@ -5,23 +5,36 @@ const mocks = vi.hoisted(() => ({
   refreshContactsInBackground: vi.fn(),
 }));
 
-vi.mock('@/../src-bex/handlers/active-key', () => ({ getActiveStoredKey: mocks.getActiveStoredKey }));
+vi.mock('@/../src-bex/handlers/active-key', () => ({
+  getActiveStoredKey: mocks.getActiveStoredKey,
+}));
 vi.mock('@/../src-bex/services/contact-cache-refresher', () => ({
   refreshContactsInBackground: mocks.refreshContactsInBackground,
 }));
 
-import { handleContactsRefresh, refreshActiveAccountContacts } from '@/../src-bex/handlers/contacts';
+import {
+  handleContactsRefresh,
+  refreshActiveAccountContacts,
+} from '@/../src-bex/handlers/contacts';
 
 const ALICE = 'a'.repeat(64);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getActiveStoredKey.mockResolvedValue({ id: ALICE, alias: 'alice', account: { privkey: '' }, createdAt: '' });
+  mocks.getActiveStoredKey.mockResolvedValue({
+    id: ALICE,
+    alias: 'alice',
+    account: { privkey: '' },
+    createdAt: '',
+  });
 });
 
 describe('contacts.refresh (#257)', () => {
   it('queues a refresh for the active account and answers at once', async () => {
-    await expect(handleContactsRefresh({})).resolves.toEqual({ success: true, data: { accountPubkey: ALICE } });
+    await expect(handleContactsRefresh({})).resolves.toEqual({
+      success: true,
+      data: { accountPubkey: ALICE },
+    });
 
     expect(mocks.refreshContactsInBackground).toHaveBeenCalledWith(ALICE, { force: false });
   });

@@ -29,7 +29,9 @@ const dispatcherCases = (): string[] =>
   [...read('src-bex/dispatcher.ts').matchAll(/case '([^']+)'/g)].map(([, action]) => action ?? '');
 
 const bridgeRegistrations = (): string[] =>
-  [...read('src-bex/background.ts').matchAll(/bridge\.on\('([^']+)'/g)].map(([, action]) => action ?? '');
+  [...read('src-bex/background.ts').matchAll(/bridge\.on\('([^']+)'/g)].map(
+    ([, action]) => action ?? '',
+  );
 
 /** The bridge actions a web page may reach through `window.nostr` and WebLN, from the shared allowlist. */
 const pageActions = (): string[] => {
@@ -40,7 +42,9 @@ const pageActions = (): string[] => {
 
 /** The body of `background.ts`'s page action handlers, served over the page channel. */
 const pageHandlerSource = (): string =>
-  /const pageActionHandlers: PageActionHandlers = \{(.*?)\n\};/s.exec(read('src-bex/background.ts'))?.[1] ?? '';
+  /const pageActionHandlers: PageActionHandlers = \{(.*?)\n\};/s.exec(
+    read('src-bex/background.ts'),
+  )?.[1] ?? '';
 
 const pageHandlers = (): string[] =>
   [...pageHandlerSource().matchAll(/^ {2}'([^']+)': async/gm)].map(([, action]) => action ?? '');

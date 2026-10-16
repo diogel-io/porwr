@@ -76,11 +76,7 @@ async function saveKey() {
     />
   </div>
 
-  <div
-    v-else
-    id="generate-keys"
-    class="q-pa-lg-lg full-width settings-form rounded-borders"
-  >
+  <div v-else id="generate-keys" class="q-pa-lg-lg full-width settings-form rounded-borders">
     <q-list>
       <q-item>
         <q-item-section>
@@ -89,7 +85,9 @@ async function saveKey() {
               ref="aliasInputRef"
               v-model="alias"
               :label="t('account.profileName')"
-              :rules="[(v) => !!String(v ?? '').trim() || String(t('validation.profileNameRequired'))]"
+              :rules="[
+                (v) => !!String(v ?? '').trim() || String(t('validation.profileNameRequired')),
+              ]"
               class="text-input"
               lazy-rules
             >

@@ -30,7 +30,8 @@ const mountNavigation = async (path = '/dashboard') => {
         'q-menu': { template: '<div><slot /></div>' },
         'q-list': { template: '<ul><slot /></ul>' },
         'q-item': {
-          template: '<li class="nav-item" :class="{ active }" @click="$emit(\'click\')"><slot /></li>',
+          template:
+            '<li class="nav-item" :class="{ active }" @click="$emit(\'click\')"><slot /></li>',
           props: ['active'],
           emits: ['click'],
         },
@@ -58,15 +59,23 @@ describe('ExtensionNavigation', () => {
       const [, hash] = url.split('#');
       const resolved = router.resolve(hash!);
       expect(resolved.matched.length, `${url} matches no route`).toBeGreaterThan(0);
-      expect(resolved.matched[0]!.path, `${url} opens the not-found page`).not.toBe('/:catchAll(.*)*');
+      expect(resolved.matched[0]!.path, `${url} opens the not-found page`).not.toBe(
+        '/:catchAll(.*)*',
+      );
     }
   });
 
   it('opens Messaging at /messages and Media Management at /media', async () => {
     const { wrapper } = await mountNavigation();
 
-    await wrapper.findAll('li.nav-item').find((item) => item.text() === 'navigation.messaging.label')!.trigger('click');
-    await wrapper.findAll('li.nav-item').find((item) => item.text() === 'navigation.mediaManagement.label')!.trigger('click');
+    await wrapper
+      .findAll('li.nav-item')
+      .find((item) => item.text() === 'navigation.messaging.label')!
+      .trigger('click');
+    await wrapper
+      .findAll('li.nav-item')
+      .find((item) => item.text() === 'navigation.mediaManagement.label')!
+      .trigger('click');
 
     expect(created).toEqual([
       'chrome-extension://porwr/www/index.html#/messages',
@@ -77,18 +86,31 @@ describe('ExtensionNavigation', () => {
   it('opens Support inside Porwr at /support, and Documentation on the web (#228)', async () => {
     const { wrapper } = await mountNavigation();
 
-    await wrapper.findAll('li.nav-item').find((item) => item.text() === 'navigation.support.label')!.trigger('click');
-    await wrapper.findAll('li.nav-item').find((item) => item.text() === 'navigation.documentation.label')!.trigger('click');
+    await wrapper
+      .findAll('li.nav-item')
+      .find((item) => item.text() === 'navigation.support.label')!
+      .trigger('click');
+    await wrapper
+      .findAll('li.nav-item')
+      .find((item) => item.text() === 'navigation.documentation.label')!
+      .trigger('click');
 
     expect(created).toEqual(['chrome-extension://porwr/www/index.html#/support']);
-    expect(window.open).toHaveBeenCalledWith('https://diogel.io/docs/porwr', '_blank', 'noopener,noreferrer');
+    expect(window.open).toHaveBeenCalledWith(
+      'https://diogel.io/docs/porwr',
+      '_blank',
+      'noopener,noreferrer',
+    );
     expect(window.open).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the profile tab query', async () => {
     const { wrapper } = await mountNavigation();
 
-    await wrapper.findAll('li.nav-item').find((item) => item.text() === 'navigation.profile.label')!.trigger('click');
+    await wrapper
+      .findAll('li.nav-item')
+      .find((item) => item.text() === 'navigation.profile.label')!
+      .trigger('click');
 
     expect(created).toEqual(['chrome-extension://porwr/www/index.html#/profile?tab=profile']);
   });
@@ -109,8 +131,14 @@ describe('ExtensionNavigation', () => {
   it('opens Keys at /keys and Settings at /settings (#294)', async () => {
     const { wrapper } = await mountNavigation();
 
-    await wrapper.findAll('li.nav-item').find((item) => item.text() === 'navigation.keys.label')!.trigger('click');
-    await wrapper.findAll('li.nav-item').find((item) => item.text() === 'navigation.settings.label')!.trigger('click');
+    await wrapper
+      .findAll('li.nav-item')
+      .find((item) => item.text() === 'navigation.keys.label')!
+      .trigger('click');
+    await wrapper
+      .findAll('li.nav-item')
+      .find((item) => item.text() === 'navigation.settings.label')!
+      .trigger('click');
 
     expect(created).toEqual([
       'chrome-extension://porwr/www/index.html#/keys',
@@ -120,11 +148,19 @@ describe('ExtensionNavigation', () => {
 
   it('marks Keys and Settings active on their own pages (#294)', async () => {
     const onKeys = (await mountNavigation('/keys/new')).wrapper.findAll('li.nav-item');
-    expect(onKeys.find((item) => item.text() === 'navigation.keys.label')!.classes()).toContain('active');
-    expect(onKeys.find((item) => item.text() === 'navigation.settings.label')!.classes()).not.toContain('active');
+    expect(onKeys.find((item) => item.text() === 'navigation.keys.label')!.classes()).toContain(
+      'active',
+    );
+    expect(
+      onKeys.find((item) => item.text() === 'navigation.settings.label')!.classes(),
+    ).not.toContain('active');
 
     const onSettings = (await mountNavigation('/settings')).wrapper.findAll('li.nav-item');
-    expect(onSettings.find((item) => item.text() === 'navigation.settings.label')!.classes()).toContain('active');
-    expect(onSettings.find((item) => item.text() === 'navigation.keys.label')!.classes()).not.toContain('active');
+    expect(
+      onSettings.find((item) => item.text() === 'navigation.settings.label')!.classes(),
+    ).toContain('active');
+    expect(
+      onSettings.find((item) => item.text() === 'navigation.keys.label')!.classes(),
+    ).not.toContain('active');
   });
 });

@@ -17,7 +17,8 @@ window.setTimeout(() => {
     title.textContent = 'Failed to load Porwr';
 
     const message = document.createElement('p');
-    message.textContent = 'Please check the background script logs or extension console for errors.';
+    message.textContent =
+      'Please check the background script logs or extension console for errors.';
 
     container.append(title, message);
     document.body.appendChild(container);

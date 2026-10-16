@@ -64,8 +64,14 @@ export function checkStored(
           const reason = reasons[0]?.reason ?? '';
           if (held) finish({ url, storage: 'held' });
           else if (REFUSED_TO_SERVE.test(reason)) finish({ url, storage: 'refused' });
-          else if (reason === CLOSED_ON_EOSE) finish({ url, storage: 'missing', reason: 'accepted but not stored' });
-          else finish({ url, storage: 'unanswered', reason: reason || 'could not confirm the relay stored it' });
+          else if (reason === CLOSED_ON_EOSE)
+            finish({ url, storage: 'missing', reason: 'accepted but not stored' });
+          else
+            finish({
+              url,
+              storage: 'unanswered',
+              reason: reason || 'could not confirm the relay stored it',
+            });
         },
       },
     );

@@ -30,12 +30,16 @@ async function connect(context: BrowserContext, panel: Page, origin: string): Pr
   const site = await context.newPage();
   await site.goto(origin);
   await site.evaluate(() => {
-    const provider = (window as unknown as { nostr?: { getPublicKey: () => Promise<string> } }).nostr;
+    const provider = (window as unknown as { nostr?: { getPublicKey: () => Promise<string> } })
+      .nostr;
     if (!provider) throw new Error('window.nostr was not injected into the page');
     (window as unknown as { __pubkey?: Promise<unknown> }).__pubkey = provider.getPublicKey();
   });
   await panel.locator('.current-request').waitFor({ state: 'visible', timeout: 20_000 });
-  await panel.getByRole('button', { name: /approve/i }).first().click();
+  await panel
+    .getByRole('button', { name: /approve/i })
+    .first()
+    .click();
   await site.evaluate(() => (window as unknown as { __pubkey: Promise<unknown> }).__pubkey);
   await expect(panel.locator('.current-request')).toHaveCount(0, { timeout: 25_000 });
   await site.close();
@@ -44,9 +48,14 @@ async function connect(context: BrowserContext, panel: Page, origin: string): Pr
 const boundTo = (page: Page, origin: string) =>
   page.evaluate(
     async (site) =>
-      ((await chrome.runtime.sendMessage({ type: 'sites.binding', payload: { origin: site } })) as {
-        boundPubkey?: string;
-      } | null)?.boundPubkey ?? null,
+      (
+        (await chrome.runtime.sendMessage({
+          type: 'sites.binding',
+          payload: { origin: site },
+        })) as {
+          boundPubkey?: string;
+        } | null
+      )?.boundPubkey ?? null,
     origin,
   );
 
@@ -82,7 +91,10 @@ test.describe('Connected Sites per account (#309)', () => {
 
     // Disconnecting here touches this account's site only.
     await setup.getByRole('button', { name: 'Disconnect', exact: true }).first().click();
-    await setup.getByRole('dialog').getByRole('button', { name: 'Disconnect', exact: true }).click();
+    await setup
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Disconnect', exact: true })
+      .click();
     await expect(setup.getByText(FIRST_SITE, { exact: true })).toHaveCount(0);
 
     expect(await boundTo(setup, FIRST_SITE)).toBeNull();

@@ -68,7 +68,10 @@ describe('Nip44Handler', () => {
   function mockUnlockedActiveAccount(): void {
     vi.mocked(isVaultUnlocked).mockReturnValue(true);
     vi.mocked(storageService.get).mockResolvedValue('test-alias');
-    vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [mockAccount] } });
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [mockAccount] },
+    });
   }
 
   it('encrypts when vault is unlocked and active account exists', async () => {
@@ -76,7 +79,10 @@ describe('Nip44Handler', () => {
     vi.mocked(nip44.getConversationKey).mockReturnValue(Uint8Array.from([1, 2, 3]));
     vi.mocked(nip44.encrypt).mockReturnValue('nip44-ciphertext');
 
-    const result = await handleNip44Encrypt({ pubkey: 'recipient-pubkey', plaintext: 'hello' }, ORIGIN);
+    const result = await handleNip44Encrypt(
+      { pubkey: 'recipient-pubkey', plaintext: 'hello' },
+      ORIGIN,
+    );
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -93,7 +99,10 @@ describe('Nip44Handler', () => {
     vi.mocked(nip44.getConversationKey).mockReturnValue(Uint8Array.from([4, 5, 6]));
     vi.mocked(nip44.decrypt).mockReturnValue('hello');
 
-    const result = await handleNip44Decrypt({ pubkey: 'sender-pubkey', ciphertext: 'nip44-ciphertext' }, ORIGIN);
+    const result = await handleNip44Decrypt(
+      { pubkey: 'sender-pubkey', ciphertext: 'nip44-ciphertext' },
+      ORIGIN,
+    );
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -108,7 +117,10 @@ describe('Nip44Handler', () => {
   it('returns error when vault is locked', async () => {
     vi.mocked(isVaultUnlocked).mockReturnValue(false);
 
-    const result = await handleNip44Encrypt({ pubkey: 'recipient-pubkey', plaintext: 'hello' }, ORIGIN);
+    const result = await handleNip44Encrypt(
+      { pubkey: 'recipient-pubkey', plaintext: 'hello' },
+      ORIGIN,
+    );
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -120,7 +132,10 @@ describe('Nip44Handler', () => {
     vi.mocked(isVaultUnlocked).mockReturnValue(true);
     vi.mocked(storageService.get).mockResolvedValue(null);
 
-    const result = await handleNip44Decrypt({ pubkey: 'sender-pubkey', ciphertext: 'nip44-ciphertext' }, ORIGIN);
+    const result = await handleNip44Decrypt(
+      { pubkey: 'sender-pubkey', ciphertext: 'nip44-ciphertext' },
+      ORIGIN,
+    );
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -135,7 +150,10 @@ describe('Nip44Handler', () => {
       throw new Error('invalid MAC');
     });
 
-    const result = await handleNip44Decrypt({ pubkey: 'sender-pubkey', ciphertext: 'bad-ciphertext' }, ORIGIN);
+    const result = await handleNip44Decrypt(
+      { pubkey: 'sender-pubkey', ciphertext: 'bad-ciphertext' },
+      ORIGIN,
+    );
 
     expect(result.success).toBe(false);
     if (!result.success) {

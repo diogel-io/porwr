@@ -110,7 +110,8 @@ export function openGiftWrap(wrap: Event, secretKey: Uint8Array): Rumor | null {
 export function conversationPeer(rumor: Pick<Rumor, 'pubkey' | 'tags'>, me: string): string | null {
   const participants = new Set<string>([rumor.pubkey]);
   for (const tag of rumor.tags) {
-    if (tag[0] === 'p' && typeof tag[1] === 'string' && HEX_64.test(tag[1])) participants.add(tag[1]);
+    if (tag[0] === 'p' && typeof tag[1] === 'string' && HEX_64.test(tag[1]))
+      participants.add(tag[1]);
   }
   if (!participants.has(me)) return null;
   participants.delete(me);
@@ -119,7 +120,13 @@ export function conversationPeer(rumor: Pick<Rumor, 'pubkey' | 'tags'>, me: stri
 }
 
 function toDirectMessage(rumor: Rumor, peer: string): DirectMessage {
-  return { id: rumor.id, pubkey: rumor.pubkey, peer, created_at: rumor.created_at, content: rumor.content };
+  return {
+    id: rumor.id,
+    pubkey: rumor.pubkey,
+    peer,
+    created_at: rumor.created_at,
+    content: rumor.content,
+  };
 }
 
 function reasonOf(error: unknown): string {
@@ -201,7 +208,11 @@ export class Nip17Messaging {
     return { inbox: 'ready', messages, dropped };
   }
 
-  private async deliver(secretKey: Uint8Array, me: string, request: SendMessageRequest): Promise<SendMessageResult> {
+  private async deliver(
+    secretKey: Uint8Array,
+    me: string,
+    request: SendMessageRequest,
+  ): Promise<SendMessageResult> {
     const deadlineAt = this.now() + SEND_DEADLINE_MS;
     const [ownInbox, recipientInbox] = await Promise.all([
       this.relays.lookupDmRelays(me),
@@ -223,7 +234,9 @@ export class Nip17Messaging {
     };
     // The first wrap is the sender's own copy, the second the recipient's. Both carry the same rumor,
     // so both sides see one message id.
-    const [selfWrap, recipientWrap] = nip59.wrapManyEvents(rumorTemplate, secretKey, [request.recipient]);
+    const [selfWrap, recipientWrap] = nip59.wrapManyEvents(rumorTemplate, secretKey, [
+      request.recipient,
+    ]);
     const rumorId = getEventHash({ ...rumorTemplate, pubkey: me });
 
     const recipientOutcome = await this.publishAndConfirm(
@@ -262,7 +275,8 @@ export class Nip17Messaging {
       accepted: recipientOutcome.kept,
       unverified: recipientOutcome.unverified,
       rejected: recipientOutcome.rejected,
-      selfCopy: selfOutcome === null ? 'no-inbox' : selfOutcome.kept.length > 0 ? 'stored' : 'failed',
+      selfCopy:
+        selfOutcome === null ? 'no-inbox' : selfOutcome.kept.length > 0 ? 'stored' : 'failed',
     };
   }
 
@@ -314,7 +328,9 @@ export class Nip17Messaging {
           onauth: authSigner(secretKey),
         })
         // nostr-tools' own waits run past `maxWait`, so only ours decides (#265).
-        .map((publish) => withDeadline(publish, publishBy, () => Promise.reject(new Error('timed out')), this.now)),
+        .map((publish) =>
+          withDeadline(publish, publishBy, () => Promise.reject(new Error('timed out')), this.now),
+        ),
     );
     const accepted: string[] = [];
     const rejected: { url: string; reason: string }[] = [];
@@ -335,7 +351,12 @@ export class Nip17Messaging {
    * where a relay asks. A wrap's timestamp can be up to two days before its rumor's, so the window
    * opens two days before `since`.
    */
-  private queryWraps(secretKey: Uint8Array, me: string, relays: string[], since?: number): Promise<Event[]> {
+  private queryWraps(
+    secretKey: Uint8Array,
+    me: string,
+    relays: string[],
+    since?: number,
+  ): Promise<Event[]> {
     return new Promise((resolve) => {
       const wraps = new Map<string, Event>();
       this.poolFor(me).subscribeEose(

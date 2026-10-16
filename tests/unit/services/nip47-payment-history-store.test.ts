@@ -10,7 +10,11 @@ import {
 const ALICE = 'a'.repeat(64);
 const BOB = 'b'.repeat(64);
 
-function buildEntry(id: string, createdAt: string, accountPubkey: string = ALICE): Nip47PaymentHistoryEntry {
+function buildEntry(
+  id: string,
+  createdAt: string,
+  accountPubkey: string = ALICE,
+): Nip47PaymentHistoryEntry {
   return {
     id,
     accountPubkey,
@@ -32,7 +36,10 @@ describe('nip47-payment-history-store', () => {
       ],
     };
 
-    expect(listNip47PaymentHistory(vaultData, ALICE).map((entry) => entry.id)).toEqual(['newer', 'older']);
+    expect(listNip47PaymentHistory(vaultData, ALICE).map((entry) => entry.id)).toEqual([
+      'newer',
+      'older',
+    ]);
   });
 
   it('returns an empty list when no history exists', () => {
@@ -47,9 +54,15 @@ describe('nip47-payment-history-store', () => {
       nip47PaymentHistory: [buildEntry('older', '2026-06-01T00:00:00.000Z')],
     };
 
-    const result = appendNip47PaymentHistory(vaultData, buildEntry('newer', '2026-06-10T00:00:00.000Z'));
+    const result = appendNip47PaymentHistory(
+      vaultData,
+      buildEntry('newer', '2026-06-10T00:00:00.000Z'),
+    );
 
-    expect(listNip47PaymentHistory(result, ALICE).map((entry) => entry.id)).toEqual(['newer', 'older']);
+    expect(listNip47PaymentHistory(result, ALICE).map((entry) => entry.id)).toEqual([
+      'newer',
+      'older',
+    ]);
   });
 
   it('caps payment history at 100 entries', () => {
@@ -72,7 +85,10 @@ describe('nip47-payment-history-store', () => {
   it('lists only the named account’s payments (#304)', () => {
     const vaultData: VaultData = {
       accounts: [],
-      nip47PaymentHistory: [buildEntry('alice', '2026-06-01T00:00:00.000Z'), buildEntry('bob', '2026-06-02T00:00:00.000Z', BOB)],
+      nip47PaymentHistory: [
+        buildEntry('alice', '2026-06-01T00:00:00.000Z'),
+        buildEntry('bob', '2026-06-02T00:00:00.000Z', BOB),
+      ],
     };
 
     expect(listNip47PaymentHistory(vaultData, ALICE).map((entry) => entry.id)).toEqual(['alice']);
@@ -85,10 +101,16 @@ describe('nip47-payment-history-store', () => {
     );
     const vaultData: VaultData = {
       accounts: [],
-      nip47PaymentHistory: [buildEntry('bob-old', new Date(2025, 0, 1).toISOString(), BOB), ...alices],
+      nip47PaymentHistory: [
+        buildEntry('bob-old', new Date(2025, 0, 1).toISOString(), BOB),
+        ...alices,
+      ],
     };
 
-    const result = appendNip47PaymentHistory(vaultData, buildEntry('alice-new', new Date(2027, 0, 1).toISOString()));
+    const result = appendNip47PaymentHistory(
+      vaultData,
+      buildEntry('alice-new', new Date(2027, 0, 1).toISOString()),
+    );
 
     expect(listNip47PaymentHistory(result, ALICE)).toHaveLength(100);
     // Bob's only, and oldest, payment survives Alice's 101st.

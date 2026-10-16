@@ -59,12 +59,7 @@ function openEventHistory() {
         <ApprovedClientsCard :summary="summary" :loading="loading" :error="error" />
       </div>
       <div class="dashboard-widget-grid__item dashboard-widget-grid__item--active-keys">
-        <ActiveKeysCard
-          clickable
-          :summary="summary"
-          :loading="loading"
-          @open="openKeyManagement"
-        />
+        <ActiveKeysCard clickable :summary="summary" :loading="loading" @open="openKeyManagement" />
       </div>
       <div class="dashboard-widget-grid__item dashboard-widget-grid__item--connected-relays">
         <ConnectedRelaysCard

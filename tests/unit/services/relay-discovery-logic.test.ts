@@ -15,28 +15,27 @@ vi.mock('nostr-tools', () => {
       kind: 10002,
       id: 'event1',
       tags: [['r', 'wss://relay1.com']],
-      pubkey: 'pk1'
+      pubkey: 'pk1',
     },
     {
       kind: 10002,
       id: 'event2',
       tags: [['r', 'wss://relay2.com']],
-      pubkey: 'pk2'
-    }
+      pubkey: 'pk2',
+    },
   ]);
 
   return {
-    SimplePool: vi.fn().mockImplementation(function() {
+    SimplePool: vi.fn().mockImplementation(function () {
       return {
         querySync: querySyncMock,
-        close: vi.fn()
+        close: vi.fn(),
       };
-    })
+    }),
   };
 });
 
 describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
-
   describe('parseRelayListEvent', () => {
     it('should extract URLs from valid kind 10002 event', () => {
       const mockEvent = {
@@ -47,16 +46,12 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
           ['r', 'wss://relay3.com'],
           ['p', 'another-pubkey'], // non-r tag
         ],
-        pubkey: 'pubkey1'
+        pubkey: 'pubkey1',
       };
 
       const result = parseRelayListEvent(mockEvent as Event);
 
-      expect(result).toEqual([
-        'wss://relay1.com',
-        'wss://relay2.com',
-        'wss://relay3.com'
-      ]);
+      expect(result).toEqual(['wss://relay1.com', 'wss://relay2.com', 'wss://relay3.com']);
     });
 
     it('should ignore non-r tags and malformed tags', () => {
@@ -70,7 +65,7 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
           null as any,
           [],
         ],
-        pubkey: 'pubkey1'
+        pubkey: 'pubkey1',
       };
 
       const result = parseRelayListEvent(mockEvent as Event);
@@ -83,7 +78,7 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
         kind: 1,
         content: 'hello',
         tags: [['r', 'wss://relay1.com']],
-        pubkey: 'pubkey1'
+        pubkey: 'pubkey1',
       };
 
       const result = parseRelayListEvent(mockEvent as Event);
@@ -152,15 +147,12 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
         'wss://RELAY2.com/path', // same after normalization
         'invalid-url',
         'https://relay3.com', // invalid protocol (not ws/wss)
-        'wss://relay1.com' // duplicate
+        'wss://relay1.com', // duplicate
       ];
 
       const result = normalizeAndDeduplicateRelays(urls);
 
-      expect(result).toEqual([
-        'wss://relay1.com',
-        'wss://relay2.com/path'
-      ]);
+      expect(result).toEqual(['wss://relay1.com', 'wss://relay2.com/path']);
     });
 
     it('should handle empty input gracefully', () => {
@@ -176,7 +168,7 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
           ['r', 'wss://relay1.com/'],
           ['r', 'wss://relay2.com'],
         ],
-        pubkey: 'pubkey1'
+        pubkey: 'pubkey1',
       };
       const event2 = {
         kind: 10002,
@@ -184,7 +176,7 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
           ['r', 'wss://relay2.com/'],
           ['r', 'wss://relay3.com'],
         ],
-        pubkey: 'pubkey2'
+        pubkey: 'pubkey2',
       };
       const event3 = { kind: 1, content: 'ignore me' };
 
@@ -193,7 +185,7 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
       expect(result.discoveredUrls).toEqual([
         'wss://relay1.com',
         'wss://relay2.com',
-        'wss://relay3.com'
+        'wss://relay3.com',
       ]);
       expect(result.processedEvents).toBe(2);
       expect(result.errors).toEqual([]);
@@ -208,10 +200,7 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
 
       const result = relayDiscoveryService.processEvents(events as any as Event[]);
 
-      expect(result.discoveredUrls).toEqual([
-        'wss://relay1.com',
-        'wss://relay2.com'
-      ]);
+      expect(result.discoveredUrls).toEqual(['wss://relay1.com', 'wss://relay2.com']);
       expect(result.processedEvents).toBe(2);
     });
   });
@@ -221,10 +210,7 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
       const seedRelays = ['wss://seed1.com', 'wss://seed2.com'];
       const result = await relayDiscoveryService.discoverFromRelays(seedRelays);
 
-      expect(result.discoveredUrls).toEqual([
-        'wss://relay1.com',
-        'wss://relay2.com'
-      ]);
+      expect(result.discoveredUrls).toEqual(['wss://relay1.com', 'wss://relay2.com']);
       expect(result.processedEvents).toBe(2);
       expect(result.errors).toEqual([]);
     });

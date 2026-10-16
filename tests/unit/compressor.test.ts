@@ -17,7 +17,9 @@ describe('Compressor Service', () => {
     expect(text).toContain('DIOGEL KEY BACKUP');
     expect(text).toContain('Alias: test-key');
     expect(text).toContain('Created At: 2024-01-01T00:00:00.000Z');
-    expect(text).toContain('npub (Public Key):  npub16lwewcy62mkerqg7wt5sezeksj3ms0e7n3sxx4y80e0rgal32j2qp4x2av');
+    expect(text).toContain(
+      'npub (Public Key):  npub16lwewcy62mkerqg7wt5sezeksj3ms0e7n3sxx4y80e0rgal32j2qp4x2av',
+    );
     expect(text).toContain(`nsec (Private Key): ${nsec}`);
   });
 

@@ -20,7 +20,9 @@ describe('request expiry bounds', () => {
     expect(clampRequestExpiryMinutes(null)).toBe(REQUEST_EXPIRY_DEFAULT_MINUTES);
     expect(clampRequestExpiryMinutes('not a number')).toBe(REQUEST_EXPIRY_DEFAULT_MINUTES);
     expect(clampRequestExpiryMinutes(Number.NaN)).toBe(REQUEST_EXPIRY_DEFAULT_MINUTES);
-    expect(clampRequestExpiryMinutes(Number.POSITIVE_INFINITY)).toBe(REQUEST_EXPIRY_DEFAULT_MINUTES);
+    expect(clampRequestExpiryMinutes(Number.POSITIVE_INFINITY)).toBe(
+      REQUEST_EXPIRY_DEFAULT_MINUTES,
+    );
   });
 
   it('clamps values that would disable or widen expiry', () => {

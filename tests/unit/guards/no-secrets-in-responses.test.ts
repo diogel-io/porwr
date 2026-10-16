@@ -13,8 +13,17 @@ const accountKey = generateSecretKey();
 const FIXTURE = {
   mnemonic: 'legal winner thank year wave sausage worth useful legal winner thank yellow',
   passphrase: 'fixture-passphrase',
-  accounts: [{ id: getPublicKey(accountKey), alias: 'main', account: { privkey: bytesToHex(accountKey) }, createdAt: '2026-01-01' }],
-  nip47Connections: [{ id: 'w', clientSecret: 'f'.repeat(64), relays: [], walletServicePubkey: 'e'.repeat(64) }],
+  accounts: [
+    {
+      id: getPublicKey(accountKey),
+      alias: 'main',
+      account: { privkey: bytesToHex(accountKey) },
+      createdAt: '2026-01-01',
+    },
+  ],
+  nip47Connections: [
+    { id: 'w', clientSecret: 'f'.repeat(64), relays: [], walletServicePubkey: 'e'.repeat(64) },
+  ],
 };
 const SECRET_VALUES = [
   FIXTURE.mnemonic,
@@ -26,7 +35,9 @@ const SECRET_VALUES = [
 const SECRET_KEYS = ['privkey', 'mnemonic', 'passphrase', 'clientSecret', 'nsec', 'vaultData'];
 
 vi.mock('@/../src-bex/vault', () => ({
-  getVaultData: vi.fn(() => Promise.resolve({ success: true, vaultData: structuredClone(FIXTURE) })),
+  getVaultData: vi.fn(() =>
+    Promise.resolve({ success: true, vaultData: structuredClone(FIXTURE) }),
+  ),
   updateVaultData: vi.fn(() => Promise.resolve({ success: true })),
   unlockVault: vi.fn(() => Promise.resolve({ success: true, vaultData: structuredClone(FIXTURE) })),
   isVaultUnlocked: vi.fn(() => true),
@@ -37,7 +48,9 @@ vi.mock('@/../src-bex/handlers/vault-handler', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/../src-bex/handlers/vault-handler')>();
   return {
     ...actual,
-    handleVaultUnlock: vi.fn(() => Promise.resolve({ success: true, data: { vaultData: structuredClone(FIXTURE) } })),
+    handleVaultUnlock: vi.fn(() =>
+      Promise.resolve({ success: true, data: { vaultData: structuredClone(FIXTURE) } }),
+    ),
   };
 });
 vi.mock('@/../src-bex/services/auto-lock', () => ({
@@ -62,7 +75,8 @@ const findSecrets = (value: unknown, path = '$'): string[] => {
   if (typeof value === 'string') {
     return SECRET_VALUES.some((secret) => value.includes(secret)) ? [path] : [];
   }
-  if (Array.isArray(value)) return value.flatMap((item, index) => findSecrets(item, `${path}[${index}]`));
+  if (Array.isArray(value))
+    return value.flatMap((item, index) => findSecrets(item, `${path}[${index}]`));
   if (value && typeof value === 'object') {
     return Object.entries(value).flatMap(([key, child]) => [
       ...(SECRET_KEYS.includes(key) ? [`${path}.${key}`] : []),
@@ -80,7 +94,9 @@ describe('vault responses to pages carry no secrets', () => {
   it('vault.getView', async () => {
     const response = await dispatchMessage('vault.getView', {} as never, '');
 
-    expect(response).toEqual({ accounts: [{ id: FIXTURE.accounts[0]!.id, alias: 'main', createdAt: '2026-01-01' }] });
+    expect(response).toEqual({
+      accounts: [{ id: FIXTURE.accounts[0]!.id, alias: 'main', createdAt: '2026-01-01' }],
+    });
     expect(findSecrets(response)).toEqual([]);
   });
 
@@ -92,7 +108,9 @@ describe('vault responses to pages carry no secrets', () => {
   });
 
   it('nip47.authorization.begin', async () => {
-    globalThis.crypto.randomUUID = vi.fn(() => 'pending-uuid') as () => `${string}-${string}-${string}-${string}-${string}`;
+    globalThis.crypto.randomUUID = vi.fn(
+      () => 'pending-uuid',
+    ) as () => `${string}-${string}-${string}-${string}-${string}`;
     const response = await dispatchMessage(
       'nip47.authorization.begin',
       { accountPubkey: FIXTURE.accounts[0]!.id, provider: 'coinos' } as never,

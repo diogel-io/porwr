@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import {
-  ORIGIN_SCOPED_ACTIONS,
-  decideRouting,
-} from '@/../src-bex/services/message-routing';
+import { ORIGIN_SCOPED_ACTIONS, decideRouting } from '@/../src-bex/services/message-routing';
 import type { SenderClass } from '@/../src-bex/services/sender-policy';
 
 const PAGE: SenderClass = 'extension-page';
@@ -32,27 +29,30 @@ describe('routing a raw runtime message', () => {
     it('refuses one whose origin is not a string', () => {
       // A non-string origin is the same failure as a missing one, and collapsing both here means
       // the dispatcher never has to wonder.
-      expect(decideRouting({ type: 'nostr.signEvent', payload: { origin: 42 } }, PAGE).dispatch).toBe(
-        false,
-      );
-      expect(decideRouting({ type: 'nostr.signEvent', payload: { origin: null } }, PAGE).dispatch).toBe(
-        false,
-      );
+      expect(
+        decideRouting({ type: 'nostr.signEvent', payload: { origin: 42 } }, PAGE).dispatch,
+      ).toBe(false);
+      expect(
+        decideRouting({ type: 'nostr.signEvent', payload: { origin: null } }, PAGE).dispatch,
+      ).toBe(false);
     });
 
     it('refuses one whose origin is empty', () => {
-      expect(decideRouting({ type: 'nostr.signEvent', payload: { origin: '' } }, PAGE).dispatch).toBe(
-        false,
-      );
+      expect(
+        decideRouting({ type: 'nostr.signEvent', payload: { origin: '' } }, PAGE).dispatch,
+      ).toBe(false);
     });
 
     it('refuses one from an extension page even when it names an origin (#240)', () => {
       // Sites reach these over the bridge, through the content script, which supplies the origin.
       // A page naming a site's origin here would borrow that site's grants.
-      const decision = decideRouting({
-        type: 'nostr.signEvent',
-        payload: { origin: 'https://example.com', event: { kind: 1 } },
-      }, PAGE);
+      const decision = decideRouting(
+        {
+          type: 'nostr.signEvent',
+          payload: { origin: 'https://example.com', event: { kind: 1 } },
+        },
+        PAGE,
+      );
 
       expect(decision).toEqual({
         dispatch: false,
@@ -62,7 +62,10 @@ describe('routing a raw runtime message', () => {
 
     it('refuses every origin-scoped action from an extension page', () => {
       for (const action of ORIGIN_SCOPED_ACTIONS) {
-        expect(decideRouting({ type: action, payload: { origin: 'https://example.com' } }, PAGE).dispatch).toBe(false);
+        expect(
+          decideRouting({ type: action, payload: { origin: 'https://example.com' } }, PAGE)
+            .dispatch,
+        ).toBe(false);
       }
     });
 
@@ -124,17 +127,29 @@ describe('routing a raw runtime message', () => {
         { type: 'vault.getData', payload: {} },
         { type: 'vault.updateData', payload: { vaultData: { accounts: [] } } },
         { type: 'nostr.requests.respond', payload: { requestId: 'r', decision: 'approve' } },
-        { type: 'sites.revoke', payload: { origin: 'https://example.com', accountPubkey: 'a'.repeat(64) } },
+        {
+          type: 'sites.revoke',
+          payload: { origin: 'https://example.com', accountPubkey: 'a'.repeat(64) },
+        },
         { type: 'nostr.signEvent', payload: { origin: 'https://example.com' } },
         { type: 'ping' },
         {},
       ]) {
-        expect(decideRouting(message, sender)).toEqual({ dispatch: false, error: 'Untrusted sender' });
+        expect(decideRouting(message, sender)).toEqual({
+          dispatch: false,
+          error: 'Untrusted sender',
+        });
       }
     });
 
     it("dispatches a Porwr page's vault and queue actions", () => {
-      for (const type of ['vault.getData', 'vault.lock', 'nostr.requests.respond', 'sites.revoke', 'messaging.fetch']) {
+      for (const type of [
+        'vault.getData',
+        'vault.lock',
+        'nostr.requests.respond',
+        'sites.revoke',
+        'messaging.fetch',
+      ]) {
         expect(decideRouting({ type, payload: {} }, PAGE).dispatch).toBe(true);
       }
     });

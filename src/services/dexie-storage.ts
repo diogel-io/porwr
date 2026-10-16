@@ -12,7 +12,10 @@ import { NOSTR_ACTIVE, storageService } from './storage-service';
 
 const fail = (response: unknown, fallback: string): never => {
   const error =
-    response && typeof response === 'object' && 'error' in response && typeof response.error === 'string'
+    response &&
+    typeof response === 'object' &&
+    'error' in response &&
+    typeof response.error === 'string'
       ? response.error
       : fallback;
   throw new Error(error);

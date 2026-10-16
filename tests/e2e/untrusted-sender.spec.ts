@@ -23,12 +23,18 @@ async function contentScriptWorld(page: Page, cdp: CDPSession): Promise<() => Pr
   });
   await cdp.send('Runtime.enable');
   return async () => {
-    await expect.poll(() => worlds.find((world) => world.name === 'Porwr')?.id, { timeout: 15_000 }).toBeDefined();
+    await expect
+      .poll(() => worlds.find((world) => world.name === 'Porwr')?.id, { timeout: 15_000 })
+      .toBeDefined();
     return worlds.find((world) => world.name === 'Porwr')!.id;
   };
 }
 
-async function sendFromContentScript(cdp: CDPSession, contextId: number, message: object): Promise<unknown> {
+async function sendFromContentScript(
+  cdp: CDPSession,
+  contextId: number,
+  message: object,
+): Promise<unknown> {
   const { result, exceptionDetails } = await cdp.send('Runtime.evaluate', {
     contextId,
     expression: `new Promise((resolve) => chrome.runtime.sendMessage(${JSON.stringify(message)}, (response) => resolve(response ?? null)))`,
@@ -40,7 +46,10 @@ async function sendFromContentScript(cdp: CDPSession, contextId: number, message
 }
 
 test.describe('the background checks who is asking', () => {
-  test("refuses a website's content script, and still answers Porwr's own pages", async ({ openPage, context }) => {
+  test("refuses a website's content script, and still answers Porwr's own pages", async ({
+    openPage,
+    context,
+  }) => {
     const extensionPage = await openPage('/login');
     await createVault(extensionPage);
     await seedAccount(extensionPage);
@@ -56,9 +65,15 @@ test.describe('the background checks who is asking', () => {
       { type: 'vault.getView', payload: {} },
       { type: 'accounts.revealSecret', payload: { accountPubkey: TEST_ACCOUNT.pubkey } },
       { type: 'nostr.requests.respond', payload: { requestId: 'any', decision: 'approve' } },
-      { type: 'sites.revoke', payload: { origin: 'https://example.com', accountPubkey: 'a'.repeat(64) } },
+      {
+        type: 'sites.revoke',
+        payload: { origin: 'https://example.com', accountPubkey: 'a'.repeat(64) },
+      },
     ]) {
-      expect(await sendFromContentScript(cdp, contextId, message)).toEqual({ success: false, error: 'Untrusted sender' });
+      expect(await sendFromContentScript(cdp, contextId, message)).toEqual({
+        success: false,
+        error: 'Untrusted sender',
+      });
     }
 
     // The control: the same read from an extension page is answered.
@@ -68,7 +83,10 @@ test.describe('the background checks who is asking', () => {
     expect(fromPage.accounts?.map((account) => account.alias)).toEqual([TEST_ACCOUNT.alias]);
   });
 
-  test('still serves window.nostr to the site through the content script', async ({ openPage, context }) => {
+  test('still serves window.nostr to the site through the content script', async ({
+    openPage,
+    context,
+  }) => {
     const extensionPage = await openPage('/login');
     await createVault(extensionPage);
     await seedAccount(extensionPage);
@@ -80,9 +98,15 @@ test.describe('the background checks who is asking', () => {
     // user, which shows as the pending badge.
     await requestSignatureFromPage(site);
     await expect
-      .poll(() => extensionPage.evaluate(() => chrome.runtime.sendMessage({ type: 'nostr.requests.count' })), {
-        timeout: 15_000,
-      })
+      .poll(
+        () =>
+          extensionPage.evaluate(() =>
+            chrome.runtime.sendMessage({ type: 'nostr.requests.count' }),
+          ),
+        {
+          timeout: 15_000,
+        },
+      )
       .toBe(1);
   });
 
@@ -94,25 +118,38 @@ test.describe('the background checks who is asking', () => {
     await createVault(extensionPage);
     await seedAccount(extensionPage);
     const queued = () =>
-      extensionPage.evaluate(() => chrome.runtime.sendMessage({ type: 'nostr.requests.list' })) as Promise<
-        { id: string; origin: string; state: string }[]
-      >;
+      extensionPage.evaluate(() =>
+        chrome.runtime.sendMessage({ type: 'nostr.requests.list' }),
+      ) as Promise<{ id: string; origin: string; state: string }[]>;
 
     // other.example earns an "always" grant for its public key, the honest way: it asks, the user agrees.
     await context.route('https://other.example/**', (route) =>
-      route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>other</title><p>other</p>' }),
+      route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><title>other</title><p>other</p>',
+      }),
     );
     const other = await context.newPage();
     await other.goto('https://other.example/');
-    await expect.poll(() => other.evaluate(() => 'nostr' in window), { timeout: 15_000 }).toBe(true);
+    await expect
+      .poll(() => other.evaluate(() => 'nostr' in window), { timeout: 15_000 })
+      .toBe(true);
     await other.evaluate(() => {
       const nostr = (window as unknown as { nostr: { getPublicKey: () => Promise<string> } }).nostr;
       (window as unknown as { __pubkey: Promise<string> }).__pubkey = nostr.getPublicKey();
     });
-    await expect.poll(async () => (await queued()).find((request) => request.origin === 'https://other.example')?.id, {
-      timeout: 15_000,
-    }).toBeDefined();
-    const grantRequest = (await queued()).find((request) => request.origin === 'https://other.example')!;
+    await expect
+      .poll(
+        async () =>
+          (await queued()).find((request) => request.origin === 'https://other.example')?.id,
+        {
+          timeout: 15_000,
+        },
+      )
+      .toBeDefined();
+    const grantRequest = (await queued()).find(
+      (request) => request.origin === 'https://other.example',
+    )!;
     await extensionPage.evaluate(
       (requestId) =>
         chrome.runtime.sendMessage({
@@ -121,9 +158,9 @@ test.describe('the background checks who is asking', () => {
         }),
       grantRequest.id,
     );
-    expect(await other.evaluate(() => (window as unknown as { __pubkey: Promise<string> }).__pubkey)).toBe(
-      TEST_ACCOUNT.pubkey,
-    );
+    expect(
+      await other.evaluate(() => (window as unknown as { __pubkey: Promise<string> }).__pubkey),
+    ).toBe(TEST_ACCOUNT.pubkey);
 
     // What a compromised example.com renderer would try: claim to be other.example and ride its grant.
     const site = await context.newPage();
@@ -147,7 +184,9 @@ test.describe('the background checks who is asking', () => {
     // Had the claim been believed, the grant would have answered at once with the key. Instead the
     // request waits for the user, under the site that really sent it.
     expect(result.value).toBe('no answer yet');
-    const waiting = (await queued()).filter((request) => request.state === 'queued' || request.state === 'presented');
+    const waiting = (await queued()).filter(
+      (request) => request.state === 'queued' || request.state === 'presented',
+    );
     expect(waiting.map((request) => request.origin)).toEqual(['https://example.com']);
   });
 });

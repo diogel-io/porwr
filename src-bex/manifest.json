@@ -6,9 +6,7 @@
       "48": "icons/icon-48x48.png",
       "128": "icons/icon-128x128.png"
     },
-    "permissions": [
-      "storage"
-    ],
+    "permissions": ["storage"],
     "content_security_policy": {
       "extension_pages": "script-src 'self'; object-src 'self';"
     },
@@ -17,22 +15,14 @@
         "id": "@diogel",
         "strict_min_version": "115.0",
         "data_collection_permissions": {
-          "required": [
-            "none"
-          ]
+          "required": ["none"]
         }
       }
     },
     "web_accessible_resources": [
       {
-        "resources": [
-          "assets/**/**",
-          "nostr-provider.js",
-          "www/images/**"
-        ],
-        "matches": [
-          "*://*/*"
-        ]
+        "resources": ["assets/**/**", "nostr-provider.js", "www/images/**"],
+        "matches": ["*://*/*"]
       }
     ],
     "action": {
@@ -40,15 +30,9 @@
     },
     "content_scripts": [
       {
-        "matches": [
-          "<all_urls>"
-        ],
-        "css": [
-          "assets/content.css"
-        ],
-        "js": [
-          "content-script.ts"
-        ],
+        "matches": ["<all_urls>"],
+        "css": ["assets/content.css"],
+        "js": ["content-script.ts"],
         "run_at": "document_end"
       }
     ]
@@ -57,18 +41,14 @@
     "background": {
       "service_worker": "background.ts"
     },
-    "permissions": [
-      "sidePanel"
-    ],
+    "permissions": ["sidePanel"],
     "side_panel": {
       "default_path": "www/index.html#/sidebar"
     }
   },
   "firefox": {
     "background": {
-      "scripts": [
-        "background.ts"
-      ]
+      "scripts": ["background.ts"]
     },
     "sidebar_action": {
       "default_title": "Porwr",

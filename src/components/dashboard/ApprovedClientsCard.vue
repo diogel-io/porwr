@@ -22,14 +22,15 @@ const { t } = useI18n();
     <q-card-section class="dashboard-card-section dashboard-widget-card__section">
       <div class="dashboard-widget-card__header">
         <q-icon name="verified_user" size="lg" color="primary" />
-        <span class="dashboard-widget-card__title">{{ t('dashboard.widgets.approvedClients.title') }}</span>
+        <span class="dashboard-widget-card__title">{{
+          t('dashboard.widgets.approvedClients.title')
+        }}</span>
       </div>
 
       <div class="dashboard-widget-card__metric">
         <q-spinner v-if="loading" color="primary" size="24px" />
         <span v-else>{{ summary?.approvedClients ?? 0 }}</span>
       </div>
-
     </q-card-section>
   </q-card>
 </template>
@@ -64,5 +65,4 @@ const { t } = useI18n();
   font-size: 1.9rem;
   font-weight: 700;
 }
-
 </style>

@@ -40,7 +40,9 @@ const focused = ref(false);
     @blur="focused = false"
     @keydown.esc="focused = false"
   >
-    <span :id="descriptionId" class="security-warning__description">{{ title }}. {{ message }}</span>
+    <span :id="descriptionId" class="security-warning__description"
+      >{{ title }}. {{ message }}</span
+    >
     <q-tooltip
       class="security-warning__panel bg-grey-10 text-white"
       anchor="bottom left"

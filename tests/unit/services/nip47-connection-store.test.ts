@@ -15,7 +15,11 @@ import {
 const ALICE = 'a'.repeat(64);
 const BOB = 'b'.repeat(64);
 
-function buildConnection(id: string, isActive: boolean, accountPubkey: string = ALICE): Nip47Connection {
+function buildConnection(
+  id: string,
+  isActive: boolean,
+  accountPubkey: string = ALICE,
+): Nip47Connection {
   return {
     id,
     accountPubkey,
@@ -32,7 +36,10 @@ function buildConnection(id: string, isActive: boolean, accountPubkey: string = 
 }
 
 const states = (vaultData: VaultData, account: string = ALICE) =>
-  listNip47Connections(vaultData, account).map((connection) => ({ id: connection.id, isActive: connection.isActive }));
+  listNip47Connections(vaultData, account).map((connection) => ({
+    id: connection.id,
+    isActive: connection.isActive,
+  }));
 
 describe('nip47-connection-store', () => {
   it('deactivates existing wallet connections when upserting an active connection', () => {
@@ -95,14 +102,19 @@ describe('nip47-connection-store', () => {
       nip47Connections: [buildConnection('wallet-a', true)],
     };
 
-    expect(() => setActiveNip47Connection(vaultData, ALICE, 'missing-wallet')).toThrow('NIP-47 connection not found');
+    expect(() => setActiveNip47Connection(vaultData, ALICE, 'missing-wallet')).toThrow(
+      'NIP-47 connection not found',
+    );
   });
 });
 
 describe('one account’s wallets are not another’s (#304)', () => {
   const vaultData: VaultData = {
     accounts: [],
-    nip47Connections: [buildConnection('alice-wallet', true, ALICE), buildConnection('bob-wallet', true, BOB)],
+    nip47Connections: [
+      buildConnection('alice-wallet', true, ALICE),
+      buildConnection('bob-wallet', true, BOB),
+    ],
   };
 
   it('lists and finds only the named account’s connections', () => {
@@ -120,7 +132,9 @@ describe('one account’s wallets are not another’s (#304)', () => {
   });
 
   it('will not activate another account’s connection', () => {
-    expect(() => setActiveNip47Connection(vaultData, BOB, 'alice-wallet')).toThrow('NIP-47 connection not found');
+    expect(() => setActiveNip47Connection(vaultData, BOB, 'alice-wallet')).toThrow(
+      'NIP-47 connection not found',
+    );
   });
 
   it('removes a connection only from the account named', () => {
@@ -150,25 +164,60 @@ describe('removeAccountWalletData (#304)', () => {
       buildConnection('shared', false, BOB),
     ],
     nip47PaymentHistory: [
-      { id: 'p1', accountPubkey: ALICE, connectionId: 'alice-wallet', connectionLabel: '', invoicePreview: '', status: 'succeeded', createdAt: '2026-01-01' },
-      { id: 'p2', accountPubkey: BOB, connectionId: 'bob-wallet', connectionLabel: '', invoicePreview: '', status: 'succeeded', createdAt: '2026-01-02' },
+      {
+        id: 'p1',
+        accountPubkey: ALICE,
+        connectionId: 'alice-wallet',
+        connectionLabel: '',
+        invoicePreview: '',
+        status: 'succeeded',
+        createdAt: '2026-01-01',
+      },
+      {
+        id: 'p2',
+        accountPubkey: BOB,
+        connectionId: 'bob-wallet',
+        connectionLabel: '',
+        invoicePreview: '',
+        status: 'succeeded',
+        createdAt: '2026-01-02',
+      },
     ],
     webLnPermissions: [
-      { origin: 'https://a.example', connectionId: 'alice-wallet', methods: ['enable'], createdAt: '2026-01-01' },
-      { origin: 'https://b.example', connectionId: 'bob-wallet', methods: ['enable'], createdAt: '2026-01-01' },
-      { origin: 'https://s.example', connectionId: 'shared', methods: ['enable'], createdAt: '2026-01-01' },
+      {
+        origin: 'https://a.example',
+        connectionId: 'alice-wallet',
+        methods: ['enable'],
+        createdAt: '2026-01-01',
+      },
+      {
+        origin: 'https://b.example',
+        connectionId: 'bob-wallet',
+        methods: ['enable'],
+        createdAt: '2026-01-01',
+      },
+      {
+        origin: 'https://s.example',
+        connectionId: 'shared',
+        methods: ['enable'],
+        createdAt: '2026-01-01',
+      },
     ],
   };
 
   it('drops the account’s connections, payments and grants, and nobody else’s', () => {
     const result = removeAccountWalletData(vaultData, ALICE);
 
-    expect(result.nip47Connections?.map((item) => `${item.accountPubkey === BOB ? 'bob' : 'alice'}:${item.id}`)).toEqual([
-      'bob:bob-wallet',
-      'bob:shared',
-    ]);
+    expect(
+      result.nip47Connections?.map(
+        (item) => `${item.accountPubkey === BOB ? 'bob' : 'alice'}:${item.id}`,
+      ),
+    ).toEqual(['bob:bob-wallet', 'bob:shared']);
     expect(result.nip47PaymentHistory?.map((item) => item.id)).toEqual(['p2']);
     // `shared` is still Bob's, so the grant on it stays.
-    expect(result.webLnPermissions?.map((item) => item.connectionId)).toEqual(['bob-wallet', 'shared']);
+    expect(result.webLnPermissions?.map((item) => item.connectionId)).toEqual([
+      'bob-wallet',
+      'shared',
+    ]);
   });
 });

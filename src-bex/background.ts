@@ -9,16 +9,8 @@
  */
 import { createBridge } from '#q-app/bex/background';
 import { LogLevel, logService } from '@/services/log-service';
-import {
-  FALLBACK_RELAYS,
-  NOSTR_ACTIVE,
-  storageService,
-} from '@/services/storage-service';
-import {
-  startAutoLockTimer,
-  restoreLastActivity,
-  checkAutoLock,
-} from './services/auto-lock';
+import { FALLBACK_RELAYS, NOSTR_ACTIVE, storageService } from '@/services/storage-service';
+import { startAutoLockTimer, restoreLastActivity, checkAutoLock } from './services/auto-lock';
 import { initializePanelSurface, resolvePanelSurface } from './services/panel-surface';
 import {
   pruneResolvedRequests,
@@ -57,12 +49,8 @@ import {
 } from './handlers/vault-handler';
 import { onVaultUnlocked } from './vault';
 import { refreshActiveAccountContacts } from './handlers/contacts';
-import {
-} from './handlers/permission-handler';
-import {
-  handleGetPublicKey,
-  handleSignEvent,
-} from './handlers/nip07';
+import {} from './handlers/permission-handler';
+import { handleGetPublicKey, handleSignEvent } from './handlers/nip07';
 import { loadSeedRelays } from '@/services/relay-catalog';
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import { dispatchMessage } from './dispatcher';
@@ -364,7 +352,10 @@ const pageActionHandlers: PageActionHandlers = {
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data) {
-        throw new BackgroundBridgeError('VAULT_LOCKED', 'Vault is locked. Open the extension to unlock.');
+        throw new BackgroundBridgeError(
+          'VAULT_LOCKED',
+          'Vault is locked. Open the extension to unlock.',
+        );
       }
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the request');
     }
@@ -388,64 +379,112 @@ const pageActionHandlers: PageActionHandlers = {
     const approved = await requestApproval(origin, -1, { requestType: 'get_relays' });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
-      if (!unlockedStatus.success || !unlockedStatus.data) throw new Error('Vault is locked. Open the extension to unlock.');
+      if (!unlockedStatus.success || !unlockedStatus.data)
+        throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return await dispatchMessage('nostr.getRelays', createBridgeRequest('nostr.getRelays', { origin }), origin) ?? {};
+    return (
+      (await dispatchMessage(
+        'nostr.getRelays',
+        createBridgeRequest('nostr.getRelays', { origin }),
+        origin,
+      )) ?? {}
+    );
   },
 
   'nostr.nip04.encrypt': async (payload, origin) => {
     const activeStoredKey = await getActiveStoredKey();
     void logService.logApproval('nip04_encrypt', originHostname(origin), activeStoredKey?.alias);
-    const approved = await requestApproval(origin, -1, { requestType: 'nip04_encrypt', counterpartyPubkey: payload.pubkey });
+    const approved = await requestApproval(origin, -1, {
+      requestType: 'nip04_encrypt',
+      counterpartyPubkey: payload.pubkey,
+    });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
-      if (!unlockedStatus.success || !unlockedStatus.data) throw new Error('Vault is locked. Open the extension to unlock.');
+      if (!unlockedStatus.success || !unlockedStatus.data)
+        throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return await dispatchMessage('nostr.nip04.encrypt', createBridgeRequest('nostr.nip04.encrypt', { ...payload, origin }), origin) ?? '';
+    return (
+      (await dispatchMessage(
+        'nostr.nip04.encrypt',
+        createBridgeRequest('nostr.nip04.encrypt', { ...payload, origin }),
+        origin,
+      )) ?? ''
+    );
   },
 
   'nostr.nip04.decrypt': async (payload, origin) => {
     const activeStoredKey = await getActiveStoredKey();
     void logService.logApproval('nip04_decrypt', originHostname(origin), activeStoredKey?.alias);
-    const approved = await requestApproval(origin, -1, { requestType: 'nip04_decrypt', counterpartyPubkey: payload.pubkey });
+    const approved = await requestApproval(origin, -1, {
+      requestType: 'nip04_decrypt',
+      counterpartyPubkey: payload.pubkey,
+    });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
-      if (!unlockedStatus.success || !unlockedStatus.data) throw new Error('Vault is locked. Open the extension to unlock.');
+      if (!unlockedStatus.success || !unlockedStatus.data)
+        throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return await dispatchMessage('nostr.nip04.decrypt', createBridgeRequest('nostr.nip04.decrypt', { ...payload, origin }), origin) ?? '';
+    return (
+      (await dispatchMessage(
+        'nostr.nip04.decrypt',
+        createBridgeRequest('nostr.nip04.decrypt', { ...payload, origin }),
+        origin,
+      )) ?? ''
+    );
   },
 
   'nostr.nip44.encrypt': async (payload, origin) => {
     const activeStoredKey = await getActiveStoredKey();
     void logService.logApproval('nip44_encrypt', originHostname(origin), activeStoredKey?.alias);
-    const approved = await requestApproval(origin, -1, { requestType: 'nip44_encrypt', counterpartyPubkey: payload.pubkey });
+    const approved = await requestApproval(origin, -1, {
+      requestType: 'nip44_encrypt',
+      counterpartyPubkey: payload.pubkey,
+    });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
-      if (!unlockedStatus.success || !unlockedStatus.data) throw new Error('Vault is locked. Open the extension to unlock.');
+      if (!unlockedStatus.success || !unlockedStatus.data)
+        throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return await dispatchMessage('nostr.nip44.encrypt', createBridgeRequest('nostr.nip44.encrypt', { ...payload, origin }), origin) ?? '';
+    return (
+      (await dispatchMessage(
+        'nostr.nip44.encrypt',
+        createBridgeRequest('nostr.nip44.encrypt', { ...payload, origin }),
+        origin,
+      )) ?? ''
+    );
   },
 
   'nostr.nip44.decrypt': async (payload, origin) => {
     const activeStoredKey = await getActiveStoredKey();
     void logService.logApproval('nip44_decrypt', originHostname(origin), activeStoredKey?.alias);
-    const approved = await requestApproval(origin, -1, { requestType: 'nip44_decrypt', counterpartyPubkey: payload.pubkey });
+    const approved = await requestApproval(origin, -1, {
+      requestType: 'nip44_decrypt',
+      counterpartyPubkey: payload.pubkey,
+    });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
-      if (!unlockedStatus.success || !unlockedStatus.data) throw new Error('Vault is locked. Open the extension to unlock.');
+      if (!unlockedStatus.success || !unlockedStatus.data)
+        throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return await dispatchMessage('nostr.nip44.decrypt', createBridgeRequest('nostr.nip44.decrypt', { ...payload, origin }), origin) ?? '';
+    return (
+      (await dispatchMessage(
+        'nostr.nip44.decrypt',
+        createBridgeRequest('nostr.nip44.decrypt', { ...payload, origin }),
+        origin,
+      )) ?? ''
+    );
   },
 
   'webln.enable': async (_payload, origin) => {
     const approved = await requestApproval(origin, -1, {
       requestType: 'webln_enable',
-      contentDescription: 'Allow this site to use Porwr as a WebLN wallet provider. Payments will still require separate approval.',
+      contentDescription:
+        'Allow this site to use Porwr as a WebLN wallet provider. Payments will still require separate approval.',
       allowRemember: true,
       skipPermissionCheck: true,
     });
@@ -460,15 +499,12 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'webln.getInfo': async (_payload, origin) =>
-    dispatchMessage(
-      'webln.getInfo',
-      createBridgeRequest('webln.getInfo', { origin }),
-      origin,
-    ),
+    dispatchMessage('webln.getInfo', createBridgeRequest('webln.getInfo', { origin }), origin),
 
   'webln.sendPayment': async (payload, origin) => {
     const amountMsat = parseBolt11AmountMsat(payload.paymentRequest);
-    const amountDescription = amountMsat !== undefined ? `${amountMsat / 1000} sats` : 'unknown amount';
+    const amountDescription =
+      amountMsat !== undefined ? `${amountMsat / 1000} sats` : 'unknown amount';
     const approved = await requestApproval(origin, -1, {
       requestType: 'webln_send_payment',
       contentDescription: `Pay Lightning invoice for ${amountDescription}: ${previewInvoice(payload.paymentRequest)}`,

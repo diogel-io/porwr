@@ -37,8 +37,12 @@ function setup() {
   };
   const host = {
     open: vi.fn((): FakePopup | null => popup),
-    addEventListener: vi.fn((_type: string, listener: (event: MessageEvent) => void) => listeners.add(listener)),
-    removeEventListener: vi.fn((_type: string, listener: (event: MessageEvent) => void) => listeners.delete(listener)),
+    addEventListener: vi.fn((_type: string, listener: (event: MessageEvent) => void) =>
+      listeners.add(listener),
+    ),
+    removeEventListener: vi.fn((_type: string, listener: (event: MessageEvent) => void) =>
+      listeners.delete(listener),
+    ),
   };
   const post = (data: unknown, origin = ORIGIN, source: unknown = popup): void => {
     for (const listener of [...listeners]) {
@@ -72,11 +76,18 @@ describe('useWalletAuthorization', () => {
     const { host, popup, connecting, connect } = setup();
 
     const pending = connect('coinos', ACCOUNT);
-    expect(host.open).toHaveBeenCalledWith('about:blank', 'porwr-wallet-connect', expect.stringContaining('popup'));
+    expect(host.open).toHaveBeenCalledWith(
+      'about:blank',
+      'porwr-wallet-connect',
+      expect.stringContaining('popup'),
+    );
     expect(connecting.value).toBe('coinos');
 
     await vi.waitFor(() => expect(popup.location.href).toBe(START.authorizationUrl));
-    expect(service.beginNip47Authorization).toHaveBeenCalledWith({ accountPubkey: ACCOUNT, provider: 'coinos' });
+    expect(service.beginNip47Authorization).toHaveBeenCalledWith({
+      accountPubkey: ACCOUNT,
+      provider: 'coinos',
+    });
 
     popup.closed = true;
     await vi.advanceTimersByTimeAsync(100);
@@ -89,7 +100,12 @@ describe('useWalletAuthorization', () => {
 
     const pending = connect('coinos', ACCOUNT);
     await vi.waitFor(() => expect(popup.location.href).toBe(START.authorizationUrl));
-    post({ type: 'nwc:success', walletPubkey: WALLET, relayUrl: 'wss://relay.coinos.io', lud16: 'alice@coinos.io' });
+    post({
+      type: 'nwc:success',
+      walletPubkey: WALLET,
+      relayUrl: 'wss://relay.coinos.io',
+      lud16: 'alice@coinos.io',
+    });
 
     await expect(pending).resolves.toEqual({ status: 'connected', connection: CONNECTION });
     expect(service.completeNip47Authorization).toHaveBeenCalledWith({
@@ -108,7 +124,11 @@ describe('useWalletAuthorization', () => {
 
     const pending = connect('coinos', ACCOUNT);
     await vi.waitFor(() => expect(popup.location.href).toBe(START.authorizationUrl));
-    const message = { type: 'nwc:success', walletPubkey: WALLET, relayUrl: 'wss://relay.coinos.io' };
+    const message = {
+      type: 'nwc:success',
+      walletPubkey: WALLET,
+      relayUrl: 'wss://relay.coinos.io',
+    };
     post(message, 'https://evil.example.com');
     post(message, ORIGIN, {});
     post({ type: 'something-else' });

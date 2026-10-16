@@ -101,7 +101,9 @@ describe('useVault', () => {
 
       // Only the password: there is no mnemonic or passphrase to send (#244).
       expect(testState.vaultStore.create).toHaveBeenCalledWith('longenough1');
-      expect(testState.notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'positive' }));
+      expect(testState.notifyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'positive' }),
+      );
       // A vault that has just been created holds no keys, and a dashboard with no keys has nothing
       // to show (#198).
       expect(testState.pushMock).toHaveBeenCalledWith({ name: 'keys' });
@@ -124,7 +126,11 @@ describe('useVault', () => {
     });
 
     it('surfaces a formatted error and notifies on failure', async () => {
-      testState.vaultStore.create.mockResolvedValue({ success: false, error: 'boom', errorCode: 'GEN_UNKNOWN' });
+      testState.vaultStore.create.mockResolvedValue({
+        success: false,
+        error: 'boom',
+        errorCode: 'GEN_UNKNOWN',
+      });
       const wrapper = mount(TestHarness);
       const vm = wrapper.vm as unknown as HarnessVm;
       vm.password = 'longenough1';
@@ -133,7 +139,9 @@ describe('useVault', () => {
       await vm.handleCreate();
 
       expect(vm.loginError).not.toBe('');
-      expect(testState.notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'negative' }));
+      expect(testState.notifyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'negative' }),
+      );
       expect(testState.pushMock).not.toHaveBeenCalled();
     });
   });
@@ -148,7 +156,10 @@ describe('useVault', () => {
 
       await vm.handleUnlock();
 
-      expect(testState.pushMock).toHaveBeenCalledWith({ path: '/settings', query: testState.route.query });
+      expect(testState.pushMock).toHaveBeenCalledWith({
+        path: '/settings',
+        query: testState.route.query,
+      });
     });
 
     it('falls back to the post-login route when no redirect is given', async () => {
@@ -163,7 +174,11 @@ describe('useVault', () => {
     });
 
     it('surfaces a formatted error and notifies on failure', async () => {
-      testState.vaultStore.unlock.mockResolvedValue({ success: false, error: 'Invalid password', errorCode: 'VLT_INVALID_PASSWORD' });
+      testState.vaultStore.unlock.mockResolvedValue({
+        success: false,
+        error: 'Invalid password',
+        errorCode: 'VLT_INVALID_PASSWORD',
+      });
       const wrapper = mount(TestHarness);
       const vm = wrapper.vm as unknown as HarnessVm;
       vm.password = 'wrong-password';
@@ -171,7 +186,9 @@ describe('useVault', () => {
       await vm.handleUnlock();
 
       expect(vm.loginError).not.toBe('');
-      expect(testState.notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'negative' }));
+      expect(testState.notifyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'negative' }),
+      );
       expect(testState.pushMock).not.toHaveBeenCalled();
     });
   });
@@ -185,7 +202,10 @@ describe('useVault', () => {
       await vm.handleLock();
 
       expect(testState.vaultStore.lock).toHaveBeenCalledTimes(1);
-      expect(testState.pushMock).toHaveBeenCalledWith({ name: 'login', query: { loginContext: 'dashboard' } });
+      expect(testState.pushMock).toHaveBeenCalledWith({
+        name: 'login',
+        query: { loginContext: 'dashboard' },
+      });
     });
 
     it('uses the extension login context outside dashboard routes', async () => {
@@ -195,7 +215,10 @@ describe('useVault', () => {
 
       await vm.handleLock();
 
-      expect(testState.pushMock).toHaveBeenCalledWith({ name: 'login', query: { loginContext: 'extension' } });
+      expect(testState.pushMock).toHaveBeenCalledWith({
+        name: 'login',
+        query: { loginContext: 'extension' },
+      });
     });
 
     it('locks without leaving the panel when the sidebar is the active surface', async () => {

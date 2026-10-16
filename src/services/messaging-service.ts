@@ -16,7 +16,12 @@ import type {
  */
 
 function errorOf(value: unknown): string | null {
-  if (value && typeof value === 'object' && 'success' in value && (value as { success?: unknown }).success === false) {
+  if (
+    value &&
+    typeof value === 'object' &&
+    'success' in value &&
+    (value as { success?: unknown }).success === false
+  ) {
     const error = (value as { error?: unknown }).error;
     return typeof error === 'string' ? error : 'Request failed';
   }
@@ -81,7 +86,10 @@ export async function getReadState(): Promise<MessagingReadState> {
   return response && typeof response === 'object' ? (response as MessagingReadState) : {};
 }
 
-export async function markConversationRead(peer: string, readAt: number): Promise<MessagingReadState> {
+export async function markConversationRead(
+  peer: string,
+  readAt: number,
+): Promise<MessagingReadState> {
   const response = await sendBexMessage('messaging.markRead', { peer, readAt });
   const error = errorOf(response);
   if (error) throw new Error(error);

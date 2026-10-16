@@ -69,7 +69,13 @@ describe('theme custom properties', () => {
    * defect #146 and #153 both came from.
    */
   it('defines every chrome token in both themes', () => {
-    const chromeTokens = ['--header-bg', '--on-header', '--header-border', '--badge-bg', '--on-badge'];
+    const chromeTokens = [
+      '--header-bg',
+      '--on-header',
+      '--header-border',
+      '--badge-bg',
+      '--on-badge',
+    ];
 
     for (const name of chromeTokens) {
       expect(properties.filter((p) => p.name === name)).toHaveLength(2);

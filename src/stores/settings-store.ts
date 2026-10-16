@@ -28,7 +28,10 @@ const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
 function normalizeRelayList(relays: string[]): string[] {
   const normalized = relays
     .map((relay) => normalizeRelayUrl(relay))
-    .filter((result): result is { valid: true; url: string; hostname?: string } => result.valid && typeof result.url === 'string')
+    .filter(
+      (result): result is { valid: true; url: string; hostname?: string } =>
+        result.valid && typeof result.url === 'string',
+    )
     .map((result) => result.url);
 
   return Array.from(new Set(normalized));
@@ -88,7 +91,10 @@ const useSettingsStore = defineStore('settings', {
         // UI must never present a value the background would refuse (ADR D8).
         this.requestExpiryMinutes = clampRequestExpiryMinutes(result[REQUEST_EXPIRY_MINUTES]);
       }
-      if (Array.isArray(result[FALLBACK_RELAYS]) && (result[FALLBACK_RELAYS] as unknown[]).length > 0) {
+      if (
+        Array.isArray(result[FALLBACK_RELAYS]) &&
+        (result[FALLBACK_RELAYS] as unknown[]).length > 0
+      ) {
         this.fallbackRelays = result[FALLBACK_RELAYS] as string[];
       }
       this.quickPublishClientTag = result[QUICK_PUBLISH_CLIENT_TAG] !== false;
@@ -100,7 +106,8 @@ const useSettingsStore = defineStore('settings', {
       }
       if (Array.isArray(storedProfileSearchRelays)) {
         const normalized = normalizeRelayList(storedProfileSearchRelays);
-        this.profileSearchRelays = normalized.length > 0 ? normalized : DEFAULT_PROFILE_SEARCH_RELAYS;
+        this.profileSearchRelays =
+          normalized.length > 0 ? normalized : DEFAULT_PROFILE_SEARCH_RELAYS;
       }
     },
 

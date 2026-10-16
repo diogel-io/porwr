@@ -86,7 +86,9 @@ describe('ProfileImage.vue', () => {
     uploader(wrapper, 'avatar').vm.$emit('avatar-uploaded', 'https://example.com/new.png');
     await flushPromises();
 
-    expect(saveProfileMock).toHaveBeenCalledWith('pubkey-1', { picture: 'https://example.com/new.png' });
+    expect(saveProfileMock).toHaveBeenCalledWith('pubkey-1', {
+      picture: 'https://example.com/new.png',
+    });
     expect(wrapper.find('.profile-header__avatar-image').attributes('src')).toBe(
       'https://example.com/new.png',
     );
@@ -98,7 +100,9 @@ describe('ProfileImage.vue', () => {
     uploader(wrapper, 'banner').vm.$emit('banner-uploaded', 'https://example.com/banner.png');
     await flushPromises();
 
-    expect(saveProfileMock).toHaveBeenCalledWith('pubkey-1', { banner: 'https://example.com/banner.png' });
+    expect(saveProfileMock).toHaveBeenCalledWith('pubkey-1', {
+      banner: 'https://example.com/banner.png',
+    });
   });
 
   it('says so when publishing an image fails, and goes back to the published one', async () => {

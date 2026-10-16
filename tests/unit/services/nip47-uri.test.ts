@@ -22,15 +22,17 @@ describe('parseNwcUri', () => {
     const walletPubkey = getPublicKey(generateSecretKey());
     const clientSecret = bytesToHex(generateSecretKey());
 
-    expect(() => parseNwcUri(`nostr+walletconnect://${walletPubkey}?secret=${clientSecret}`)).toThrow(
-      'at least one relay',
-    );
+    expect(() =>
+      parseNwcUri(`nostr+walletconnect://${walletPubkey}?secret=${clientSecret}`),
+    ).toThrow('at least one relay');
   });
 
   it('builds stable local connection ids', () => {
     const walletPubkey = getPublicKey(generateSecretKey());
     const clientPubkey = getPublicKey(generateSecretKey());
 
-    expect(buildNip47ConnectionId(walletPubkey, clientPubkey)).toBe(`nip47:${walletPubkey}:${clientPubkey}`);
+    expect(buildNip47ConnectionId(walletPubkey, clientPubkey)).toBe(
+      `nip47:${walletPubkey}:${clientPubkey}`,
+    );
   });
 });

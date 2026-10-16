@@ -36,7 +36,10 @@ async function refresh(accountPubkey: string, options: RefreshOptions): Promise<
   }
 
   const relays = await getFallbackRelays();
-  await writeContactList(accountPubkey, await fetchContactListSnapshot(pool, relays, accountPubkey));
+  await writeContactList(
+    accountPubkey,
+    await fetchContactListSnapshot(pool, relays, accountPubkey),
+  );
 
   // Read back rather than using the fetch: a publish made meanwhile may have won.
   const contacts = (await readContactList(accountPubkey))?.contacts ?? [];
@@ -54,7 +57,10 @@ async function refresh(accountPubkey: string, options: RefreshOptions): Promise<
  * arrives mid-run may have been made because something changed after that run began, so it gets one
  * more run once the current one ends; further forced calls meanwhile share that one.
  */
-export function refreshContacts(accountPubkey: string, options: RefreshOptions = {}): Promise<void> {
+export function refreshContacts(
+  accountPubkey: string,
+  options: RefreshOptions = {},
+): Promise<void> {
   const running = inFlight.get(accountPubkey);
   if (!running) return start(accountPubkey, options);
   if (!options.force) return running;
@@ -81,7 +87,10 @@ function start(accountPubkey: string, options: RefreshOptions): Promise<void> {
 }
 
 /** Starts a refresh without waiting for it, logging rather than throwing if it fails. */
-export function refreshContactsInBackground(accountPubkey: string, options: RefreshOptions = {}): void {
+export function refreshContactsInBackground(
+  accountPubkey: string,
+  options: RefreshOptions = {},
+): void {
   void refreshContacts(accountPubkey, options).catch((error: unknown) => {
     logService.log(LogLevel.WARN, '[ContactCache] Refresh failed', {
       error: error instanceof Error ? error.message : String(error),

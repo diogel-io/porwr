@@ -37,7 +37,12 @@ async function onExportConfirm(payload: ExportPayload) {
   try {
     // Revealed only for this export, after the user confirmed it, and not kept (#240).
     const nsec = await revealSecret(props.storedKey.id);
-    zipBytes = await createEncryptedZipBytes(payload.password, payload.filename, props.storedKey, nsec);
+    zipBytes = await createEncryptedZipBytes(
+      payload.password,
+      payload.filename,
+      props.storedKey,
+      nsec,
+    );
   } catch {
     $q.notify({ type: 'negative', message: t('account.exportFailed') });
     return;
@@ -51,12 +56,7 @@ async function onExportConfirm(payload: ExportPayload) {
 </script>
 
 <template>
-  <q-btn
-    class="diogel-btn-primary"
-    dense
-    :label="t('settings.export')"
-    @click="onExportClick"
-  />
+  <q-btn class="diogel-btn-primary" dense :label="t('settings.export')" @click="onExportClick" />
 
   <ExportDialog
     v-model="showExportDialog"

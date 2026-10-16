@@ -28,11 +28,7 @@ const { t } = useI18n();
 <template>
   <nav :aria-label="t('navigation.breadcrumb')" class="dashboard-breadcrumbs">
     <ol class="dashboard-breadcrumbs__list">
-      <li
-        v-for="(item, index) in items"
-        :key="index"
-        class="dashboard-breadcrumbs__item"
-      >
+      <li v-for="(item, index) in items" :key="index" class="dashboard-breadcrumbs__item">
         <router-link
           v-if="item.to && index < items.length - 1"
           :to="item.to"

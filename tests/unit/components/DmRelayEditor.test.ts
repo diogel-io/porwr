@@ -74,7 +74,9 @@ const relayItems = (wrapper: Awaited<ReturnType<typeof mountEditor>>) =>
   wrapper.findAll('li.dm-relay').map((item) => item.find('span').text());
 
 const statuses = (wrapper: Awaited<ReturnType<typeof mountEditor>>) =>
-  wrapper.findAll('li.dm-relay').map((item) => (item.find('.q-chip').exists() ? item.find('.q-chip').text() : null));
+  wrapper
+    .findAll('li.dm-relay')
+    .map((item) => (item.find('.q-chip').exists() ? item.find('.q-chip').text() : null));
 
 const save = async (wrapper: Awaited<ReturnType<typeof mountEditor>>) => {
   await wrapper.find('button[aria-label="relays.save"]').trigger('click');
@@ -114,7 +116,9 @@ describe('DmRelayEditor', () => {
   it('says which relays keep private messages (#278)', async () => {
     const wrapper = await mountEditor();
 
-    expect(wrapper.find('[data-testid="dm-relays-keeps-messages"]').text()).toBe('relays.dmRelays.keepsMessages');
+    expect(wrapper.find('[data-testid="dm-relays-keeps-messages"]').text()).toBe(
+      'relays.dmRelays.keepsMessages',
+    );
   });
 
   it('shows the published direct message relays', async () => {
@@ -155,7 +159,9 @@ describe('DmRelayEditor', () => {
   it('removes a relay', async () => {
     const wrapper = await mountEditor();
 
-    await wrapper.find('button[aria-label="relays.dmRelays.remove:wss://inbox.example"]').trigger('click');
+    await wrapper
+      .find('button[aria-label="relays.dmRelays.remove:wss://inbox.example"]')
+      .trigger('click');
 
     expect(relayItems(wrapper)).toEqual([]);
   });
@@ -182,7 +188,9 @@ describe('DmRelayEditor', () => {
     });
     const wrapper = await mountEditor();
 
-    expect(wrapper.find('[data-testid="dm-relays-guidance"]').text()).toBe('relays.dmRelays.tooMany');
+    expect(wrapper.find('[data-testid="dm-relays-guidance"]').text()).toBe(
+      'relays.dmRelays.tooMany',
+    );
   });
 
   it('publishes the list through the background and reports how many relays took it', async () => {
@@ -192,17 +200,25 @@ describe('DmRelayEditor', () => {
     await flushPromises();
 
     expect(mocks.publishDmRelays).toHaveBeenCalledWith(['wss://inbox.example']);
-    expect(mocks.notify).toHaveBeenCalledWith({ type: 'positive', message: 'relays.dmRelays.saveSuccess:2' });
+    expect(mocks.notify).toHaveBeenCalledWith({
+      type: 'positive',
+      message: 'relays.dmRelays.saveSuccess:2',
+    });
   });
 
   it('reports a failed publish', async () => {
-    mocks.publishDmRelays.mockRejectedValue(new Error('No relay accepted the direct message relay list'));
+    mocks.publishDmRelays.mockRejectedValue(
+      new Error('No relay accepted the direct message relay list'),
+    );
     const wrapper = await mountEditor();
 
     await wrapper.find('button[aria-label="relays.save"]').trigger('click');
     await flushPromises();
 
-    expect(mocks.notify).toHaveBeenCalledWith({ type: 'negative', message: 'relays.dmRelays.saveError' });
+    expect(mocks.notify).toHaveBeenCalledWith({
+      type: 'negative',
+      message: 'relays.dmRelays.saveError',
+    });
   });
 
   it('logs why a publish failed', async () => {
@@ -220,7 +236,10 @@ describe('DmRelayEditor', () => {
 
   describe('checking the relays before publishing (#277)', () => {
     beforeEach(() => {
-      mocks.getDmRelays.mockResolvedValue({ relays: ['wss://keeps.example', 'wss://damus.example'], updatedAt: 10 });
+      mocks.getDmRelays.mockResolvedValue({
+        relays: ['wss://keeps.example', 'wss://damus.example'],
+        updatedAt: 10,
+      });
     });
 
     it('checks the list, then shows what each relay does with messages', async () => {
@@ -230,19 +249,30 @@ describe('DmRelayEditor', () => {
 
       await save(wrapper);
 
-      expect(mocks.checkDmRelays).toHaveBeenCalledWith(['wss://keeps.example', 'wss://damus.example']);
-      expect(statuses(wrapper)).toEqual(['relays.dmRelays.status.keeps', 'relays.dmRelays.status.unchecked']);
-      expect(mocks.publishDmRelays).toHaveBeenCalledWith(['wss://keeps.example', 'wss://damus.example']);
+      expect(mocks.checkDmRelays).toHaveBeenCalledWith([
+        'wss://keeps.example',
+        'wss://damus.example',
+      ]);
+      expect(statuses(wrapper)).toEqual([
+        'relays.dmRelays.status.keeps',
+        'relays.dmRelays.status.unchecked',
+      ]);
+      expect(mocks.publishDmRelays).toHaveBeenCalledWith([
+        'wss://keeps.example',
+        'wss://damus.example',
+      ]);
       expect(mocks.dialog).not.toHaveBeenCalled();
     });
 
-    it("says it is checking while the check runs", async () => {
+    it('says it is checking while the check runs', async () => {
       let answer: (value: unknown) => void = () => undefined;
       mocks.checkDmRelays.mockReturnValue(new Promise((resolve) => (answer = resolve)));
       const wrapper = await mountEditor();
 
       await wrapper.find('button[aria-label="relays.save"]').trigger('click');
-      expect(wrapper.find('[data-testid="dm-relays-checking"]').text()).toBe('relays.dmRelays.checking');
+      expect(wrapper.find('[data-testid="dm-relays-checking"]').text()).toBe(
+        'relays.dmRelays.checking',
+      );
 
       answer({ checks: [] });
       await flushPromises();
@@ -259,7 +289,10 @@ describe('DmRelayEditor', () => {
       expect(wrapper.find('[data-testid="dm-relays-all-drop"]').text()).toBe(
         'relays.dmRelays.allDrop:wss://keeps.example, wss://damus.example',
       );
-      expect(statuses(wrapper)).toEqual(['relays.dmRelays.status.drops', 'relays.dmRelays.status.drops']);
+      expect(statuses(wrapper)).toEqual([
+        'relays.dmRelays.status.drops',
+        'relays.dmRelays.status.drops',
+      ]);
     });
 
     it('stops blocking once the list changes', async () => {
@@ -267,7 +300,9 @@ describe('DmRelayEditor', () => {
       const wrapper = await mountEditor();
       await save(wrapper);
 
-      await wrapper.find('button[aria-label="relays.dmRelays.remove:wss://damus.example"]').trigger('click');
+      await wrapper
+        .find('button[aria-label="relays.dmRelays.remove:wss://damus.example"]')
+        .trigger('click');
 
       expect(wrapper.find('[data-testid="dm-relays-all-drop"]').exists()).toBe(false);
     });
@@ -284,7 +319,10 @@ describe('DmRelayEditor', () => {
           message: 'relays.dmRelays.someDropBody:wss://damus.example',
         }),
       );
-      expect(mocks.publishDmRelays).toHaveBeenCalledWith(['wss://keeps.example', 'wss://damus.example']);
+      expect(mocks.publishDmRelays).toHaveBeenCalledWith([
+        'wss://keeps.example',
+        'wss://damus.example',
+      ]);
     });
 
     it('publishes nothing when the user cancels', async () => {
@@ -295,7 +333,10 @@ describe('DmRelayEditor', () => {
       await save(wrapper);
 
       expect(mocks.publishDmRelays).not.toHaveBeenCalled();
-      expect(statuses(wrapper)).toEqual(['relays.dmRelays.status.keeps', 'relays.dmRelays.status.drops']);
+      expect(statuses(wrapper)).toEqual([
+        'relays.dmRelays.status.keeps',
+        'relays.dmRelays.status.drops',
+      ]);
     });
 
     it("publishes anyway when the check itself fails, showing every relay as couldn't check", async () => {
@@ -307,8 +348,14 @@ describe('DmRelayEditor', () => {
       await save(wrapper);
 
       expect(consoleError).toHaveBeenCalledWith('Error checking direct message relays:', error);
-      expect(mocks.notify).toHaveBeenCalledWith({ type: 'warning', message: 'relays.dmRelays.checkFailed' });
-      expect(statuses(wrapper)).toEqual(['relays.dmRelays.status.unchecked', 'relays.dmRelays.status.unchecked']);
+      expect(mocks.notify).toHaveBeenCalledWith({
+        type: 'warning',
+        message: 'relays.dmRelays.checkFailed',
+      });
+      expect(statuses(wrapper)).toEqual([
+        'relays.dmRelays.status.unchecked',
+        'relays.dmRelays.status.unchecked',
+      ]);
       expect(mocks.publishDmRelays).toHaveBeenCalled();
       consoleError.mockRestore();
     });

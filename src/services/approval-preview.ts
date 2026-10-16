@@ -195,7 +195,9 @@ const formatMillisats = (value: string): string | undefined => {
   if (!/^\d+$/.test(value)) return undefined;
   const msat = BigInt(value);
   if (msat === 0n) return undefined;
-  return msat % 1000n === 0n ? `${(msat / 1000n).toLocaleString()} sats` : `${msat.toLocaleString()} millisats`;
+  return msat % 1000n === 0n
+    ? `${(msat / 1000n).toLocaleString()} sats`
+    : `${msat.toLocaleString()} millisats`;
 };
 
 const formatPubkey = (hex: string): string => {

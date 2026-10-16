@@ -105,13 +105,17 @@ describe('permission grants', () => {
     it('does not let a signing grant authorise a different request type', async () => {
       await grantPermission(ORIGIN, ALICE, 'sign_event', 1, 'always');
 
-      expect(await checkPermission(ORIGIN, ALICE, 'nip04_decrypt', null)).toEqual({ granted: false });
+      expect(await checkPermission(ORIGIN, ALICE, 'nip04_decrypt', null)).toEqual({
+        granted: false,
+      });
     });
 
     it('keeps each kindless request type separate from the others', async () => {
       await grantPermission(ORIGIN, ALICE, 'nip04_decrypt', null, 'always');
 
-      expect(await checkPermission(ORIGIN, ALICE, 'nip44_decrypt', null)).toEqual({ granted: false });
+      expect(await checkPermission(ORIGIN, ALICE, 'nip44_decrypt', null)).toEqual({
+        granted: false,
+      });
       expect(await checkPermission(ORIGIN, ALICE, 'nip04_decrypt', null)).toEqual({
         granted: true,
         always: true,
@@ -140,7 +144,14 @@ describe('permission grants', () => {
   describe('the signing wildcard', () => {
     it('answers any kind for the same origin when one exists', async () => {
       seed([
-        { origin: ORIGIN, accountPubkey: ALICE, requestType: 'sign_event', eventKind: 'any', granted: true, timestamp: 1 },
+        {
+          origin: ORIGIN,
+          accountPubkey: ALICE,
+          requestType: 'sign_event',
+          eventKind: 'any',
+          granted: true,
+          timestamp: 1,
+        },
       ]);
 
       expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 30023)).toEqual({
@@ -151,10 +162,19 @@ describe('permission grants', () => {
 
     it('answers only signing, never another request type', async () => {
       seed([
-        { origin: ORIGIN, accountPubkey: ALICE, requestType: 'sign_event', eventKind: 'any', granted: true, timestamp: 1 },
+        {
+          origin: ORIGIN,
+          accountPubkey: ALICE,
+          requestType: 'sign_event',
+          eventKind: 'any',
+          granted: true,
+          timestamp: 1,
+        },
       ]);
 
-      expect(await checkPermission(ORIGIN, ALICE, 'get_public_key', null)).toEqual({ granted: false });
+      expect(await checkPermission(ORIGIN, ALICE, 'get_public_key', null)).toEqual({
+        granted: false,
+      });
     });
 
     it('cannot be created through grantPermission', async () => {
@@ -314,7 +334,14 @@ describe('permission grants', () => {
   describe('caching', () => {
     it('reads storage once until the cache is cleared', async () => {
       seed([
-        { origin: ORIGIN, accountPubkey: ALICE, requestType: 'sign_event', eventKind: 1, granted: true, timestamp: 1 },
+        {
+          origin: ORIGIN,
+          accountPubkey: ALICE,
+          requestType: 'sign_event',
+          eventKind: 1,
+          granted: true,
+          timestamp: 1,
+        },
       ]);
 
       await getGrantedPermissions();
@@ -349,12 +376,7 @@ describe('origin normalisation', () => {
   it('honours a grant when the same site arrives spelled differently', async () => {
     await grantFor(ORIGIN);
 
-    const result = await checkPermission(
-      'https://EXAMPLE.com/login',
-      ALICE,
-      'sign_event',
-      1,
-    );
+    const result = await checkPermission('https://EXAMPLE.com/login', ALICE, 'sign_event', 1);
 
     expect(result.granted).toBe(true);
   });
@@ -394,9 +416,9 @@ describe('origin normalisation', () => {
   });
 
   it('refuses to grant for a non-web origin', async () => {
-    await expect(grantPermission('file:///etc/passwd', ALICE, 'sign_event', 1, 'always')).rejects.toThrow(
-      /web origin/,
-    );
+    await expect(
+      grantPermission('file:///etc/passwd', ALICE, 'sign_event', 1, 'always'),
+    ).rejects.toThrow(/web origin/);
   });
 
   it('never reports a grant for a non-web origin', async () => {
@@ -420,9 +442,11 @@ describe('origin normalisation', () => {
   it('still separates genuinely different sites', async () => {
     await grantFor('https://example.com');
 
-    expect((await checkPermission('https://evil.example.com', ALICE, 'sign_event', 1)).granted).toBe(
+    expect(
+      (await checkPermission('https://evil.example.com', ALICE, 'sign_event', 1)).granted,
+    ).toBe(false);
+    expect((await checkPermission('http://example.com', ALICE, 'sign_event', 1)).granted).toBe(
       false,
     );
-    expect((await checkPermission('http://example.com', ALICE, 'sign_event', 1)).granted).toBe(false);
   });
 });

@@ -89,9 +89,8 @@ export const countSitesHoldingGrantsFor = async (accountPubkey: string): Promise
   if (!accountPubkey) return 0;
 
   const sites = await listConnectedSites();
-  return sites.filter((site) =>
-    site.grants.some((grant) => grant.accountPubkey === accountPubkey),
-  ).length;
+  return sites.filter((site) => site.grants.some((grant) => grant.accountPubkey === accountPubkey))
+    .length;
 };
 
 /**
@@ -154,12 +153,17 @@ export const listConnectedSitesFor = async (accountPubkey: string): Promise<Conn
  * Removing the binding keeps "disconnect" meaning what it does in `disconnectSite`: the site is
  * asked again, from scratch, the next time it wants a key.
  */
-export const disconnectSiteFor = async (origin: string, accountPubkey: string): Promise<boolean> => {
+export const disconnectSiteFor = async (
+  origin: string,
+  accountPubkey: string,
+): Promise<boolean> => {
   const normalized = normalizeOrigin(origin);
   if (!normalized || !accountPubkey) return false;
 
   const grants = await getGrantedPermissions();
-  const held = grants.filter((grant) => grant.origin === normalized && grant.accountPubkey === accountPubkey);
+  const held = grants.filter(
+    (grant) => grant.origin === normalized && grant.accountPubkey === accountPubkey,
+  );
 
   for (const grant of held) {
     await revokePermission(normalized, grant.accountPubkey, grant.requestType, grant.eventKind);

@@ -24,7 +24,14 @@ vi.mock('@/../src-bex/vault', () => ({
 }));
 
 const vaultData: VaultData = {
-  accounts: [{ id: 'pubkey-hex', alias: 'alpha', account: { privkey: 'secret' }, createdAt: '2026-01-01T00:00:00.000Z' }],
+  accounts: [
+    {
+      id: 'pubkey-hex',
+      alias: 'alpha',
+      account: { privkey: 'secret' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+  ],
 };
 
 describe('vault-handler', () => {
@@ -44,11 +51,19 @@ describe('vault-handler', () => {
 
   it('handleVaultUnlock surfaces the failure error and code', async () => {
     const { handleVaultUnlock } = await import('@/../src-bex/handlers/vault-handler');
-    mockUnlockVault.mockResolvedValue({ success: false, error: 'Invalid password', errorCode: 'VLT_INVALID_PASSWORD' });
+    mockUnlockVault.mockResolvedValue({
+      success: false,
+      error: 'Invalid password',
+      errorCode: 'VLT_INVALID_PASSWORD',
+    });
 
     const result = await handleVaultUnlock({ password: 'wrong' }, '');
 
-    expect(result).toEqual({ success: false, error: 'Invalid password', code: 'VLT_INVALID_PASSWORD' });
+    expect(result).toEqual({
+      success: false,
+      error: 'Invalid password',
+      code: 'VLT_INVALID_PASSWORD',
+    });
   });
 
   it('handleVaultLock always succeeds and calls lock()', async () => {
@@ -75,7 +90,10 @@ describe('vault-handler', () => {
 
     const result = await handleVaultCreate({ password: 'pw' }, '');
 
-    expect(mockCreateNewVault).toHaveBeenCalledWith('pw', { accounts: [], createdAt: expect.any(String) });
+    expect(mockCreateNewVault).toHaveBeenCalledWith('pw', {
+      accounts: [],
+      createdAt: expect.any(String),
+    });
     const [, built] = mockCreateNewVault.mock.calls[0] as [string, Record<string, unknown>];
     expect(Object.keys(built).sort()).toEqual(['accounts', 'createdAt']);
     expect(Number.isNaN(Date.parse(built.createdAt as string))).toBe(false);
@@ -85,7 +103,10 @@ describe('vault-handler', () => {
   it('handleVaultCreate ignores vault contents an older page still sends (#244)', async () => {
     const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
     mockCreateNewVault.mockResolvedValue({ success: true });
-    const fromOldPage = { password: 'pw', vaultData: { ...vaultData, mnemonic: 'Generating...', passphrase: '' } };
+    const fromOldPage = {
+      password: 'pw',
+      vaultData: { ...vaultData, mnemonic: 'Generating...', passphrase: '' },
+    };
 
     await handleVaultCreate(fromOldPage, '');
 
@@ -95,7 +116,11 @@ describe('vault-handler', () => {
 
   it('handleVaultCreate surfaces failure', async () => {
     const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
-    mockCreateNewVault.mockResolvedValue({ success: false, error: 'boom', errorCode: 'GEN_UNKNOWN' });
+    mockCreateNewVault.mockResolvedValue({
+      success: false,
+      error: 'boom',
+      errorCode: 'GEN_UNKNOWN',
+    });
 
     const result = await handleVaultCreate({ password: 'pw' }, '');
 

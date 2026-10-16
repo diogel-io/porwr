@@ -78,7 +78,9 @@ const crumbs = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
 beforeEach(() => {
   vi.clearAllMocks();
   state.alias = 'alpha';
-  state.storedKeys = [{ id: 'a'.repeat(64), alias: 'alpha', createdAt: '2026-01-01T00:00:00.000Z' }];
+  state.storedKeys = [
+    { id: 'a'.repeat(64), alias: 'alpha', createdAt: '2026-01-01T00:00:00.000Z' },
+  ];
   state.renameKeyAlias.mockResolvedValue(undefined);
 });
 

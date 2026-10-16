@@ -116,7 +116,9 @@ describe('the Quick Publish card relays (#285)', () => {
 
   it('ignores a lookup that finishes after a newer one', async () => {
     const slowAlpha = deferred<QuickSignAccountRelays>();
-    listRelaysMock.mockReturnValueOnce(slowAlpha.promise).mockResolvedValueOnce(ready(['wss://beta.example']));
+    listRelaysMock
+      .mockReturnValueOnce(slowAlpha.promise)
+      .mockResolvedValueOnce(ready(['wss://beta.example']));
     const wrapper = await mountCard();
 
     wrapper.findAllComponents(QSelectStub)[0]!.vm.$emit('update:modelValue', 'beta');

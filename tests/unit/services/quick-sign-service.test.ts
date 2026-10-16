@@ -24,13 +24,14 @@ vi.mock('@/services/vault-service', () => ({
   sendBexMessage: vi.fn(),
 }));
 
-const { relayListAnswerMock, poolCloseMock, poolPublishMock, verifyEventMock, signAsAccountMock } = vi.hoisted(() => ({
-  relayListAnswerMock: vi.fn(),
-  poolCloseMock: vi.fn(),
-  poolPublishMock: vi.fn(),
-  verifyEventMock: vi.fn(),
-  signAsAccountMock: vi.fn(),
-}));
+const { relayListAnswerMock, poolCloseMock, poolPublishMock, verifyEventMock, signAsAccountMock } =
+  vi.hoisted(() => ({
+    relayListAnswerMock: vi.fn(),
+    poolCloseMock: vi.fn(),
+    poolPublishMock: vi.fn(),
+    verifyEventMock: vi.fn(),
+    signAsAccountMock: vi.fn(),
+  }));
 
 // QuickSign has the background sign as the chosen account (#240); this stands in for it.
 vi.mock('@/services/account-signing-client', () => ({ signAsAccount: signAsAccountMock }));
@@ -70,9 +71,12 @@ vi.mock('nostr-tools', async () => {
             .then(
               (event) => {
                 if (event) params.onevent?.(event);
-                params.onclose?.(relays.map((url) => ({ url, reason: 'closed automatically on eose' })));
+                params.onclose?.(
+                  relays.map((url) => ({ url, reason: 'closed automatically on eose' })),
+                );
               },
-              () => params.onclose?.(relays.map((url) => ({ url, reason: 'relay connection failed' }))),
+              () =>
+                params.onclose?.(relays.map((url) => ({ url, reason: 'relay connection failed' }))),
             );
           return { close: vi.fn() };
         },
@@ -100,8 +104,18 @@ describe('quick-sign-service', () => {
         sig: 'f'.repeat(128),
       },
     } as unknown as Awaited<ReturnType<typeof sendBexMessage>>);
-    signAsAccountMock.mockImplementation((pubkey: string, template: { kind: number; content: string; tags: string[][]; created_at?: number }) =>
-      Promise.resolve({ ...template, id: 'signed-event-id', pubkey, created_at: template.created_at ?? 1, sig: 'f'.repeat(128) }),
+    signAsAccountMock.mockImplementation(
+      (
+        pubkey: string,
+        template: { kind: number; content: string; tags: string[][]; created_at?: number },
+      ) =>
+        Promise.resolve({
+          ...template,
+          id: 'signed-event-id',
+          pubkey,
+          created_at: template.created_at ?? 1,
+          sig: 'f'.repeat(128),
+        }),
     );
     vi.mocked(getActive).mockResolvedValue('alpha');
     vi.mocked(get).mockResolvedValue({
@@ -225,13 +239,21 @@ describe('quick-sign-service', () => {
     const logSpy = vi.spyOn(logService, 'log');
 
     await quickSignEvent(
-      { kind: 1, content: 'sensitive body', tags: [], created_at: 1735689600, pubkey: 'f'.repeat(64) },
+      {
+        kind: 1,
+        content: 'sensitive body',
+        tags: [],
+        created_at: 1735689600,
+        pubkey: 'f'.repeat(64),
+      },
       true,
       ['wss://relay-a.example'],
       'alpha',
     );
 
-    const publishLog = logSpy.mock.calls.find(([, message]) => message === '[QuickSign] Event publish completed');
+    const publishLog = logSpy.mock.calls.find(
+      ([, message]) => message === '[QuickSign] Event publish completed',
+    );
     expect(publishLog).toBeTruthy();
     const context = publishLog?.[2] as Record<string, unknown>;
     expect(context).toMatchObject({
@@ -262,22 +284,29 @@ describe('quick-sign-service', () => {
   });
 
   it('returns ready state for valid account and one relay context', async () => {
-    await expect(getQuickSignAvailability(true, ['wss://relay.example'])).resolves.toEqual({ state: 'ready' });
+    await expect(getQuickSignAvailability(true, ['wss://relay.example'])).resolves.toEqual({
+      state: 'ready',
+    });
   });
 
   it('returns ready state for valid account and multiple relay context', async () => {
-    await expect(getQuickSignAvailability(true, ['wss://relay-a.example', 'wss://relay-b.example'])).resolves.toEqual({ state: 'ready' });
+    await expect(
+      getQuickSignAvailability(true, ['wss://relay-a.example', 'wss://relay-b.example']),
+    ).resolves.toEqual({ state: 'ready' });
   });
 
   it('validates missing account, malformed JSON and empty relay selection', () => {
-    const result = validateQuickSignInput({
-      accountAlias: ' ',
-      kind: 1,
-      content: 'hello nostr',
-      tags: [],
-    }, {
-      relayUrls: [],
-    });
+    const result = validateQuickSignInput(
+      {
+        accountAlias: ' ',
+        kind: 1,
+        content: 'hello nostr',
+        tags: [],
+      },
+      {
+        relayUrls: [],
+      },
+    );
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain('Signing account is required.');
@@ -344,7 +373,10 @@ describe('quick-sign-service', () => {
   });
 
   it('accepts markdown for kind 30023', () => {
-    const result = validateQuickSignContent(30023, '# Heading\n- item\n[text](https://example.com)');
+    const result = validateQuickSignContent(
+      30023,
+      '# Heading\n- item\n[text](https://example.com)',
+    );
 
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
@@ -408,7 +440,10 @@ describe('quick-sign-service', () => {
       content: 'hello nostr',
       pubkey: 'pubkey-test',
       // The NIP-89 client tag is on by default (#226).
-      tags: [['e', '123'], ['client', 'Diogel Porwr']],
+      tags: [
+        ['e', '123'],
+        ['client', 'Diogel Porwr'],
+      ],
       created_at: Math.floor(new Date('2026-05-20T00:00:00.000Z').getTime() / 1000),
     });
     expect('id' in prepared.event).toBe(false);
@@ -428,16 +463,21 @@ describe('quick-sign-service', () => {
     });
     const clientTags = (tags: string[][]) => tags.filter((tag) => tag[0] === 'client');
 
-    it.each([1, 30023] as const)('adds exactly one client tag to a kind %i note, after the user’s tags', (kind) => {
-      const { event } = buildQuickSignPreviewEvent('pubkey-test', input(kind), { clientTag: true });
+    it.each([1, 30023] as const)(
+      'adds exactly one client tag to a kind %i note, after the user’s tags',
+      (kind) => {
+        const { event } = buildQuickSignPreviewEvent('pubkey-test', input(kind), {
+          clientTag: true,
+        });
 
-      expect(event.tags).toEqual([
-        ['t', 'nostr'],
-        ['p', 'a'.repeat(64)],
-        ['client', 'Diogel Porwr'],
-      ]);
-      expect(clientTags(event.tags)).toEqual([[...QUICK_PUBLISH_CLIENT_TAG]]);
-    });
+        expect(event.tags).toEqual([
+          ['t', 'nostr'],
+          ['p', 'a'.repeat(64)],
+          ['client', 'Diogel Porwr'],
+        ]);
+        expect(clientTags(event.tags)).toEqual([[...QUICK_PUBLISH_CLIENT_TAG]]);
+      },
+    );
 
     it('adds it when no option is given, because it is on by default', () => {
       const { event } = buildQuickSignPreviewEvent('pubkey-test', input(1));
@@ -445,15 +485,20 @@ describe('quick-sign-service', () => {
       expect(clientTags(event.tags)).toHaveLength(1);
     });
 
-    it.each([1, 30023] as const)('adds no client tag to a kind %i note when the setting is off', (kind) => {
-      const { event } = buildQuickSignPreviewEvent('pubkey-test', input(kind), { clientTag: false });
+    it.each([1, 30023] as const)(
+      'adds no client tag to a kind %i note when the setting is off',
+      (kind) => {
+        const { event } = buildQuickSignPreviewEvent('pubkey-test', input(kind), {
+          clientTag: false,
+        });
 
-      expect(clientTags(event.tags)).toEqual([]);
-      expect(event.tags).toEqual([
-        ['t', 'nostr'],
-        ['p', 'a'.repeat(64)],
-      ]);
-    });
+        expect(clientTags(event.tags)).toEqual([]);
+        expect(event.tags).toEqual([
+          ['t', 'nostr'],
+          ['p', 'a'.repeat(64)],
+        ]);
+      },
+    );
 
     it('shows the tag in the preview the user approves', () => {
       const prepared = buildQuickSignPreviewEvent('pubkey-test', input(1));
@@ -483,28 +528,34 @@ describe('quick-sign-service', () => {
   });
 
   it('flags publish mode as invalid when relay selection is empty', () => {
-    const result = validateQuickSignInput({
-      accountAlias: 'alpha',
-      kind: 1,
-      content: 'hello nostr',
-      tags: [],
-    }, {
-      relayUrls: [],
-    });
+    const result = validateQuickSignInput(
+      {
+        accountAlias: 'alpha',
+        kind: 1,
+        content: 'hello nostr',
+        tags: [],
+      },
+      {
+        relayUrls: [],
+      },
+    );
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain('Select at least one relay to publish.');
   });
 
   it('flags publish mode as invalid when relay url is malformed', () => {
-    const result = validateQuickSignInput({
-      accountAlias: 'alpha',
-      kind: 1,
-      content: 'hello nostr',
-      tags: [],
-    }, {
-      relayUrls: ['https://relay.example'],
-    });
+    const result = validateQuickSignInput(
+      {
+        accountAlias: 'alpha',
+        kind: 1,
+        content: 'hello nostr',
+        tags: [],
+      },
+      {
+        relayUrls: ['https://relay.example'],
+      },
+    );
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain('Relay URLs must be valid ws:// or wss:// URLs.');
@@ -519,7 +570,10 @@ describe('quick-sign-service', () => {
       ],
     });
 
-    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'ready', relayUrls: ['wss://write.example'] });
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({
+      state: 'ready',
+      relayUrls: ['wss://write.example'],
+    });
   });
 
   it('deduplicates selected account relay meta list relays', async () => {
@@ -531,7 +585,10 @@ describe('quick-sign-service', () => {
       ],
     });
 
-    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'ready', relayUrls: ['wss://relay.example'] });
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({
+      state: 'ready',
+      relayUrls: ['wss://relay.example'],
+    });
   });
 
   it('filters malformed relay urls from selected account relay meta list', async () => {
@@ -543,13 +600,19 @@ describe('quick-sign-service', () => {
       ],
     });
 
-    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'ready', relayUrls: ['wss://valid.example'] });
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({
+      state: 'ready',
+      relayUrls: ['wss://valid.example'],
+    });
   });
 
   it('returns empty relay list when selected account has no relay meta list event', async () => {
     relayListAnswerMock.mockResolvedValueOnce(null);
 
-    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({ state: 'ready', relayUrls: [] });
+    await expect(listQuickSignAccountRelayUrls('alpha')).resolves.toEqual({
+      state: 'ready',
+      relayUrls: [],
+    });
   });
 
   it('says the relays were unreachable rather than that there is no relay list (#285)', async () => {
@@ -559,7 +622,10 @@ describe('quick-sign-service', () => {
   });
 
   it('returns empty relay list for unknown account alias', async () => {
-    await expect(listQuickSignAccountRelayUrls('unknown')).resolves.toEqual({ state: 'ready', relayUrls: [] });
+    await expect(listQuickSignAccountRelayUrls('unknown')).resolves.toEqual({
+      state: 'ready',
+      relayUrls: [],
+    });
     expect(relayListAnswerMock).not.toHaveBeenCalled();
   });
 
@@ -577,7 +643,13 @@ describe('quick-sign-service', () => {
     });
 
     const result = await quickSignEvent(
-      { kind: 1, content: 'as beta', tags: [['t', 'x']], created_at: 1_700_000_000, pubkey: 'b'.repeat(64) },
+      {
+        kind: 1,
+        content: 'as beta',
+        tags: [['t', 'x']],
+        created_at: 1_700_000_000,
+        pubkey: 'b'.repeat(64),
+      },
       false,
       [],
       'beta',

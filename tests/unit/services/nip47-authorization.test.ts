@@ -60,7 +60,13 @@ describe('parseAuthorizationMessage', () => {
       ORIGIN,
       success({
         relayUrl: 'wss://ignored.example.com',
-        relayUrls: ['wss://a.example.com', 'wss://a.example.com', 'ws://insecure.example.com', 7, 'nope'],
+        relayUrls: [
+          'wss://a.example.com',
+          'wss://a.example.com',
+          'ws://insecure.example.com',
+          7,
+          'nope',
+        ],
       }),
       ORIGIN,
     );
@@ -70,10 +76,12 @@ describe('parseAuthorizationMessage', () => {
   });
 
   it('drops an unusable lightning address rather than rejecting the connection', () => {
-    expect(parseAuthorizationMessage(ORIGIN, success({ lud16: 'not an address' }), ORIGIN)).not.toHaveProperty(
+    expect(
+      parseAuthorizationMessage(ORIGIN, success({ lud16: 'not an address' }), ORIGIN),
+    ).not.toHaveProperty('lud16');
+    expect(parseAuthorizationMessage(ORIGIN, success({ lud16: 42 }), ORIGIN)).not.toHaveProperty(
       'lud16',
     );
-    expect(parseAuthorizationMessage(ORIGIN, success({ lud16: 42 }), ORIGIN)).not.toHaveProperty('lud16');
   });
 
   it('ignores a message from any other origin', () => {
@@ -96,7 +104,10 @@ describe('parseAuthorizationMessage', () => {
 describe('validateAuthorizedWalletService', () => {
   it('accepts details the page parsed', () => {
     expect(
-      validateAuthorizedWalletService({ walletServicePubkey: WALLET, relays: ['wss://relay.coinos.io'] }),
+      validateAuthorizedWalletService({
+        walletServicePubkey: WALLET,
+        relays: ['wss://relay.coinos.io'],
+      }),
     ).toMatchObject({ walletServicePubkey: 'b'.repeat(64) });
   });
 

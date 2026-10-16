@@ -20,7 +20,11 @@ const aliasInputRef = ref<QInput | null>(null);
 const importNsec = ref('');
 const importedReady = ref(false);
 /** What the preview shows: the public key only. */
-const storedKey = ref<{ id: string; alias: string; createdAt: string }>({ id: '', alias: '', createdAt: '' });
+const storedKey = ref<{ id: string; alias: string; createdAt: string }>({
+  id: '',
+  alias: '',
+  createdAt: '',
+});
 /**
  * The key the user pasted, held only until it is handed to the background on save (#240) and cleared
  * then, or when the page is left.
@@ -84,7 +88,10 @@ async function saveKey() {
   if (!validate()) return;
 
   try {
-    const account = await accountStore.saveKey({ alias: trimmedAlias.value, privkey: importedPrivkey });
+    const account = await accountStore.saveKey({
+      alias: trimmedAlias.value,
+      privkey: importedPrivkey,
+    });
     importedPrivkey = '';
     importNsec.value = '';
     await router.push({ name: 'view-key', params: { alias: account.alias } });
@@ -110,7 +117,9 @@ onBeforeUnmount(() => {
       <q-input
         v-model="importNsec"
         :label="t('createAccount.importNsecLabel')"
-        :rules="[(v) => (!!String(v ?? '').trim() && isValidNsec) || String(t('validation.invalidNsec'))]"
+        :rules="[
+          (v) => (!!String(v ?? '').trim() && isValidNsec) || String(t('validation.invalidNsec')),
+        ]"
         clearable
         lazy-rules
       />

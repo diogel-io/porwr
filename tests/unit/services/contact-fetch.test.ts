@@ -27,7 +27,9 @@ const profileEvent = (pubkey: string, name: string, createdAt: number): NostrEve
 /** Answers each profile query with a profile for every author asked for. */
 const echoingPool = () => {
   const querySync = vi.fn((_relays: string[], filter: Filter) =>
-    Promise.resolve((filter.authors ?? []).map((pubkey) => profileEvent(pubkey, `name-${pubkey.slice(-4)}`, 1))),
+    Promise.resolve(
+      (filter.authors ?? []).map((pubkey) => profileEvent(pubkey, `name-${pubkey.slice(-4)}`, 1)),
+    ),
   );
   return { pool: { get: vi.fn(), querySync } as unknown as RelayReader, querySync };
 };
@@ -35,7 +37,9 @@ const echoingPool = () => {
 describe('fetchProfilesInBatches', () => {
   it('asks for profiles in batches and reports each one as it lands', async () => {
     const { pool, querySync } = echoingPool();
-    const pubkeys = Array.from({ length: PROFILE_BATCH_SIZE * 2 + 3 }, (_, index) => pubkeyAt(index + 1));
+    const pubkeys = Array.from({ length: PROFILE_BATCH_SIZE * 2 + 3 }, (_, index) =>
+      pubkeyAt(index + 1),
+    );
     const onBatch = vi.fn();
 
     const profiles = await fetchProfilesInBatches(pool, RELAYS, pubkeys, onBatch);
@@ -51,7 +55,9 @@ describe('fetchProfilesInBatches', () => {
   it('keeps going when one batch fails', async () => {
     const { pool, querySync } = echoingPool();
     querySync.mockRejectedValueOnce(new Error('relay timeout'));
-    const pubkeys = Array.from({ length: PROFILE_BATCH_SIZE + 1 }, (_, index) => pubkeyAt(index + 1));
+    const pubkeys = Array.from({ length: PROFILE_BATCH_SIZE + 1 }, (_, index) =>
+      pubkeyAt(index + 1),
+    );
 
     const profiles = await fetchProfilesInBatches(pool, RELAYS, pubkeys);
 
@@ -70,7 +76,9 @@ describe('fetchProfilesInBatches', () => {
       return (filter.authors ?? []).map((pubkey) => profileEvent(pubkey, 'x', 1));
     });
     const pool = { get: vi.fn(), querySync } as unknown as RelayReader;
-    const pubkeys = Array.from({ length: PROFILE_BATCH_SIZE * 10 }, (_, index) => pubkeyAt(index + 1));
+    const pubkeys = Array.from({ length: PROFILE_BATCH_SIZE * 10 }, (_, index) =>
+      pubkeyAt(index + 1),
+    );
 
     await fetchProfilesInBatches(pool, RELAYS, pubkeys);
 
@@ -79,7 +87,9 @@ describe('fetchProfilesInBatches', () => {
   });
 
   it('keeps the newest profile when relays return several', async () => {
-    const querySync = vi.fn(() => Promise.resolve([profileEvent(BOB, 'old', 1), profileEvent(BOB, 'new', 2)]));
+    const querySync = vi.fn(() =>
+      Promise.resolve([profileEvent(BOB, 'old', 1), profileEvent(BOB, 'new', 2)]),
+    );
     const pool = { get: vi.fn(), querySync } as unknown as RelayReader;
 
     const profiles = await fetchProfilesInBatches(pool, RELAYS, [BOB]);
@@ -98,7 +108,15 @@ describe('fetchProfilesInBatches', () => {
 describe('fetchContactListSnapshot', () => {
   it('parses the account’s kind 3', async () => {
     const get = vi.fn(() =>
-      Promise.resolve({ id: 'e1', pubkey: ALICE, kind: 3, created_at: 100, tags: [['p', BOB, '', 'Bob']], content: '', sig: '' }),
+      Promise.resolve({
+        id: 'e1',
+        pubkey: ALICE,
+        kind: 3,
+        created_at: 100,
+        tags: [['p', BOB, '', 'Bob']],
+        content: '',
+        sig: '',
+      }),
     );
     const pool = { get, querySync: vi.fn() } as unknown as RelayReader;
 
@@ -111,7 +129,10 @@ describe('fetchContactListSnapshot', () => {
   });
 
   it('reports no list when relays have none', async () => {
-    const pool = { get: vi.fn(() => Promise.resolve(null)), querySync: vi.fn() } as unknown as RelayReader;
+    const pool = {
+      get: vi.fn(() => Promise.resolve(null)),
+      querySync: vi.fn(),
+    } as unknown as RelayReader;
 
     await expect(fetchContactListSnapshot(pool, RELAYS, ALICE)).resolves.toEqual({ contacts: [] });
   });

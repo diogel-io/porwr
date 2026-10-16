@@ -48,7 +48,10 @@ async function seedAccounts(page: Page, fallbackRelay: string): Promise<void> {
   // Point the background at the local relay before adding accounts: adding one starts reads from
   // the fallback relays, and reads from the real seed relays would make Chrome hold back this
   // extension's later WebSocket connections, the local relay's included, for seconds.
-  await page.evaluate((relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }), fallbackRelay);
+  await page.evaluate(
+    (relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }),
+    fallbackRelay,
+  );
   await seedVaultAccounts(page, [ALICE, BOB]);
 }
 
@@ -59,14 +62,19 @@ async function useAccount(page: Page, alias: string): Promise<void> {
 /** Publishes the active account's DM relay list through the same background action the Relays page uses. */
 async function publishDmRelays(page: Page, relays: string[]): Promise<void> {
   const result = (await page.evaluate(
-    (list) => chrome.runtime.sendMessage({ type: 'messaging.dmRelays.publish', payload: { relays: list } }),
+    (list) =>
+      chrome.runtime.sendMessage({ type: 'messaging.dmRelays.publish', payload: { relays: list } }),
     relays,
   )) as { accepted?: string[] };
   expect(result.accepted).toEqual(expect.arrayContaining(relays));
 }
 
 /** Publishes a kind 3 for `privkey` straight to the relay, standing in for the Contacts page. */
-async function publishContacts(relay: string, privkey: string, contacts: { pubkey: string; petname: string }[]) {
+async function publishContacts(
+  relay: string,
+  privkey: string,
+  contacts: { pubkey: string; petname: string }[],
+) {
   const pool = new SimplePool();
   try {
     const event = finalizeEvent(
@@ -88,7 +96,8 @@ async function publishContacts(relay: string, privkey: string, contacts: { pubke
 async function publishAs(relay: string, privkey: string, event: Event): Promise<void> {
   const pool = new SimplePool();
   try {
-    const onauth = (template: EventTemplate) => Promise.resolve(finalizeEvent(template, hexToBytes(privkey)));
+    const onauth = (template: EventTemplate) =>
+      Promise.resolve(finalizeEvent(template, hexToBytes(privkey)));
     await Promise.all(pool.publish([relay], event, { onauth }));
   } finally {
     pool.close([relay]);
@@ -116,7 +125,10 @@ async function send(page: Page, text: string): Promise<void> {
 }
 
 test.describe('messaging', () => {
-  test('two accounts exchange private messages through an AUTH-required inbox', async ({ openPage, relays }) => {
+  test('two accounts exchange private messages through an AUTH-required inbox', async ({
+    openPage,
+    relays,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccounts(page, relays.plain);
@@ -159,13 +171,19 @@ test.describe('messaging', () => {
     // Replying made Alice a chat, and read state is kept: reopening as Bob shows her under Chats,
     // with nothing unread.
     await openMessaging(page);
-    await expect(page.getByTestId('conversation-list-chats').locator(`[data-peer="${ALICE.pubkey}"]`)).toBeVisible();
-    await expect(conversation(page, ALICE.pubkey).locator('.conversation-list__unread')).toHaveCount(0);
+    await expect(
+      page.getByTestId('conversation-list-chats').locator(`[data-peer="${ALICE.pubkey}"]`),
+    ).toBeVisible();
+    await expect(
+      conversation(page, ALICE.pubkey).locator('.conversation-list__unread'),
+    ).toHaveCount(0);
 
     // Alice sees the reply, in order, after her own message.
     await useAccount(page, ALICE.alias);
     await openMessaging(page);
-    await expect(conversation(page, BOB.pubkey).locator('.conversation-list__unread')).toHaveText('1');
+    await expect(conversation(page, BOB.pubkey).locator('.conversation-list__unread')).toHaveText(
+      '1',
+    );
     await conversation(page, BOB.pubkey).click();
     await expect(page.locator('[data-from]')).toHaveText([/hello bob/, /hi alice/]);
 
@@ -194,7 +212,10 @@ test.describe('messaging', () => {
     await expect(page.getByText('hi alice')).toHaveCount(0);
   });
 
-  test('a message shows as sent only once a relay keeps it (#276)', async ({ openPage, relays }) => {
+  test('a message shows as sent only once a relay keeps it (#276)', async ({
+    openPage,
+    relays,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccounts(page, relays.plain);
@@ -233,7 +254,10 @@ test.describe('messaging', () => {
     await expect(page.locator('[data-from="peer"]')).toHaveText([/kept this time/]);
   });
 
-  test('contacts are cached in the background and updates arrive without a reload (#257)', async ({ openPage, relays }) => {
+  test('contacts are cached in the background and updates arrive without a reload (#257)', async ({
+    openPage,
+    relays,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccounts(page, relays.plain);
@@ -252,7 +276,10 @@ test.describe('messaging', () => {
           const open = indexedDB.open('DiogelDatabase');
           open.onerror = () => reject(open.error);
           open.onsuccess = () => {
-            const read = open.result.transaction('contactLists').objectStore('contactLists').get(account);
+            const read = open.result
+              .transaction('contactLists')
+              .objectStore('contactLists')
+              .get(account);
             read.onsuccess = () => resolve((read.result?.contacts ?? []).length);
             read.onerror = () => reject(read.error);
           };
@@ -269,11 +296,16 @@ test.describe('messaging', () => {
       { pubkey: CAROL_PUBKEY, petname: 'Carol' },
     ]);
     await page.getByLabel('Search contacts').fill('carol');
-    await page.evaluate(() => chrome.runtime.sendMessage({ type: 'contacts.refresh', payload: { force: true } }));
+    await page.evaluate(() =>
+      chrome.runtime.sendMessage({ type: 'contacts.refresh', payload: { force: true } }),
+    );
     await expect(page.getByTestId('conversation-search-results')).toContainText('Carol');
   });
 
-  test('an account without DM relays is told how to start receiving', async ({ openPage, relays }) => {
+  test('an account without DM relays is told how to start receiving', async ({
+    openPage,
+    relays,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccounts(page, relays.plain);
@@ -287,7 +319,10 @@ test.describe('messaging', () => {
     await expect(page).toHaveURL(/#\/relays$/);
   });
 
-  test('interoperates with another NIP-17 client in both directions', async ({ openPage, relays }) => {
+  test('interoperates with another NIP-17 client in both directions', async ({
+    openPage,
+    relays,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccounts(page, relays.plain);
@@ -295,7 +330,16 @@ test.describe('messaging', () => {
     await useAccount(page, ALICE.alias);
     await publishDmRelays(page, [relays.inbox]);
     // Dave's DM relay list, published by nak.
-    nak(['event', '--sec', DAVE.privkey, '-k', '10050', '-t', `relay=${relays.inbox}`, relays.plain]);
+    nak([
+      'event',
+      '--sec',
+      DAVE.privkey,
+      '-k',
+      '10050',
+      '-t',
+      `relay=${relays.inbox}`,
+      relays.plain,
+    ]);
 
     // Porwr -> nak: what Alice sends, Dave's client can open.
     await openMessaging(page);
@@ -303,38 +347,87 @@ test.describe('messaging', () => {
     await send(page, 'hello from porwr');
     await expect(page.locator('[data-from="me"]')).toContainText('hello from porwr');
 
-    const wraps = nak(['req', '-k', '1059', '-p', DAVE.pubkey, '-l', '10', '--sec', DAVE.privkey, '--auth', relays.inbox]);
+    const wraps = nak([
+      'req',
+      '-k',
+      '1059',
+      '-p',
+      DAVE.pubkey,
+      '-l',
+      '10',
+      '--sec',
+      DAVE.privkey,
+      '--auth',
+      relays.inbox,
+    ]);
     const rumors = wraps
       .split('\n')
       .filter(Boolean)
       .map((wrap) => JSON.parse(nak(['gift', 'unwrap', '--sec', DAVE.privkey], wrap)) as Event);
     expect(rumors).toEqual([
-      expect.objectContaining({ kind: 14, pubkey: ALICE.pubkey, content: 'hello from porwr', tags: [['p', DAVE.pubkey]] }),
+      expect.objectContaining({
+        kind: 14,
+        pubkey: ALICE.pubkey,
+        content: 'hello from porwr',
+        tags: [['p', DAVE.pubkey]],
+      }),
     ]);
 
     // nak -> Porwr: a message Dave's client wraps appears in Alice's conversation, unread.
-    const rumor = nak(['event', '--sec', DAVE.privkey, '-k', '14', '-c', 'hello from nak', '-t', `p=${ALICE.pubkey}`]);
+    const rumor = nak([
+      'event',
+      '--sec',
+      DAVE.privkey,
+      '-k',
+      '14',
+      '-c',
+      'hello from nak',
+      '-t',
+      `p=${ALICE.pubkey}`,
+    ]);
     const wrap = JSON.parse(
-      nak(['gift', 'wrap', '--sec', DAVE.privkey, '-p', ALICE.pubkey, '--use-our-identity-key', '--use-their-identity-key'], rumor),
+      nak(
+        [
+          'gift',
+          'wrap',
+          '--sec',
+          DAVE.privkey,
+          '-p',
+          ALICE.pubkey,
+          '--use-our-identity-key',
+          '--use-their-identity-key',
+        ],
+        rumor,
+      ),
     ) as Event;
     expect(wrap.kind).toBe(1059);
     expect(wrap.pubkey).not.toBe(DAVE.pubkey);
     await publishAs(relays.inbox, DAVE.privkey, wrap);
 
     await openMessaging(page);
-    await expect(conversation(page, DAVE.pubkey).locator('.conversation-list__unread')).toHaveText('1');
+    await expect(conversation(page, DAVE.pubkey).locator('.conversation-list__unread')).toHaveText(
+      '1',
+    );
     await conversation(page, DAVE.pubkey).click();
     await expect(page.locator('[data-from="peer"]')).toContainText('hello from nak');
   });
 
-  test('the extension menu opens Messaging on its own page', async ({ openPage, relays, context }) => {
+  test('the extension menu opens Messaging on its own page', async ({
+    openPage,
+    relays,
+    context,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccounts(page, relays.plain);
     await useAccount(page, ALICE.alias);
     await page.goto(page.url().replace(/#.*$/, '#/'));
 
-    await page.locator('.extension-window-header button, header button').filter({ has: page.locator('i', { hasText: 'menu' }) }).first().click();
+    await page
+      .locator('.extension-window-header button, header button')
+      .filter({ has: page.locator('i', { hasText: 'menu' }) })
+      .first()
+      .click();
     const [opened] = await Promise.all([
       context.waitForEvent('page'),
       page.locator('.q-menu .q-item').filter({ hasText: 'Messaging' }).first().click(),

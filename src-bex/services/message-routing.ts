@@ -70,7 +70,10 @@ export const decideRouting = (message: RawMessage, sender: SenderClass): Routing
     if (!origin) {
       return { dispatch: false, error: 'Missing origin for origin-scoped action' };
     }
-    return { dispatch: false, error: 'Origin-scoped actions are not accepted from extension pages' };
+    return {
+      dispatch: false,
+      error: 'Origin-scoped actions are not accepted from extension pages',
+    };
   }
 
   return { dispatch: true, type, payload, origin };

@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 
-import type {
-  ApprovalRequestContent,
-  ApprovalRequestRecord,
-} from '@/../src-bex/types/background';
+import type { ApprovalRequestContent, ApprovalRequestRecord } from '@/../src-bex/types/background';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({

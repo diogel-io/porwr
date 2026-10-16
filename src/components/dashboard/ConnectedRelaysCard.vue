@@ -44,14 +44,15 @@ function onClick() {
     <q-card-section class="dashboard-card-section dashboard-widget-card__section">
       <div class="dashboard-widget-card__header">
         <q-icon name="hub" size="lg" color="primary" />
-        <span class="dashboard-widget-card__title">{{ t('dashboard.widgets.connectedRelays.title') }}</span>
+        <span class="dashboard-widget-card__title">{{
+          t('dashboard.widgets.connectedRelays.title')
+        }}</span>
       </div>
 
       <div class="dashboard-widget-card__metric">
         <q-spinner v-if="loading" color="primary" size="24px" />
         <span v-else>{{ metricText }}</span>
       </div>
-
     </q-card-section>
   </q-card>
 </template>
@@ -86,5 +87,4 @@ function onClick() {
   font-size: 1.9rem;
   font-weight: 700;
 }
-
 </style>

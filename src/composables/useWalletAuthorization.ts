@@ -28,7 +28,11 @@ export interface UseWalletAuthorizationResult {
   /** The provider being connected, or `null` when no connection is in progress. */
   connecting: Ref<WalletProviderId | null>;
   /** Connects a wallet for `accountPubkey`, the account the connection will belong to (#304). */
-  connect: (provider: WalletProviderId, accountPubkey: string, customOrigin?: string) => Promise<WalletAuthorizationResult>;
+  connect: (
+    provider: WalletProviderId,
+    accountPubkey: string,
+    customOrigin?: string,
+  ) => Promise<WalletAuthorizationResult>;
 }
 
 const POPUP_FEATURES = 'popup,width=420,height=680';
@@ -83,7 +87,9 @@ function waitForPopup(
  * the wallet can navigate whichever window opens its popup. The popup is opened before anything is
  * awaited, so a click there still counts as the user gesture browsers require when one is needed.
  */
-export function useWalletAuthorization(options: WalletAuthorizationOptions = {}): UseWalletAuthorizationResult {
+export function useWalletAuthorization(
+  options: WalletAuthorizationOptions = {},
+): UseWalletAuthorizationResult {
   const connecting = ref<WalletProviderId | null>(null);
   const pollIntervalMs = options.pollIntervalMs ?? 500;
   const timeoutMs = options.timeoutMs ?? 10 * 60 * 1000;
@@ -119,7 +125,10 @@ export function useWalletAuthorization(options: WalletAuthorizationOptions = {})
       }
 
       if (outcome.kind === 'message') {
-        const connection = await completeNip47Authorization({ pendingId: start.pendingId, ...outcome.service });
+        const connection = await completeNip47Authorization({
+          pendingId: start.pendingId,
+          ...outcome.service,
+        });
         return { status: 'connected', connection };
       }
 

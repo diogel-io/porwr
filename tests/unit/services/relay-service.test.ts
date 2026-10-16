@@ -14,7 +14,9 @@ describe('relay-service', () => {
 
   describe('listRelayCatalog', () => {
     it('returns the catalog entries from the background', async () => {
-      const entries = [{ url: 'wss://relay.damus.io', hostname: 'relay.damus.io' }] as RelayCatalogEntry[];
+      const entries = [
+        { url: 'wss://relay.damus.io', hostname: 'relay.damus.io' },
+      ] as RelayCatalogEntry[];
       mockSendBexMessage.mockResolvedValue(entries);
 
       const { listRelayCatalog } = await import('@/services/relay-service');
@@ -66,7 +68,12 @@ describe('relay-service', () => {
 
   describe('getRelayDiscoveryStatus', () => {
     it('returns the discovery status from the background', async () => {
-      const status = { id: 'global', lastGlobalDiscoveryAt: 1, isDiscoveryInProgress: false, updatedAt: 1 } as RelayDiscoveryState;
+      const status = {
+        id: 'global',
+        lastGlobalDiscoveryAt: 1,
+        isDiscoveryInProgress: false,
+        updatedAt: 1,
+      } as RelayDiscoveryState;
       mockSendBexMessage.mockResolvedValue(status);
 
       const { getRelayDiscoveryStatus } = await import('@/services/relay-service');

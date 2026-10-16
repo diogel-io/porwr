@@ -43,9 +43,7 @@ export async function lockVault() {
 }
 
 /** Creates the vault. Only the password is sent; the background builds the empty vault (#244). */
-export async function createVault(
-  password: string,
-): Promise<{
+export async function createVault(password: string): Promise<{
   success: boolean;
   error?: string;
   code?: string;
@@ -95,8 +93,16 @@ export async function isVaultUnlocked(): Promise<boolean> {
  */
 export async function getVaultView(): Promise<VaultView> {
   const response = await sendBexMessage('vault.getView');
-  if (!response || typeof response !== 'object' || !('accounts' in response) || !Array.isArray(response.accounts)) {
-    const error = response && typeof response === 'object' && 'error' in response ? String(response.error) : 'No response from background';
+  if (
+    !response ||
+    typeof response !== 'object' ||
+    !('accounts' in response) ||
+    !Array.isArray(response.accounts)
+  ) {
+    const error =
+      response && typeof response === 'object' && 'error' in response
+        ? String(response.error)
+        : 'No response from background';
     throw new Error(error);
   }
   return response;

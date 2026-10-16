@@ -36,9 +36,12 @@ const tab = ref<Tab>('chats');
 const query = ref<string | null>('');
 
 const chats = computed(() => props.conversations.filter((conversation) => !conversation.isRequest));
-const requests = computed(() => props.conversations.filter((conversation) => conversation.isRequest));
+const requests = computed(() =>
+  props.conversations.filter((conversation) => conversation.isRequest),
+);
 
-const unreadIn = (list: ConversationSummary[]) => list.reduce((total, conversation) => total + conversation.unread, 0);
+const unreadIn = (list: ConversationSummary[]) =>
+  list.reduce((total, conversation) => total + conversation.unread, 0);
 const chatsUnread = computed(() => unreadIn(chats.value));
 const requestsUnread = computed(() => unreadIn(requests.value));
 
@@ -53,7 +56,9 @@ const visibleChats = computed(() => {
   const matched = new Set(matches.value);
   const needle = searchText.value.toLowerCase();
   return chats.value.filter(
-    (conversation) => matched.has(conversation.peer) || props.nameOf(conversation.peer).toLowerCase().includes(needle),
+    (conversation) =>
+      matched.has(conversation.peer) ||
+      props.nameOf(conversation.peer).toLowerCase().includes(needle),
   );
 });
 
@@ -68,7 +73,9 @@ const showLoading = computed(() => Boolean(props.loading) && props.conversations
 function preview(conversation: ConversationSummary): string {
   const message = conversation.lastMessage;
   if (!message) return t('messaging.list.noMessages');
-  return message.pubkey === conversation.peer ? message.content : t('messaging.list.fromMe', { content: message.content });
+  return message.pubkey === conversation.peer
+    ? message.content
+    : t('messaging.list.fromMe', { content: message.content });
 }
 
 function start(peer: string) {
@@ -78,7 +85,9 @@ function start(peer: string) {
 
 // Replying to a request makes it a chat; follow it there rather than leave the row vanishing from view.
 watch(
-  () => Boolean(props.selectedPeer) && chats.value.some((conversation) => conversation.peer === props.selectedPeer),
+  () =>
+    Boolean(props.selectedPeer) &&
+    chats.value.some((conversation) => conversation.peer === props.selectedPeer),
   (selectedIsChat) => {
     if (selectedIsChat && tab.value === 'requests') tab.value = 'chats';
   },
@@ -138,7 +147,12 @@ watch(
         <template #prepend><q-icon name="search" /></template>
       </q-input>
 
-      <div v-if="showLoading" class="text-center q-pa-md text-grey" role="status" data-testid="conversation-list-loading">
+      <div
+        v-if="showLoading"
+        class="text-center q-pa-md text-grey"
+        role="status"
+        data-testid="conversation-list-loading"
+      >
         <q-spinner color="primary" size="2em" />
         <div class="q-mt-sm">{{ t('messaging.list.loading') }}</div>
       </div>
@@ -162,7 +176,9 @@ watch(
               <q-avatar v-else color="primary" text-color="white" icon="person" />
             </q-item-section>
             <q-item-section>
-              <q-item-label class="conversation-list__name" lines="1">{{ nameOf(conversation.peer) }}</q-item-label>
+              <q-item-label class="conversation-list__name" lines="1">{{
+                nameOf(conversation.peer)
+              }}</q-item-label>
               <q-item-label caption lines="1">{{ preview(conversation) }}</q-item-label>
             </q-item-section>
             <q-item-section v-if="conversation.unread > 0 || conversation.removable" side>
@@ -206,10 +222,14 @@ watch(
               <q-avatar v-else color="primary" text-color="white" icon="person" />
             </q-item-section>
             <q-item-section>
-              <q-item-label class="conversation-list__name" lines="1">{{ nameOf(peer) }}</q-item-label>
+              <q-item-label class="conversation-list__name" lines="1">{{
+                nameOf(peer)
+              }}</q-item-label>
               <q-item-label caption lines="1">{{ detailOf(peer) }}</q-item-label>
             </q-item-section>
-            <q-item-section side class="text-primary text-weight-medium">{{ t('messaging.list.startAction') }}</q-item-section>
+            <q-item-section side class="text-primary text-weight-medium">{{
+              t('messaging.list.startAction')
+            }}</q-item-section>
           </q-item>
         </q-list>
 
@@ -221,7 +241,11 @@ watch(
           {{ t('messaging.list.noMatches', { query: searchText }) }}
         </div>
 
-        <div v-if="!searching && chats.length === 0" class="text-center q-pa-md text-grey" data-testid="conversation-list-empty">
+        <div
+          v-if="!searching && chats.length === 0"
+          class="text-center q-pa-md text-grey"
+          data-testid="conversation-list-empty"
+        >
           <div class="text-subtitle2">{{ t('messaging.list.noChats') }}</div>
           <div>{{ t('messaging.list.noChatsHint') }}</div>
         </div>
@@ -246,7 +270,9 @@ watch(
             <q-avatar v-else color="primary" text-color="white" icon="person" />
           </q-item-section>
           <q-item-section>
-            <q-item-label class="conversation-list__name" lines="1">{{ nameOf(conversation.peer) }}</q-item-label>
+            <q-item-label class="conversation-list__name" lines="1">{{
+              nameOf(conversation.peer)
+            }}</q-item-label>
             <q-item-label caption lines="1">{{ preview(conversation) }}</q-item-label>
           </q-item-section>
           <q-item-section v-if="conversation.unread > 0" side>
@@ -263,7 +289,9 @@ watch(
       <div v-else class="text-center q-pa-md text-grey" data-testid="conversation-requests-empty">
         {{ t('messaging.list.noRequests') }}
       </div>
-      <div class="text-caption text-grey q-px-md q-pb-md">{{ t('messaging.list.requestsNote') }}</div>
+      <div class="text-caption text-grey q-px-md q-pb-md">
+        {{ t('messaging.list.requestsNote') }}
+      </div>
     </template>
   </nav>
 </template>

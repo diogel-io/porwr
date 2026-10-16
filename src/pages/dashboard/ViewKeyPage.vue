@@ -157,7 +157,6 @@ async function saveAlias() {
       <q-card-section class="row justify-end q-pa-lg q-pt-none">
         <ExportButton :stored-key="storedKey" />
       </q-card-section>
-
     </q-card>
 
     <q-card v-else class="dashboard-card">

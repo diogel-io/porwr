@@ -55,10 +55,10 @@ publish.
 Porwr is pre-`1.0.0`, so Release Please is configured (`release-please-config.json`) with
 `bump-minor-pre-major: true` and `bump-patch-for-minor-pre-major: false`:
 
-| Commit type | Effect while `major` is `0` |
-| --- | --- |
-| `fix:` | Patch bump (`0.0.x` → `0.0.x+1`) |
-| `feat:` | Minor bump (`0.x.y` → `0.(x+1).0`) — this is the intended route from `0.0.32` to `0.1.0` the first time a `feat` commit lands |
+| Commit type                          | Effect while `major` is `0`                                                                                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fix:`                               | Patch bump (`0.0.x` → `0.0.x+1`)                                                                                                                              |
+| `feat:`                              | Minor bump (`0.x.y` → `0.(x+1).0`) — this is the intended route from `0.0.32` to `0.1.0` the first time a `feat` commit lands                                 |
 | `feat!:` / `BREAKING CHANGE:` footer | Minor bump while pre-1.0 (same as `feat`); Release Please never bumps `major` automatically — moving to `1.0.0` is a deliberate, manual `release-as` override |
 
 Release Please was bootstrapped from `0.0.32` (`.release-please-manifest.json`), matching the
@@ -73,11 +73,11 @@ re-resolution, so no dependency actually changes.
 All secrets below already exist on `threenine/diogel` (Settings → Secrets and variables →
 Actions). The release workflow does not introduce any new secret names.
 
-| Secret | Used by |
-| --- | --- |
+| Secret                                                                                            | Used by                                                                                             |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `CWS_EXTENSION_ID`, `CWS_PUBLISHER_ID`, `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN` | `publish-chrome` job — see [Chrome Web Store credentials](#deploying-to-the-chrome-web-store) below |
-| `AMO_ADDON_ID`, `AMO_API_ISSUER`, `AMO_API_SECRET` | `publish-firefox` job — see [Firefox Add-ons credentials](#deploying-to-firefox-add-ons-amo) below |
-| `GITHUB_TOKEN` (built-in) | Release Please, tag/release creation, attaching archives to the release |
+| `AMO_ADDON_ID`, `AMO_API_ISSUER`, `AMO_API_SECRET`                                                | `publish-firefox` job — see [Firefox Add-ons credentials](#deploying-to-firefox-add-ons-amo) below  |
+| `GITHUB_TOKEN` (built-in)                                                                         | Release Please, tag/release creation, attaching archives to the release                             |
 
 ## Reviewing a release PR
 
@@ -160,24 +160,26 @@ Navigate to your repository on GitHub:
 
 Add the following five secrets:
 
-| Secret Name | Description |
-| :--- | :--- |
-| `CWS_EXTENSION_ID` | The 32-character ID of your extension in the Chrome Web Store. |
-| `CWS_PUBLISHER_ID` | Your publisher ID, from the Developer Dashboard's **Publisher > Settings**. The API v2 addresses items as `publishers/<publisher ID>/items/<extension ID>`. |
-| `CWS_CLIENT_ID` | OAuth2 Client ID from the Google Cloud Console. |
-| `CWS_CLIENT_SECRET` | OAuth2 Client Secret from the Google Cloud Console. |
-| `CWS_REFRESH_TOKEN` | OAuth2 Refresh Token used to generate access tokens for the API. |
+| Secret Name         | Description                                                                                                                                                 |
+| :------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CWS_EXTENSION_ID`  | The 32-character ID of your extension in the Chrome Web Store.                                                                                              |
+| `CWS_PUBLISHER_ID`  | Your publisher ID, from the Developer Dashboard's **Publisher > Settings**. The API v2 addresses items as `publishers/<publisher ID>/items/<extension ID>`. |
+| `CWS_CLIENT_ID`     | OAuth2 Client ID from the Google Cloud Console.                                                                                                             |
+| `CWS_CLIENT_SECRET` | OAuth2 Client Secret from the Google Cloud Console.                                                                                                         |
+| `CWS_REFRESH_TOKEN` | OAuth2 Refresh Token used to generate access tokens for the API.                                                                                            |
 
 ---
 
 #### 2. How to Obtain the Credentials
 
 ##### A. Get the Extension ID (`CWS_EXTENSION_ID`)
+
 1. Log in to the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole).
 2. If you haven't already, create a new item and upload a draft version of the extension.
 3. Once the item is created, the **Item ID** (32 characters) will be visible in the dashboard or the URL.
 
 ##### B. Create Google Cloud Project & API Credentials (`CLIENT_ID` & `CLIENT_SECRET`)
+
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
 2. Create a new project (e.g., "Diogel Extension").
 3. Search for and enable the **Chrome Web Store API**.
@@ -193,6 +195,7 @@ Add the following five secrets:
    - Copy the generated `Client ID` and `Client Secret`.
 
 ##### C. Generate the Refresh Token (`CWS_REFRESH_TOKEN`)
+
 The most reliable way is using the **Google OAuth2 Playground**:
 
 1. Go to the [Google OAuth2 Playground](https://developers.google.com/oauthplayground/).
@@ -285,23 +288,25 @@ Navigate to your repository on GitHub:
 
 Add the following three secrets:
 
-| Secret Name | Description |
-| :--- | :--- |
-| `AMO_ADDON_ID` | The unique ID of your add-on (usually a UUID or an email-like ID). |
-| `AMO_API_ISSUER` | Your JWT issuer key from the AMO credentials page. |
-| `AMO_API_SECRET` | Your JWT secret key from the AMO credentials page. |
+| Secret Name      | Description                                                        |
+| :--------------- | :----------------------------------------------------------------- |
+| `AMO_ADDON_ID`   | The unique ID of your add-on (usually a UUID or an email-like ID). |
+| `AMO_API_ISSUER` | Your JWT issuer key from the AMO credentials page.                 |
+| `AMO_API_SECRET` | Your JWT secret key from the AMO credentials page.                 |
 
 ---
 
 #### 2. How to Obtain the Credentials
 
 ##### A. Get the Add-on ID (`AMO_ADDON_ID`)
+
 1. Log in to the [Firefox Add-on Developer Hub](https://addons.mozilla.org/en-US/developers/).
 2. Submit your extension as a new add-on (or use an existing one).
 3. Once submitted, navigate to the **Edit Product Page**.
 4. The **Add-on ID** can be found under the "Technical Details" section (e.g., `{1234abcd-1234-abcd-1234-abcd1234abcd}` or `diogel@your-domain.com`).
 
 ##### B. Create API Credentials (`AMO_API_ISSUER` & `AMO_API_SECRET`)
+
 1. Go to the [API Credentials Page](https://addons.mozilla.org/en-US/developers/addon/api/key/) in the Developer Hub.
 2. Read and accept the agreement if prompted.
 3. Your **JWT Issuer** and **JWT Secret** will be displayed.
@@ -310,8 +315,10 @@ Add the following three secrets:
 ---
 
 #### 3. Automatic Publishing
+
 Once these secrets are set, the `publish-firefox` job in `.github/workflows/release.yml` will
 automatically:
+
 - Run when a Release Please release PR is merged to `master` (see [Release Pipeline](#release-pipeline) above) — not on an arbitrary Git tag push.
 - Use the Firefox archive already built and validated by the `build` job.
 - Upload the extension to Firefox Add-ons (AMO) for signing and publication.

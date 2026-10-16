@@ -56,7 +56,11 @@ export class LogService {
     }
   }
 
-  async logException(message: string, account?: string | null, hostname?: string | null): Promise<void> {
+  async logException(
+    message: string,
+    account?: string | null,
+    hostname?: string | null,
+  ): Promise<void> {
     const persistedAccount: PersistedLogAccount = this.normalizeNullableString(account);
     const persistedHostname: PersistedLogHostname = this.normalizeNullableString(hostname);
 

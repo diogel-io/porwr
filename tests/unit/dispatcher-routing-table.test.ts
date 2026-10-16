@@ -17,12 +17,19 @@ import type { BridgeAction } from '@/types/bridge';
  */
 
 vi.mock('@/../src-bex/handlers/vault-handler', () => ({
-  handleVaultUnlock: vi.fn(), handleVaultLock: vi.fn(), handleVaultIsUnlocked: vi.fn(),
-  handleVaultCreate: vi.fn(), handleVaultGetData: vi.fn(), handleVaultUpdateData: vi.fn(),
-  handleVaultExport: vi.fn(), handleVaultImport: vi.fn(),
+  handleVaultUnlock: vi.fn(),
+  handleVaultLock: vi.fn(),
+  handleVaultIsUnlocked: vi.fn(),
+  handleVaultCreate: vi.fn(),
+  handleVaultGetData: vi.fn(),
+  handleVaultUpdateData: vi.fn(),
+  handleVaultExport: vi.fn(),
+  handleVaultImport: vi.fn(),
 }));
 vi.mock('@/../src-bex/services/auto-lock', () => ({
-  resetAutoLockTimer: vi.fn(), startAutoLockTimer: vi.fn(), stopAutoLockTimer: vi.fn(),
+  resetAutoLockTimer: vi.fn(),
+  startAutoLockTimer: vi.fn(),
+  stopAutoLockTimer: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/nip07', () => ({
   handleGetPublicKey: vi.fn(),
@@ -30,45 +37,76 @@ vi.mock('@/../src-bex/handlers/nip07', () => ({
   handleSignEvent: vi.fn(),
 }));
 vi.mock('@/../src-bex/services/request-queue', () => ({
-  getCurrentRequest: vi.fn(), getPendingCount: vi.fn(), getRequestContent: vi.fn(),
-  listPendingRequests: vi.fn(), markPresented: vi.fn(), requeuePresented: vi.fn(), submitDecision: vi.fn(),
+  getCurrentRequest: vi.fn(),
+  getPendingCount: vi.fn(),
+  getRequestContent: vi.fn(),
+  listPendingRequests: vi.fn(),
+  markPresented: vi.fn(),
+  requeuePresented: vi.fn(),
+  submitDecision: vi.fn(),
 }));
 vi.mock('@/../src-bex/services/page-origin-registry', () => ({ getPageOrigin: vi.fn() }));
 vi.mock('@/../src-bex/services/connected-sites', () => ({
-  countSitesHoldingGrantsFor: vi.fn(), disconnectSiteFor: vi.fn(), listConnectedSitesFor: vi.fn(),
+  countSitesHoldingGrantsFor: vi.fn(),
+  disconnectSiteFor: vi.fn(),
+  listConnectedSitesFor: vi.fn(),
 }));
 vi.mock('@/../src-bex/services/site-account', () => ({
-  getSiteAccount: vi.fn(), switchSiteToActiveAccount: vi.fn(),
+  getSiteAccount: vi.fn(),
+  switchSiteToActiveAccount: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/blossom-handler', () => ({ handleBlossomUpload: vi.fn() }));
-vi.mock('@/../src-bex/handlers/nip04', () => ({ handleNip04Encrypt: vi.fn(), handleNip04Decrypt: vi.fn() }));
-vi.mock('@/../src-bex/handlers/nip44', () => ({ handleNip44Encrypt: vi.fn(), handleNip44Decrypt: vi.fn() }));
+vi.mock('@/../src-bex/handlers/nip04', () => ({
+  handleNip04Encrypt: vi.fn(),
+  handleNip04Decrypt: vi.fn(),
+}));
+vi.mock('@/../src-bex/handlers/nip44', () => ({
+  handleNip44Encrypt: vi.fn(),
+  handleNip44Decrypt: vi.fn(),
+}));
 vi.mock('@/../src-bex/handlers/relay-browser-handler', () => ({
-  handleRelayBrowserList: vi.fn(), handleRelayBrowserGetStatus: vi.fn(), handleRelayBrowserRefresh: vi.fn(),
+  handleRelayBrowserList: vi.fn(),
+  handleRelayBrowserGetStatus: vi.fn(),
+  handleRelayBrowserRefresh: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/nip47', () => ({
-  handleNip47ConnectionImport: vi.fn(), handleNip47ConnectionRemove: vi.fn(),
-  handleNip47ConnectionSetActive: vi.fn(), handleNip47ConnectionsList: vi.fn(),
-  handleNip47GetBalance: vi.fn(), handleNip47GetInfo: vi.fn(),
-  handleNip47PayInvoice: vi.fn(), handleNip47PaymentHistoryList: vi.fn(),
-  handleNip47AuthorizationBegin: vi.fn(), handleNip47AuthorizationComplete: vi.fn(),
+  handleNip47ConnectionImport: vi.fn(),
+  handleNip47ConnectionRemove: vi.fn(),
+  handleNip47ConnectionSetActive: vi.fn(),
+  handleNip47ConnectionsList: vi.fn(),
+  handleNip47GetBalance: vi.fn(),
+  handleNip47GetInfo: vi.fn(),
+  handleNip47PayInvoice: vi.fn(),
+  handleNip47PaymentHistoryList: vi.fn(),
+  handleNip47AuthorizationBegin: vi.fn(),
+  handleNip47AuthorizationComplete: vi.fn(),
   handleNip47AuthorizationProbe: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/messaging', () => ({
-  handleDmRelaysGet: vi.fn(), handleDmRelaysPublish: vi.fn(),
+  handleDmRelaysGet: vi.fn(),
+  handleDmRelaysPublish: vi.fn(),
   handleDmRelaysCheck: vi.fn(),
-  handleMessagesSend: vi.fn(), handleMessagesFetch: vi.fn(),
-  handleMessagesReadState: vi.fn(), handleMessagesMarkRead: vi.fn(),
-  handleSavedPeersGet: vi.fn(), handleSavedPeersAdd: vi.fn(), handleSavedPeersRemove: vi.fn(),
+  handleMessagesSend: vi.fn(),
+  handleMessagesFetch: vi.fn(),
+  handleMessagesReadState: vi.fn(),
+  handleMessagesMarkRead: vi.fn(),
+  handleSavedPeersGet: vi.fn(),
+  handleSavedPeersAdd: vi.fn(),
+  handleSavedPeersRemove: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/account-signing', () => ({ handleAccountSignEvent: vi.fn() }));
 vi.mock('@/../src-bex/handlers/contacts', () => ({ handleContactsRefresh: vi.fn() }));
 vi.mock('@/../src-bex/handlers/accounts', () => ({
-  handleVaultGetView: vi.fn(), handleAccountsAdd: vi.fn(), handleAccountsRename: vi.fn(),
-  handleAccountsRemove: vi.fn(), handleAccountsRevealSecret: vi.fn(),
+  handleVaultGetView: vi.fn(),
+  handleAccountsAdd: vi.fn(),
+  handleAccountsRename: vi.fn(),
+  handleAccountsRemove: vi.fn(),
+  handleAccountsRevealSecret: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/webln', () => ({
-  handleWebLnEnable: vi.fn(), handleWebLnGetInfo: vi.fn(), handleWebLnSendPayment: vi.fn(),
+  handleWebLnEnable: vi.fn(),
+  handleWebLnGetInfo: vi.fn(),
+  handleWebLnSendPayment: vi.fn(),
 }));
 
 import { dispatchMessage } from '@/../src-bex/dispatcher';
@@ -98,9 +136,20 @@ type Mock = ReturnType<typeof vi.fn>;
 
 /** Every mocked handler, so a case reaching the wrong one can be detected. */
 const allMocks = (): Array<[string, Mock]> =>
-  Object.entries({ ...vault, ...nip07, ...queue, ...pages, ...sites, ...siteAccount, ...blossom, ...nip04,
-    ...nip44, ...relays, ...nip47, ...webln })
-    .filter(([, value]) => typeof value === 'function') as Array<[string, Mock]>;
+  Object.entries({
+    ...vault,
+    ...nip07,
+    ...queue,
+    ...pages,
+    ...sites,
+    ...siteAccount,
+    ...blossom,
+    ...nip04,
+    ...nip44,
+    ...relays,
+    ...nip47,
+    ...webln,
+  }).filter(([, value]) => typeof value === 'function') as Array<[string, Mock]>;
 
 const ok = (data: unknown): unknown => ({ success: true, data });
 
@@ -123,168 +172,504 @@ interface Case {
 }
 
 const cases: Case[] = [
-  { action: 'nostr.getPublicKey', payload: {}, handler: vi.mocked(nip07.handleGetPublicKey),
-    name: 'handleGetPublicKey', resolves: ok('pubkey'), expected: 'pubkey', expectArgs: [{}, ORIGIN] },
-  { action: 'nostr.signEvent', payload: { event: { kind: 1 } }, handler: vi.mocked(nip07.handleSignEvent),
-    name: 'handleSignEvent', resolves: ok({ id: 'signed' }), expected: { id: 'signed' },
-    expectArgs: [{ event: { kind: 1 } }, ORIGIN] },
-  { action: 'nostr.getRelays', payload: {}, handler: vi.mocked(nip07.handleGetRelays), name: 'handleGetRelays',
+  {
+    action: 'nostr.getPublicKey',
+    payload: {},
+    handler: vi.mocked(nip07.handleGetPublicKey),
+    name: 'handleGetPublicKey',
+    resolves: ok('pubkey'),
+    expected: 'pubkey',
+    expectArgs: [{}, ORIGIN],
+  },
+  {
+    action: 'nostr.signEvent',
+    payload: { event: { kind: 1 } },
+    handler: vi.mocked(nip07.handleSignEvent),
+    name: 'handleSignEvent',
+    resolves: ok({ id: 'signed' }),
+    expected: { id: 'signed' },
+    expectArgs: [{ event: { kind: 1 } }, ORIGIN],
+  },
+  {
+    action: 'nostr.getRelays',
+    payload: {},
+    handler: vi.mocked(nip07.handleGetRelays),
+    name: 'handleGetRelays',
     resolves: ok({ 'wss://relay.one/': { read: true, write: true } }),
-    expected: { 'wss://relay.one/': { read: true, write: true } }, expectArgs: [{}, ORIGIN] },
-  { action: 'nostr.nip04.encrypt', payload: { pubkey: 'p', plaintext: 't' },
-    handler: vi.mocked(nip04.handleNip04Encrypt), name: 'handleNip04Encrypt', resolves: ok('cipher'), expected: 'cipher' },
-  { action: 'nostr.nip04.decrypt', payload: { pubkey: 'p', ciphertext: 'c' },
-    handler: vi.mocked(nip04.handleNip04Decrypt), name: 'handleNip04Decrypt', resolves: ok('plain'), expected: 'plain' },
-  { action: 'nostr.nip44.encrypt', payload: { pubkey: 'p', plaintext: 't' },
-    handler: vi.mocked(nip44.handleNip44Encrypt), name: 'handleNip44Encrypt', resolves: ok('cipher44'), expected: 'cipher44' },
-  { action: 'nostr.nip44.decrypt', payload: { pubkey: 'p', ciphertext: 'c' },
-    handler: vi.mocked(nip44.handleNip44Decrypt), name: 'handleNip44Decrypt', resolves: ok('plain44'), expected: 'plain44' },
-  { action: 'vault.isUnlocked', payload: {}, handler: vi.mocked(vault.handleVaultIsUnlocked),
-    name: 'handleVaultIsUnlocked', resolves: ok(true), expected: true },
-  { action: 'vault.unlock', payload: { password: 'pw' }, handler: vi.mocked(vault.handleVaultUnlock),
+    expected: { 'wss://relay.one/': { read: true, write: true } },
+    expectArgs: [{}, ORIGIN],
+  },
+  {
+    action: 'nostr.nip04.encrypt',
+    payload: { pubkey: 'p', plaintext: 't' },
+    handler: vi.mocked(nip04.handleNip04Encrypt),
+    name: 'handleNip04Encrypt',
+    resolves: ok('cipher'),
+    expected: 'cipher',
+  },
+  {
+    action: 'nostr.nip04.decrypt',
+    payload: { pubkey: 'p', ciphertext: 'c' },
+    handler: vi.mocked(nip04.handleNip04Decrypt),
+    name: 'handleNip04Decrypt',
+    resolves: ok('plain'),
+    expected: 'plain',
+  },
+  {
+    action: 'nostr.nip44.encrypt',
+    payload: { pubkey: 'p', plaintext: 't' },
+    handler: vi.mocked(nip44.handleNip44Encrypt),
+    name: 'handleNip44Encrypt',
+    resolves: ok('cipher44'),
+    expected: 'cipher44',
+  },
+  {
+    action: 'nostr.nip44.decrypt',
+    payload: { pubkey: 'p', ciphertext: 'c' },
+    handler: vi.mocked(nip44.handleNip44Decrypt),
+    name: 'handleNip44Decrypt',
+    resolves: ok('plain44'),
+    expected: 'plain44',
+  },
+  {
+    action: 'vault.isUnlocked',
+    payload: {},
+    handler: vi.mocked(vault.handleVaultIsUnlocked),
+    name: 'handleVaultIsUnlocked',
+    resolves: ok(true),
+    expected: true,
+  },
+  {
+    action: 'vault.unlock',
+    payload: { password: 'pw' },
+    handler: vi.mocked(vault.handleVaultUnlock),
     // The decrypted vault is not passed on: a page only learns that unlocking worked (#240).
-    name: 'handleVaultUnlock', resolves: ok({ vaultData: { accounts: [{ account: { privkey: 'secret' } }] } }),
-    expected: { success: true }, expectArgs: [{ password: 'pw' }, ORIGIN] },
-  { action: 'vault.create', payload: { password: 'pw', vaultData: { accounts: [], mnemonic: 'Generating...' } },
+    name: 'handleVaultUnlock',
+    resolves: ok({ vaultData: { accounts: [{ account: { privkey: 'secret' } }] } }),
+    expected: { success: true },
+    expectArgs: [{ password: 'pw' }, ORIGIN],
+  },
+  {
+    action: 'vault.create',
+    payload: { password: 'pw', vaultData: { accounts: [], mnemonic: 'Generating...' } },
     // Only the password reaches the handler, even from an older page that still sends a vault (#244).
-    handler: vi.mocked(vault.handleVaultCreate), name: 'handleVaultCreate',
-    resolves: ok({ encryptedVault: 'blob' }), expected: { success: true, encryptedVault: 'blob' },
-    expectArgs: [{ password: 'pw' }, ORIGIN] },
-  { action: 'nostr.requests.list', handler: vi.mocked(queue.listPendingRequests), name: 'listPendingRequests',
-    resolves: [{ id: 'r1' }], expected: [{ id: 'r1' }] },
-  { action: 'nostr.requests.current', handler: vi.mocked(queue.getCurrentRequest), name: 'getCurrentRequest',
-    resolves: { id: 'r1' }, expected: { id: 'r1' } },
-  { action: 'nostr.requests.count', handler: vi.mocked(queue.getPendingCount), name: 'getPendingCount',
-    resolves: 3, expected: 3 },
-  { action: 'nostr.requests.content', payload: { requestId: 'r1' }, handler: vi.mocked(queue.getRequestContent),
-    name: 'getRequestContent', resolves: 'content', expected: 'content', expectArgs: ['r1'] },
-  { action: 'nostr.requests.present', payload: { requestId: 'r1' }, handler: vi.mocked(queue.markPresented),
-    name: 'markPresented', resolves: true, expected: true, expectArgs: ['r1'] },
-  { action: 'nostr.requests.respond', payload: { requestId: 'r1', approved: true, duration: '8h' },
-    handler: vi.mocked(queue.submitDecision), name: 'submitDecision', resolves: true, expected: true,
-    expectArgs: ['r1', { approved: true, duration: '8h' }] },
-  { action: 'nostr.requests.requeuePresented', handler: vi.mocked(queue.requeuePresented),
-    name: 'requeuePresented', resolves: undefined, expected: null },
-  { action: 'pages.originForTab', payload: { tabId: 7 }, handler: vi.mocked(pages.getPageOrigin),
-    name: 'getPageOrigin', resolves: ORIGIN, expected: ORIGIN, expectArgs: [7] },
-  { action: 'sites.list', payload: { accountPubkey: SITE_ACCOUNT }, handler: vi.mocked(sites.listConnectedSitesFor),
-    name: 'listConnectedSitesFor', resolves: [{ origin: ORIGIN }], expected: [{ origin: ORIGIN }],
-    expectArgs: [SITE_ACCOUNT] },
-  { action: 'sites.revoke', payload: { origin: ORIGIN, accountPubkey: SITE_ACCOUNT },
-    handler: vi.mocked(sites.disconnectSiteFor), name: 'disconnectSiteFor', resolves: true, expected: true,
-    expectArgs: [ORIGIN, SITE_ACCOUNT] },
-  { action: 'sites.binding', payload: { origin: ORIGIN }, handler: vi.mocked(siteAccount.getSiteAccount),
-    name: 'getSiteAccount', resolves: { origin: ORIGIN }, expected: { origin: ORIGIN }, expectArgs: [ORIGIN] },
-  { action: 'sites.useActiveAccount', payload: { origin: ORIGIN },
-    handler: vi.mocked(siteAccount.switchSiteToActiveAccount), name: 'switchSiteToActiveAccount',
-    resolves: { success: true }, expected: { success: true }, expectArgs: [ORIGIN] },
-  { action: 'sites.countForAccount', payload: { accountPubkey: 'a' },
-    handler: vi.mocked(sites.countSitesHoldingGrantsFor), name: 'countSitesHoldingGrantsFor',
-    resolves: 2, expected: 2, expectArgs: ['a'] },
-  { action: 'vault.getView', handler: vi.mocked(accounts.handleVaultGetView), name: 'handleVaultGetView',
+    handler: vi.mocked(vault.handleVaultCreate),
+    name: 'handleVaultCreate',
+    resolves: ok({ encryptedVault: 'blob' }),
+    expected: { success: true, encryptedVault: 'blob' },
+    expectArgs: [{ password: 'pw' }, ORIGIN],
+  },
+  {
+    action: 'nostr.requests.list',
+    handler: vi.mocked(queue.listPendingRequests),
+    name: 'listPendingRequests',
+    resolves: [{ id: 'r1' }],
+    expected: [{ id: 'r1' }],
+  },
+  {
+    action: 'nostr.requests.current',
+    handler: vi.mocked(queue.getCurrentRequest),
+    name: 'getCurrentRequest',
+    resolves: { id: 'r1' },
+    expected: { id: 'r1' },
+  },
+  {
+    action: 'nostr.requests.count',
+    handler: vi.mocked(queue.getPendingCount),
+    name: 'getPendingCount',
+    resolves: 3,
+    expected: 3,
+  },
+  {
+    action: 'nostr.requests.content',
+    payload: { requestId: 'r1' },
+    handler: vi.mocked(queue.getRequestContent),
+    name: 'getRequestContent',
+    resolves: 'content',
+    expected: 'content',
+    expectArgs: ['r1'],
+  },
+  {
+    action: 'nostr.requests.present',
+    payload: { requestId: 'r1' },
+    handler: vi.mocked(queue.markPresented),
+    name: 'markPresented',
+    resolves: true,
+    expected: true,
+    expectArgs: ['r1'],
+  },
+  {
+    action: 'nostr.requests.respond',
+    payload: { requestId: 'r1', approved: true, duration: '8h' },
+    handler: vi.mocked(queue.submitDecision),
+    name: 'submitDecision',
+    resolves: true,
+    expected: true,
+    expectArgs: ['r1', { approved: true, duration: '8h' }],
+  },
+  {
+    action: 'nostr.requests.requeuePresented',
+    handler: vi.mocked(queue.requeuePresented),
+    name: 'requeuePresented',
+    resolves: undefined,
+    expected: null,
+  },
+  {
+    action: 'pages.originForTab',
+    payload: { tabId: 7 },
+    handler: vi.mocked(pages.getPageOrigin),
+    name: 'getPageOrigin',
+    resolves: ORIGIN,
+    expected: ORIGIN,
+    expectArgs: [7],
+  },
+  {
+    action: 'sites.list',
+    payload: { accountPubkey: SITE_ACCOUNT },
+    handler: vi.mocked(sites.listConnectedSitesFor),
+    name: 'listConnectedSitesFor',
+    resolves: [{ origin: ORIGIN }],
+    expected: [{ origin: ORIGIN }],
+    expectArgs: [SITE_ACCOUNT],
+  },
+  {
+    action: 'sites.revoke',
+    payload: { origin: ORIGIN, accountPubkey: SITE_ACCOUNT },
+    handler: vi.mocked(sites.disconnectSiteFor),
+    name: 'disconnectSiteFor',
+    resolves: true,
+    expected: true,
+    expectArgs: [ORIGIN, SITE_ACCOUNT],
+  },
+  {
+    action: 'sites.binding',
+    payload: { origin: ORIGIN },
+    handler: vi.mocked(siteAccount.getSiteAccount),
+    name: 'getSiteAccount',
+    resolves: { origin: ORIGIN },
+    expected: { origin: ORIGIN },
+    expectArgs: [ORIGIN],
+  },
+  {
+    action: 'sites.useActiveAccount',
+    payload: { origin: ORIGIN },
+    handler: vi.mocked(siteAccount.switchSiteToActiveAccount),
+    name: 'switchSiteToActiveAccount',
+    resolves: { success: true },
+    expected: { success: true },
+    expectArgs: [ORIGIN],
+  },
+  {
+    action: 'sites.countForAccount',
+    payload: { accountPubkey: 'a' },
+    handler: vi.mocked(sites.countSitesHoldingGrantsFor),
+    name: 'countSitesHoldingGrantsFor',
+    resolves: 2,
+    expected: 2,
+    expectArgs: ['a'],
+  },
+  {
+    action: 'vault.getView',
+    handler: vi.mocked(accounts.handleVaultGetView),
+    name: 'handleVaultGetView',
     resolves: ok({ accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] }),
-    expected: { accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] } },
-  { action: 'accounts.add', payload: { alias: 'new' }, handler: vi.mocked(accounts.handleAccountsAdd),
-    name: 'handleAccountsAdd', resolves: ok({ id: 'a', alias: 'new', createdAt: 't' }),
-    expected: { id: 'a', alias: 'new', createdAt: 't' }, expectArgs: [expect.objectContaining({ alias: 'new' })] },
-  { action: 'accounts.rename', payload: { currentAlias: 'a', newAlias: 'b' }, handler: vi.mocked(accounts.handleAccountsRename),
-    name: 'handleAccountsRename', resolves: ok({ id: 'a', alias: 'b', createdAt: 't' }),
-    expected: { id: 'a', alias: 'b', createdAt: 't' }, expectArgs: [expect.objectContaining({ currentAlias: 'a', newAlias: 'b' })] },
-  { action: 'accounts.remove', payload: { accountPubkey: 'a' }, handler: vi.mocked(accounts.handleAccountsRemove),
-    name: 'handleAccountsRemove', resolves: ok(true), expected: true, expectArgs: [expect.objectContaining({ accountPubkey: 'a' })] },
-  { action: 'accounts.revealSecret', payload: { accountPubkey: 'a' }, handler: vi.mocked(accounts.handleAccountsRevealSecret),
-    name: 'handleAccountsRevealSecret', resolves: ok({ nsec: 'nsec1x' }), expected: { nsec: 'nsec1x' },
-    expectArgs: [expect.objectContaining({ accountPubkey: 'a' })] },
-  { action: 'vault.export', payload: {}, handler: vi.mocked(vault.handleVaultExport), name: 'handleVaultExport',
-    resolves: ok({ encryptedData: 'enc' }), expected: { success: true, encryptedData: 'enc' } },
-  { action: 'vault.import', payload: { encryptedData: 'enc' }, handler: vi.mocked(vault.handleVaultImport),
-    name: 'handleVaultImport', resolves: { success: true }, expected: { success: true },
-    expectArgs: [{ encryptedData: 'enc' }, ORIGIN] },
-  { action: 'blossom.upload', payload: { base64Data: 'd', fileType: 'image/png', blossomServer: 's' },
-    handler: vi.mocked(blossom.handleBlossomUpload), name: 'handleBlossomUpload',
-    resolves: ok('https://cdn.example/x'), expected: { success: true, url: 'https://cdn.example/x' } },
-  { action: 'relay.browser.list', handler: vi.mocked(relays.handleRelayBrowserList),
-    name: 'handleRelayBrowserList', resolves: ok([{ url: 'wss://r' }]), expected: [{ url: 'wss://r' }] },
-  { action: 'relay.browser.getStatus', handler: vi.mocked(relays.handleRelayBrowserGetStatus),
-    name: 'handleRelayBrowserGetStatus', resolves: ok({ online: 1 }), expected: { online: 1 } },
-  { action: 'relay.browser.refresh', payload: { url: 'wss://r' },
-    handler: vi.mocked(relays.handleRelayBrowserRefresh), name: 'handleRelayBrowserRefresh',
-    resolves: { success: true }, expected: true },
-  { action: 'nip47.connections.list', handler: vi.mocked(nip47.handleNip47ConnectionsList),
-    name: 'handleNip47ConnectionsList', resolves: ok([{ id: 'w' }]), expected: [{ id: 'w' }] },
-  { action: 'nip47.connections.import', payload: { uri: 'nostr+walletconnect://x' },
-    handler: vi.mocked(nip47.handleNip47ConnectionImport), name: 'handleNip47ConnectionImport',
-    resolves: ok({ id: 'w' }), expected: { id: 'w' } },
-  { action: 'nip47.connections.remove', payload: { id: 'w' },
-    handler: vi.mocked(nip47.handleNip47ConnectionRemove), name: 'handleNip47ConnectionRemove',
-    resolves: { success: true }, expected: true },
-  { action: 'nip47.connections.setActive', payload: { id: 'w' },
-    handler: vi.mocked(nip47.handleNip47ConnectionSetActive), name: 'handleNip47ConnectionSetActive',
-    resolves: ok({ id: 'w' }), expected: { id: 'w' } },
-  { action: 'nip47.getInfo', payload: { id: 'w' }, handler: vi.mocked(nip47.handleNip47GetInfo),
-    name: 'handleNip47GetInfo', resolves: ok({ alias: 'node' }), expected: { alias: 'node' } },
-  { action: 'nip47.getBalance', payload: { id: 'w' }, handler: vi.mocked(nip47.handleNip47GetBalance),
-    name: 'handleNip47GetBalance', resolves: ok({ balance: 1 }), expected: { balance: 1 } },
-  { action: 'nip47.payInvoice', payload: { invoice: 'lnbc' }, handler: vi.mocked(nip47.handleNip47PayInvoice),
-    name: 'handleNip47PayInvoice', resolves: ok({ preimage: 'p' }), expected: { preimage: 'p' } },
-  { action: 'nip47.payments.list', handler: vi.mocked(nip47.handleNip47PaymentHistoryList),
-    name: 'handleNip47PaymentHistoryList', resolves: ok([]), expected: [] },
-  { action: 'nip47.authorization.begin', payload: { provider: 'coinos' },
-    handler: vi.mocked(nip47.handleNip47AuthorizationBegin), name: 'handleNip47AuthorizationBegin',
-    resolves: ok({ pendingId: 'p' }), expected: { pendingId: 'p' } },
-  { action: 'nip47.authorization.complete', payload: { pendingId: 'p' },
-    handler: vi.mocked(nip47.handleNip47AuthorizationComplete), name: 'handleNip47AuthorizationComplete',
-    resolves: ok({ id: 'w' }), expected: { id: 'w' } },
-  { action: 'nip47.authorization.probe', payload: { pendingId: 'p' },
-    handler: vi.mocked(nip47.handleNip47AuthorizationProbe), name: 'handleNip47AuthorizationProbe',
-    resolves: ok(null), expected: null },
-  { action: 'messaging.dmRelays.get', handler: vi.mocked(messaging.handleDmRelaysGet),
-    name: 'handleDmRelaysGet', resolves: ok({ relays: ['wss://dm'], updatedAt: 1 }),
-    expected: { relays: ['wss://dm'], updatedAt: 1 } },
-  { action: 'messaging.dmRelays.publish', payload: { relays: ['wss://dm'] },
-    handler: vi.mocked(messaging.handleDmRelaysPublish), name: 'handleDmRelaysPublish',
+    expected: { accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] },
+  },
+  {
+    action: 'accounts.add',
+    payload: { alias: 'new' },
+    handler: vi.mocked(accounts.handleAccountsAdd),
+    name: 'handleAccountsAdd',
+    resolves: ok({ id: 'a', alias: 'new', createdAt: 't' }),
+    expected: { id: 'a', alias: 'new', createdAt: 't' },
+    expectArgs: [expect.objectContaining({ alias: 'new' })],
+  },
+  {
+    action: 'accounts.rename',
+    payload: { currentAlias: 'a', newAlias: 'b' },
+    handler: vi.mocked(accounts.handleAccountsRename),
+    name: 'handleAccountsRename',
+    resolves: ok({ id: 'a', alias: 'b', createdAt: 't' }),
+    expected: { id: 'a', alias: 'b', createdAt: 't' },
+    expectArgs: [expect.objectContaining({ currentAlias: 'a', newAlias: 'b' })],
+  },
+  {
+    action: 'accounts.remove',
+    payload: { accountPubkey: 'a' },
+    handler: vi.mocked(accounts.handleAccountsRemove),
+    name: 'handleAccountsRemove',
+    resolves: ok(true),
+    expected: true,
+    expectArgs: [expect.objectContaining({ accountPubkey: 'a' })],
+  },
+  {
+    action: 'accounts.revealSecret',
+    payload: { accountPubkey: 'a' },
+    handler: vi.mocked(accounts.handleAccountsRevealSecret),
+    name: 'handleAccountsRevealSecret',
+    resolves: ok({ nsec: 'nsec1x' }),
+    expected: { nsec: 'nsec1x' },
+    expectArgs: [expect.objectContaining({ accountPubkey: 'a' })],
+  },
+  {
+    action: 'vault.export',
+    payload: {},
+    handler: vi.mocked(vault.handleVaultExport),
+    name: 'handleVaultExport',
+    resolves: ok({ encryptedData: 'enc' }),
+    expected: { success: true, encryptedData: 'enc' },
+  },
+  {
+    action: 'vault.import',
+    payload: { encryptedData: 'enc' },
+    handler: vi.mocked(vault.handleVaultImport),
+    name: 'handleVaultImport',
+    resolves: { success: true },
+    expected: { success: true },
+    expectArgs: [{ encryptedData: 'enc' }, ORIGIN],
+  },
+  {
+    action: 'blossom.upload',
+    payload: { base64Data: 'd', fileType: 'image/png', blossomServer: 's' },
+    handler: vi.mocked(blossom.handleBlossomUpload),
+    name: 'handleBlossomUpload',
+    resolves: ok('https://cdn.example/x'),
+    expected: { success: true, url: 'https://cdn.example/x' },
+  },
+  {
+    action: 'relay.browser.list',
+    handler: vi.mocked(relays.handleRelayBrowserList),
+    name: 'handleRelayBrowserList',
+    resolves: ok([{ url: 'wss://r' }]),
+    expected: [{ url: 'wss://r' }],
+  },
+  {
+    action: 'relay.browser.getStatus',
+    handler: vi.mocked(relays.handleRelayBrowserGetStatus),
+    name: 'handleRelayBrowserGetStatus',
+    resolves: ok({ online: 1 }),
+    expected: { online: 1 },
+  },
+  {
+    action: 'relay.browser.refresh',
+    payload: { url: 'wss://r' },
+    handler: vi.mocked(relays.handleRelayBrowserRefresh),
+    name: 'handleRelayBrowserRefresh',
+    resolves: { success: true },
+    expected: true,
+  },
+  {
+    action: 'nip47.connections.list',
+    handler: vi.mocked(nip47.handleNip47ConnectionsList),
+    name: 'handleNip47ConnectionsList',
+    resolves: ok([{ id: 'w' }]),
+    expected: [{ id: 'w' }],
+  },
+  {
+    action: 'nip47.connections.import',
+    payload: { uri: 'nostr+walletconnect://x' },
+    handler: vi.mocked(nip47.handleNip47ConnectionImport),
+    name: 'handleNip47ConnectionImport',
+    resolves: ok({ id: 'w' }),
+    expected: { id: 'w' },
+  },
+  {
+    action: 'nip47.connections.remove',
+    payload: { id: 'w' },
+    handler: vi.mocked(nip47.handleNip47ConnectionRemove),
+    name: 'handleNip47ConnectionRemove',
+    resolves: { success: true },
+    expected: true,
+  },
+  {
+    action: 'nip47.connections.setActive',
+    payload: { id: 'w' },
+    handler: vi.mocked(nip47.handleNip47ConnectionSetActive),
+    name: 'handleNip47ConnectionSetActive',
+    resolves: ok({ id: 'w' }),
+    expected: { id: 'w' },
+  },
+  {
+    action: 'nip47.getInfo',
+    payload: { id: 'w' },
+    handler: vi.mocked(nip47.handleNip47GetInfo),
+    name: 'handleNip47GetInfo',
+    resolves: ok({ alias: 'node' }),
+    expected: { alias: 'node' },
+  },
+  {
+    action: 'nip47.getBalance',
+    payload: { id: 'w' },
+    handler: vi.mocked(nip47.handleNip47GetBalance),
+    name: 'handleNip47GetBalance',
+    resolves: ok({ balance: 1 }),
+    expected: { balance: 1 },
+  },
+  {
+    action: 'nip47.payInvoice',
+    payload: { invoice: 'lnbc' },
+    handler: vi.mocked(nip47.handleNip47PayInvoice),
+    name: 'handleNip47PayInvoice',
+    resolves: ok({ preimage: 'p' }),
+    expected: { preimage: 'p' },
+  },
+  {
+    action: 'nip47.payments.list',
+    handler: vi.mocked(nip47.handleNip47PaymentHistoryList),
+    name: 'handleNip47PaymentHistoryList',
+    resolves: ok([]),
+    expected: [],
+  },
+  {
+    action: 'nip47.authorization.begin',
+    payload: { provider: 'coinos' },
+    handler: vi.mocked(nip47.handleNip47AuthorizationBegin),
+    name: 'handleNip47AuthorizationBegin',
+    resolves: ok({ pendingId: 'p' }),
+    expected: { pendingId: 'p' },
+  },
+  {
+    action: 'nip47.authorization.complete',
+    payload: { pendingId: 'p' },
+    handler: vi.mocked(nip47.handleNip47AuthorizationComplete),
+    name: 'handleNip47AuthorizationComplete',
+    resolves: ok({ id: 'w' }),
+    expected: { id: 'w' },
+  },
+  {
+    action: 'nip47.authorization.probe',
+    payload: { pendingId: 'p' },
+    handler: vi.mocked(nip47.handleNip47AuthorizationProbe),
+    name: 'handleNip47AuthorizationProbe',
+    resolves: ok(null),
+    expected: null,
+  },
+  {
+    action: 'messaging.dmRelays.get',
+    handler: vi.mocked(messaging.handleDmRelaysGet),
+    name: 'handleDmRelaysGet',
+    resolves: ok({ relays: ['wss://dm'], updatedAt: 1 }),
+    expected: { relays: ['wss://dm'], updatedAt: 1 },
+  },
+  {
+    action: 'messaging.dmRelays.publish',
+    payload: { relays: ['wss://dm'] },
+    handler: vi.mocked(messaging.handleDmRelaysPublish),
+    name: 'handleDmRelaysPublish',
     resolves: ok({ relays: ['wss://dm'], accepted: ['wss://dm'], rejected: [] }),
     expected: { relays: ['wss://dm'], accepted: ['wss://dm'], rejected: [] },
-    expectArgs: [expect.objectContaining({ relays: ['wss://dm'] })] },
-  { action: 'messaging.dmRelays.check', payload: { relays: ['wss://dm'] },
-    handler: vi.mocked(messaging.handleDmRelaysCheck), name: 'handleDmRelaysCheck',
+    expectArgs: [expect.objectContaining({ relays: ['wss://dm'] })],
+  },
+  {
+    action: 'messaging.dmRelays.check',
+    payload: { relays: ['wss://dm'] },
+    handler: vi.mocked(messaging.handleDmRelaysCheck),
+    name: 'handleDmRelaysCheck',
     resolves: ok({ checks: [{ url: 'wss://dm', status: 'keeps' }] }),
     expected: { checks: [{ url: 'wss://dm', status: 'keeps' }] },
-    expectArgs: [expect.objectContaining({ relays: ['wss://dm'] })] },
-  { action: 'messaging.send', payload: { clientMessageId: 'c1', recipient: 'b', content: 'hi' },
-    handler: vi.mocked(messaging.handleMessagesSend), name: 'handleMessagesSend',
-    resolves: ok({ status: 'recipient-not-ready' }), expected: { status: 'recipient-not-ready' },
-    expectArgs: [expect.objectContaining({ clientMessageId: 'c1', recipient: 'b', content: 'hi' })] },
-  { action: 'messaging.fetch', payload: { since: 5 }, handler: vi.mocked(messaging.handleMessagesFetch),
-    name: 'handleMessagesFetch', resolves: ok({ inbox: 'ready', messages: [], dropped: 0 }),
-    expected: { inbox: 'ready', messages: [], dropped: 0 }, expectArgs: [expect.objectContaining({ since: 5 })] },
-  { action: 'messaging.readState', handler: vi.mocked(messaging.handleMessagesReadState),
-    name: 'handleMessagesReadState', resolves: ok({ b: 7 }), expected: { b: 7 } },
-  { action: 'messaging.markRead', payload: { peer: 'b', readAt: 7 },
-    handler: vi.mocked(messaging.handleMessagesMarkRead), name: 'handleMessagesMarkRead',
-    resolves: ok({ b: 7 }), expected: { b: 7 }, expectArgs: [expect.objectContaining({ peer: 'b', readAt: 7 })] },
-  { action: 'messaging.savedPeers.get', handler: vi.mocked(messaging.handleSavedPeersGet),
-    name: 'handleSavedPeersGet', resolves: ok(['b']), expected: ['b'] },
-  { action: 'messaging.savedPeers.add', payload: { peer: 'b' },
-    handler: vi.mocked(messaging.handleSavedPeersAdd), name: 'handleSavedPeersAdd',
-    resolves: ok(['b']), expected: ['b'], expectArgs: [expect.objectContaining({ peer: 'b' })] },
-  { action: 'messaging.savedPeers.remove', payload: { peer: 'b' },
-    handler: vi.mocked(messaging.handleSavedPeersRemove), name: 'handleSavedPeersRemove',
-    resolves: ok([]), expected: [], expectArgs: [expect.objectContaining({ peer: 'b' })] },
-  { action: 'contacts.refresh', payload: { force: true }, handler: vi.mocked(contacts.handleContactsRefresh),
-    name: 'handleContactsRefresh', resolves: ok({ accountPubkey: 'a' }), expected: { accountPubkey: 'a' },
-    expectArgs: [expect.objectContaining({ force: true })] },
-  { action: 'account.signEvent', payload: { accountPubkey: 'a', template: { kind: 1, content: '', tags: [] } },
-    handler: vi.mocked(accountSigning.handleAccountSignEvent), name: 'handleAccountSignEvent',
-    resolves: ok({ id: 'e', kind: 1 }), expected: { id: 'e', kind: 1 },
-    expectArgs: [expect.objectContaining({ accountPubkey: 'a' })] },
-  { action: 'webln.enable', payload: {}, handler: vi.mocked(webln.handleWebLnEnable),
-    name: 'handleWebLnEnable', resolves: ok({ enabled: true }), expected: { enabled: true } },
-  { action: 'webln.getInfo', payload: {}, handler: vi.mocked(webln.handleWebLnGetInfo),
-    name: 'handleWebLnGetInfo', resolves: ok({ node: {} }), expected: { node: {} } },
-  { action: 'webln.sendPayment', payload: { paymentRequest: 'lnbc' },
-    handler: vi.mocked(webln.handleWebLnSendPayment), name: 'handleWebLnSendPayment',
-    resolves: ok({ preimage: 'p' }), expected: { preimage: 'p' } },
+    expectArgs: [expect.objectContaining({ relays: ['wss://dm'] })],
+  },
+  {
+    action: 'messaging.send',
+    payload: { clientMessageId: 'c1', recipient: 'b', content: 'hi' },
+    handler: vi.mocked(messaging.handleMessagesSend),
+    name: 'handleMessagesSend',
+    resolves: ok({ status: 'recipient-not-ready' }),
+    expected: { status: 'recipient-not-ready' },
+    expectArgs: [expect.objectContaining({ clientMessageId: 'c1', recipient: 'b', content: 'hi' })],
+  },
+  {
+    action: 'messaging.fetch',
+    payload: { since: 5 },
+    handler: vi.mocked(messaging.handleMessagesFetch),
+    name: 'handleMessagesFetch',
+    resolves: ok({ inbox: 'ready', messages: [], dropped: 0 }),
+    expected: { inbox: 'ready', messages: [], dropped: 0 },
+    expectArgs: [expect.objectContaining({ since: 5 })],
+  },
+  {
+    action: 'messaging.readState',
+    handler: vi.mocked(messaging.handleMessagesReadState),
+    name: 'handleMessagesReadState',
+    resolves: ok({ b: 7 }),
+    expected: { b: 7 },
+  },
+  {
+    action: 'messaging.markRead',
+    payload: { peer: 'b', readAt: 7 },
+    handler: vi.mocked(messaging.handleMessagesMarkRead),
+    name: 'handleMessagesMarkRead',
+    resolves: ok({ b: 7 }),
+    expected: { b: 7 },
+    expectArgs: [expect.objectContaining({ peer: 'b', readAt: 7 })],
+  },
+  {
+    action: 'messaging.savedPeers.get',
+    handler: vi.mocked(messaging.handleSavedPeersGet),
+    name: 'handleSavedPeersGet',
+    resolves: ok(['b']),
+    expected: ['b'],
+  },
+  {
+    action: 'messaging.savedPeers.add',
+    payload: { peer: 'b' },
+    handler: vi.mocked(messaging.handleSavedPeersAdd),
+    name: 'handleSavedPeersAdd',
+    resolves: ok(['b']),
+    expected: ['b'],
+    expectArgs: [expect.objectContaining({ peer: 'b' })],
+  },
+  {
+    action: 'messaging.savedPeers.remove',
+    payload: { peer: 'b' },
+    handler: vi.mocked(messaging.handleSavedPeersRemove),
+    name: 'handleSavedPeersRemove',
+    resolves: ok([]),
+    expected: [],
+    expectArgs: [expect.objectContaining({ peer: 'b' })],
+  },
+  {
+    action: 'contacts.refresh',
+    payload: { force: true },
+    handler: vi.mocked(contacts.handleContactsRefresh),
+    name: 'handleContactsRefresh',
+    resolves: ok({ accountPubkey: 'a' }),
+    expected: { accountPubkey: 'a' },
+    expectArgs: [expect.objectContaining({ force: true })],
+  },
+  {
+    action: 'account.signEvent',
+    payload: { accountPubkey: 'a', template: { kind: 1, content: '', tags: [] } },
+    handler: vi.mocked(accountSigning.handleAccountSignEvent),
+    name: 'handleAccountSignEvent',
+    resolves: ok({ id: 'e', kind: 1 }),
+    expected: { id: 'e', kind: 1 },
+    expectArgs: [expect.objectContaining({ accountPubkey: 'a' })],
+  },
+  {
+    action: 'webln.enable',
+    payload: {},
+    handler: vi.mocked(webln.handleWebLnEnable),
+    name: 'handleWebLnEnable',
+    resolves: ok({ enabled: true }),
+    expected: { enabled: true },
+  },
+  {
+    action: 'webln.getInfo',
+    payload: {},
+    handler: vi.mocked(webln.handleWebLnGetInfo),
+    name: 'handleWebLnGetInfo',
+    resolves: ok({ node: {} }),
+    expected: { node: {} },
+  },
+  {
+    action: 'webln.sendPayment',
+    payload: { paymentRequest: 'lnbc' },
+    handler: vi.mocked(webln.handleWebLnSendPayment),
+    name: 'handleWebLnSendPayment',
+    resolves: ok({ preimage: 'p' }),
+    expected: { preimage: 'p' },
+  },
 ];
 
 beforeEach(() => {
@@ -307,35 +692,43 @@ describe('every declared action reaches its own handler', () => {
     expect(listed.size).toBe(cases.length);
   });
 
-  it.each(cases)('routes $action to $name', async ({ action, payload, handler, resolves, expected, expectArgs }) => {
-    handler.mockResolvedValue(resolves);
+  it.each(cases)(
+    'routes $action to $name',
+    async ({ action, payload, handler, resolves, expected, expectArgs }) => {
+      handler.mockResolvedValue(resolves);
 
-    const result = await dispatchMessage(action, payload as never, ORIGIN);
+      const result = await dispatchMessage(action, payload as never, ORIGIN);
 
-    expect(handler).toHaveBeenCalledTimes(1);
-    if (expectArgs) expect(handler).toHaveBeenCalledWith(...expectArgs);
-    expect(result).toEqual(expected);
-  });
+      expect(handler).toHaveBeenCalledTimes(1);
+      if (expectArgs) expect(handler).toHaveBeenCalledWith(...expectArgs);
+      expect(result).toEqual(expected);
+    },
+  );
 
-  it.each(cases)('routes $action to nothing but $name', async ({ action, payload, handler, resolves }) => {
-    handler.mockResolvedValue(resolves);
+  it.each(cases)(
+    'routes $action to nothing but $name',
+    async ({ action, payload, handler, resolves }) => {
+      handler.mockResolvedValue(resolves);
 
-    await dispatchMessage(action, payload as never, ORIGIN);
+      await dispatchMessage(action, payload as never, ORIGIN);
 
-    // A case calling the wrong handler is invisible to a source scan: the `case` label is right and
-    // only the body is wrong. This is what catches it.
-    const strays = allMocks()
-      .filter(([, fn]) => fn !== handler && fn.mock.calls.length > 0)
-      .map(([name]) => name);
+      // A case calling the wrong handler is invisible to a source scan: the `case` label is right and
+      // only the body is wrong. This is what catches it.
+      const strays = allMocks()
+        .filter(([, fn]) => fn !== handler && fn.mock.calls.length > 0)
+        .map(([name]) => name);
 
-    expect(strays).toEqual([]);
-  });
+      expect(strays).toEqual([]);
+    },
+  );
 });
 
 describe('dispatcher decisions that are not pass-through', () => {
   it('answers no sites, and disconnects nothing, for a missing or malformed account (#309)', async () => {
     for (const accountPubkey of [undefined, '', 'npub1x']) {
-      await expect(dispatchMessage('sites.list', { accountPubkey } as never, '')).resolves.toEqual([]);
+      await expect(dispatchMessage('sites.list', { accountPubkey } as never, '')).resolves.toEqual(
+        [],
+      );
       await expect(
         dispatchMessage('sites.revoke', { origin: ORIGIN, accountPubkey } as never, ''),
       ).resolves.toBe(false);
@@ -348,12 +741,17 @@ describe('dispatcher decisions that are not pass-through', () => {
   it('stops the auto-lock timer when the vault is locked', async () => {
     vi.mocked(vault.handleVaultLock).mockResolvedValue({ success: true } as never);
 
-    await expect(dispatchMessage('vault.lock', {} as never, ORIGIN)).resolves.toEqual({ success: true });
+    await expect(dispatchMessage('vault.lock', {} as never, ORIGIN)).resolves.toEqual({
+      success: true,
+    });
     expect(autoLock.stopAutoLockTimer).toHaveBeenCalledTimes(1);
   });
 
   it('starts the auto-lock timer only after an unlock that succeeded', async () => {
-    vi.mocked(vault.handleVaultUnlock).mockResolvedValue({ success: false, error: 'bad password' } as never);
+    vi.mocked(vault.handleVaultUnlock).mockResolvedValue({
+      success: false,
+      error: 'bad password',
+    } as never);
 
     await dispatchMessage('vault.unlock', { password: 'wrong' } as never, ORIGIN);
 
@@ -362,16 +760,26 @@ describe('dispatcher decisions that are not pass-through', () => {
   });
 
   it('returns an error object when a signing handler refuses', async () => {
-    vi.mocked(nip07.handleSignEvent).mockResolvedValue({ success: false, error: 'denied', code: 'PER_DENIED' } as never);
+    vi.mocked(nip07.handleSignEvent).mockResolvedValue({
+      success: false,
+      error: 'denied',
+      code: 'PER_DENIED',
+    } as never);
 
-    await expect(dispatchMessage('nostr.signEvent', { event: {} } as never, ORIGIN)).resolves.toEqual({
-      success: false, error: 'denied', code: 'PER_DENIED',
+    await expect(
+      dispatchMessage('nostr.signEvent', { event: {} } as never, ORIGIN),
+    ).resolves.toEqual({
+      success: false,
+      error: 'denied',
+      code: 'PER_DENIED',
     });
   });
 
   it('refuses an import carrying no encrypted data, without calling the handler', async () => {
     await expect(dispatchMessage('vault.import', {} as never, ORIGIN)).resolves.toEqual({
-      success: false, error: 'Missing encrypted data', code: 'NOT_FOUND',
+      success: false,
+      error: 'Missing encrypted data',
+      code: 'NOT_FOUND',
     });
     expect(vault.handleVaultImport).not.toHaveBeenCalled();
   });
@@ -388,8 +796,11 @@ describe('dispatcher decisions that are not pass-through', () => {
   it('converts a thrown wallet error into an error object rather than propagating it', async () => {
     vi.mocked(nip47.handleNip47PayInvoice).mockRejectedValue(new Error('wallet offline'));
 
-    await expect(dispatchMessage('nip47.payInvoice', { invoice: 'lnbc' } as never, ORIGIN)).resolves.toEqual({
-      success: false, error: 'wallet offline',
+    await expect(
+      dispatchMessage('nip47.payInvoice', { invoice: 'lnbc' } as never, ORIGIN),
+    ).resolves.toEqual({
+      success: false,
+      error: 'wallet offline',
     });
   });
 });
@@ -412,18 +823,27 @@ describe('messaging actions report failures to the page', () => {
     ]);
   });
 
-  it.each(messagingCases)('passes on a refusal from $name', async ({ action, payload, handler }) => {
-    handler.mockResolvedValue({ success: false, error: 'refused' });
+  it.each(messagingCases)(
+    'passes on a refusal from $name',
+    async ({ action, payload, handler }) => {
+      handler.mockResolvedValue({ success: false, error: 'refused' });
 
-    await expect(dispatchMessage(action, payload as never, ORIGIN)).resolves.toEqual({ success: false, error: 'refused' });
-  });
+      await expect(dispatchMessage(action, payload as never, ORIGIN)).resolves.toEqual({
+        success: false,
+        error: 'refused',
+      });
+    },
+  );
 
-  it.each(messagingCases)('turns an exception in $name into an error result', async ({ action, payload, handler }) => {
-    handler.mockRejectedValue(new Error('Vault is locked'));
+  it.each(messagingCases)(
+    'turns an exception in $name into an error result',
+    async ({ action, payload, handler }) => {
+      handler.mockRejectedValue(new Error('Vault is locked'));
 
-    await expect(dispatchMessage(action, payload as never, ORIGIN)).resolves.toEqual({
-      success: false,
-      error: 'Vault is locked',
-    });
-  });
+      await expect(dispatchMessage(action, payload as never, ORIGIN)).resolves.toEqual({
+        success: false,
+        error: 'Vault is locked',
+      });
+    },
+  );
 });

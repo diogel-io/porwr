@@ -55,9 +55,7 @@ export function parseRelayListEntries(event: Event): RelayListEntry[] {
 
 export function extractWritePreferredRelayUrls(event: Event): string[] {
   const entries = parseRelayListEntries(event);
-  const writeUrls = entries
-    .filter((entry) => entry.write)
-    .map((entry) => entry.url);
+  const writeUrls = entries.filter((entry) => entry.write).map((entry) => entry.url);
 
   if (writeUrls.length > 0) {
     return normalizeAndDeduplicateRelays(writeUrls);
@@ -178,7 +176,9 @@ export class RelayDiscoveryService {
             processedCount++;
           }
         } catch (err) {
-          errors.push(`Error parsing event ${event.id}: ${err instanceof Error ? err.message : String(err)}`);
+          errors.push(
+            `Error parsing event ${event.id}: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
     } catch (err) {

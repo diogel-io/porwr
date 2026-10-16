@@ -97,9 +97,12 @@ describe('blossom-upload-service', () => {
     });
 
     // blossomServer comes from the mocked settings store default
-    expect(sendBexMessageMock).toHaveBeenCalledWith('blossom.upload', expect.objectContaining({
-      blossomServer: 'https://blossom.default.example.com',
-    }));
+    expect(sendBexMessageMock).toHaveBeenCalledWith(
+      'blossom.upload',
+      expect.objectContaining({
+        blossomServer: 'https://blossom.default.example.com',
+      }),
+    );
   });
 
   it('calls getSettings before sending message', async () => {

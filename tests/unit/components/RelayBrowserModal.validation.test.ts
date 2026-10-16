@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
-import { listRelayCatalog, refreshRelayCatalog, getRelayDiscoveryStatus } from '@/services/relay-service';
+import {
+  listRelayCatalog,
+  refreshRelayCatalog,
+  getRelayDiscoveryStatus,
+} from '@/services/relay-service';
 import type { RelayDiscoveryState, RelayCatalogEntry } from '@/types/relay';
 
 // Mock i18n
@@ -47,11 +51,13 @@ const stubs = {
   'q-badge': { template: '<span><slot /></span>' },
   'q-tooltip': { template: '<div><slot /></div>' },
   'q-input': {
-    template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    template:
+      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
     props: ['modelValue'],
   },
   'q-toggle': {
-    template: '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
+    template:
+      '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
     props: ['modelValue'],
   },
   'q-pagination': {

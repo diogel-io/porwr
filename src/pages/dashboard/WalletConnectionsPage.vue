@@ -57,7 +57,9 @@ const balanceDisplayUnit = ref<'sats' | 'btc'>('sats');
 
 const hasConnections = computed(() => connections.value.length > 0);
 const activeConnection = computed<Nip47ConnectionSummary | null>(() => {
-  return connections.value.find((connection) => connection.isActive) ?? connections.value[0] ?? null;
+  return (
+    connections.value.find((connection) => connection.isActive) ?? connections.value[0] ?? null
+  );
 });
 const secondaryConnections = computed<Nip47ConnectionSummary[]>(() => {
   const activeId = activeConnection.value?.id;
@@ -67,19 +69,25 @@ const activeBalance = computed<number | undefined>(() => {
   const activeId = activeConnection.value?.id;
   return activeId ? balances.value[activeId] : undefined;
 });
-const activeCanPay = computed(() => Boolean(activeConnection.value?.capabilities.includes('pay_invoice')));
+const activeCanPay = computed(() =>
+  Boolean(activeConnection.value?.capabilities.includes('pay_invoice')),
+);
 const activeBalanceDisplay = computed(() => {
   const balance = activeBalance.value;
   if (balance === undefined) {
     return t('walletManagement.balance.notChecked');
   }
 
-  return balanceDisplayUnit.value === 'btc' ? formatMsatAsBtc(balance) : formatMsatAsSatsValue(balance);
+  return balanceDisplayUnit.value === 'btc'
+    ? formatMsatAsBtc(balance)
+    : formatMsatAsSatsValue(balance);
 });
 const activeBalanceToggleLabel = computed(() => {
   return activeBalance.value === undefined
     ? t('walletManagement.balance.toggleDisabled')
-    : t('walletManagement.balance.toggleAria', { unit: balanceDisplayUnit.value === 'btc' ? 'sats' : 'BTC' });
+    : t('walletManagement.balance.toggleAria', {
+        unit: balanceDisplayUnit.value === 'btc' ? 'sats' : 'BTC',
+      });
 });
 const importPanelVisible = computed(
   () => Boolean(accountPubkey.value) && (importPanelOpen.value || !hasConnections.value),
@@ -262,7 +270,9 @@ async function connectWallet(provider: WalletProviderId): Promise<void> {
     );
     if (result.status === 'connected') {
       importPanelOpen.value = false;
-      notifySuccess(t('walletManagement.notifications.connected', { label: result.connection.label }));
+      notifySuccess(
+        t('walletManagement.notifications.connected', { label: result.connection.label }),
+      );
       await refreshConnections();
     } else if (result.status === 'popup-blocked') {
       $q.notify({ type: 'warning', message: t('walletManagement.notifications.popupBlocked') });
@@ -270,7 +280,9 @@ async function connectWallet(provider: WalletProviderId): Promise<void> {
       pasteOpen.value = true;
       $q.notify({
         type: 'warning',
-        message: t('walletManagement.notifications.noResponse', { provider: WALLET_PROVIDERS[provider].name }),
+        message: t('walletManagement.notifications.noResponse', {
+          provider: WALLET_PROVIDERS[provider].name,
+        }),
       });
     }
   } catch (error: unknown) {
@@ -283,16 +295,23 @@ async function refreshConnectionInfo(connectionId: string): Promise<void> {
   try {
     const info = await getNip47Info(accountPubkey.value, connectionId);
     connections.value = sortConnections(
-      connections.value.map((item) => item.id === connectionId
-        ? {
-            ...item,
-            capabilities: info.capabilities,
-            lastInfoCheckedAt: info.checkedAt,
-            updatedAt: new Date().toISOString(),
-          }
-        : item),
+      connections.value.map((item) =>
+        item.id === connectionId
+          ? {
+              ...item,
+              capabilities: info.capabilities,
+              lastInfoCheckedAt: info.checkedAt,
+              updatedAt: new Date().toISOString(),
+            }
+          : item,
+      ),
     );
-    notifySuccess(t('walletManagement.notifications.infoLoaded', { capabilities: info.capabilities.join(', ') || t('walletManagement.capabilities.noneAdvertised') }));
+    notifySuccess(
+      t('walletManagement.notifications.infoLoaded', {
+        capabilities:
+          info.capabilities.join(', ') || t('walletManagement.capabilities.noneAdvertised'),
+      }),
+    );
   } catch (error: unknown) {
     notifyError(error);
   } finally {
@@ -374,11 +393,17 @@ async function approvePayment(): Promise<void> {
   payingConnectionId.value = connection.id;
   lastPaymentPreimage.value = null;
   try {
-    const payment = await payNip47Invoice(connection.accountPubkey, connection.id, paymentInvoice.value);
+    const payment = await payNip47Invoice(
+      connection.accountPubkey,
+      connection.id,
+      paymentInvoice.value,
+    );
     lastPaymentPreimage.value = payment.preimage;
     notifySuccess(
       payment.feesPaidMsat !== undefined
-        ? t('walletManagement.notifications.paymentSentWithFees', { fees: formatMsat(payment.feesPaidMsat) })
+        ? t('walletManagement.notifications.paymentSentWithFees', {
+            fees: formatMsat(payment.feesPaidMsat),
+          })
         : t('walletManagement.notifications.paymentSent'),
     );
     paymentDialogOpen.value = false;
@@ -452,7 +477,10 @@ onMounted(async () => {
         <p class="dashboard-hero-caption">
           {{ $t('walletManagement.caption') }}
         </p>
-        <p class="dashboard-hero-caption wallet-connections-page__account" data-testid="wallet-account">
+        <p
+          class="dashboard-hero-caption wallet-connections-page__account"
+          data-testid="wallet-account"
+        >
           {{
             account
               ? $t('walletManagement.accountCaption', { alias: account.alias })
@@ -465,7 +493,11 @@ onMounted(async () => {
           class="diogel-btn-primary"
           icon="add"
           :disable="!account"
-          :label="hasConnections && importPanelVisible ? $t('walletManagement.actions.hideImport') : $t('walletManagement.actions.importWallet')"
+          :label="
+            hasConnections && importPanelVisible
+              ? $t('walletManagement.actions.hideImport')
+              : $t('walletManagement.actions.importWallet')
+          "
           no-caps
           @click="importPanelOpen = !importPanelOpen"
         />
@@ -575,9 +607,13 @@ onMounted(async () => {
               <q-icon name="bolt" size="34px" />
             </q-avatar>
             <div>
-              <div class="wallet-active-card__eyebrow">{{ $t('walletManagement.active.eyebrow') }}</div>
+              <div class="wallet-active-card__eyebrow">
+                {{ $t('walletManagement.active.eyebrow') }}
+              </div>
               <h2 class="wallet-active-card__title">{{ activeConnection.label }}</h2>
-              <div class="wallet-active-card__subtitle">{{ getConnectionSubtitle(activeConnection) }}</div>
+              <div class="wallet-active-card__subtitle">
+                {{ getConnectionSubtitle(activeConnection) }}
+              </div>
             </div>
           </div>
           <q-badge class="wallet-active-card__status" rounded>
@@ -593,21 +629,51 @@ onMounted(async () => {
             :disabled="activeBalance === undefined"
             @click="toggleBalanceDisplayUnit"
           >
-            <span class="wallet-active-card__metric-label">{{ $t('walletManagement.balance.label') }}</span>
+            <span class="wallet-active-card__metric-label">{{
+              $t('walletManagement.balance.label')
+            }}</span>
             <strong>
-              <span v-if="balanceDisplayUnit === 'btc' && activeBalance !== undefined" class="wallet-active-card__bitcoin-symbol">₿</span>
+              <span
+                v-if="balanceDisplayUnit === 'btc' && activeBalance !== undefined"
+                class="wallet-active-card__bitcoin-symbol"
+                >₿</span
+              >
               {{ activeBalanceDisplay }}
-              <span v-if="balanceDisplayUnit === 'sats' && activeBalance !== undefined" class="wallet-active-card__balance-unit">sats</span>
+              <span
+                v-if="balanceDisplayUnit === 'sats' && activeBalance !== undefined"
+                class="wallet-active-card__balance-unit"
+                >sats</span
+              >
             </strong>
-            <small>{{ activeBalance !== undefined ? $t('walletManagement.balance.clickToShow', { unit: balanceDisplayUnit === 'btc' ? 'sats' : 'BTC' }) : $t('walletManagement.balance.runCheckFirst') }}</small>
+            <small>{{
+              activeBalance !== undefined
+                ? $t('walletManagement.balance.clickToShow', {
+                    unit: balanceDisplayUnit === 'btc' ? 'sats' : 'BTC',
+                  })
+                : $t('walletManagement.balance.runCheckFirst')
+            }}</small>
           </button>
-          <div class="wallet-active-card__metric wallet-active-card__metric--capabilities" tabindex="0">
-            <span class="wallet-active-card__metric-label">{{ $t('walletManagement.capabilities.label') }}</span>
+          <div
+            class="wallet-active-card__metric wallet-active-card__metric--capabilities"
+            tabindex="0"
+          >
+            <span class="wallet-active-card__metric-label">{{
+              $t('walletManagement.capabilities.label')
+            }}</span>
             <strong>{{ activeConnection.capabilities.length }}</strong>
-            <small>{{ activeCanPay ? $t('walletManagement.capabilities.payInvoiceEnabled') : $t('walletManagement.capabilities.paymentUnavailable') }}</small>
+            <small>{{
+              activeCanPay
+                ? $t('walletManagement.capabilities.payInvoiceEnabled')
+                : $t('walletManagement.capabilities.paymentUnavailable')
+            }}</small>
             <div class="wallet-active-card__capability-panel" role="tooltip">
-              <div class="wallet-active-card__capability-panel-title">{{ $t('walletManagement.capabilities.panelTitle') }}</div>
-              <ul v-if="activeConnection.capabilities.length > 0" class="wallet-active-card__capability-list">
+              <div class="wallet-active-card__capability-panel-title">
+                {{ $t('walletManagement.capabilities.panelTitle') }}
+              </div>
+              <ul
+                v-if="activeConnection.capabilities.length > 0"
+                class="wallet-active-card__capability-list"
+              >
                 <li v-for="capability in activeConnection.capabilities" :key="capability">
                   {{ capability }}
                 </li>
@@ -618,7 +684,9 @@ onMounted(async () => {
             </div>
           </div>
           <div class="wallet-active-card__metric">
-            <span class="wallet-active-card__metric-label">{{ $t('walletManagement.security.label') }}</span>
+            <span class="wallet-active-card__metric-label">{{
+              $t('walletManagement.security.label')
+            }}</span>
             <strong>{{ $t('walletManagement.security.vaultStored') }}</strong>
             <small>{{ $t('walletManagement.security.websitePayments') }}</small>
           </div>
@@ -655,7 +723,13 @@ onMounted(async () => {
 
         <q-separator dark />
 
-        <q-expansion-item class="wallet-active-card__details" dark dense expand-separator :label="$t('walletManagement.details.technicalDetails')">
+        <q-expansion-item
+          class="wallet-active-card__details"
+          dark
+          dense
+          expand-separator
+          :label="$t('walletManagement.details.technicalDetails')"
+        >
           <div class="wallet-details-grid">
             <div>
               <span>{{ $t('walletManagement.details.walletService') }}</span>
@@ -682,15 +756,30 @@ onMounted(async () => {
           <q-card-section class="dashboard-card-section wallet-secondary-card__header">
             <div>
               <div class="text-h6">{{ $t('walletManagement.secondary.title') }}</div>
-              <div class="text-caption text-grey-7">{{ $t('walletManagement.secondary.caption') }}</div>
+              <div class="text-caption text-grey-7">
+                {{ $t('walletManagement.secondary.caption') }}
+              </div>
             </div>
-            <q-badge color="grey-2" text-color="grey-8" :label="$t('walletManagement.secondary.standbyCount', { count: secondaryConnections.length })" />
+            <q-badge
+              color="grey-2"
+              text-color="grey-8"
+              :label="
+                $t('walletManagement.secondary.standbyCount', {
+                  count: secondaryConnections.length,
+                })
+              "
+            />
           </q-card-section>
 
-          <q-card-section v-if="secondaryConnections.length === 0" class="wallet-secondary-card__empty">
+          <q-card-section
+            v-if="secondaryConnections.length === 0"
+            class="wallet-secondary-card__empty"
+          >
             <q-icon name="account_balance_wallet" size="40px" color="grey-5" />
             <div class="text-subtitle2">{{ $t('walletManagement.secondary.emptyTitle') }}</div>
-            <p class="text-caption text-grey-7 q-mb-none">{{ $t('walletManagement.secondary.emptyCaption') }}</p>
+            <p class="text-caption text-grey-7 q-mb-none">
+              {{ $t('walletManagement.secondary.emptyCaption') }}
+            </p>
           </q-card-section>
 
           <q-list v-else separator>
@@ -721,7 +810,14 @@ onMounted(async () => {
                     :disable="activationSavePending"
                     @click="makeActive(connection)"
                   />
-                  <q-btn dense flat no-caps color="negative" :label="$t('walletManagement.actions.remove')" @click="confirmRemoveConnection(connection)" />
+                  <q-btn
+                    dense
+                    flat
+                    no-caps
+                    color="negative"
+                    :label="$t('walletManagement.actions.remove')"
+                    @click="confirmRemoveConnection(connection)"
+                  />
                 </div>
                 <div class="wallet-details-grid wallet-details-grid--light">
                   <div>
@@ -747,7 +843,9 @@ onMounted(async () => {
             <div class="wallet-safety-card__content">
               <q-icon name="lock" color="primary" size="28px" />
               <div>
-                <div class="text-subtitle1 text-weight-bold">{{ $t('walletManagement.safety.title') }}</div>
+                <div class="text-subtitle1 text-weight-bold">
+                  {{ $t('walletManagement.safety.title') }}
+                </div>
                 <p class="text-caption text-grey-7 q-mb-none">
                   {{ $t('walletManagement.safety.caption') }}
                 </p>
@@ -788,15 +886,27 @@ onMounted(async () => {
       <q-list v-else separator>
         <q-item v-for="entry in paymentHistory" :key="entry.id" class="wallet-history-card__item">
           <q-item-section avatar>
-            <q-avatar :color="entry.status === 'succeeded' ? 'positive' : 'negative'" text-color="white" :icon="entry.status === 'succeeded' ? 'check' : 'close'" />
+            <q-avatar
+              :color="entry.status === 'succeeded' ? 'positive' : 'negative'"
+              text-color="white"
+              :icon="entry.status === 'succeeded' ? 'check' : 'close'"
+            />
           </q-item-section>
           <q-item-section>
             <q-item-label class="wallet-history-card__item-title">
               {{ entry.connectionLabel }}
-              <q-badge :color="entry.status === 'succeeded' ? 'positive' : 'negative'" :label="entry.status" />
+              <q-badge
+                :color="entry.status === 'succeeded' ? 'positive' : 'negative'"
+                :label="entry.status"
+              />
             </q-item-label>
             <q-item-label caption>
-              {{ formatTimestamp(entry.createdAt) }} · {{ $t('walletManagement.history.amount') }}: {{ entry.amountMsat !== undefined ? formatMsat(entry.amountMsat) : $t('walletManagement.history.unknown') }}
+              {{ formatTimestamp(entry.createdAt) }} · {{ $t('walletManagement.history.amount') }}:
+              {{
+                entry.amountMsat !== undefined
+                  ? formatMsat(entry.amountMsat)
+                  : $t('walletManagement.history.unknown')
+              }}
               <span v-if="entry.feesPaidMsat !== undefined">
                 · {{ $t('walletManagement.history.fees') }}: {{ formatMsat(entry.feesPaidMsat) }}
               </span>
@@ -828,10 +938,15 @@ onMounted(async () => {
 
         <q-card-section class="q-gutter-md">
           <div v-if="selectedPaymentConnection">
-            <div class="text-caption text-grey-7">{{ $t('walletManagement.payment.walletConnection') }}</div>
+            <div class="text-caption text-grey-7">
+              {{ $t('walletManagement.payment.walletConnection') }}
+            </div>
             <div class="text-body1 text-weight-medium">{{ selectedPaymentConnection.label }}</div>
             <div class="text-caption text-grey-7">
-              {{ selectedPaymentConnection.lud16 || shortHex(selectedPaymentConnection.walletServicePubkey) }}
+              {{
+                selectedPaymentConnection.lud16 ||
+                shortHex(selectedPaymentConnection.walletServicePubkey)
+              }}
             </div>
           </div>
 
@@ -845,10 +960,18 @@ onMounted(async () => {
           />
 
           <q-card flat bordered class="q-pa-md payment-review-card">
-            <div class="text-caption payment-review-label">{{ $t('walletManagement.payment.parsedAmount') }}</div>
-            <div class="text-subtitle1 text-weight-bold payment-review-value">{{ parsedInvoiceAmount }}</div>
-            <div class="text-caption payment-review-label q-mt-sm">{{ $t('walletManagement.payment.invoicePreview') }}</div>
-            <div class="text-body2 break-word payment-review-value">{{ shortInvoice(paymentInvoice) || $t('walletManagement.payment.noInvoiceEntered') }}</div>
+            <div class="text-caption payment-review-label">
+              {{ $t('walletManagement.payment.parsedAmount') }}
+            </div>
+            <div class="text-subtitle1 text-weight-bold payment-review-value">
+              {{ parsedInvoiceAmount }}
+            </div>
+            <div class="text-caption payment-review-label q-mt-sm">
+              {{ $t('walletManagement.payment.invoicePreview') }}
+            </div>
+            <div class="text-body2 break-word payment-review-value">
+              {{ shortInvoice(paymentInvoice) || $t('walletManagement.payment.noInvoiceEntered') }}
+            </div>
           </q-card>
 
           <q-checkbox
@@ -1024,7 +1147,10 @@ onMounted(async () => {
 
 .wallet-active-card__metric--balance {
   cursor: pointer;
-  transition: background 0.18s ease, outline-color 0.18s ease, transform 0.18s ease;
+  transition:
+    background 0.18s ease,
+    outline-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .wallet-active-card__metric--balance:not(:disabled):hover,
@@ -1118,7 +1244,9 @@ onMounted(async () => {
 .wallet-active-card__capability-list li {
   overflow-wrap: anywhere;
   color: #e5e7eb;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
   font-size: 0.82rem;
 }
 
@@ -1180,7 +1308,9 @@ onMounted(async () => {
 .wallet-details-grid strong {
   overflow-wrap: anywhere;
   color: #f9fafb;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
   font-size: 0.82rem;
   font-weight: 600;
 }

@@ -16,7 +16,8 @@ function rankText(text: string, query: string): Rank | null {
   const value = text.trim().toLowerCase();
   if (!value) return null;
   if (value === query) return 0;
-  if (value.startsWith(query) || value.split(/[\s@._-]+/).some((word) => word.startsWith(query))) return 1;
+  if (value.startsWith(query) || value.split(/[\s@._-]+/).some((word) => word.startsWith(query)))
+    return 1;
   if (value.includes(query)) return 2;
   return null;
 }
@@ -66,7 +67,11 @@ export function searchCachedContacts(
           rankText(profile?.nip05 ?? '', needle),
         ]);
     if (rank !== null) {
-      matches.push({ pubkey: contact.pubkey, rank, name: displayName(contact, profile).toLowerCase() });
+      matches.push({
+        pubkey: contact.pubkey,
+        rank,
+        name: displayName(contact, profile).toLowerCase(),
+      });
     }
   }
 

@@ -32,13 +32,17 @@ describe('messaging-service', () => {
 
   it('checks the DM relays (#277)', async () => {
     send.mockResolvedValue({ checks: [{ url: 'wss://a', status: 'drops' }] });
-    await expect(checkDmRelays(['wss://a'])).resolves.toEqual({ checks: [{ url: 'wss://a', status: 'drops' }] });
+    await expect(checkDmRelays(['wss://a'])).resolves.toEqual({
+      checks: [{ url: 'wss://a', status: 'drops' }],
+    });
     expect(send).toHaveBeenCalledWith('messaging.dmRelays.check', { relays: ['wss://a'] });
   });
 
   it('rejects a check response without checks', async () => {
     send.mockResolvedValue({});
-    await expect(checkDmRelays(['wss://a'])).rejects.toThrow('Invalid direct message relay check response');
+    await expect(checkDmRelays(['wss://a'])).rejects.toThrow(
+      'Invalid direct message relay check response',
+    );
   });
 
   it('sends a message', async () => {

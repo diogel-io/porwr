@@ -24,14 +24,24 @@ beforeEach(() => {
 const ACCOUNT = 'a'.repeat(64);
 
 describe('nip47-service wallet authorization (#110)', () => {
-  const start = { pendingId: 'p', clientPubkey: 'c', origin: 'https://coinos.io', authorizationUrl: 'https://coinos.io/apps/new' };
+  const start = {
+    pendingId: 'p',
+    clientPubkey: 'c',
+    origin: 'https://coinos.io',
+    authorizationUrl: 'https://coinos.io/apps/new',
+  };
   const completion = { pendingId: 'p', walletServicePubkey: 'w', relays: ['wss://r'] };
 
   it('begins an authorization in the background', async () => {
     sendBexMessage.mockResolvedValue(start);
 
-    await expect(beginNip47Authorization({ accountPubkey: ACCOUNT, provider: 'coinos' })).resolves.toEqual(start);
-    expect(sendBexMessage).toHaveBeenCalledWith('nip47.authorization.begin', { accountPubkey: ACCOUNT, provider: 'coinos' });
+    await expect(
+      beginNip47Authorization({ accountPubkey: ACCOUNT, provider: 'coinos' }),
+    ).resolves.toEqual(start);
+    expect(sendBexMessage).toHaveBeenCalledWith('nip47.authorization.begin', {
+      accountPubkey: ACCOUNT,
+      provider: 'coinos',
+    });
   });
 
   it('completes an authorization in the background', async () => {
@@ -52,7 +62,9 @@ describe('nip47-service wallet authorization (#110)', () => {
   it('surfaces background errors', async () => {
     sendBexMessage.mockResolvedValue({ success: false, error: 'Vault is locked' });
 
-    await expect(beginNip47Authorization({ accountPubkey: ACCOUNT, provider: 'coinos' })).rejects.toThrow('Vault is locked');
+    await expect(
+      beginNip47Authorization({ accountPubkey: ACCOUNT, provider: 'coinos' }),
+    ).rejects.toThrow('Vault is locked');
     await expect(completeNip47Authorization(completion)).rejects.toThrow('Vault is locked');
     await expect(probeNip47Authorization('p')).rejects.toThrow('Vault is locked');
   });
@@ -60,8 +72,12 @@ describe('nip47-service wallet authorization (#110)', () => {
   it('rejects malformed responses', async () => {
     sendBexMessage.mockResolvedValue({});
 
-    await expect(beginNip47Authorization({ accountPubkey: ACCOUNT, provider: 'coinos' })).rejects.toThrow('Invalid wallet authorization response');
-    await expect(completeNip47Authorization(completion)).rejects.toThrow('Invalid wallet authorization response');
+    await expect(
+      beginNip47Authorization({ accountPubkey: ACCOUNT, provider: 'coinos' }),
+    ).rejects.toThrow('Invalid wallet authorization response');
+    await expect(completeNip47Authorization(completion)).rejects.toThrow(
+      'Invalid wallet authorization response',
+    );
   });
 });
 
@@ -70,7 +86,9 @@ describe('nip47-service names the account on every wallet call (#304)', () => {
     sendBexMessage.mockResolvedValue([]);
     await listNip47Connections(ACCOUNT);
     await listNip47PaymentHistory(ACCOUNT);
-    expect(sendBexMessage).toHaveBeenCalledWith('nip47.connections.list', { accountPubkey: ACCOUNT });
+    expect(sendBexMessage).toHaveBeenCalledWith('nip47.connections.list', {
+      accountPubkey: ACCOUNT,
+    });
     expect(sendBexMessage).toHaveBeenCalledWith('nip47.payments.list', { accountPubkey: ACCOUNT });
 
     sendBexMessage.mockResolvedValue({ id: 'w', balanceMsat: 1, capabilities: [], preimage: 'p' });
@@ -79,11 +97,27 @@ describe('nip47-service names the account on every wallet call (#304)', () => {
     await getNip47Balance(ACCOUNT, 'w');
     await payNip47Invoice(ACCOUNT, 'w', 'lnbc1');
     await removeNip47Connection(ACCOUNT, 'w');
-    expect(sendBexMessage).toHaveBeenCalledWith('nip47.connections.setActive', { accountPubkey: ACCOUNT, connectionId: 'w' });
-    expect(sendBexMessage).toHaveBeenCalledWith('nip47.getInfo', { accountPubkey: ACCOUNT, connectionId: 'w' });
-    expect(sendBexMessage).toHaveBeenCalledWith('nip47.getBalance', { accountPubkey: ACCOUNT, connectionId: 'w' });
-    expect(sendBexMessage).toHaveBeenCalledWith('nip47.payInvoice', { accountPubkey: ACCOUNT, connectionId: 'w', invoice: 'lnbc1' });
-    expect(sendBexMessage).toHaveBeenCalledWith('nip47.connections.remove', { accountPubkey: ACCOUNT, connectionId: 'w' });
+    expect(sendBexMessage).toHaveBeenCalledWith('nip47.connections.setActive', {
+      accountPubkey: ACCOUNT,
+      connectionId: 'w',
+    });
+    expect(sendBexMessage).toHaveBeenCalledWith('nip47.getInfo', {
+      accountPubkey: ACCOUNT,
+      connectionId: 'w',
+    });
+    expect(sendBexMessage).toHaveBeenCalledWith('nip47.getBalance', {
+      accountPubkey: ACCOUNT,
+      connectionId: 'w',
+    });
+    expect(sendBexMessage).toHaveBeenCalledWith('nip47.payInvoice', {
+      accountPubkey: ACCOUNT,
+      connectionId: 'w',
+      invoice: 'lnbc1',
+    });
+    expect(sendBexMessage).toHaveBeenCalledWith('nip47.connections.remove', {
+      accountPubkey: ACCOUNT,
+      connectionId: 'w',
+    });
   });
 
   it('reports an error listing connections rather than an empty list', async () => {

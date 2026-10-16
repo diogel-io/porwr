@@ -46,7 +46,9 @@ export function isStale(fetchedAt: number, now = Date.now(), ttl = CONTACT_CACHE
   return now - fetchedAt >= ttl;
 }
 
-export async function readContactList(accountPubkey: string): Promise<CachedContactList | undefined> {
+export async function readContactList(
+  accountPubkey: string,
+): Promise<CachedContactList | undefined> {
   return db.contactLists.get(accountPubkey);
 }
 
@@ -85,7 +87,11 @@ export async function writeContactList(
       return false;
     }
 
-    if (existing && existing.sourceCreatedAt !== undefined && snapshot.sourceCreatedAt === undefined) {
+    if (
+      existing &&
+      existing.sourceCreatedAt !== undefined &&
+      snapshot.sourceCreatedAt === undefined
+    ) {
       // Relays had nothing, but we hold a list we saw published: keep it.
       await db.contactLists.put({ ...existing, fetchedAt: now });
       return false;
@@ -130,7 +136,10 @@ export async function upsertProfiles(
 }
 
 /** Drops cached profiles of people the account no longer follows. */
-export async function pruneProfiles(accountPubkey: string, keepPubkeys: readonly string[]): Promise<void> {
+export async function pruneProfiles(
+  accountPubkey: string,
+  keepPubkeys: readonly string[],
+): Promise<void> {
   const keep = new Set(keepPubkeys);
   await db.contactProfiles
     .where('accountPubkey')

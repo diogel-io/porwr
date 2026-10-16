@@ -39,7 +39,9 @@ describe('messaging saved peers (#258)', () => {
   });
 
   it('refuses to grow past the limit', () => {
-    const full = Array.from({ length: MAX_SAVED_PEERS }, (_, index) => index.toString(16).padStart(64, '0'));
+    const full = Array.from({ length: MAX_SAVED_PEERS }, (_, index) =>
+      index.toString(16).padStart(64, '0'),
+    );
 
     expect(() => addSavedPeer(vault({ [ALICE]: full }), ALICE, BOB)).toThrow();
   });
@@ -47,7 +49,10 @@ describe('messaging saved peers (#258)', () => {
   it('removes a peer, and returns the same vault when it was not saved', () => {
     const data = vault({ [ALICE]: [BOB, DAVE], [CAROL]: [BOB] });
 
-    expect(removeSavedPeer(data, ALICE, BOB).messagingSavedPeers).toEqual({ [ALICE]: [DAVE], [CAROL]: [BOB] });
+    expect(removeSavedPeer(data, ALICE, BOB).messagingSavedPeers).toEqual({
+      [ALICE]: [DAVE],
+      [CAROL]: [BOB],
+    });
     expect(removeSavedPeer(data, ALICE, CAROL)).toBe(data);
   });
 });

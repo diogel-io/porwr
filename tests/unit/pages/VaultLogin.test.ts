@@ -91,7 +91,9 @@ describe('VaultLogin.vue', () => {
     await wrapper.vm.$nextTick();
 
     expect(testState.checkVaultStatusMock).toHaveBeenCalledTimes(1);
-    expect(wrapper.text()).toContain('Vault is locked. Unlock your vault to approve the signer request.');
+    expect(wrapper.text()).toContain(
+      'Vault is locked. Unlock your vault to approve the signer request.',
+    );
     expect(testState.notifyMock).toHaveBeenCalledWith({
       type: 'warning',
       message: 'Vault is locked. Unlock your vault to approve the signer request.',
@@ -104,7 +106,9 @@ describe('VaultLogin.vue', () => {
     const wrapper = mountPage();
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.text()).not.toContain('Vault is locked. Unlock your vault to approve the signer request.');
+    expect(wrapper.text()).not.toContain(
+      'Vault is locked. Unlock your vault to approve the signer request.',
+    );
     expect(testState.notifyMock).not.toHaveBeenCalled();
   });
 });

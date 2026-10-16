@@ -15,7 +15,9 @@ import { createVault, seedAccount } from './fixtures/vault';
  * against `profileService`; publishing needs relays, which this harness has none of.
  */
 test.describe('a profile change in one surface reaches another', () => {
-  test('storage.onChanged fires in the panel for a write from the dashboard', async ({ openPage }) => {
+  test('storage.onChanged fires in the panel for a write from the dashboard', async ({
+    openPage,
+  }) => {
     const setup = await openPage('/login');
     await createVault(setup);
     await seedAccount(setup);
@@ -40,9 +42,12 @@ test.describe('a profile change in one surface reaches another', () => {
     );
 
     await expect
-      .poll(() => panel.evaluate(() => (window as unknown as { __seen: unknown[] }).__seen.length), {
-        timeout: 10_000,
-      })
+      .poll(
+        () => panel.evaluate(() => (window as unknown as { __seen: unknown[] }).__seen.length),
+        {
+          timeout: 10_000,
+        },
+      )
       .toBe(1);
 
     const seen = await panel.evaluate(() => (window as unknown as { __seen: unknown[] }).__seen[0]);

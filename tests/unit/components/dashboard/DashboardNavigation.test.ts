@@ -66,7 +66,11 @@ describe('DashboardNavigation support (#228)', () => {
 
     await item(wrapper, 'navigation.documentation.label').trigger('click');
 
-    expect(window.open).toHaveBeenCalledWith('https://diogel.io/docs/porwr', '_blank', 'noopener,noreferrer');
+    expect(window.open).toHaveBeenCalledWith(
+      'https://diogel.io/docs/porwr',
+      '_blank',
+      'noopener,noreferrer',
+    );
   });
 });
 

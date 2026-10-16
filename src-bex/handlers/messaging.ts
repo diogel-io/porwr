@@ -24,7 +24,11 @@ import { messagingRelays, validateDmRelays } from '../services/messaging-relays'
 import { nip17Messaging } from '../services/nip17-messaging';
 import { dmRelayProbe } from '../services/dm-relay-probe';
 import { markConversationRead, readStateFor } from '../services/messaging-read-state-store';
-import { addSavedPeer, removeSavedPeer, savedPeersFor } from '../services/messaging-saved-peers-store';
+import {
+  addSavedPeer,
+  removeSavedPeer,
+  savedPeersFor,
+} from '../services/messaging-saved-peers-store';
 
 /**
  * NIP-17 messaging actions for the extension's own pages.
@@ -55,7 +59,10 @@ export async function handleDmRelaysPublish(
     return { success: false, error: validation.error };
   }
 
-  const result = await messagingRelays.publishDmRelays(await getActiveSecretKey(), validation.relays);
+  const result = await messagingRelays.publishDmRelays(
+    await getActiveSecretKey(),
+    validation.relays,
+  );
   if (result.accepted.length === 0) {
     return {
       success: false,
@@ -70,7 +77,9 @@ export async function handleDmRelaysPublish(
  * Tests whether each relay keeps gift wraps, before the user publishes them as their inbox (#277).
  * The test uses throwaway keys, so it needs no unlocked account.
  */
-export async function handleDmRelaysCheck(payload: DmRelayCheckRequest): Promise<HandlerResult<DmRelayCheckResult>> {
+export async function handleDmRelaysCheck(
+  payload: DmRelayCheckRequest,
+): Promise<HandlerResult<DmRelayCheckResult>> {
   const validation = validateDmRelays(Array.isArray(payload?.relays) ? payload.relays : []);
   if (!validation.valid) {
     return { success: false, error: validation.error };
@@ -78,8 +87,14 @@ export async function handleDmRelaysCheck(payload: DmRelayCheckRequest): Promise
   return { success: true, data: await dmRelayProbe.check(validation.relays) };
 }
 
-export async function handleMessagesSend(payload: SendMessageRequest): Promise<HandlerResult<SendMessageResult>> {
-  if (!payload || typeof payload.clientMessageId !== 'string' || !CLIENT_MESSAGE_ID.test(payload.clientMessageId)) {
+export async function handleMessagesSend(
+  payload: SendMessageRequest,
+): Promise<HandlerResult<SendMessageResult>> {
+  if (
+    !payload ||
+    typeof payload.clientMessageId !== 'string' ||
+    !CLIENT_MESSAGE_ID.test(payload.clientMessageId)
+  ) {
     return { success: false, error: 'A message needs a client message id' };
   }
   if (typeof payload.recipient !== 'string' || !HEX_64.test(payload.recipient)) {
@@ -105,9 +120,17 @@ export async function handleMessagesSend(payload: SendMessageRequest): Promise<H
   return { success: true, data: result };
 }
 
-export async function handleMessagesFetch(payload: FetchMessagesRequest): Promise<HandlerResult<FetchMessagesResult>> {
-  const since = typeof payload?.since === 'number' && Number.isFinite(payload.since) ? payload.since : undefined;
-  const result = await nip17Messaging.fetch(await getActiveSecretKey(), since === undefined ? {} : { since });
+export async function handleMessagesFetch(
+  payload: FetchMessagesRequest,
+): Promise<HandlerResult<FetchMessagesResult>> {
+  const since =
+    typeof payload?.since === 'number' && Number.isFinite(payload.since)
+      ? payload.since
+      : undefined;
+  const result = await nip17Messaging.fetch(
+    await getActiveSecretKey(),
+    since === undefined ? {} : { since },
+  );
   return { success: true, data: result };
 }
 
@@ -124,11 +147,17 @@ export async function handleMessagesReadState(): Promise<HandlerResult<Messaging
   return { success: true, data: readStateFor(await requireUnlockedVaultData(), me) };
 }
 
-export async function handleMessagesMarkRead(payload: MarkReadRequest): Promise<HandlerResult<MessagingReadState>> {
+export async function handleMessagesMarkRead(
+  payload: MarkReadRequest,
+): Promise<HandlerResult<MessagingReadState>> {
   if (!payload || typeof payload.peer !== 'string' || !HEX_64.test(payload.peer)) {
     return { success: false, error: 'The conversation must be a hex public key' };
   }
-  if (typeof payload.readAt !== 'number' || !Number.isFinite(payload.readAt) || payload.readAt < 0) {
+  if (
+    typeof payload.readAt !== 'number' ||
+    !Number.isFinite(payload.readAt) ||
+    payload.readAt < 0
+  ) {
     return { success: false, error: 'readAt must be a timestamp' };
   }
 
@@ -145,7 +174,9 @@ export async function handleMessagesMarkRead(payload: MarkReadRequest): Promise<
 }
 
 function checkPeer(payload: SavedPeerRequest | undefined): string | null {
-  return payload && typeof payload.peer === 'string' && HEX_64.test(payload.peer) ? payload.peer : null;
+  return payload && typeof payload.peer === 'string' && HEX_64.test(payload.peer)
+    ? payload.peer
+    : null;
 }
 
 /** The contacts this account added to Chats through search (#258). */
@@ -154,7 +185,9 @@ export async function handleSavedPeersGet(): Promise<HandlerResult<MessagingSave
   return { success: true, data: savedPeersFor(await requireUnlockedVaultData(), me) };
 }
 
-export async function handleSavedPeersAdd(payload: SavedPeerRequest): Promise<HandlerResult<MessagingSavedPeers>> {
+export async function handleSavedPeersAdd(
+  payload: SavedPeerRequest,
+): Promise<HandlerResult<MessagingSavedPeers>> {
   const peer = checkPeer(payload);
   if (!peer) return { success: false, error: 'The conversation must be a hex public key' };
 
@@ -176,7 +209,9 @@ export async function handleSavedPeersAdd(payload: SavedPeerRequest): Promise<Ha
  * Takes a contact off Chats. Only hides a conversation with no messages: one with history is listed
  * because of its messages, whatever is saved here.
  */
-export async function handleSavedPeersRemove(payload: SavedPeerRequest): Promise<HandlerResult<MessagingSavedPeers>> {
+export async function handleSavedPeersRemove(
+  payload: SavedPeerRequest,
+): Promise<HandlerResult<MessagingSavedPeers>> {
   const peer = checkPeer(payload);
   if (!peer) return { success: false, error: 'The conversation must be a hex public key' };
 

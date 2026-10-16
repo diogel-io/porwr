@@ -23,10 +23,7 @@ describe('DashboardBreadcrumbs.vue', () => {
   });
 
   it('links every item before the current one', () => {
-    const wrapper = mountCrumbs([
-      { label: 'Keys', to: { name: 'keys' } },
-      { label: 'alice' },
-    ]);
+    const wrapper = mountCrumbs([{ label: 'Keys', to: { name: 'keys' } }, { label: 'alice' }]);
 
     const links = wrapper.findAllComponents(RouterLinkStub);
     expect(links).toHaveLength(1);
@@ -47,10 +44,7 @@ describe('DashboardBreadcrumbs.vue', () => {
   });
 
   it('hides the separators from assistive technology', () => {
-    const wrapper = mountCrumbs([
-      { label: 'Keys', to: { name: 'keys' } },
-      { label: 'alice' },
-    ]);
+    const wrapper = mountCrumbs([{ label: 'Keys', to: { name: 'keys' } }, { label: 'alice' }]);
 
     const separators = wrapper.findAll('.dashboard-breadcrumbs__separator');
     expect(separators).toHaveLength(1);

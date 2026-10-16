@@ -39,7 +39,9 @@ export function formatContactNpub(pubkey: string): string {
 }
 
 export function getContactDisplayName(contact: Nip02Contact, profile?: ContactProfile): string {
-  return profile?.displayName || profile?.name || contact.petname || formatContactNpub(contact.pubkey);
+  return (
+    profile?.displayName || profile?.name || contact.petname || formatContactNpub(contact.pubkey)
+  );
 }
 
 function mergeSearchResult(
@@ -167,21 +169,30 @@ export async function searchContacts(query: string): Promise<ContactSearchResult
   }
 
   return Array.from(results.values()).sort((left, right) => {
-    const leftName = left.profile?.displayName || left.profile?.name || left.profile?.nip05 || left.pubkey;
-    const rightName = right.profile?.displayName || right.profile?.name || right.profile?.nip05 || right.pubkey;
+    const leftName =
+      left.profile?.displayName || left.profile?.name || left.profile?.nip05 || left.pubkey;
+    const rightName =
+      right.profile?.displayName || right.profile?.name || right.profile?.nip05 || right.pubkey;
     return leftName.localeCompare(rightName);
   });
 }
 
 /** Profiles for `pubkeys` from the fallback relays, fetched in batches so one slow chunk holds up few. */
-export async function fetchContactProfiles(pubkeys: string[]): Promise<Record<string, ContactProfile>> {
+export async function fetchContactProfiles(
+  pubkeys: string[],
+): Promise<Record<string, ContactProfile>> {
   const settingsStore = useSettingsStore();
   const relays = await settingsStore.getFallbackRelays();
   return fetchProfilesInBatches(pool, relays, pubkeys);
 }
 
 export function buildContactListTags(contacts: Nip02Contact[]): string[][] {
-  return contacts.map((contact) => ['p', contact.pubkey, contact.relayUrl.trim(), contact.petname.trim()]);
+  return contacts.map((contact) => [
+    'p',
+    contact.pubkey,
+    contact.relayUrl.trim(),
+    contact.petname.trim(),
+  ]);
 }
 
 export function validateContactInput(
@@ -196,7 +207,9 @@ export function validateContactInput(
     return { valid: false, error: 'Enter a valid hex pubkey or npub.' };
   }
 
-  const duplicate = existingContacts.some((contact) => contact.pubkey === pubkey && contact.pubkey !== originalPubkey);
+  const duplicate = existingContacts.some(
+    (contact) => contact.pubkey === pubkey && contact.pubkey !== originalPubkey,
+  );
   if (duplicate) {
     return { valid: false, error: 'This contact is already in the list.' };
   }
@@ -257,12 +270,20 @@ export async function fetchContactList(storedKey: AccountSummary): Promise<Conta
  */
 export async function requestContactRefresh(options: ContactRefreshRequest = {}): Promise<void> {
   const response = await sendBexMessage('contacts.refresh', options);
-  if (response && typeof response === 'object' && 'success' in response && response.success === false) {
+  if (
+    response &&
+    typeof response === 'object' &&
+    'success' in response &&
+    response.success === false
+  ) {
     throw new Error(response.error);
   }
 }
 
-function settlePublishResult(relayUrl: string, result: Promise<string>): Promise<ContactListRelayPublishResult> {
+function settlePublishResult(
+  relayUrl: string,
+  result: Promise<string>,
+): Promise<ContactListRelayPublishResult> {
   return result
     .then(() => ({ relayUrl, success: true }))
     .catch((error: unknown) => ({
@@ -289,7 +310,12 @@ export async function publishContactList(
 
   const publishResults = pool.publish(relays, signedEvent);
   const relayResults = await Promise.all(
-    relays.map((relayUrl, index) => settlePublishResult(relayUrl, publishResults[index] ?? Promise.reject(new Error('Publish was not attempted.')))),
+    relays.map((relayUrl, index) =>
+      settlePublishResult(
+        relayUrl,
+        publishResults[index] ?? Promise.reject(new Error('Publish was not attempted.')),
+      ),
+    ),
   );
 
   if (!relayResults.some((result) => result.success)) {

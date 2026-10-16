@@ -4,7 +4,6 @@ import ExtensionNavigation from '@/components/extension/ExtensionNavigation.vue'
 import useVaultStore from '@/stores/vault-store';
 
 const vaultStore = useVaultStore();
-
 </script>
 
 <template>

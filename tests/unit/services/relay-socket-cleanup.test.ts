@@ -52,7 +52,9 @@ describe('relay socket cleanup', () => {
 
     expect(SilentWebSocket.created).toHaveLength(1);
     expect(SilentWebSocket.created[0]!.close).toHaveBeenCalled();
-    expect(onclose).toHaveBeenCalledWith([{ url: 'wss://silent.example/', reason: 'connection timed out' }]);
+    expect(onclose).toHaveBeenCalledWith([
+      { url: 'wss://silent.example/', reason: 'connection timed out' },
+    ]);
   });
 
   it('closes a socket that is still connecting when the pool is destroyed', async () => {

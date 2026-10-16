@@ -3,7 +3,6 @@ import { loadSeedRelays, relayCatalogService } from '@/services/relay-catalog';
 import { FALLBACK_RELAYS } from '@/services/storage-service';
 import type { RelayCatalogEntry } from '@/types/relay';
 
-
 // Mock the database
 const mockRelayCatalog = new Map<string, RelayCatalogEntry>();
 
@@ -43,11 +42,7 @@ vi.mock('@/services/storage-service', () => ({
 
 // Mock RELAY_SEEDS to have a controlled set for testing, including an invalid one
 vi.mock('@/data/relay-seeds', () => ({
-  RELAY_SEEDS: [
-    'wss://relay.damus.io',
-    'wss://nos.lol',
-    'invalid-url',
-  ],
+  RELAY_SEEDS: ['wss://relay.damus.io', 'wss://nos.lol', 'invalid-url'],
 }));
 
 describe('Relay Catalog Service - loadSeedRelays', () => {
@@ -555,7 +550,7 @@ describe('Relay Catalog Service - getEntries', () => {
     });
 
     const results = await relayCatalogService.getEntries();
-    const urls = results.map(r => r.url);
+    const urls = results.map((r) => r.url);
 
     expect(urls).not.toContain('wss://offline-no-meta.com');
     expect(urls).not.toContain('wss://old-no-meta.com');
@@ -599,7 +594,7 @@ describe('Relay Catalog Service - getEntries', () => {
     });
 
     const results = await relayCatalogService.getEntries();
-    const urls = results.map(r => r.url);
+    const urls = results.map((r) => r.url);
 
     expect(urls).not.toContain('wss://');
     expect(urls).not.toContain('wss://.com');
@@ -658,7 +653,7 @@ describe('Relay Catalog Service - getEntries', () => {
         metadata: { supported_nips: [1, 11] },
         createdAt: now,
         updatedAt: now,
-      }
+      },
     ];
 
     for (const entry of entries) {
@@ -666,11 +661,17 @@ describe('Relay Catalog Service - getEntries', () => {
     }
 
     const results = await relayCatalogService.getEntries();
-    const urls = results.map(r => r.url);
+    const urls = results.map((r) => r.url);
 
     expect(urls.indexOf('wss://seed-rich.com')).toBeLessThan(urls.indexOf('wss://user-added.com'));
-    expect(urls.indexOf('wss://user-added.com')).toBeLessThan(urls.indexOf('wss://discovered-rich.com'));
-    expect(urls.indexOf('wss://discovered-rich.com')).toBeLessThan(urls.indexOf('wss://discovered-poor.com'));
-    expect(urls.indexOf('wss://discovered-poor.com')).toBeLessThan(urls.indexOf('wss://discovered-nips-only.com'));
+    expect(urls.indexOf('wss://user-added.com')).toBeLessThan(
+      urls.indexOf('wss://discovered-rich.com'),
+    );
+    expect(urls.indexOf('wss://discovered-rich.com')).toBeLessThan(
+      urls.indexOf('wss://discovered-poor.com'),
+    );
+    expect(urls.indexOf('wss://discovered-poor.com')).toBeLessThan(
+      urls.indexOf('wss://discovered-nips-only.com'),
+    );
   });
 });

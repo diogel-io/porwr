@@ -2,16 +2,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import useVaultStore from '@/stores/vault-store';
 
-const { mockCreateVault, mockHasVault, mockLockVault, mockUnlockVault, mockStorageGet, mockOnChanged } = vi.hoisted(
-  () => ({
-    mockCreateVault: vi.fn(),
-    mockHasVault: vi.fn(),
-    mockLockVault: vi.fn(),
-    mockUnlockVault: vi.fn(),
-    mockStorageGet: vi.fn(),
-    mockOnChanged: vi.fn(),
-  }),
-);
+const {
+  mockCreateVault,
+  mockHasVault,
+  mockLockVault,
+  mockUnlockVault,
+  mockStorageGet,
+  mockOnChanged,
+} = vi.hoisted(() => ({
+  mockCreateVault: vi.fn(),
+  mockHasVault: vi.fn(),
+  mockLockVault: vi.fn(),
+  mockUnlockVault: vi.fn(),
+  mockStorageGet: vi.fn(),
+  mockOnChanged: vi.fn(),
+}));
 
 vi.mock('@/services/vault-service', () => ({
   createVault: mockCreateVault,
@@ -78,12 +83,20 @@ describe('vault-store', () => {
     });
 
     it('returns the failure result without changing unlocked state', async () => {
-      mockUnlockVault.mockResolvedValue({ success: false, error: 'Invalid password', code: 'VLT_INVALID_PASSWORD' });
+      mockUnlockVault.mockResolvedValue({
+        success: false,
+        error: 'Invalid password',
+        code: 'VLT_INVALID_PASSWORD',
+      });
 
       const store = useVaultStore();
       const result = await store.unlock('wrong-password');
 
-      expect(result).toEqual({ success: false, error: 'Invalid password', errorCode: 'VLT_INVALID_PASSWORD' });
+      expect(result).toEqual({
+        success: false,
+        error: 'Invalid password',
+        errorCode: 'VLT_INVALID_PASSWORD',
+      });
       expect(store.isUnlocked).toBe(false);
     });
   });

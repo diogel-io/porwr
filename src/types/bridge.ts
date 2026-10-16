@@ -24,7 +24,7 @@ export function generateBridgeId(): string {
 // Create a typed request
 export function createBridgeRequest<T extends BridgeAction>(
   action: T,
-  payload: Omit<BridgeRequestMap[T], 'id' | 'action'>
+  payload: Omit<BridgeRequestMap[T], 'id' | 'action'>,
 ): BridgeRequestMap[T] {
   return {
     id: generateBridgeId(),
@@ -35,14 +35,14 @@ export function createBridgeRequest<T extends BridgeAction>(
 
 // Type guard for error responses
 export function isBridgeError(
-  response: unknown
+  response: unknown,
 ): response is { id: string; error: { code: string; message: string } } {
   return response !== null && typeof response === 'object' && 'error' in response;
 }
 
 // Type guard for success responses
 export function isBridgeSuccess<T extends BridgeAction>(
-  response: unknown
+  response: unknown,
 ): response is BridgeResponseMap[T] {
   return response !== null && typeof response === 'object' && !('error' in response);
 }

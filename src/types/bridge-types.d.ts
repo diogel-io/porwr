@@ -277,7 +277,7 @@ export interface BridgeRequestMap {
     uploadId?: string;
     file?: File;
   };
-  'ping': {
+  ping: {
     id: string;
     action: 'ping';
   };
@@ -524,8 +524,10 @@ export interface BridgeResponseMap {
   'vault.isUnlocked': boolean;
   'permission.check': boolean;
   'permission.grant': boolean;
-  'blossom.upload': { success: true; url: string; sha256?: string } | { success: false; error: string };
-  'ping': string;
+  'blossom.upload':
+    | { success: true; url: string; sha256?: string }
+    | { success: false; error: string };
+  ping: string;
   'vault.getView': VaultView | { success: false; error: string };
   'accounts.add': AccountSummary | { success: false; error: string };
   'accounts.rename': AccountSummary | { success: false; error: string };

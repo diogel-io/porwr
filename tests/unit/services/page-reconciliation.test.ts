@@ -44,15 +44,15 @@ describe('which origins have gone', () => {
   it('spares one that any tab still holds', () => {
     // A request record names an origin and no tab, so two tabs on the same origin are
     // indistinguishable. Interrupting while one is still open would strand a live page.
-    expect(
-      findAbandonedOrigins(['https://example.com'], new Set(['https://example.com'])),
-    ).toEqual([]);
+    expect(findAbandonedOrigins(['https://example.com'], new Set(['https://example.com']))).toEqual(
+      [],
+    );
   });
 
   it('reports each origin once however many requests it has', () => {
-    expect(
-      findAbandonedOrigins(['https://a.example', 'https://a.example'], new Set()),
-    ).toEqual(['https://a.example']);
+    expect(findAbandonedOrigins(['https://a.example', 'https://a.example'], new Set())).toEqual([
+      'https://a.example',
+    ]);
   });
 
   it('says nothing when nothing is pending', () => {

@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
-import { markConversationRead, readStateFor } from '@/../src-bex/services/messaging-read-state-store';
+import {
+  markConversationRead,
+  readStateFor,
+} from '@/../src-bex/services/messaging-read-state-store';
 import type { VaultData } from '@/types/bridge';
 
 const ME = 'a'.repeat(64);

@@ -21,7 +21,10 @@ import type {
 } from '@/types/nip47';
 import type { VaultData } from '@/types/bridge';
 import { parseNwcUri, buildNip47ConnectionId } from '@/services/nip47-uri';
-import { buildAuthorizationUrl, validateAuthorizedWalletService } from '@/services/nip47-authorization';
+import {
+  buildAuthorizationUrl,
+  validateAuthorizedWalletService,
+} from '@/services/nip47-authorization';
 import {
   WALLET_PROVIDERS,
   createWalletProviderId,
@@ -56,8 +59,13 @@ import {
  * error rather than a fallback to the active one: falling back is how one wallet came to serve
  * every account.
  */
-export function requireWalletAccount(vaultData: VaultData, payload: Partial<Nip47AccountRequest> | undefined): string {
-  const pubkey = createPubkey(typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '');
+export function requireWalletAccount(
+  vaultData: VaultData,
+  payload: Partial<Nip47AccountRequest> | undefined,
+): string {
+  const pubkey = createPubkey(
+    typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '',
+  );
   if (!pubkey) {
     throw new Error('accountPubkey must be a hex public key');
   }
@@ -67,7 +75,11 @@ export function requireWalletAccount(vaultData: VaultData, payload: Partial<Nip4
   return pubkey;
 }
 
-function requireConnection(vaultData: VaultData, accountPubkey: string, connectionId: string): Nip47Connection {
+function requireConnection(
+  vaultData: VaultData,
+  accountPubkey: string,
+  connectionId: string,
+): Nip47Connection {
   const connection = findNip47Connection(vaultData, accountPubkey, connectionId);
   if (!connection) {
     throw new Error('NIP-47 connection not found');
@@ -129,7 +141,11 @@ export async function handleNip47ConnectionImport(
       clientSecret: parsed.clientSecret,
       clientPubkey,
       relays: parsed.relays,
-      ...(parsed.lud16 ? { lud16: parsed.lud16 } : existing?.lud16 ? { lud16: existing.lud16 } : {}),
+      ...(parsed.lud16
+        ? { lud16: parsed.lud16 }
+        : existing?.lud16
+          ? { lud16: existing.lud16 }
+          : {}),
       capabilities: existing?.capabilities ?? [],
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -163,7 +179,11 @@ export async function handleNip47ConnectionSetActive(
 ): Promise<HandlerResult<Nip47ConnectionSummary>> {
   const activeConnection = await mutateWalletVault((vaultData) => {
     const accountPubkey = requireWalletAccount(vaultData, payload);
-    const updatedVaultData = setActiveNip47Connection(vaultData, accountPubkey, payload.connectionId);
+    const updatedVaultData = setActiveNip47Connection(
+      vaultData,
+      accountPubkey,
+      payload.connectionId,
+    );
     return {
       vaultData: updatedVaultData,
       data: requireConnection(updatedVaultData, accountPubkey, payload.connectionId),
@@ -173,7 +193,9 @@ export async function handleNip47ConnectionSetActive(
   return { success: true, data: summarizeNip47Connection(activeConnection) };
 }
 
-export async function handleNip47GetInfo(payload: Nip47ConnectionRequest): Promise<HandlerResult<Nip47InfoResponse>> {
+export async function handleNip47GetInfo(
+  payload: Nip47ConnectionRequest,
+): Promise<HandlerResult<Nip47InfoResponse>> {
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
   const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
@@ -182,7 +204,11 @@ export async function handleNip47GetInfo(payload: Nip47ConnectionRequest): Promi
 
   await mutateWalletVault((latestVaultData) => {
     // Removed while the wallet was answering: nothing to record against.
-    const latestConnection = findNip47Connection(latestVaultData, accountPubkey, payload.connectionId);
+    const latestConnection = findNip47Connection(
+      latestVaultData,
+      accountPubkey,
+      payload.connectionId,
+    );
     if (!latestConnection) return { vaultData: latestVaultData, data: true };
     const updatedConnection: Nip47Connection = {
       ...latestConnection,
@@ -199,7 +225,9 @@ export async function handleNip47GetInfo(payload: Nip47ConnectionRequest): Promi
   return { success: true, data: info };
 }
 
-export async function handleNip47GetBalance(payload: Nip47ConnectionRequest): Promise<HandlerResult<Nip47BalanceResponse>> {
+export async function handleNip47GetBalance(
+  payload: Nip47ConnectionRequest,
+): Promise<HandlerResult<Nip47BalanceResponse>> {
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
   const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
@@ -360,7 +388,11 @@ async function saveAuthorizedConnection(
     // Removed while the user was in the wallet's popup: saving would recreate wallet data for an
     // account that no longer exists.
     requireWalletAccount(vaultData, connection);
-    const nextConnection: Nip47Connection = { ...connection, capabilities, lastInfoCheckedAt: checkedAt };
+    const nextConnection: Nip47Connection = {
+      ...connection,
+      capabilities,
+      lastInfoCheckedAt: checkedAt,
+    };
     return { vaultData: upsertNip47Connection(vaultData, nextConnection), data: nextConnection };
   });
   return summarizeNip47Connection(saved);

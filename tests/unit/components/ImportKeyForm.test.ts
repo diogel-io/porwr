@@ -108,7 +108,11 @@ describe('ImportKeyForm.vue', () => {
     vi.clearAllMocks();
     // The background answers with the new account's summary (#240).
     saveKeyMock.mockImplementation((request: { alias: string }) =>
-      Promise.resolve({ id: 'pubkey-hex', alias: request.alias, createdAt: '2026-05-01T00:00:00.000Z' }),
+      Promise.resolve({
+        id: 'pubkey-hex',
+        alias: request.alias,
+        createdAt: '2026-05-01T00:00:00.000Z',
+      }),
     );
     pushMock.mockResolvedValue(undefined);
   });

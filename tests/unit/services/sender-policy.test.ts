@@ -9,14 +9,16 @@ const MOZ = `moz-extension://${MOZ_ID}`;
 
 describe('classifySender (#240)', () => {
   it('recognises one of Porwr’s own pages on Chrome', () => {
-    expect(classifySender({ id: ID, url: `${CHROME}/www/index.html#/sidebar` }, ID, CHROME)).toBe('extension-page');
+    expect(classifySender({ id: ID, url: `${CHROME}/www/index.html#/sidebar` }, ID, CHROME)).toBe(
+      'extension-page',
+    );
   });
 
   it('recognises one of Porwr’s own pages on Firefox', () => {
     // Firefox's sender.id is the add-on id, while the page origin uses an internal UUID.
-    expect(classifySender({ id: '@diogel', url: `${MOZ}/www/index.html#/dashboard` }, '@diogel', MOZ)).toBe(
-      'extension-page',
-    );
+    expect(
+      classifySender({ id: '@diogel', url: `${MOZ}/www/index.html#/dashboard` }, '@diogel', MOZ),
+    ).toBe('extension-page');
   });
 
   it('still recognises a dashboard page opened in a tab, which has sender.tab', () => {
@@ -30,16 +32,22 @@ describe('classifySender (#240)', () => {
   });
 
   it('does not let a website pose as Porwr by putting the extension url in its path', () => {
-    expect(classifySender({ id: ID, url: `https://evil.example/${CHROME}/www/index.html` }, ID, CHROME)).toBe(
-      'content-script',
-    );
+    expect(
+      classifySender({ id: ID, url: `https://evil.example/${CHROME}/www/index.html` }, ID, CHROME),
+    ).toBe('content-script');
   });
 
   it('treats another extension as foreign, even on an extension url', () => {
-    expect(classifySender({ id: 'someone-else', url: 'chrome-extension://someone-else/x.html' }, ID, CHROME)).toBe(
-      'foreign',
-    );
-    expect(classifySender({ id: 'someone-else', url: `${CHROME}/www/index.html` }, ID, CHROME)).toBe('foreign');
+    expect(
+      classifySender(
+        { id: 'someone-else', url: 'chrome-extension://someone-else/x.html' },
+        ID,
+        CHROME,
+      ),
+    ).toBe('foreign');
+    expect(
+      classifySender({ id: 'someone-else', url: `${CHROME}/www/index.html` }, ID, CHROME),
+    ).toBe('foreign');
   });
 
   it('treats a sender it cannot describe as foreign', () => {
@@ -76,7 +84,9 @@ describe('pageOriginOf (#246)', () => {
   const site = (sender: object): string => pageOriginOf({ id: ID, ...sender }, ID, CHROME);
 
   it('takes the origin the browser stamped on the sender (Chromium)', () => {
-    expect(site({ url: 'https://example.com/page?x=1', origin: 'https://example.com' })).toBe('https://example.com');
+    expect(site({ url: 'https://example.com/page?x=1', origin: 'https://example.com' })).toBe(
+      'https://example.com',
+    );
   });
 
   it('falls back to the sender url when the browser gives no origin (Firefox)', () => {
@@ -84,7 +94,12 @@ describe('pageOriginOf (#246)', () => {
   });
 
   it('attributes a cross-origin iframe to the iframe, not the page around it', () => {
-    const sender = { url: 'https://widget.example/embed', origin: 'https://widget.example', frameId: 2, tab: { id: 3, url: 'https://news.example/' } };
+    const sender = {
+      url: 'https://widget.example/embed',
+      origin: 'https://widget.example',
+      frameId: 2,
+      tab: { id: 3, url: 'https://news.example/' },
+    };
     expect(site(sender)).toBe('https://widget.example');
   });
 
@@ -108,4 +123,3 @@ describe('pageOriginOf (#246)', () => {
     expect(site({ url: 'about:blank', origin: 'null' })).toBe('');
   });
 });
-

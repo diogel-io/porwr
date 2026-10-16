@@ -106,16 +106,16 @@ describe('Relay Metadata Service', () => {
     });
 
     it('should handle non-object JSON responses', async () => {
-        (vi.mocked(fetch) as any).mockResolvedValueOnce({
-          ok: true,
-          json: async () => ['not', 'an', 'object'],
-        });
-
-        const result = await fetchRelayMetadata('wss://relay.damus.io');
-
-        expect(result.success).toBe(false);
-        expect(result.error).toBe('Invalid NIP-11 response: expected JSON object');
+      (vi.mocked(fetch) as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ['not', 'an', 'object'],
       });
+
+      const result = await fetchRelayMetadata('wss://relay.damus.io');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Invalid NIP-11 response: expected JSON object');
+    });
 
     it('should handle missing or weird fields in mapping', async () => {
       const mockMetadata = {

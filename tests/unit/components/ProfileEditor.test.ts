@@ -176,7 +176,9 @@ describe('ProfileEditor.vue', () => {
     await nip05Input.setValue('not-a-valid-identifier');
     await flushComponent();
 
-    const verifyBtn = wrapper.find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]');
+    const verifyBtn = wrapper.find(
+      '[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]',
+    );
     expect(verifyBtn.attributes('disabled')).toBeDefined();
   });
 
@@ -187,7 +189,9 @@ describe('ProfileEditor.vue', () => {
     await nip05Input.setValue('alice@example.com');
     await flushComponent();
 
-    const verifyBtn = wrapper.find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]');
+    const verifyBtn = wrapper.find(
+      '[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]',
+    );
     await verifyBtn.trigger('click');
     await flushPromises();
 
@@ -208,7 +212,9 @@ describe('ProfileEditor.vue', () => {
     await nip05Input.setValue('alice@example.com');
     await flushComponent();
 
-    await wrapper.find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]').trigger('click');
+    await wrapper
+      .find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]')
+      .trigger('click');
     await flushPromises();
 
     const statusBlock = wrapper.find('.profile-identity__nip05-status--success');
@@ -217,9 +223,17 @@ describe('ProfileEditor.vue', () => {
   });
 
   it('discards stale verification result when identifier changes before request resolves', async () => {
-    let resolveVerify!: (result: { status: string; identifier: string; domain: string; name: string }) => void;
+    let resolveVerify!: (result: {
+      status: string;
+      identifier: string;
+      domain: string;
+      name: string;
+    }) => void;
     verifyIdentifierMock.mockImplementation(
-      () => new Promise(resolve => { resolveVerify = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          resolveVerify = resolve;
+        }),
     );
 
     const wrapper = await mountEditor();
@@ -228,7 +242,9 @@ describe('ProfileEditor.vue', () => {
     await nip05Input.setValue('alice@example.com');
     await flushComponent();
 
-    await wrapper.find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]').trigger('click');
+    await wrapper
+      .find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]')
+      .trigger('click');
     await flushComponent(); // request is in flight, not yet resolved
 
     // Change identifier while request is still in flight
@@ -236,7 +252,12 @@ describe('ProfileEditor.vue', () => {
     await flushComponent();
 
     // Resolve the stale request for alice
-    resolveVerify({ status: 'verified', identifier: 'alice@example.com', domain: 'example.com', name: 'alice' });
+    resolveVerify({
+      status: 'verified',
+      identifier: 'alice@example.com',
+      domain: 'example.com',
+      name: 'alice',
+    });
     await flushPromises();
 
     // Stale result must not be applied under bob's identifier. The neutral status is what renders
@@ -248,9 +269,15 @@ describe('ProfileEditor.vue', () => {
   it('saves the NIP-05 identifier and Lightning Address with the details, in one publish', async () => {
     const wrapper = await mountEditor({ name: 'alice' });
 
-    await wrapper.find('[data-testid="q-input"][data-label="profile.nip05"] input').setValue('alice@example.com');
-    await wrapper.find('[data-testid="q-input"][data-label="profile.lud16"] input').setValue('alice@getalby.com');
-    await wrapper.find('[data-testid="q-input"][data-label="profile.displayName"] input').setValue('Alice');
+    await wrapper
+      .find('[data-testid="q-input"][data-label="profile.nip05"] input')
+      .setValue('alice@example.com');
+    await wrapper
+      .find('[data-testid="q-input"][data-label="profile.lud16"] input')
+      .setValue('alice@getalby.com');
+    await wrapper
+      .find('[data-testid="q-input"][data-label="profile.displayName"] input')
+      .setValue('Alice');
 
     await wrapper.find('form[data-testid="q-form"]').trigger('submit');
     await flushComponent();
@@ -291,7 +318,9 @@ describe('ProfileEditor.vue', () => {
 
     expect(status()).toBe('');
 
-    await wrapper.find('[data-testid="q-input"][data-label="profile.lud16"] input').setValue('alice@getalby.com');
+    await wrapper
+      .find('[data-testid="q-input"][data-label="profile.lud16"] input')
+      .setValue('alice@getalby.com');
     expect(status()).toBe('profile.unsavedChanges');
 
     await wrapper.find('form[data-testid="q-form"]').trigger('submit');
@@ -322,7 +351,9 @@ describe('ProfileEditor.vue', () => {
     await nip05Input.setValue('alice@example.com');
     await flushComponent();
 
-    await wrapper.find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]').trigger('click');
+    await wrapper
+      .find('[data-testid="q-btn"][data-label="profile.nip05VerifyIdentifier"]')
+      .trigger('click');
     await flushPromises();
 
     const statusBlock = wrapper.find('.profile-identity__nip05-status--failure');

@@ -42,9 +42,10 @@ test.describe('the panel in Firefox', () => {
 
     // The panel is reached here as an extension page, so the browser-owned surface itself is not
     // exercised. Asserting the manifest key is what keeps that half honest.
-    const manifest = await driver.executeScript<{ sidebar_action?: unknown; permissions?: string[] }>(
-      'return chrome.runtime.getManifest()',
-    );
+    const manifest = await driver.executeScript<{
+      sidebar_action?: unknown;
+      permissions?: string[];
+    }>('return chrome.runtime.getManifest()');
 
     expect(manifest.sidebar_action).toBeTruthy();
     // Firefox gets no sidePanel permission; that key is Chromium's (NFR-18).

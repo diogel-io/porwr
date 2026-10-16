@@ -72,7 +72,8 @@ export const observePanelConnections = (): void => {
   const extensionOrigin = originOf(chrome.runtime.getURL(''));
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== PANEL_PORT_NAME) return;
-    if (classifySender(port.sender, chrome.runtime.id, extensionOrigin) !== 'extension-page') return;
+    if (classifySender(port.sender, chrome.runtime.id, extensionOrigin) !== 'extension-page')
+      return;
 
     panels.add(port);
     notify();

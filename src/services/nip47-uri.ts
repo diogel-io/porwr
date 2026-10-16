@@ -47,7 +47,10 @@ export function parseNwcUri(input: string): ParsedNwcUri {
     throw new Error('NWC URI must start with nostr+walletconnect://');
   }
 
-  const walletServicePubkey = assertHex64(url.hostname || url.pathname.replace(/^\/\//, ''), 'Wallet service pubkey');
+  const walletServicePubkey = assertHex64(
+    url.hostname || url.pathname.replace(/^\/\//, ''),
+    'Wallet service pubkey',
+  );
   const clientSecret = assertHex64(url.searchParams.get('secret') ?? '', 'NWC secret');
   const relays = dedupe(url.searchParams.getAll('relay').map(normalizeRelay));
   const lud16 = url.searchParams.get('lud16')?.trim() || undefined;

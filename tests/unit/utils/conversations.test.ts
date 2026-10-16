@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import { buildConversations, conversationMessages, mergeMessages, newestFrom } from '@/utils/conversations';
+import {
+  buildConversations,
+  conversationMessages,
+  mergeMessages,
+  newestFrom,
+} from '@/utils/conversations';
 import type { DirectMessage } from '@/types/messaging';
 
 const ME = 'a'.repeat(64);
@@ -8,7 +13,13 @@ const BOB = 'b'.repeat(64);
 const CAROL = 'c'.repeat(64);
 const STRANGER = 'd'.repeat(64);
 
-const msg = (id: string, peer: string, from: string, created_at: number, content = id): DirectMessage => ({
+const msg = (
+  id: string,
+  peer: string,
+  from: string,
+  created_at: number,
+  content = id,
+): DirectMessage => ({
   id,
   peer,
   pubkey: from,
@@ -55,7 +66,12 @@ describe('buildConversations', () => {
 
   it('counts only messages from the peer that are newer than what was read', () => {
     const [bob] = buildConversations(
-      [msg('1', BOB, BOB, 10), msg('2', BOB, BOB, 20), msg('3', BOB, ME, 30), msg('4', BOB, BOB, 40)],
+      [
+        msg('1', BOB, BOB, 10),
+        msg('2', BOB, BOB, 20),
+        msg('3', BOB, ME, 30),
+        msg('4', BOB, BOB, 40),
+      ],
       [BOB],
       [],
       { [BOB]: 20 },
@@ -66,7 +82,12 @@ describe('buildConversations', () => {
   });
 
   it('lists contacts added through search, after conversations, in the order added', () => {
-    const result = buildConversations([msg('1', BOB, BOB, 10)], [BOB, CAROL, STRANGER], [STRANGER, CAROL], {});
+    const result = buildConversations(
+      [msg('1', BOB, BOB, 10)],
+      [BOB, CAROL, STRANGER],
+      [STRANGER, CAROL],
+      {},
+    );
 
     expect(result.map((c) => [c.peer, c.removable])).toEqual([
       [BOB, false],

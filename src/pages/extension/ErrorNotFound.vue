@@ -5,12 +5,7 @@
 
       <div class="text-h2" style="opacity: 0.4">{{ t('errors.notFound') }}</div>
 
-      <q-btn
-        class="q-mt-xl diogel-btn-primary"
-        to="/"
-        :label="t('errors.goHome')"
-        no-caps
-      />
+      <q-btn class="q-mt-xl diogel-btn-primary" to="/" :label="t('errors.goHome')" no-caps />
     </div>
   </div>
 </template>

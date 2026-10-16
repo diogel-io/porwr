@@ -1,7 +1,10 @@
 import { onBeforeUnmount, ref, type Ref } from 'vue';
 
 import type { WalletAuthorizationResult } from '@/composables/useWalletAuthorization';
-import { listenForWalletConnectOutcome, type WalletConnectOutcome } from '@/services/wallet-connect-channel';
+import {
+  listenForWalletConnectOutcome,
+  type WalletConnectOutcome,
+} from '@/services/wallet-connect-channel';
 import type { WalletProviderId } from '@/types/wallet-provider';
 
 export type WalletConnectWindowResult =
@@ -21,7 +24,11 @@ export interface UseWalletConnectWindowResult {
   /** The provider being connected, or `null` when no connection is in progress. */
   connecting: Ref<WalletProviderId | null>;
   /** Connects a wallet for `accountPubkey`, the account the connection will belong to (#304). */
-  connect: (provider: WalletProviderId, accountPubkey: string, customOrigin?: string) => Promise<WalletConnectWindowResult>;
+  connect: (
+    provider: WalletProviderId,
+    accountPubkey: string,
+    customOrigin?: string,
+  ) => Promise<WalletConnectWindowResult>;
 }
 
 const WINDOW_WIDTH = 420;
@@ -39,7 +46,9 @@ const WINDOW_HEIGHT = 680;
  *
  * The connect window reports how it ended over `wallet-connect-channel`.
  */
-export function useWalletConnectWindow(options: WalletConnectWindowOptions = {}): UseWalletConnectWindowResult {
+export function useWalletConnectWindow(
+  options: WalletConnectWindowOptions = {},
+): UseWalletConnectWindowResult {
   const connecting = ref<WalletProviderId | null>(null);
   const timeoutMs = options.timeoutMs ?? 11 * 60 * 1000;
   let cancelPending: (() => void) | null = null;
@@ -59,46 +68,48 @@ export function useWalletConnectWindow(options: WalletConnectWindowOptions = {})
 
     connecting.value = provider;
     try {
-      const outcome = await new Promise<WalletConnectOutcome | { status: 'cancelled' }>((resolve, reject) => {
-        let windowId: number | undefined;
+      const outcome = await new Promise<WalletConnectOutcome | { status: 'cancelled' }>(
+        (resolve, reject) => {
+          let windowId: number | undefined;
 
-        const finish = (result: WalletConnectOutcome | { status: 'cancelled' }): void => {
-          stopListening();
-          chrome.windows.onRemoved.removeListener(onRemoved);
-          clearTimeout(timeout);
-          cancelPending = null;
-          resolve(result);
-        };
-        const onRemoved = (removedId: number): void => {
-          if (removedId === windowId) {
-            finish({ status: 'cancelled' });
-          }
-        };
-
-        // Listen before the window exists, so even an instant outcome is not missed.
-        const stopListening = listenForWalletConnectOutcome(requestId, finish);
-        chrome.windows.onRemoved.addListener(onRemoved);
-        const timeout = setTimeout(() => finish({ status: 'cancelled' }), timeoutMs);
-        cancelPending = () => finish({ status: 'cancelled' });
-
-        chrome.windows
-          .create({
-            url: chrome.runtime.getURL(`www/index.html#/wallet-connect?${query.toString()}`),
-            type: 'popup',
-            width: WINDOW_WIDTH,
-            height: WINDOW_HEIGHT,
-          })
-          .then((created) => {
-            windowId = created?.id;
-          })
-          .catch((error: unknown) => {
+          const finish = (result: WalletConnectOutcome | { status: 'cancelled' }): void => {
             stopListening();
             chrome.windows.onRemoved.removeListener(onRemoved);
             clearTimeout(timeout);
             cancelPending = null;
-            reject(error instanceof Error ? error : new Error(String(error)));
-          });
-      });
+            resolve(result);
+          };
+          const onRemoved = (removedId: number): void => {
+            if (removedId === windowId) {
+              finish({ status: 'cancelled' });
+            }
+          };
+
+          // Listen before the window exists, so even an instant outcome is not missed.
+          const stopListening = listenForWalletConnectOutcome(requestId, finish);
+          chrome.windows.onRemoved.addListener(onRemoved);
+          const timeout = setTimeout(() => finish({ status: 'cancelled' }), timeoutMs);
+          cancelPending = () => finish({ status: 'cancelled' });
+
+          chrome.windows
+            .create({
+              url: chrome.runtime.getURL(`www/index.html#/wallet-connect?${query.toString()}`),
+              type: 'popup',
+              width: WINDOW_WIDTH,
+              height: WINDOW_HEIGHT,
+            })
+            .then((created) => {
+              windowId = created?.id;
+            })
+            .catch((error: unknown) => {
+              stopListening();
+              chrome.windows.onRemoved.removeListener(onRemoved);
+              clearTimeout(timeout);
+              cancelPending = null;
+              reject(error instanceof Error ? error : new Error(String(error)));
+            });
+        },
+      );
 
       if (outcome.status === 'error') {
         throw new Error(outcome.message);

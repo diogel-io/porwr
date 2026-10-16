@@ -27,7 +27,15 @@ vi.mock('@/services/storage-service', () => ({
   storageService: { get: mocks.storageGet, set: mocks.storageSet },
 }));
 
-import { get, getActive, remove, renameAlias, revealSecret, save, setActive } from '@/services/dexie-storage';
+import {
+  get,
+  getActive,
+  remove,
+  renameAlias,
+  revealSecret,
+  save,
+  setActive,
+} from '@/services/dexie-storage';
 
 const ALICE = { id: 'a'.repeat(64), alias: 'alice', createdAt: '2026-01-01' };
 const BOB = { id: 'b'.repeat(64), alias: 'bob', createdAt: '2026-01-02' };
@@ -91,13 +99,21 @@ describe('dexie-storage save', () => {
 
     await save({ alias: 'alice', privkey: 'c'.repeat(64) });
 
-    expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.add', { alias: 'alice', privkey: 'c'.repeat(64) });
+    expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.add', {
+      alias: 'alice',
+      privkey: 'c'.repeat(64),
+    });
   });
 
   it('surfaces the background’s refusal and does not change the active account', async () => {
-    mocks.sendBexMessage.mockResolvedValue({ success: false, error: 'Key with the same alias already exists.' });
+    mocks.sendBexMessage.mockResolvedValue({
+      success: false,
+      error: 'Key with the same alias already exists.',
+    });
 
-    await expect(save({ alias: 'alice' })).rejects.toThrow('Key with the same alias already exists.');
+    await expect(save({ alias: 'alice' })).rejects.toThrow(
+      'Key with the same alias already exists.',
+    );
     expect(mocks.storageSet).not.toHaveBeenCalled();
   });
 });
@@ -108,11 +124,17 @@ describe('dexie-storage renameAlias', () => {
 
     await renameAlias('alice', 'alicia');
 
-    expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.rename', { currentAlias: 'alice', newAlias: 'alicia' });
+    expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.rename', {
+      currentAlias: 'alice',
+      newAlias: 'alicia',
+    });
   });
 
   it('surfaces the background’s refusal', async () => {
-    mocks.sendBexMessage.mockResolvedValue({ success: false, error: 'Alias "Main Account" is reserved.' });
+    mocks.sendBexMessage.mockResolvedValue({
+      success: false,
+      error: 'Alias "Main Account" is reserved.',
+    });
 
     await expect(renameAlias('alice', 'Main Account')).rejects.toThrow('reserved');
   });
@@ -129,7 +151,9 @@ describe('dexie-storage remove', () => {
 
     await remove(ALICE.id);
 
-    expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.remove', { accountPubkey: ALICE.id });
+    expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.remove', {
+      accountPubkey: ALICE.id,
+    });
   });
 
   it('treats an account that was already gone as done', async () => {
@@ -148,7 +172,9 @@ describe('dexie-storage revealSecret', () => {
     mocks.sendBexMessage.mockResolvedValue({ nsec: 'nsec1abc' });
 
     await expect(revealSecret(ALICE.id)).resolves.toBe('nsec1abc');
-    expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.revealSecret', { accountPubkey: ALICE.id });
+    expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.revealSecret', {
+      accountPubkey: ALICE.id,
+    });
   });
 
   it('surfaces a refusal', async () => {

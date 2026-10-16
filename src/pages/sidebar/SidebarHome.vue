@@ -136,43 +136,43 @@ onMounted(async () => {
         @decide="onDecide"
         @reject-and-switch="onRejectAndSwitch"
       />
-      <PendingRequestList
-        :requests="pending"
-        :current-id="current.id"
-        @select="onSelect"
-      />
+      <PendingRequestList :requests="pending" :current-id="current.id" @select="onSelect" />
     </template>
 
     <template v-else>
-    <!-- Idle view: shown only when the vault is unlocked and nothing is waiting. -->
-    <section v-if="activeOrigin" class="sidebar-home__context" :aria-label="t('sidebar.activeSite.ariaLabel')">
-      <div class="sidebar-home__context-label">{{ t('sidebar.activeSite.label') }}</div>
-      <div class="sidebar-home__context-origin">{{ activeOrigin }}</div>
-      <SiteAccountNotice :origin="activeOrigin" :active-pubkey="activeStoredKey?.id ?? null" />
-    </section>
+      <!-- Idle view: shown only when the vault is unlocked and nothing is waiting. -->
+      <section
+        v-if="activeOrigin"
+        class="sidebar-home__context"
+        :aria-label="t('sidebar.activeSite.ariaLabel')"
+      >
+        <div class="sidebar-home__context-label">{{ t('sidebar.activeSite.label') }}</div>
+        <div class="sidebar-home__context-origin">{{ activeOrigin }}</div>
+        <SiteAccountNotice :origin="activeOrigin" :active-pubkey="activeStoredKey?.id ?? null" />
+      </section>
 
-    <!-- The lock action lives in the header, so it stays reachable once a request is presented. -->
-    <div v-if="activeStoredKey" class="sidebar-home__account">
-      <ProfileView :stored-key="activeStoredKey" />
-    </div>
+      <!-- The lock action lives in the header, so it stays reachable once a request is presented. -->
+      <div v-if="activeStoredKey" class="sidebar-home__account">
+        <ProfileView :stored-key="activeStoredKey" />
+      </div>
 
-    <div v-else-if="showNoAccount" class="sidebar-home__empty">
-      <q-icon color="grey-5" name="account_circle" size="3em" />
-      <div class="text-subtitle1 text-grey-7 q-mt-sm">{{ t('account.noActiveAccount') }}</div>
-      <p class="text-grey-6">{{ t('account.noActiveAccountDesc') }}</p>
-      <q-btn
-        no-caps
-        class="diogel-btn-primary"
-        :label="t('sidebar.links.keys')"
-        @click="openInTab('/keys')"
-      />
-    </div>
+      <div v-else-if="showNoAccount" class="sidebar-home__empty">
+        <q-icon color="grey-5" name="account_circle" size="3em" />
+        <div class="text-subtitle1 text-grey-7 q-mt-sm">{{ t('account.noActiveAccount') }}</div>
+        <p class="text-grey-6">{{ t('account.noActiveAccountDesc') }}</p>
+        <q-btn
+          no-caps
+          class="diogel-btn-primary"
+          :label="t('sidebar.links.keys')"
+          @click="openInTab('/keys')"
+        />
+      </div>
 
-    <!-- The vault has not been read yet, which is not the same as holding no accounts (#211). -->
-    <div v-else class="sidebar-home__empty" role="status">
-      <q-spinner color="grey-5" size="2em" />
-      <div class="text-subtitle1 text-grey-7 q-mt-sm">{{ t('account.loading') }}</div>
-    </div>
+      <!-- The vault has not been read yet, which is not the same as holding no accounts (#211). -->
+      <div v-else class="sidebar-home__empty" role="status">
+        <q-spinner color="grey-5" size="2em" />
+        <div class="text-subtitle1 text-grey-7 q-mt-sm">{{ t('account.loading') }}</div>
+      </div>
     </template>
   </q-page>
 </template>

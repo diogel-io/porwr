@@ -46,7 +46,10 @@ interface FakeAccountStore {
 // Reactive, so switching account in a test reaches the page's watcher as the real store would.
 vi.mock('@/stores/account-store', async () => {
   const { reactive } = await import('vue');
-  const store = reactive<FakeAccountStore>({ activeAccount: undefined, getKeys: () => Promise.resolve() });
+  const store = reactive<FakeAccountStore>({
+    activeAccount: undefined,
+    getKeys: () => Promise.resolve(),
+  });
   (globalThis as { __walletAccountStore?: FakeAccountStore }).__walletAccountStore = store;
   return { default: () => store };
 });
@@ -66,7 +69,10 @@ const slot = (tag = 'div') => ({ template: `<${tag}><slot /></${tag}>` });
 const mountPage = async () => {
   const wrapper = mount(WalletConnectionsPage, {
     global: {
-      mocks: { $t: (key: string, params?: Record<string, string>) => (params ? `${key}:${Object.values(params).join(',')}` : key) },
+      mocks: {
+        $t: (key: string, params?: Record<string, string>) =>
+          params ? `${key}:${Object.values(params).join(',')}` : key,
+      },
       stubs: {
         'q-page': slot(),
         'q-card': slot(),
@@ -124,12 +130,19 @@ describe('the wallet connections page (#110)', () => {
   it('offers to connect each supported wallet', async () => {
     const wrapper = await mountPage();
 
-    expect(wrapper.find('[data-testid="connect-alby-hub"]').text()).toBe('walletManagement.import.connectWith:Alby Hub');
-    expect(wrapper.find('[data-testid="connect-coinos"]').text()).toBe('walletManagement.import.connectWith:Coinos');
+    expect(wrapper.find('[data-testid="connect-alby-hub"]').text()).toBe(
+      'walletManagement.import.connectWith:Alby Hub',
+    );
+    expect(wrapper.find('[data-testid="connect-coinos"]').text()).toBe(
+      'walletManagement.import.connectWith:Coinos',
+    );
   });
 
   it('connects Coinos and reloads the wallet list', async () => {
-    mocks.connect.mockResolvedValue({ status: 'connected', connection: { id: 'w', label: 'Coinos' } });
+    mocks.connect.mockResolvedValue({
+      status: 'connected',
+      connection: { id: 'w', label: 'Coinos' },
+    });
     const wrapper = await mountPage();
 
     await wrapper.find('[data-testid="connect-coinos"]').trigger('click');
@@ -145,7 +158,10 @@ describe('the wallet connections page (#110)', () => {
   });
 
   it('connects a self-hosted Alby Hub at the address the user gives', async () => {
-    mocks.connect.mockResolvedValue({ status: 'connected', connection: { id: 'w', label: 'Alby Hub' } });
+    mocks.connect.mockResolvedValue({
+      status: 'connected',
+      connection: { id: 'w', label: 'Alby Hub' },
+    });
     const wrapper = await mountPage();
 
     await wrapper.find('input.toggle').setValue(true);
@@ -210,13 +226,18 @@ describe('the wallet connections page (#110)', () => {
 
     await wrapper.find('[data-testid="nwc-uri"] input').setValue('nostr+walletconnect://nope');
 
-    expect(wrapper.find('[data-testid="nwc-uri"] .error').text()).toContain('walletManagement.import.invalidUri');
+    expect(wrapper.find('[data-testid="nwc-uri"] .error').text()).toContain(
+      'walletManagement.import.invalidUri',
+    );
     expect(wrapper.find('[data-testid="import-connection"]').attributes('disabled')).toBeDefined();
   });
 
   it('imports a pasted string and checks it straight away', async () => {
     mocks.importNip47Connection.mockResolvedValue({ id: 'pasted' });
-    mocks.getNip47Info.mockResolvedValue({ capabilities: ['pay_invoice'], checkedAt: '2026-10-12T00:00:00.000Z' });
+    mocks.getNip47Info.mockResolvedValue({
+      capabilities: ['pay_invoice'],
+      checkedAt: '2026-10-12T00:00:00.000Z',
+    });
     const wrapper = await mountPage();
 
     await wrapper.find('[data-testid="nwc-uri"] input').setValue(VALID_URI);
@@ -224,7 +245,10 @@ describe('the wallet connections page (#110)', () => {
     await wrapper.find('[data-testid="import-connection"]').trigger('click');
     await flushPromises();
 
-    expect(mocks.importNip47Connection).toHaveBeenCalledWith({ accountPubkey: ALICE.id, uri: VALID_URI });
+    expect(mocks.importNip47Connection).toHaveBeenCalledWith({
+      accountPubkey: ALICE.id,
+      uri: VALID_URI,
+    });
     expect(mocks.getNip47Info).toHaveBeenCalledWith(ALICE.id, 'pasted');
   });
 
@@ -255,17 +279,34 @@ describe('the wallets shown are the active account’s (#304)', () => {
   it('names the account and lists only its wallets and payments', async () => {
     const wrapper = await mountPage();
 
-    expect(wrapper.find('[data-testid="wallet-account"]').text()).toBe('walletManagement.accountCaption:alice');
+    expect(wrapper.find('[data-testid="wallet-account"]').text()).toBe(
+      'walletManagement.accountCaption:alice',
+    );
     expect(mocks.listNip47Connections).toHaveBeenCalledWith(ALICE.id);
     expect(mocks.listNip47PaymentHistory).toHaveBeenCalledWith(ALICE.id);
   });
 
   it('reloads for the new account when the user switches, and drops the old one’s wallets', async () => {
     mocks.listNip47Connections.mockImplementation((owner: string) =>
-      Promise.resolve(owner === ALICE.id
-        ? [{ id: 'alice-wallet', accountPubkey: ALICE.id, label: 'Alice wallet', walletServicePubkey: 'w', clientPubkey: 'c',
-            relays: [], capabilities: [], createdAt: '2026-01-01', updatedAt: '2026-01-01', isActive: true, hasClientSecret: true }]
-        : []),
+      Promise.resolve(
+        owner === ALICE.id
+          ? [
+              {
+                id: 'alice-wallet',
+                accountPubkey: ALICE.id,
+                label: 'Alice wallet',
+                walletServicePubkey: 'w',
+                clientPubkey: 'c',
+                relays: [],
+                capabilities: [],
+                createdAt: '2026-01-01',
+                updatedAt: '2026-01-01',
+                isActive: true,
+                hasClientSecret: true,
+              },
+            ]
+          : [],
+      ),
     );
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain('Alice wallet');
@@ -275,7 +316,9 @@ describe('the wallets shown are the active account’s (#304)', () => {
 
     expect(mocks.listNip47Connections).toHaveBeenLastCalledWith(BOB.id);
     expect(wrapper.text()).not.toContain('Alice wallet');
-    expect(wrapper.find('[data-testid="wallet-account"]').text()).toBe('walletManagement.accountCaption:bob');
+    expect(wrapper.find('[data-testid="wallet-account"]').text()).toBe(
+      'walletManagement.accountCaption:bob',
+    );
   });
 
   it('shows and loads nothing without an active account', async () => {
@@ -283,7 +326,9 @@ describe('the wallets shown are the active account’s (#304)', () => {
 
     const wrapper = await mountPage();
 
-    expect(wrapper.find('[data-testid="wallet-account"]').text()).toBe('walletManagement.noAccount');
+    expect(wrapper.find('[data-testid="wallet-account"]').text()).toBe(
+      'walletManagement.noAccount',
+    );
     expect(mocks.listNip47Connections).not.toHaveBeenCalled();
     expect(wrapper.find('[data-testid="connect-coinos"]').exists()).toBe(false);
   });

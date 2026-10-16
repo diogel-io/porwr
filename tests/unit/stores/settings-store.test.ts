@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { isProxy } from 'vue';
 import useSettingsStore from '@/stores/settings-store';
-import { FALLBACK_RELAYS, QUICK_PUBLISH_CLIENT_TAG, storageService } from '@/services/storage-service';
+import {
+  FALLBACK_RELAYS,
+  QUICK_PUBLISH_CLIENT_TAG,
+  storageService,
+} from '@/services/storage-service';
 import {
   getStoredProfileSearchRelays,
   setStoredProfileSearchRelays,
@@ -65,7 +69,9 @@ describe('SettingsStore', () => {
     await store.getSettings();
 
     expect(store.fallbackRelays).toEqual(storedRelays);
-    expect(storageService.getMultiple).toHaveBeenCalledWith(expect.arrayContaining([FALLBACK_RELAYS]));
+    expect(storageService.getMultiple).toHaveBeenCalledWith(
+      expect.arrayContaining([FALLBACK_RELAYS]),
+    );
     /* eslint-enable @typescript-eslint/unbound-method */
   });
 
@@ -202,13 +208,17 @@ describe('SettingsStore', () => {
       await store.getSettings();
 
       expect(store.quickPublishClientTag).toBe(true);
-      expect(storageService.getMultiple).toHaveBeenCalledWith(expect.arrayContaining([QUICK_PUBLISH_CLIENT_TAG]));
+      expect(storageService.getMultiple).toHaveBeenCalledWith(
+        expect.arrayContaining([QUICK_PUBLISH_CLIENT_TAG]),
+      );
     });
 
     it('reads a stored false as off, and anything else as on', async () => {
       const store = useSettingsStore();
 
-      vi.mocked(storageService.getMultiple).mockResolvedValue({ [QUICK_PUBLISH_CLIENT_TAG]: false });
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [QUICK_PUBLISH_CLIENT_TAG]: false,
+      });
       await store.getSettings();
       expect(store.quickPublishClientTag).toBe(false);
 
