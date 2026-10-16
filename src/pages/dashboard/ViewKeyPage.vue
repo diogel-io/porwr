@@ -9,6 +9,9 @@ import useAccountStore from '@/stores/account-store';
 import ViewStoredKey from '@/components/dashboard/ViewStoredKey.vue';
 import ExportButton from '@/components/dashboard/ExportButton.vue';
 import SecurityWarning from '@/components/dashboard/SecurityWarning.vue';
+import DashboardBreadcrumbs, {
+  type BreadcrumbItem,
+} from '@/components/dashboard/DashboardBreadcrumbs.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -24,6 +27,17 @@ const alias = ref('');
 
 const requestedAlias = computed(() => String(route.params.alias ?? ''));
 const trimmedAlias = computed(() => alias.value.trim());
+
+/**
+ * The trail back to the Keys list (#302).
+ *
+ * Ends in the saved alias, not the input: the crumb names the key this page is showing, and that
+ * only changes once a rename is saved. Falls back to the page title when no key matched.
+ */
+const breadcrumbs = computed<BreadcrumbItem[]>(() => [
+  { label: t('navigation.keys.label'), to: { name: 'keys' } },
+  { label: originalAlias.value || t('keyManagement.viewTitle') },
+]);
 
 watch(
   () => requestedAlias.value,
@@ -91,7 +105,9 @@ async function saveAlias() {
 </script>
 
 <template>
-  <q-page class="dashboard-page view-key-page">
+  <q-page class="dashboard-page dashboard-page--with-breadcrumbs view-key-page">
+    <dashboard-breadcrumbs :items="breadcrumbs" />
+
     <section class="dashboard-hero">
       <h1 class="dashboard-hero-title">{{ t('keyManagement.viewTitle') }}</h1>
       <p class="dashboard-hero-caption">{{ t('keyManagement.viewCaption') }}</p>

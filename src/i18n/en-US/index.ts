@@ -429,6 +429,7 @@ export default {
     },
   },
   navigation: {
+    breadcrumb: 'Breadcrumb',
     dashboard: {
       label: 'Dashboard',
       caption: 'Overview and quick shortcuts',
