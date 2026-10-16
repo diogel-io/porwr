@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import { ref } from 'vue';
 
 const mocks = vi.hoisted(() => ({
@@ -37,6 +37,25 @@ vi.mock('vue-i18n', () => ({
 vi.mock('quasar', () => ({
   useQuasar: () => ({ notify: mocks.notify, dialog: vi.fn() }),
 }));
+
+interface FakeAccountStore {
+  activeAccount: { id: string; alias: string; createdAt: string } | undefined;
+  getKeys: () => Promise<void>;
+}
+
+// Reactive, so switching account in a test reaches the page's watcher as the real store would.
+vi.mock('@/stores/account-store', async () => {
+  const { reactive } = await import('vue');
+  const store = reactive<FakeAccountStore>({ activeAccount: undefined, getKeys: () => Promise.resolve() });
+  (globalThis as { __walletAccountStore?: FakeAccountStore }).__walletAccountStore = store;
+  return { default: () => store };
+});
+
+const accountStore = (): FakeAccountStore =>
+  (globalThis as { __walletAccountStore?: FakeAccountStore }).__walletAccountStore!;
+
+const ALICE = { id: 'a'.repeat(64), alias: 'alice', createdAt: '2026-01-01' };
+const BOB = { id: 'b'.repeat(64), alias: 'bob', createdAt: '2026-01-02' };
 
 import WalletConnectionsPage from '@/pages/dashboard/WalletConnectionsPage.vue';
 
@@ -90,7 +109,12 @@ const mountPage = async () => {
   return wrapper;
 };
 
+// The page watches the account store; a page left mounted from an earlier test would react to the
+// next test's account and call the service on its behalf.
+enableAutoUnmount(afterEach);
+
 beforeEach(() => {
+  accountStore().activeAccount = ALICE;
   vi.clearAllMocks();
   mocks.listNip47Connections.mockResolvedValue([]);
   mocks.listNip47PaymentHistory.mockResolvedValue([]);
@@ -112,7 +136,7 @@ describe('the wallet connections page (#110)', () => {
     await flushPromises();
 
     expect(mocks.connect).toHaveBeenCalledOnce();
-    expect(mocks.connect).toHaveBeenCalledWith('coinos', undefined);
+    expect(mocks.connect).toHaveBeenCalledWith('coinos', ALICE.id, undefined);
     expect(mocks.notify).toHaveBeenCalledWith({
       type: 'positive',
       message: 'walletManagement.notifications.connected:Coinos',
@@ -129,7 +153,7 @@ describe('the wallet connections page (#110)', () => {
     await wrapper.find('[data-testid="connect-alby-hub"]').trigger('click');
     await flushPromises();
 
-    expect(mocks.connect).toHaveBeenCalledWith('alby-hub', 'https://hub.example.com');
+    expect(mocks.connect).toHaveBeenCalledWith('alby-hub', ALICE.id, 'https://hub.example.com');
   });
 
   it('opens the paste option when the wallet does not confirm', async () => {
@@ -200,14 +224,15 @@ describe('the wallet connections page (#110)', () => {
     await wrapper.find('[data-testid="import-connection"]').trigger('click');
     await flushPromises();
 
-    expect(mocks.importNip47Connection).toHaveBeenCalledWith({ uri: VALID_URI });
-    expect(mocks.getNip47Info).toHaveBeenCalledWith('pasted');
+    expect(mocks.importNip47Connection).toHaveBeenCalledWith({ accountPubkey: ALICE.id, uri: VALID_URI });
+    expect(mocks.getNip47Info).toHaveBeenCalledWith(ALICE.id, 'pasted');
   });
 
   it('says a paying wallet is ready for payments and that websites pay only through WebLN (#291)', async () => {
     mocks.listNip47Connections.mockResolvedValue([
       {
         id: 'w',
+        accountPubkey: ALICE.id,
         label: 'Alby Hub',
         walletServicePubkey: 'b'.repeat(64),
         clientPubkey: 'c'.repeat(64),
@@ -223,5 +248,43 @@ describe('the wallet connections page (#110)', () => {
 
     expect(wrapper.text()).toContain('walletManagement.status.readyForPayments');
     expect(wrapper.text()).toContain('walletManagement.security.websitePayments');
+  });
+});
+
+describe('the wallets shown are the active account’s (#304)', () => {
+  it('names the account and lists only its wallets and payments', async () => {
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="wallet-account"]').text()).toBe('walletManagement.accountCaption:alice');
+    expect(mocks.listNip47Connections).toHaveBeenCalledWith(ALICE.id);
+    expect(mocks.listNip47PaymentHistory).toHaveBeenCalledWith(ALICE.id);
+  });
+
+  it('reloads for the new account when the user switches, and drops the old one’s wallets', async () => {
+    mocks.listNip47Connections.mockImplementation((owner: string) =>
+      Promise.resolve(owner === ALICE.id
+        ? [{ id: 'alice-wallet', accountPubkey: ALICE.id, label: 'Alice wallet', walletServicePubkey: 'w', clientPubkey: 'c',
+            relays: [], capabilities: [], createdAt: '2026-01-01', updatedAt: '2026-01-01', isActive: true, hasClientSecret: true }]
+        : []),
+    );
+    const wrapper = await mountPage();
+    expect(wrapper.text()).toContain('Alice wallet');
+
+    accountStore().activeAccount = BOB;
+    await flushPromises();
+
+    expect(mocks.listNip47Connections).toHaveBeenLastCalledWith(BOB.id);
+    expect(wrapper.text()).not.toContain('Alice wallet');
+    expect(wrapper.find('[data-testid="wallet-account"]').text()).toBe('walletManagement.accountCaption:bob');
+  });
+
+  it('shows and loads nothing without an active account', async () => {
+    accountStore().activeAccount = undefined;
+
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="wallet-account"]').text()).toBe('walletManagement.noAccount');
+    expect(mocks.listNip47Connections).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="connect-coinos"]').exists()).toBe(false);
   });
 });

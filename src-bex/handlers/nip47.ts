@@ -5,11 +5,13 @@ import type {
   BeginNip47AuthorizationRequest,
   CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
+  Nip47AccountRequest,
   Nip47AuthorizationStart,
   Nip47AuthorizedWalletService,
   Nip47Command,
   Nip47BalanceResponse,
   Nip47Connection,
+  Nip47ConnectionRequest,
   Nip47ConnectionSummary,
   Nip47InfoResponse,
   Nip47PayInvoiceRequest,
@@ -25,7 +27,8 @@ import {
   createWalletProviderId,
   resolveWalletProviderOrigin,
 } from '@/types/wallet-provider';
-import { getVaultData, updateVaultData } from '../vault';
+import { createPubkey } from '@/types/pubkey';
+import { mutateWalletVault, readWalletVault } from '../services/wallet-vault';
 import {
   findNip47Connection,
   listNip47Connections,
@@ -46,43 +49,30 @@ import {
   type PendingNip47Authorization,
 } from '../services/nip47-pending-authorization-store';
 
-async function requireUnlockedVaultData(): Promise<VaultData> {
-  const result = await getVaultData();
-  if (!result.success || !result.vaultData) {
-    throw new Error(result.error || 'Vault is locked. Unlock Porwr before managing wallet connections.');
+/**
+ * The account a wallet action names, checked against the vault.
+ *
+ * Every wallet action must say which account it is for (#304). A missing or unknown account is an
+ * error rather than a fallback to the active one: falling back is how one wallet came to serve
+ * every account.
+ */
+export function requireWalletAccount(vaultData: VaultData, payload: Partial<Nip47AccountRequest> | undefined): string {
+  const pubkey = createPubkey(typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '');
+  if (!pubkey) {
+    throw new Error('accountPubkey must be a hex public key');
   }
-  return result.vaultData as VaultData;
-}
-
-async function saveVaultData(vaultData: VaultData): Promise<void> {
-  const result = await updateVaultData(vaultData);
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to update vault data');
+  if (!(vaultData.accounts ?? []).some((account) => account.id === pubkey)) {
+    throw new Error('Account not found');
   }
+  return pubkey;
 }
 
-let nip47VaultMutationQueue: Promise<void> = Promise.resolve();
-
-async function waitForNip47VaultMutations(): Promise<void> {
-  await nip47VaultMutationQueue;
-}
-
-async function mutateNip47Vault<T>(
-  mutator: (vaultData: VaultData) => { vaultData: VaultData; data: T } | Promise<{ vaultData: VaultData; data: T }>,
-): Promise<T> {
-  const runMutation = async (): Promise<T> => {
-    const vaultData = await requireUnlockedVaultData();
-    const result = await mutator(vaultData);
-    await saveVaultData(result.vaultData);
-    return result.data;
-  };
-
-  const mutation = nip47VaultMutationQueue.then(runMutation, runMutation);
-  nip47VaultMutationQueue = mutation.then(
-    () => undefined,
-    () => undefined,
-  );
-  return mutation;
+function requireConnection(vaultData: VaultData, accountPubkey: string, connectionId: string): Nip47Connection {
+  const connection = findNip47Connection(vaultData, accountPubkey, connectionId);
+  if (!connection) {
+    throw new Error('NIP-47 connection not found');
+  }
+  return connection;
 }
 
 function buildPaymentHistoryEntry(params: {
@@ -96,6 +86,7 @@ function buildPaymentHistoryEntry(params: {
   const amountMsat = parseBolt11AmountMsat(params.invoice);
   return {
     id: crypto.randomUUID(),
+    accountPubkey: params.connection.accountPubkey,
     connectionId: params.connection.id,
     connectionLabel: params.connection.label,
     invoicePreview: previewInvoice(params.invoice),
@@ -108,12 +99,14 @@ function buildPaymentHistoryEntry(params: {
   };
 }
 
-export async function handleNip47ConnectionsList(): Promise<HandlerResult<Nip47ConnectionSummary[]>> {
-  await waitForNip47VaultMutations();
-  const vaultData = await requireUnlockedVaultData();
+export async function handleNip47ConnectionsList(
+  payload: Nip47AccountRequest,
+): Promise<HandlerResult<Nip47ConnectionSummary[]>> {
+  const vaultData = await readWalletVault();
+  const accountPubkey = requireWalletAccount(vaultData, payload);
   return {
     success: true,
-    data: listNip47Connections(vaultData).map(summarizeNip47Connection),
+    data: listNip47Connections(vaultData, accountPubkey).map(summarizeNip47Connection),
   };
 }
 
@@ -124,11 +117,13 @@ export async function handleNip47ConnectionImport(
   const clientPubkey = getPublicKey(hexToBytes(parsed.clientSecret));
   const id = buildNip47ConnectionId(parsed.walletServicePubkey, clientPubkey);
 
-  const connection = await mutateNip47Vault((vaultData) => {
+  const connection = await mutateWalletVault((vaultData) => {
+    const accountPubkey = requireWalletAccount(vaultData, payload);
     const now = new Date().toISOString();
-    const existing = findNip47Connection(vaultData, id);
+    const existing = findNip47Connection(vaultData, accountPubkey, id);
     const nextConnection: Nip47Connection = {
       id,
+      accountPubkey,
       label: payload.label?.trim() || existing?.label || parsed.lud16 || 'Nostr Wallet Connect',
       walletServicePubkey: parsed.walletServicePubkey,
       clientSecret: parsed.clientSecret,
@@ -151,45 +146,44 @@ export async function handleNip47ConnectionImport(
 }
 
 export async function handleNip47ConnectionRemove(
-  payload: { connectionId: string },
+  payload: Nip47ConnectionRequest,
 ): Promise<HandlerResult<boolean>> {
-  await mutateNip47Vault((vaultData) => ({
-    vaultData: removeNip47Connection(vaultData, payload.connectionId),
-    data: true,
-  }));
+  await mutateWalletVault((vaultData) => {
+    const accountPubkey = requireWalletAccount(vaultData, payload);
+    return {
+      vaultData: removeNip47Connection(vaultData, accountPubkey, payload.connectionId),
+      data: true,
+    };
+  });
   return { success: true, data: true };
 }
 
 export async function handleNip47ConnectionSetActive(
-  payload: { connectionId: string },
+  payload: Nip47ConnectionRequest,
 ): Promise<HandlerResult<Nip47ConnectionSummary>> {
-  const activeConnection = await mutateNip47Vault((vaultData) => {
-    const updatedVaultData = setActiveNip47Connection(vaultData, payload.connectionId);
-    const connection = findNip47Connection(updatedVaultData, payload.connectionId);
-    if (!connection) {
-      throw new Error('NIP-47 connection not found');
-    }
-
+  const activeConnection = await mutateWalletVault((vaultData) => {
+    const accountPubkey = requireWalletAccount(vaultData, payload);
+    const updatedVaultData = setActiveNip47Connection(vaultData, accountPubkey, payload.connectionId);
     return {
       vaultData: updatedVaultData,
-      data: connection,
+      data: requireConnection(updatedVaultData, accountPubkey, payload.connectionId),
     };
   });
 
   return { success: true, data: summarizeNip47Connection(activeConnection) };
 }
 
-export async function handleNip47GetInfo(payload: { connectionId: string }): Promise<HandlerResult<Nip47InfoResponse>> {
-  const vaultData = await requireUnlockedVaultData();
-  const connection = findNip47Connection(vaultData, payload.connectionId);
-  if (!connection) {
-    throw new Error('NIP-47 connection not found');
-  }
+export async function handleNip47GetInfo(payload: Nip47ConnectionRequest): Promise<HandlerResult<Nip47InfoResponse>> {
+  const vaultData = await readWalletVault();
+  const accountPubkey = requireWalletAccount(vaultData, payload);
+  const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
 
   const info = await nip47Client.getInfo(connection);
 
-  await mutateNip47Vault((latestVaultData) => {
-    const latestConnection = findNip47Connection(latestVaultData, payload.connectionId) ?? connection;
+  await mutateWalletVault((latestVaultData) => {
+    // Removed while the wallet was answering: nothing to record against.
+    const latestConnection = findNip47Connection(latestVaultData, accountPubkey, payload.connectionId);
+    if (!latestConnection) return { vaultData: latestVaultData, data: true };
     const updatedConnection: Nip47Connection = {
       ...latestConnection,
       capabilities: info.capabilities,
@@ -205,13 +199,10 @@ export async function handleNip47GetInfo(payload: { connectionId: string }): Pro
   return { success: true, data: info };
 }
 
-export async function handleNip47GetBalance(payload: { connectionId: string }): Promise<HandlerResult<Nip47BalanceResponse>> {
-  await waitForNip47VaultMutations();
-  const vaultData = await requireUnlockedVaultData();
-  const connection = findNip47Connection(vaultData, payload.connectionId);
-  if (!connection) {
-    throw new Error('NIP-47 connection not found');
-  }
+export async function handleNip47GetBalance(payload: Nip47ConnectionRequest): Promise<HandlerResult<Nip47BalanceResponse>> {
+  const vaultData = await readWalletVault();
+  const accountPubkey = requireWalletAccount(vaultData, payload);
+  const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
 
   const balance = await nip47Client.getBalance(connection);
   return { success: true, data: balance };
@@ -220,11 +211,9 @@ export async function handleNip47GetBalance(payload: { connectionId: string }): 
 export async function handleNip47PayInvoice(
   payload: Nip47PayInvoiceRequest,
 ): Promise<HandlerResult<Nip47PayInvoiceResponse>> {
-  const vaultData = await requireUnlockedVaultData();
-  const connection = findNip47Connection(vaultData, payload.connectionId);
-  if (!connection) {
-    throw new Error('NIP-47 connection not found');
-  }
+  const vaultData = await readWalletVault();
+  const accountPubkey = requireWalletAccount(vaultData, payload);
+  const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
 
   // Defense-in-depth: the UI only offers payment when the wallet has advertised
   // pay_invoice support, but enforce it here too in case this handler is ever
@@ -240,7 +229,7 @@ export async function handleNip47PayInvoice(
 
   try {
     const payment = await nip47Client.payInvoice(connection, invoice);
-    await mutateNip47Vault((latestVaultData) => ({
+    await mutateWalletVault((latestVaultData) => ({
       vaultData: appendNip47PaymentHistory(
         latestVaultData,
         buildPaymentHistoryEntry({
@@ -256,7 +245,7 @@ export async function handleNip47PayInvoice(
     return { success: true, data: payment };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    await mutateNip47Vault((latestVaultData) => ({
+    await mutateWalletVault((latestVaultData) => ({
       vaultData: appendNip47PaymentHistory(
         latestVaultData,
         buildPaymentHistoryEntry({
@@ -272,12 +261,14 @@ export async function handleNip47PayInvoice(
   }
 }
 
-export async function handleNip47PaymentHistoryList(): Promise<HandlerResult<Nip47PaymentHistoryEntry[]>> {
-  await waitForNip47VaultMutations();
-  const vaultData = await requireUnlockedVaultData();
+export async function handleNip47PaymentHistoryList(
+  payload: Nip47AccountRequest,
+): Promise<HandlerResult<Nip47PaymentHistoryEntry[]>> {
+  const vaultData = await readWalletVault();
+  const accountPubkey = requireWalletAccount(vaultData, payload);
   return {
     success: true,
-    data: listNip47PaymentHistory(vaultData),
+    data: listNip47PaymentHistory(vaultData, accountPubkey),
   };
 }
 
@@ -293,7 +284,9 @@ const AUTHORIZATION_APP_NAME = 'Porwr';
 export async function handleNip47AuthorizationBegin(
   payload: BeginNip47AuthorizationRequest,
 ): Promise<HandlerResult<Nip47AuthorizationStart>> {
-  await requireUnlockedVaultData();
+  // The account is fixed now, when the popup opens, not when the wallet answers: the user may
+  // switch account while signing in to the wallet, and the connection is for the one they began with.
+  const accountPubkey = requireWalletAccount(await readWalletVault(), payload);
 
   const providerId = createWalletProviderId(payload.provider);
   if (!providerId) {
@@ -309,6 +302,7 @@ export async function handleNip47AuthorizationBegin(
   const clientPubkey = getPublicKey(hexToBytes(clientSecret));
   const pending = await savePendingNip47Authorization({
     pendingId: crypto.randomUUID(),
+    accountPubkey,
     providerId,
     origin,
     clientSecret,
@@ -343,6 +337,7 @@ function buildAuthorizedConnection(
   const now = new Date().toISOString();
   return {
     id: buildNip47ConnectionId(service.walletServicePubkey, pending.clientPubkey),
+    accountPubkey: pending.accountPubkey,
     label: WALLET_PROVIDERS[pending.providerId].name,
     walletServicePubkey: service.walletServicePubkey,
     clientSecret: pending.clientSecret,
@@ -361,7 +356,10 @@ async function saveAuthorizedConnection(
   capabilities: Nip47Command[],
   checkedAt: string,
 ): Promise<Nip47ConnectionSummary> {
-  const saved = await mutateNip47Vault((vaultData) => {
+  const saved = await mutateWalletVault((vaultData) => {
+    // Removed while the user was in the wallet's popup: saving would recreate wallet data for an
+    // account that no longer exists.
+    requireWalletAccount(vaultData, connection);
     const nextConnection: Nip47Connection = { ...connection, capabilities, lastInfoCheckedAt: checkedAt };
     return { vaultData: upsertNip47Connection(vaultData, nextConnection), data: nextConnection };
   });
@@ -377,7 +375,7 @@ async function saveAuthorizedConnection(
 export async function handleNip47AuthorizationComplete(
   payload: CompleteNip47AuthorizationRequest,
 ): Promise<HandlerResult<Nip47ConnectionSummary>> {
-  await requireUnlockedVaultData();
+  await readWalletVault();
   const pending = await requirePendingAuthorization(payload.pendingId);
 
   const service = validateAuthorizedWalletService(payload);
@@ -411,7 +409,7 @@ function parseMethods(value: unknown): Nip47Command[] {
 export async function handleNip47AuthorizationProbe(
   payload: ProbeNip47AuthorizationRequest,
 ): Promise<HandlerResult<Nip47ConnectionSummary | null>> {
-  await requireUnlockedVaultData();
+  await readWalletVault();
   const pending = await requirePendingAuthorization(payload.pendingId);
 
   const known = WALLET_PROVIDERS[pending.providerId].knownWalletService;

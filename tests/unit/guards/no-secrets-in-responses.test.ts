@@ -93,7 +93,11 @@ describe('vault responses to pages carry no secrets', () => {
 
   it('nip47.authorization.begin', async () => {
     globalThis.crypto.randomUUID = vi.fn(() => 'pending-uuid') as () => `${string}-${string}-${string}-${string}-${string}`;
-    const response = await dispatchMessage('nip47.authorization.begin', { provider: 'coinos' } as never, '');
+    const response = await dispatchMessage(
+      'nip47.authorization.begin',
+      { accountPubkey: FIXTURE.accounts[0]!.id, provider: 'coinos' } as never,
+      '',
+    );
 
     expect(response).toHaveProperty('clientPubkey');
     const secret = pendingAuthorizations.at(-1)!.clientSecret;

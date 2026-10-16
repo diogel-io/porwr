@@ -27,7 +27,8 @@ export interface WalletAuthorizationOptions {
 export interface UseWalletAuthorizationResult {
   /** The provider being connected, or `null` when no connection is in progress. */
   connecting: Ref<WalletProviderId | null>;
-  connect: (provider: WalletProviderId, customOrigin?: string) => Promise<WalletAuthorizationResult>;
+  /** Connects a wallet for `accountPubkey`, the account the connection will belong to (#304). */
+  connect: (provider: WalletProviderId, accountPubkey: string, customOrigin?: string) => Promise<WalletAuthorizationResult>;
 }
 
 const POPUP_FEATURES = 'popup,width=420,height=680';
@@ -89,6 +90,7 @@ export function useWalletAuthorization(options: WalletAuthorizationOptions = {})
 
   const connect = async (
     provider: WalletProviderId,
+    accountPubkey: string,
     customOrigin?: string,
   ): Promise<WalletAuthorizationResult> => {
     const host = options.host ?? window;
@@ -105,6 +107,7 @@ export function useWalletAuthorization(options: WalletAuthorizationOptions = {})
     connecting.value = provider;
     try {
       const start = await beginNip47Authorization({
+        accountPubkey,
         provider,
         ...(customOrigin?.trim() ? { customOrigin: customOrigin.trim() } : {}),
       });

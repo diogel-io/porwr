@@ -12,6 +12,8 @@ import type { WalletProviderId } from '@/types/wallet-provider';
  */
 export interface PendingNip47Authorization {
   pendingId: string;
+  /** The account the connection is for, fixed when the popup opened (#304). */
+  accountPubkey: string;
   providerId: WalletProviderId;
   origin: string;
   clientSecret: string;

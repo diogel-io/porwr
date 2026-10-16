@@ -36,3 +36,9 @@ export interface AccountRequest {
 export interface RevealedSecret {
   nsec: string;
 }
+
+/**
+ * The alias of the account a new vault starts with, reserved so no other account can take it.
+ * Wallet data from before per-account wallets migrates to the account carrying it (#304).
+ */
+export const MAIN_ACCOUNT_ALIAS = 'Main Account';

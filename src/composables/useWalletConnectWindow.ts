@@ -20,7 +20,8 @@ export interface WalletConnectWindowOptions {
 export interface UseWalletConnectWindowResult {
   /** The provider being connected, or `null` when no connection is in progress. */
   connecting: Ref<WalletProviderId | null>;
-  connect: (provider: WalletProviderId, customOrigin?: string) => Promise<WalletConnectWindowResult>;
+  /** Connects a wallet for `accountPubkey`, the account the connection will belong to (#304). */
+  connect: (provider: WalletProviderId, accountPubkey: string, customOrigin?: string) => Promise<WalletConnectWindowResult>;
 }
 
 const WINDOW_WIDTH = 420;
@@ -45,10 +46,13 @@ export function useWalletConnectWindow(options: WalletConnectWindowOptions = {})
 
   const connect = async (
     provider: WalletProviderId,
+    accountPubkey: string,
     customOrigin?: string,
   ): Promise<WalletConnectWindowResult> => {
     const requestId = crypto.randomUUID();
-    const query = new URLSearchParams({ provider, request: requestId });
+    // The account's public key, not a secret: the connect window passes it to the background, which
+    // fixes the new connection to that account before the wallet's popup opens (#304).
+    const query = new URLSearchParams({ provider, request: requestId, account: accountPubkey });
     if (customOrigin?.trim()) {
       query.set('origin', customOrigin.trim());
     }

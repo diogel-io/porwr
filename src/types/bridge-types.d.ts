@@ -38,9 +38,11 @@ import type {
   BeginNip47AuthorizationRequest,
   CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
+  Nip47AccountRequest,
   Nip47AuthorizationStart,
   Nip47BalanceResponse,
   Nip47Connection,
+  Nip47ConnectionRequest,
   Nip47ConnectionSummary,
   Nip47InfoResponse,
   Nip47PayInvoiceRequest,
@@ -402,7 +404,7 @@ export interface BridgeRequestMap {
   'nip47.connections.list': {
     id: string;
     action: 'nip47.connections.list';
-  };
+  } & Nip47AccountRequest;
   'nip47.connections.import': {
     id: string;
     action: 'nip47.connections.import';
@@ -410,23 +412,19 @@ export interface BridgeRequestMap {
   'nip47.connections.remove': {
     id: string;
     action: 'nip47.connections.remove';
-    connectionId: string;
-  };
+  } & Nip47ConnectionRequest;
   'nip47.connections.setActive': {
     id: string;
     action: 'nip47.connections.setActive';
-    connectionId: string;
-  };
+  } & Nip47ConnectionRequest;
   'nip47.getInfo': {
     id: string;
     action: 'nip47.getInfo';
-    connectionId: string;
-  };
+  } & Nip47ConnectionRequest;
   'nip47.getBalance': {
     id: string;
     action: 'nip47.getBalance';
-    connectionId: string;
-  };
+  } & Nip47ConnectionRequest;
   'nip47.payInvoice': {
     id: string;
     action: 'nip47.payInvoice';
@@ -434,7 +432,7 @@ export interface BridgeRequestMap {
   'nip47.payments.list': {
     id: string;
     action: 'nip47.payments.list';
-  };
+  } & Nip47AccountRequest;
   'nip47.authorization.begin': {
     id: string;
     action: 'nip47.authorization.begin';
@@ -550,7 +548,7 @@ export interface BridgeResponseMap {
   'relay.browser.list': RelayCatalogEntry[];
   'relay.browser.getStatus': RelayDiscoveryState | null;
   'relay.browser.refresh': boolean | { success: false; error: string };
-  'nip47.connections.list': Nip47ConnectionSummary[];
+  'nip47.connections.list': Nip47ConnectionSummary[] | { success: false; error: string };
   'nip47.connections.import': Nip47ConnectionSummary | { success: false; error: string };
   'nip47.connections.remove': boolean | { success: false; error: string };
   'nip47.connections.setActive': Nip47ConnectionSummary | { success: false; error: string };

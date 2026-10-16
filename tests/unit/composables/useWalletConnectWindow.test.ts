@@ -53,11 +53,13 @@ const openedRequest = (): { url: URL; params: URLSearchParams } => {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
+const ACCOUNT = 'a'.repeat(64);
+
 describe('useWalletConnectWindow (workspace#76)', () => {
   it('opens a separate Porwr window for the connection, never a popup from this page', async () => {
     const { api } = harness();
 
-    void api.connect('alby-hub', ' https://hub.example.com ');
+    void api.connect('alby-hub', ACCOUNT, ' https://hub.example.com ');
     await settle();
 
     expect(window.open).not.toHaveBeenCalled();
@@ -67,12 +69,14 @@ describe('useWalletConnectWindow (workspace#76)', () => {
     expect(params.get('provider')).toBe('alby-hub');
     expect(params.get('origin')).toBe('https://hub.example.com');
     expect(params.get('request')).toMatch(/^[0-9a-f-]{36}$/);
+    // Whose wallet the connection becomes, fixed here rather than read from the active account later (#304).
+    expect(params.get('account')).toBe(ACCOUNT);
   });
 
   it('returns the outcome the connect window reports and clears the connecting state', async () => {
     const { api } = harness();
 
-    const pending = api.connect('coinos');
+    const pending = api.connect('coinos', ACCOUNT);
     expect(api.connecting.value).toBe('coinos');
     await settle();
     postWalletConnectOutcome(openedRequest().params.get('request')!, {
@@ -88,7 +92,7 @@ describe('useWalletConnectWindow (workspace#76)', () => {
   it('ignores an outcome meant for another connect window', async () => {
     const { api } = harness(200);
 
-    const pending = api.connect('coinos');
+    const pending = api.connect('coinos', ACCOUNT);
     await settle();
     postWalletConnectOutcome('someone-else', { status: 'no-response' });
 
@@ -98,7 +102,7 @@ describe('useWalletConnectWindow (workspace#76)', () => {
   it('turns a reported error into a rejection', async () => {
     const { api } = harness();
 
-    const pending = api.connect('coinos');
+    const pending = api.connect('coinos', ACCOUNT);
     await settle();
     postWalletConnectOutcome(openedRequest().params.get('request')!, { status: 'error', message: 'Vault is locked' });
 
@@ -109,7 +113,7 @@ describe('useWalletConnectWindow (workspace#76)', () => {
   it('is cancelled when the user closes the connect window', async () => {
     const { api } = harness();
 
-    const pending = api.connect('coinos');
+    const pending = api.connect('coinos', ACCOUNT);
     await settle();
     removedListeners.forEach((listener) => listener(7));
     removedListeners.forEach((listener) => listener(42));
@@ -121,7 +125,7 @@ describe('useWalletConnectWindow (workspace#76)', () => {
   it('gives up after the timeout, in case the connect window was navigated away', async () => {
     const { api } = harness(50);
 
-    await expect(api.connect('coinos')).resolves.toEqual({ status: 'cancelled' });
+    await expect(api.connect('coinos', ACCOUNT)).resolves.toEqual({ status: 'cancelled' });
     expect(removedListeners.size).toBe(0);
   });
 
@@ -129,7 +133,7 @@ describe('useWalletConnectWindow (workspace#76)', () => {
     create.mockRejectedValue(new Error('No windows here'));
     const { api } = harness();
 
-    await expect(api.connect('coinos')).rejects.toThrow('No windows here');
+    await expect(api.connect('coinos', ACCOUNT)).rejects.toThrow('No windows here');
     expect(api.connecting.value).toBeNull();
     expect(removedListeners.size).toBe(0);
   });
@@ -137,7 +141,7 @@ describe('useWalletConnectWindow (workspace#76)', () => {
   it('stops waiting when the page goes away', async () => {
     const { api, wrapper } = harness();
 
-    const pending = api.connect('coinos');
+    const pending = api.connect('coinos', ACCOUNT);
     await settle();
     wrapper.unmount();
 

@@ -7,12 +7,14 @@ import DiogelLogo from '@/components/shared/DiogelLogo.vue';
 import { useWalletAuthorization } from '@/composables/useWalletAuthorization';
 import { postWalletConnectOutcome, type WalletConnectOutcome } from '@/services/wallet-connect-channel';
 import { WALLET_PROVIDERS, createWalletProviderId } from '@/types/wallet-provider';
+import { createPubkey } from '@/types/pubkey';
 
 /**
  * The throwaway window that opens a wallet's approval popup (workspace#76).
  *
  * The wallet's popup can navigate this window through `window.opener`, so it holds nothing worth
- * taking: no navigation, no account, no vault content. It runs one connection, tells Wallet
+ * taking: no navigation, no vault content, and of the account only its public key, which says whose
+ * wallet this connection becomes (#304). It runs one connection, tells Wallet
  * Connections how it ended, and closes. See `useWalletConnectWindow` for the other side.
  */
 defineOptions({ name: 'WalletConnectPage' });
@@ -31,9 +33,12 @@ const queryValue = (key: string): string | undefined => {
 const providerId = createWalletProviderId(queryValue('provider'));
 const requestId = queryValue('request');
 const customOrigin = queryValue('origin');
+const accountPubkey = createPubkey(queryValue('account') ?? '');
 const providerName = providerId ? WALLET_PROVIDERS[providerId].name : '';
 
-const state = ref<ConnectState>(providerId && requestId ? 'opening' : 'invalid');
+// No account, no connection: falling back to the active one is how every account came to share a
+// wallet, and the user may have switched account since Wallet Management opened this window.
+const state = ref<ConnectState>(providerId && requestId && accountPubkey ? 'opening' : 'invalid');
 const message = computed(() => {
   switch (state.value) {
     case 'opening':
@@ -74,13 +79,13 @@ async function finish(outcome: WalletConnectOutcome): Promise<void> {
  * again from that.
  */
 async function start(fromClick: boolean): Promise<void> {
-  if (!providerId || !requestId) {
+  if (!providerId || !requestId || !accountPubkey) {
     return;
   }
 
   state.value = 'waiting';
   try {
-    const result = await connect(providerId, customOrigin);
+    const result = await connect(providerId, accountPubkey, customOrigin);
     if (result.status === 'popup-blocked' && !fromClick) {
       state.value = 'needs-click';
       return;

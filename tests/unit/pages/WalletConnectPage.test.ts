@@ -50,9 +50,11 @@ const mountPage = async () => {
 const message = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
   wrapper.find('[data-testid="wallet-connect-message"]').text();
 
+const ACCOUNT = 'a'.repeat(64);
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.query = { provider: 'coinos', request: 'request-1' };
+  mocks.query = { provider: 'coinos', request: 'request-1', account: ACCOUNT };
   mocks.getCurrent.mockResolvedValue({ id: 9 });
   mocks.remove.mockResolvedValue(undefined);
   vi.stubGlobal('chrome', { windows: { getCurrent: mocks.getCurrent, remove: mocks.remove } });
@@ -65,19 +67,19 @@ describe('the wallet connect window (workspace#76)', () => {
 
     const wrapper = await mountPage();
 
-    expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('coinos', undefined);
+    expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('coinos', ACCOUNT, undefined);
     expect(mocks.post).toHaveBeenCalledExactlyOnceWith('request-1', { status: 'connected', connection });
     expect(mocks.remove).toHaveBeenCalledWith(9);
     expect(message(wrapper)).toBe('walletManagement.connectWindow.finished');
   });
 
   it('passes a custom Alby Hub origin through', async () => {
-    mocks.query = { provider: 'alby-hub', request: 'request-1', origin: 'https://hub.example.com' };
+    mocks.query = { provider: 'alby-hub', request: 'request-1', account: ACCOUNT, origin: 'https://hub.example.com' };
     mocks.connect.mockResolvedValue({ status: 'no-response' });
 
     await mountPage();
 
-    expect(mocks.connect).toHaveBeenCalledWith('alby-hub', 'https://hub.example.com');
+    expect(mocks.connect).toHaveBeenCalledWith('alby-hub', ACCOUNT, 'https://hub.example.com');
     expect(mocks.post).toHaveBeenCalledWith('request-1', { status: 'no-response' });
   });
 
@@ -125,8 +127,11 @@ describe('the wallet connect window (workspace#76)', () => {
   });
 
   it.each([
-    ['an unknown provider', { provider: 'evil-wallet', request: 'request-1' }],
-    ['no request id', { provider: 'coinos' }],
+    ['an unknown provider', { provider: 'evil-wallet', request: 'request-1', account: ACCOUNT }],
+    ['no request id', { provider: 'coinos', account: ACCOUNT }],
+    // No account to connect for: never fall back to whichever account is active (#304).
+    ['no account', { provider: 'coinos', request: 'request-1' }],
+    ['an account that is not a public key', { provider: 'coinos', request: 'request-1', account: 'npub1x' }],
   ])('does nothing for %s', async (_label, query) => {
     mocks.query = query;
 

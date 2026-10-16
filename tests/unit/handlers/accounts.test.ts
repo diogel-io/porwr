@@ -197,6 +197,34 @@ describe('accounts.remove', () => {
   it('refuses a pubkey that is not hex', async () => {
     await expect(handleAccountsRemove({ accountPubkey: 'npub1x' })).resolves.toMatchObject({ success: false });
   });
+
+  it('takes the account’s wallets, grants and payments with it, in the same write (#304)', async () => {
+    const connection = (id: string, accountPubkey: string) => ({
+      id, accountPubkey, label: id, walletServicePubkey: 'w', clientSecret: 's', clientPubkey: 'c',
+      relays: [], capabilities: [], createdAt: '2026-01-01', updatedAt: '2026-01-01', isActive: true,
+    });
+    state.vault = {
+      ...state.vault!,
+      nip47Connections: [connection('alice-wallet', ALICE), connection('bob-wallet', BOB)],
+      nip47PaymentHistory: [
+        { id: 'p1', accountPubkey: ALICE, connectionId: 'alice-wallet', connectionLabel: '', invoicePreview: '', status: 'succeeded', createdAt: '2026-01-01' },
+        { id: 'p2', accountPubkey: BOB, connectionId: 'bob-wallet', connectionLabel: '', invoicePreview: '', status: 'succeeded', createdAt: '2026-01-01' },
+      ],
+      webLnPermissions: [
+        { origin: 'https://a.example', connectionId: 'alice-wallet', methods: ['enable'], createdAt: '2026-01-01' },
+        { origin: 'https://b.example', connectionId: 'bob-wallet', methods: ['enable'], createdAt: '2026-01-01' },
+      ],
+    };
+
+    await handleAccountsRemove({ accountPubkey: ALICE });
+
+    // One write: a wallet left behind for a moment would be handed to the main account by the next
+    // wallet action's migration.
+    expect(state.writes).toBe(1);
+    expect(state.vault!.nip47Connections?.map((item) => item.id)).toEqual(['bob-wallet']);
+    expect(state.vault!.nip47PaymentHistory?.map((item) => item.id)).toEqual(['p2']);
+    expect(state.vault!.webLnPermissions?.map((item) => item.connectionId)).toEqual(['bob-wallet']);
+  });
 });
 
 describe('accounts.revealSecret', () => {

@@ -7,21 +7,40 @@ import type {
   WebLnSendPaymentRequest,
   WebLnSendPaymentResponse,
 } from '@/types/webln';
-import { getVaultData, updateVaultData } from '../vault';
-import { listNip47Connections } from '../services/nip47-connection-store';
+import type { Nip47Connection } from '@/types/nip47';
+import { isVaultUnlocked } from '../vault';
+import { findActiveNip47Connection } from '../services/nip47-connection-store';
+import { resolveSigningAccount } from '../services/signing-account';
+import { mutateVault } from '../services/vault-mutation';
 import { handleNip47PayInvoice } from './nip47';
+import { readWalletVault } from '../services/wallet-vault';
 import { hasWebLnPermission, upsertWebLnPermission } from '../services/webln-permission-store';
 
-async function requireUnlockedVaultData(): Promise<VaultData> {
-  const result = await getVaultData();
-  if (!result.success || !result.vaultData) {
+export const NO_WALLET_FOR_ACCOUNT = 'No wallet is configured for this account.';
+
+/**
+ * The wallet a site's WebLN calls use: the active connection of the account the site is connected
+ * as (#304).
+ *
+ * The account is resolved exactly as for a NIP-07 request, so a site pays from the wallet of the
+ * account it signs as. An unbound site binds to the active account; a site whose account was
+ * removed fails closed rather than paying from whichever account happens to be active.
+ */
+async function resolveWebLnWallet(origin: string): Promise<{ vaultData: VaultData; connection: Nip47Connection }> {
+  if (!isVaultUnlocked()) {
     throw new Error('Vault is locked. Unlock Porwr before using WebLN.');
   }
-  return result.vaultData as VaultData;
-}
+  const resolved = await resolveSigningAccount(origin);
+  if ('error' in resolved) {
+    throw new Error(resolved.error);
+  }
 
-function getActiveWebLnConnection(vaultData: VaultData) {
-  return listNip47Connections(vaultData).find((connection) => connection.isActive);
+  const vaultData = await readWalletVault();
+  const connection = findActiveNip47Connection(vaultData, resolved.account.id);
+  if (!connection) {
+    throw new Error(NO_WALLET_FOR_ACCOUNT);
+  }
+  return { vaultData, connection };
 }
 
 function assertPayInvoiceSupport(connection: { capabilities: string[] }): void {
@@ -42,32 +61,24 @@ export async function handleWebLnEnable(payload: WebLnEnableRequest): Promise<Ha
   if (!payload.approved) {
     throw new Error('WebLN access was rejected by the user.');
   }
-  const vaultData = await requireUnlockedVaultData();
-  const connection = getActiveWebLnConnection(vaultData);
-  if (!connection) {
-    throw new Error('No active NIP-47 wallet connection is configured.');
-  }
+  const { connection } = await resolveWebLnWallet(payload.origin);
   assertPayInvoiceSupport(connection);
 
-  const updatedVault = upsertWebLnPermission(vaultData, {
-    origin: payload.origin,
-    connectionId: connection.id,
-    methods: ['enable', 'getInfo'],
-    createdAt: new Date().toISOString(),
-  });
-  const result = await updateVaultData(updatedVault);
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to save WebLN permission.');
-  }
+  // On the shared queue, against the vault as it is now, not the copy read above.
+  await mutateVault((vault) => ({
+    vault: upsertWebLnPermission(vault, {
+      origin: payload.origin,
+      connectionId: connection.id,
+      methods: ['enable', 'getInfo'],
+      createdAt: new Date().toISOString(),
+    }),
+    result: undefined,
+  }));
   return { success: true, data: true };
 }
 
 export async function handleWebLnGetInfo(payload: WebLnGetInfoRequest): Promise<HandlerResult<WebLnGetInfoResponse>> {
-  const vaultData = await requireUnlockedVaultData();
-  const connection = getActiveWebLnConnection(vaultData);
-  if (!connection) {
-    throw new Error('No active NIP-47 wallet connection is configured.');
-  }
+  const { vaultData, connection } = await resolveWebLnWallet(payload.origin);
   if (!hasWebLnPermission(vaultData, { origin: payload.origin, connectionId: connection.id, method: 'getInfo' })) {
     throw new Error('WebLN access has not been enabled for this site.');
   }
@@ -90,17 +101,17 @@ export async function handleWebLnSendPayment(
     throw new Error('WebLN payment was rejected by the user.');
   }
   const invoice = normalizeInvoice(payload.paymentRequest);
-  const vaultData = await requireUnlockedVaultData();
-  const connection = getActiveWebLnConnection(vaultData);
-  if (!connection) {
-    throw new Error('No active NIP-47 wallet connection is configured.');
-  }
+  const { vaultData, connection } = await resolveWebLnWallet(payload.origin);
   assertPayInvoiceSupport(connection);
   if (!hasWebLnPermission(vaultData, { origin: payload.origin, connectionId: connection.id, method: 'enable' })) {
     throw new Error('WebLN access has not been enabled for this site.');
   }
 
-  const result = await handleNip47PayInvoice({ connectionId: connection.id, invoice });
+  const result = await handleNip47PayInvoice({
+    accountPubkey: connection.accountPubkey,
+    connectionId: connection.id,
+    invoice,
+  });
   if (!result.success) {
     throw new Error(result.error);
   }
