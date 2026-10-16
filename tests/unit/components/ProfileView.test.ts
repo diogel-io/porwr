@@ -246,3 +246,22 @@ describe('the account npub (#303)', () => {
     expect(wrapper.find('button.profile-npub').exists()).toBe(false);
   });
 });
+
+describe('the empty banner (#301)', () => {
+  it('shows a neutral placeholder with no shade when there is no banner', async () => {
+    state.profile = { name: 'alice' };
+    const wrapper = await mountView();
+
+    expect(wrapper.find('.banner-placeholder').exists()).toBe(true);
+    // The shade lifts an avatar off a picture; over an empty placeholder it is only a smudge.
+    expect(wrapper.get('.banner-container').classes()).not.toContain('banner-container--has-image');
+  });
+
+  it('shades a banner image', async () => {
+    state.profile = { name: 'alice', banner: 'https://example.com/banner.png' };
+    const wrapper = await mountView();
+
+    expect(wrapper.find('.banner-placeholder').exists()).toBe(false);
+    expect(wrapper.get('.banner-container').classes()).toContain('banner-container--has-image');
+  });
+});

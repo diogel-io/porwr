@@ -168,7 +168,9 @@ watch(
   aspect-ratio: 3 / 1;
   border-radius: 12px 12px 0 0;
   overflow: hidden;
-  background: linear-gradient(135deg, $primary-light, $primary);
+  // Neutral, not brand orange: an empty banner is not a default banner, and an orange one told
+  // users that Nostr banners come orange (#301). Matches the empty avatar's fill.
+  background: var(--surface-soft);
 }
 
 .profile-header__banner-image {

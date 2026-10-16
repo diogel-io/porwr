@@ -146,7 +146,7 @@ watch(
     <q-card v-else class="profile-card" flat bordered>
       <!-- Banner Section -->
       <q-card-section class="q-pa-none">
-        <div class="banner-container">
+        <div :class="{ 'banner-container--has-image': profile.banner }" class="banner-container">
           <q-img
             v-if="profile.banner"
             :src="profile.banner"
@@ -330,7 +330,9 @@ watch(
     overflow: hidden;
     background: var(--page-bg);
 
-    &::after {
+    // The shade lifts the avatar off a picture. Over an empty, neutral placeholder it is only a
+    // grey smudge (#301).
+    &--has-image::after {
       content: '';
       position: absolute;
       bottom: 0;
@@ -346,11 +348,11 @@ watch(
     height: 100%;
   }
 
+  // Neutral rather than brand orange, so an empty banner does not look like a default one (#301).
   .banner-placeholder {
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, $primary-light, $primary); // Threenine Orange gradient
-    opacity: 0.2;
+    background: var(--surface-soft);
   }
 
   .content-section {
