@@ -1,11 +1,13 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useQuasar } from 'quasar';
 import type { NostrProfile } from '@/types';
 import type { AccountSummary } from '@/types/accounts';
 import { profileService } from '@/services/profile-service';
 import { PROFILE_UPDATED_KEY, storageService } from '@/services/storage-service';
 import { formatBirthday, normalizeWebsiteUrl } from '@/utils/profile-format';
+import { encodeNpub, formatNpubDisplay } from '@/utils/npub-format';
 
 defineOptions({ name: 'ProfileView' });
 
@@ -14,6 +16,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const $q = useQuasar();
 
 function openInTab(path: string) {
   const url = chrome.runtime.getURL(`www/index.html#${path}`);
@@ -32,6 +35,26 @@ const profile = ref<NostrProfile>({
 });
 
 const loading = ref(false);
+
+/**
+ * The account's npub, from the key rather than the profile (#303).
+ *
+ * Derived from the prop, so it follows an account switch without waiting on the relay fetch, and
+ * it is there for an account that has never published a profile.
+ */
+const npub = computed(() => encodeNpub(props.storedKey.id));
+const npubDisplay = computed(() => formatNpubDisplay(npub.value));
+
+async function copyNpub() {
+  if (!npub.value) return;
+
+  try {
+    await navigator.clipboard.writeText(npub.value);
+    $q.notify({ type: 'positive', message: t('account.copySuccess') });
+  } catch {
+    $q.notify({ type: 'negative', message: t('keyManagement.table.copyPublicKeyFailed') });
+  }
+}
 
 const birthdayText = computed(() => formatBirthday(profile.value.birthday));
 
@@ -153,6 +176,23 @@ watch(
             @{{ profile.name }}
           </div>
 
+          <!--
+            Shortened for display at the 320px floor; the full npub is what gets copied, and what
+            the title and accessible name carry (#303).
+          -->
+          <button
+            v-if="npub"
+            :aria-label="t('profile.copyNpubAriaLabel', { npub })"
+            :title="npub"
+            class="profile-npub"
+            type="button"
+            @click="copyNpub"
+          >
+            <span class="profile-npub__value">{{ npubDisplay }}</span>
+            <q-icon class="profile-npub__icon" name="content_copy" size="12px" />
+            <q-tooltip>{{ t('profile.copyNpub') }}</q-tooltip>
+          </button>
+
           <div v-if="profile.about" class="text-body q-mt-sm about-text">
             {{ profile.about }}
           </div>
@@ -241,6 +281,37 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.profile-npub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-color);
+  }
+}
+
+.profile-npub__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-npub__icon {
+  flex: none;
 }
 
 .profile-detail__empty {

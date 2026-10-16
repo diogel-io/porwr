@@ -7,6 +7,10 @@ import type { StoredKey } from '@/types';
 const notifyMock = vi.fn();
 const clipboardWriteTextMock = vi.fn();
 
+// Real-shaped pubkeys: the table only encodes a 64-character hex key (#303).
+const PUBKEY_A = 'a'.repeat(64);
+const PUBKEY_B = 'b'.repeat(64);
+
 const npubEncodeMock = vi.fn((value: string) => `npub_${value}`);
 
 vi.mock('nostr-tools/nip19', () => ({
@@ -69,13 +73,13 @@ describe('KeyManagementTable.vue', () => {
   it('renders key rows with npub-encoded public keys', () => {
     const keys: StoredKey[] = [
       {
-        id: 'pubkey-a',
+        id: PUBKEY_A,
         alias: 'alpha',
         account: { privkey: 'secret-a' },
         createdAt: '2026-01-01T00:00:00.000Z',
       },
       {
-        id: 'pubkey-b',
+        id: PUBKEY_B,
         alias: 'beta',
         account: { privkey: 'secret-b' },
         createdAt: '2026-02-01T00:00:00.000Z',
@@ -90,8 +94,9 @@ describe('KeyManagementTable.vue', () => {
     expect(wrapper.findAll('.row-item')).toHaveLength(2);
     expect(wrapper.text()).toContain('alpha');
     expect(wrapper.text()).toContain('beta');
-    expect(wrapper.text()).toContain('npub_pubkey-a');
-    expect(wrapper.text()).toContain('npub_pubkey-b');
+    // Shown shortened; the full value is what gets copied (see the copy tests below).
+    expect(wrapper.text()).toContain(`npub_aaaaaaaaa…${'a'.repeat(10)}`);
+    expect(wrapper.text()).toContain(`npub_bbbbbbbbb…${'b'.repeat(10)}`);
     expect(wrapper.text()).toContain('formatted:2026-01-01T00:00:00.000Z');
     expect(wrapper.text()).toContain('formatted:2026-02-01T00:00:00.000Z');
   });
@@ -99,7 +104,7 @@ describe('KeyManagementTable.vue', () => {
   it('keeps copy action in public key cell and view action in action cell', () => {
     const keys: StoredKey[] = [
       {
-        id: 'pubkey-a',
+        id: PUBKEY_A,
         alias: 'alpha',
         account: { privkey: 'secret-a' },
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -124,7 +129,7 @@ describe('KeyManagementTable.vue', () => {
   it('shows unknown date when createdAt is invalid', () => {
     const keys: StoredKey[] = [
       {
-        id: 'pubkey-a',
+        id: PUBKEY_A,
         alias: 'alpha',
         account: { privkey: 'secret-a' },
         createdAt: 'not-a-date',
@@ -142,7 +147,7 @@ describe('KeyManagementTable.vue', () => {
   it('shows unknown date when createdAt is missing', () => {
     const keys = [
       {
-        id: 'pubkey-a',
+        id: PUBKEY_A,
         alias: 'alpha',
         account: { privkey: 'secret-a' },
       },
@@ -159,7 +164,7 @@ describe('KeyManagementTable.vue', () => {
   it('copies full npub value from copy action', async () => {
     const keys: StoredKey[] = [
       {
-        id: 'pubkey-a',
+        id: PUBKEY_A,
         alias: 'alpha',
         account: { privkey: 'secret-a' },
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -174,7 +179,7 @@ describe('KeyManagementTable.vue', () => {
     const copyButton = wrapper.find('[data-icon="content_copy"]');
     await copyButton.trigger('click');
 
-    expect(clipboardWriteTextMock).toHaveBeenCalledWith('npub_pubkey-a');
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith(`npub_${PUBKEY_A}`);
     expect(notifyMock).toHaveBeenCalledWith({
       type: 'positive',
       message: 'account.copySuccess',
@@ -186,7 +191,7 @@ describe('KeyManagementTable.vue', () => {
 
     const keys: StoredKey[] = [
       {
-        id: 'pubkey-a',
+        id: PUBKEY_A,
         alias: 'alpha',
         account: { privkey: 'secret-a' },
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -201,7 +206,7 @@ describe('KeyManagementTable.vue', () => {
     const copyButton = wrapper.find('[data-icon="content_copy"]');
     await copyButton.trigger('click');
 
-    expect(clipboardWriteTextMock).toHaveBeenCalledWith('npub_pubkey-a');
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith(`npub_${PUBKEY_A}`);
     expect(notifyMock).toHaveBeenCalledWith({
       type: 'negative',
       message: 'keyManagement.table.copyPublicKeyFailed',
@@ -215,7 +220,7 @@ describe('KeyManagementTable.vue', () => {
 
     const keys: StoredKey[] = [
       {
-        id: 'pubkey-a',
+        id: PUBKEY_A,
         alias: 'alpha',
         account: { privkey: 'secret-a' },
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -238,7 +243,7 @@ describe('KeyManagementTable.vue', () => {
   it('binds View action route to selected alias', () => {
     const keys: StoredKey[] = [
       {
-        id: 'pubkey-a',
+        id: PUBKEY_A,
         alias: 'alpha',
         account: { privkey: 'secret-a' },
         createdAt: '2026-01-01T00:00:00.000Z',
