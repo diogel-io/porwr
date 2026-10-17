@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.3.0](https://github.com/diogel-io/porwr/compare/v0.2.0...v0.3.0) (2026-10-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **zaps:** window.nostr.diogel.getZapCapabilities and window.nostr.diogel.sendZap are removed. Sites zap by having Porwr sign their kind 9734 zap request and paying through window.webln.
+
+### Features
+
+* add a NIP-89 client tag to Quick Publish notes ([#254](https://github.com/diogel-io/porwr/issues/254)) ([aaa112a](https://github.com/diogel-io/porwr/commit/aaa112a592563ccffd12fad1ac5dbf485a38a55b)), closes [#226](https://github.com/diogel-io/porwr/issues/226)
+* **contacts:** cache contacts and profiles in the background for Contacts and Messaging ([#257](https://github.com/diogel-io/porwr/issues/257)) ([#259](https://github.com/diogel-io/porwr/issues/259)) ([e44e7e5](https://github.com/diogel-io/porwr/commit/e44e7e56bed91d1f5f8d9757a4d40990154ac64c))
+* **keys:** add breadcrumbs back to the Keys list from its sub-pages ([#302](https://github.com/diogel-io/porwr/issues/302)) ([#306](https://github.com/diogel-io/porwr/issues/306)) ([b642250](https://github.com/diogel-io/porwr/commit/b64225010321a08b123e8935f30917eae3e1e830))
+* **keys:** move vault backup and restore to a card on the Keys page ([#297](https://github.com/diogel-io/porwr/issues/297)) ([#299](https://github.com/diogel-io/porwr/issues/299)) ([d30228d](https://github.com/diogel-io/porwr/commit/d30228db230fd9bfdb87ca840640ef9da14eeb11))
+* **keys:** show the security warning as a corner icon with a panel ([#298](https://github.com/diogel-io/porwr/issues/298)) ([#300](https://github.com/diogel-io/porwr/issues/300)) ([d5a515b](https://github.com/diogel-io/porwr/commit/d5a515b8edc07f97690fe430529b6e77ce45cdcd))
+* **media:** move the Blossom server setting to a Media Management page ([#233](https://github.com/diogel-io/porwr/issues/233)) ([e4aa87c](https://github.com/diogel-io/porwr/commit/e4aa87c35023de2ecd6293be9af07aeb3e49edcd))
+* **messaging:** check that DM relays keep gift wraps before publishing them ([#277](https://github.com/diogel-io/porwr/issues/277)) ([#283](https://github.com/diogel-io/porwr/issues/283)) ([2e9263e](https://github.com/diogel-io/porwr/commit/2e9263e6f94e1c2f165477fe36bf583c894f3591))
+* **messaging:** list conversations, not every contact, with Chats and Requests tabs ([#258](https://github.com/diogel-io/porwr/issues/258)) ([#261](https://github.com/diogel-io/porwr/issues/261)) ([9f4357e](https://github.com/diogel-io/porwr/commit/9f4357e684a2178e0d9bc8310309769f747033ff))
+* **messaging:** publish direct message relays (kind 10050) from the Relays page ([#235](https://github.com/diogel-io/porwr/issues/235)) ([d69ade1](https://github.com/diogel-io/porwr/commit/d69ade1fac1895b491cfc2d06b3c62c4c102015d))
+* **navigation:** move Keys and Settings to the navigation footer ([#294](https://github.com/diogel-io/porwr/issues/294)) ([#295](https://github.com/diogel-io/porwr/issues/295)) ([31a39c2](https://github.com/diogel-io/porwr/commit/31a39c2f2d2d49d89e6ff03613783bd5f50970d7))
+* **profile:** redesign the Profile page as one column with one Save ([#260](https://github.com/diogel-io/porwr/issues/260)) ([3b303f2](https://github.com/diogel-io/porwr/commit/3b303f22824b7f9920235c3fa92f5b21063f8acd))
+* **profile:** show a copyable npub on the panel profile card ([#303](https://github.com/diogel-io/porwr/issues/303)) ([#305](https://github.com/diogel-io/porwr/issues/305)) ([94dbe74](https://github.com/diogel-io/porwr/commit/94dbe74061ecab878e900683ffee65666f43b1b6))
+* **relays:** move Profile Search Relays to the Relays page ([#263](https://github.com/diogel-io/porwr/issues/263)) ([#264](https://github.com/diogel-io/porwr/issues/264)) ([736e460](https://github.com/diogel-io/porwr/commit/736e460429635cb2a7f2654b9f0d11bbfa053298))
+* **sidebar:** recognise NIP-98 HTTP authentication in the approval prompt ([#223](https://github.com/diogel-io/porwr/issues/223)) ([7d67b87](https://github.com/diogel-io/porwr/commit/7d67b87a575fd381068d1f9e6dbda07f0deb0fe8)), closes [#215](https://github.com/diogel-io/porwr/issues/215)
+* **sites:** show and disconnect Connected Sites per account ([#309](https://github.com/diogel-io/porwr/issues/309)) ([#310](https://github.com/diogel-io/porwr/issues/310)) ([bed50e5](https://github.com/diogel-io/porwr/commit/bed50e504e41f147804ddacfd0a6d0b778fed51d))
+* **support:** explain which DM relays keep private messages ([#278](https://github.com/diogel-io/porwr/issues/278)) ([#279](https://github.com/diogel-io/porwr/issues/279)) ([b416fee](https://github.com/diogel-io/porwr/commit/b416fee39216eb576310f8de91a16d502c250fa7))
+* **support:** replace the Support link with an in-app NIP-17 support chat ([#228](https://github.com/diogel-io/porwr/issues/228)) ([#275](https://github.com/diogel-io/porwr/issues/275)) ([ef80568](https://github.com/diogel-io/porwr/commit/ef80568ae1a5c01881f000bd1aa3fadc7e8c2184))
+* **vault:** explain export on its own page and save the backup through a Save As dialog ([#314](https://github.com/diogel-io/porwr/issues/314)) ([#316](https://github.com/diogel-io/porwr/issues/316)) ([ed9f5af](https://github.com/diogel-io/porwr/commit/ed9f5af8dabc762ecc8dd2ca6c338e942ca46a4d))
+* **vault:** explain import on its own page and check the backup's password first ([#313](https://github.com/diogel-io/porwr/issues/313)) ([#315](https://github.com/diogel-io/porwr/issues/315)) ([e345fcf](https://github.com/diogel-io/porwr/commit/e345fcfd89e8d617e25cd1f01626ecb49ec3af24))
+* **vault:** remove the Export current vault first link from the Import vault page ([#317](https://github.com/diogel-io/porwr/issues/317)) ([#318](https://github.com/diogel-io/porwr/issues/318)) ([4c70407](https://github.com/diogel-io/porwr/commit/4c7040781b5ca747761134f7927e63b326a6f4ca))
+* **wallet:** connect Alby Hub and Coinos without pasting a connection string ([#110](https://github.com/diogel-io/porwr/issues/110)) ([#262](https://github.com/diogel-io/porwr/issues/262)) ([3880cea](https://github.com/diogel-io/porwr/commit/3880cea7538097627a5b1b294714b6c0d57504ce))
+* **zaps:** remove Porwr-originated zaps ([#271](https://github.com/diogel-io/porwr/issues/271)) ([#274](https://github.com/diogel-io/porwr/issues/274)) ([b952eb0](https://github.com/diogel-io/porwr/commit/b952eb0d0196f02d767ebcb1b38f92d99068f5ad))
+* **zaps:** support client-built zaps through getRelays, the zap request preview and WebLN ([#270](https://github.com/diogel-io/porwr/issues/270)) ([#273](https://github.com/diogel-io/porwr/issues/273)) ([4e59353](https://github.com/diogel-io/porwr/commit/4e593536b06713266dadb39be9cab081f2e5b174))
+
+
+### Bug Fixes
+
+* **dev:** load the type-check overlay without an inline script ([#250](https://github.com/diogel-io/porwr/issues/250)) ([f5db215](https://github.com/diogel-io/porwr/commit/f5db215f3acb140f25165d0cdef57ebb7d0ba28d)), closes [#249](https://github.com/diogel-io/porwr/issues/249)
+* **keys:** allow spaces in the profile name when adding a key ([#231](https://github.com/diogel-io/porwr/issues/231)) ([a741f84](https://github.com/diogel-io/porwr/commit/a741f844c4d938f8984a3afa97a0c5722c2c9f2a)), closes [#230](https://github.com/diogel-io/porwr/issues/230)
+* **messaging:** give each Direct Message Relays load its own relay pool ([#288](https://github.com/diogel-io/porwr/issues/288)) ([#290](https://github.com/diogel-io/porwr/issues/290)) ([bf32ac6](https://github.com/diogel-io/porwr/commit/bf32ac691c305436c55c2f15487e52a44278ef33))
+* **messaging:** load Direct Message Relays within 4 s and only stop retries that could repeat work ([#265](https://github.com/diogel-io/porwr/issues/265)) ([#269](https://github.com/diogel-io/porwr/issues/269)) ([4b2dc1c](https://github.com/diogel-io/porwr/commit/4b2dc1cbe2a838978e82af52d6804b5373d28777))
+* **messaging:** report a message as sent only once a relay keeps it ([#276](https://github.com/diogel-io/porwr/issues/276)) ([#281](https://github.com/diogel-io/porwr/issues/281)) ([5dce3db](https://github.com/diogel-io/porwr/commit/5dce3db83c1aa2cbc73486347d6385fadfef23ed))
+* **messaging:** save Direct Message Relays when a relay is slow or unreachable ([#265](https://github.com/diogel-io/porwr/issues/265)) ([#266](https://github.com/diogel-io/porwr/issues/266)) ([9500e00](https://github.com/diogel-io/porwr/commit/9500e0085ee07ebae5a3402f28d8d39fb59c8e18))
+* **messaging:** stop a failed relay connection reading as "no DM relays" ([#282](https://github.com/diogel-io/porwr/issues/282)) ([df2aa14](https://github.com/diogel-io/porwr/commit/df2aa1494b637ead93ce8ecad904cbe7c88d8b63))
+* **navigation:** open extension menu items on their real paths, and prove NIP-17 interop ([#239](https://github.com/diogel-io/porwr/issues/239)) ([987f889](https://github.com/diogel-io/porwr/commit/987f889fee3e07145ebfb13aeb284835a6d5396f)), closes [#227](https://github.com/diogel-io/porwr/issues/227)
+* **profile:** paint an empty banner in the theme colour, not orange ([#301](https://github.com/diogel-io/porwr/issues/301)) ([#307](https://github.com/diogel-io/porwr/issues/307)) ([daf0f7d](https://github.com/diogel-io/porwr/commit/daf0f7dbd1f30d4088fc9582346ef7d2f5b258e6))
+* **quick-publish:** tell a failed relay lookup from no relay list, and retry ([#285](https://github.com/diogel-io/porwr/issues/285)) ([#293](https://github.com/diogel-io/porwr/issues/293)) ([defdbc4](https://github.com/diogel-io/porwr/commit/defdbc4f4f327925462797c7935fdf1ecab18770))
+* **relays:** close relay sockets whose connection attempt timed out ([#287](https://github.com/diogel-io/porwr/issues/287)) ([#289](https://github.com/diogel-io/porwr/issues/289)) ([3c37d3a](https://github.com/diogel-io/porwr/commit/3c37d3a0751b171c81f99f79f559c3d87fcb13ff))
+* **security:** allow localhost scripts only in dev builds ([#248](https://github.com/diogel-io/porwr/issues/248)) ([0db30fa](https://github.com/diogel-io/porwr/commit/0db30fa071f08ecfd7b45246716d7990c192d230))
+* **security:** only Porwr's own pages may use the privileged channel ([#241](https://github.com/diogel-io/porwr/issues/241)) ([9f4ad8f](https://github.com/diogel-io/porwr/commit/9f4ad8f20b48f2b74cda9e6cc4ce961fe89b638f)), closes [#240](https://github.com/diogel-io/porwr/issues/240)
+* **security:** sign in the background, not in Porwr's pages ([#242](https://github.com/diogel-io/porwr/issues/242)) ([08e8eb2](https://github.com/diogel-io/porwr/commit/08e8eb26111909f613681eafe55981cf2d8473fb)), closes [#240](https://github.com/diogel-io/porwr/issues/240)
+* **security:** stop returning secrets to Porwr's pages ([#243](https://github.com/diogel-io/porwr/issues/243)) ([de099eb](https://github.com/diogel-io/porwr/commit/de099ebcefa427da15d65ed8c42e365115a17c27)), closes [#240](https://github.com/diogel-io/porwr/issues/240)
+* **security:** stop sending a placeholder mnemonic and passphrase into new vaults ([#256](https://github.com/diogel-io/porwr/issues/256)) ([caeaf51](https://github.com/diogel-io/porwr/commit/caeaf51fe184d3068e9366d08cb96a1c4dd5ae20)), closes [#244](https://github.com/diogel-io/porwr/issues/244)
+* **security:** stop storing the raw vault key where extension pages can read it ([#255](https://github.com/diogel-io/porwr/issues/255)) ([b28eaca](https://github.com/diogel-io/porwr/commit/b28eaca60165f08779c732c881ccaf2b88280cbd)), closes [#245](https://github.com/diogel-io/porwr/issues/245)
+* **security:** take a site's origin from the browser, not the content script ([#251](https://github.com/diogel-io/porwr/issues/251)) ([b7ff9ef](https://github.com/diogel-io/porwr/commit/b7ff9ef7f601efec440899c0cbb7ce41c2e896fc)), closes [#246](https://github.com/diogel-io/porwr/issues/246)
+* **sidebar:** show the expired and interrupted notice until dismissed (workspace[#97](https://github.com/diogel-io/porwr/issues/97)) ([#312](https://github.com/diogel-io/porwr/issues/312)) ([3e029fb](https://github.com/diogel-io/porwr/commit/3e029fb9b278fde42dee38283b5187c9eaac2d76))
+* stop ImageUploader leaking a storage listener on every Profile visit ([#253](https://github.com/diogel-io/porwr/issues/253)) ([e269015](https://github.com/diogel-io/porwr/commit/e269015afeda2aaab86ac9d1e7d3ea4376074048)), closes [#252](https://github.com/diogel-io/porwr/issues/252)
+* **wallet:** give each account its own wallet connections ([#304](https://github.com/diogel-io/porwr/issues/304)) ([#308](https://github.com/diogel-io/porwr/issues/308)) ([0ffc000](https://github.com/diogel-io/porwr/commit/0ffc000ed2453704f3510ca88cc8caab9173d1e2))
+* **wallet:** open the wallet popup from a throwaway connect window (workspace[#76](https://github.com/diogel-io/porwr/issues/76)) ([#296](https://github.com/diogel-io/porwr/issues/296)) ([038f879](https://github.com/diogel-io/porwr/commit/038f8798351246d97d96b1ca142f3e41d08f4556))
+* **wallet:** say websites can request payments through WebLN ([#292](https://github.com/diogel-io/porwr/issues/292)) ([95d7443](https://github.com/diogel-io/porwr/commit/95d744380cd4f6ff90c656a912a9db996cfeaced))
+
 ## [0.2.0](https://github.com/diogel-io/porwr/compare/v0.1.1...v0.2.0) (2026-10-03)
 
 ### Features
