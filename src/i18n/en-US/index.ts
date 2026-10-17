@@ -60,6 +60,24 @@ export default {
     vaultBackup: {
       title: 'Vault Backup & Restore',
     },
+    vaultExport: {
+      title: 'Export Vault',
+      caption: 'Save an encrypted backup of your vault to a place you choose.',
+      infoTitle: 'Before you export',
+      whatItIs:
+        'The backup is an encrypted copy of your whole vault: its keys, accounts and the settings stored in it.',
+      password:
+        'It can only be imported with the password your vault has now. Porwr does not keep a copy of it.',
+      lostPassword: 'If that password is lost, nobody can open the backup, Porwr included.',
+      keepSafe:
+        'Keep the file somewhere safe, ideally offline, and never in the same place as the password.',
+      button: 'Export',
+      saving: 'Choose where to save…',
+      saved: 'Backup saved.',
+      savedTo: 'Saved to {path}',
+      cancelled: 'Not saved. Nothing was written.',
+      failed: 'The backup could not be saved: {error}',
+    },
     vaultImport: {
       title: 'Import Vault',
       caption: 'Replace this vault with one restored from a backup file.',
@@ -588,7 +606,7 @@ export default {
     quickPublishClientTagCaption:
       'Adds a NIP-89 client tag so other Nostr clients can show which app published the note. Turn off to leave no trace of the client.',
     exportVault: 'Export Vault',
-    exportVaultCaption: 'Download an encrypted backup of your entire vault.',
+    exportVaultCaption: 'Save an encrypted backup of your entire vault.',
     importVault: 'Import Vault',
     autoLockVault: 'Auto-lock Vault',
     requestExpiry: 'Approval Request Expiry',
@@ -599,7 +617,6 @@ export default {
     },
     autoLockVaultCaption: ' Automatically lock the vault after inactivity. Set to Off to disable.',
     importVaultCaption: 'Restore your vault from a previously exported backup file.',
-    exportDeny: 'Browser denied file download',
     title: 'Extension Settings',
     dashboardCaption:
       'Configure extension preferences and vault locking. Vault backup and restore are on the Keys page.',

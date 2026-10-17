@@ -1,30 +1,21 @@
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { type VaultImportResult, useVaultManagement } from '@/composables/useVaultManagement';
+import {
+  type VaultImportResult,
+  useVaultManagement,
+  vaultBackupFileName,
+} from '@/composables/useVaultManagement';
+import type { VaultBackupSaveResult } from '@/services/vault-backup-download';
 
 const testState = vi.hoisted(() => ({
-  notifyMock: vi.fn(),
-  exportFileMock: vi.fn(
-    (_fileName: string, _rawData: string, _opts?: string): true | Error => true,
-  ),
+  saveVaultBackupMock: vi.fn<(fileName: string, contents: string) => Promise<unknown>>(),
   exportVaultMock: vi.fn(),
   importVaultMock: vi.fn(),
 }));
 
-vi.mock('quasar', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('quasar')>();
-  return {
-    ...actual,
-    useQuasar: () => ({
-      notify: testState.notifyMock,
-    }),
-    exportFile: testState.exportFileMock,
-  };
-});
-
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key }),
+vi.mock('@/services/vault-backup-download', () => ({
+  saveVaultBackup: testState.saveVaultBackupMock,
 }));
 
 vi.mock('@/services/vault-service', () => ({
@@ -33,7 +24,7 @@ vi.mock('@/services/vault-service', () => ({
 }));
 
 interface HarnessVm {
-  handleExportVault: () => Promise<void>;
+  exportVaultBackup: () => Promise<VaultBackupSaveResult>;
   importVaultFromFile: (file: File, password: string) => Promise<VaultImportResult>;
 }
 
@@ -48,53 +39,54 @@ const TestHarness = defineComponent({
 describe('useVaultManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    testState.exportFileMock.mockReturnValue(true);
   });
 
-  describe('handleExportVault', () => {
-    it('exports a versioned backup file on success', async () => {
+  describe('exportVaultBackup (#314)', () => {
+    const exportBackup = () => (mount(TestHarness).vm as unknown as HarnessVm).exportVaultBackup();
+
+    it('saves the same versioned backup file as before, through the Save As port', async () => {
       testState.exportVaultMock.mockResolvedValue({ success: true, encryptedData: 'v2:abc' });
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
+      testState.saveVaultBackupMock.mockResolvedValue({ status: 'saved', path: '/tmp/b.json' });
 
-      await vm.handleExportVault();
+      await expect(exportBackup()).resolves.toEqual({ status: 'saved', path: '/tmp/b.json' });
 
-      expect(testState.exportFileMock).toHaveBeenCalledTimes(1);
-      const [filename, contentJson, mime] = testState.exportFileMock.mock.calls[0]!;
+      expect(testState.saveVaultBackupMock).toHaveBeenCalledTimes(1);
+      const [filename, contentJson] = testState.saveVaultBackupMock.mock.calls[0]!;
       expect(filename).toMatch(/^diogel-vault-backup-\d{4}-\d{2}-\d{2}\.json$/);
-      expect(mime).toBe('application/json');
-      const content = JSON.parse(contentJson) as { version: number; encryptedData: string };
-      expect(content).toMatchObject({ version: 1, encryptedData: 'v2:abc' });
-      expect(testState.notifyMock).not.toHaveBeenCalled();
+      const content = JSON.parse(contentJson) as Record<string, unknown>;
+      expect(content).toEqual({
+        version: 1,
+        encryptedData: 'v2:abc',
+        exportedAt: expect.any(String),
+      });
     });
 
-    it('notifies when the browser denies the file save', async () => {
+    it("passes the port's cancelled and failed results straight through", async () => {
       testState.exportVaultMock.mockResolvedValue({ success: true, encryptedData: 'v2:abc' });
-      testState.exportFileMock.mockReturnValue(new Error('User denied the save dialog'));
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
 
-      await vm.handleExportVault();
+      testState.saveVaultBackupMock.mockResolvedValueOnce({ status: 'cancelled' });
+      await expect(exportBackup()).resolves.toEqual({ status: 'cancelled' });
 
-      expect(testState.notifyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'negative', message: 'settings.exportDeny' }),
-      );
+      testState.saveVaultBackupMock.mockResolvedValueOnce({ status: 'failed', error: 'disk full' });
+      await expect(exportBackup()).resolves.toEqual({ status: 'failed', error: 'disk full' });
     });
 
-    it('notifies with a formatted error when exportVault fails', async () => {
+    it('fails without opening a Save As dialog when the vault cannot be exported', async () => {
       testState.exportVaultMock.mockResolvedValue({
         success: false,
         error: 'No vault found',
         code: 'VLT_NOT_CREATED',
       });
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
 
-      await vm.handleExportVault();
+      await expect(exportBackup()).resolves.toEqual({ status: 'failed', error: 'No vault found' });
+      expect(testState.saveVaultBackupMock).not.toHaveBeenCalled();
+    });
+  });
 
-      expect(testState.exportFileMock).not.toHaveBeenCalled();
-      expect(testState.notifyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'negative' }),
+  describe('vaultBackupFileName', () => {
+    it('names the backup after the day it was made', () => {
+      expect(vaultBackupFileName(new Date('2026-10-17T21:00:00Z'))).toBe(
+        'diogel-vault-backup-2026-10-17.json',
       );
     });
   });

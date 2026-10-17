@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const testState = vi.hoisted(() => ({
   notify: vi.fn(),
   push: vi.fn(async () => undefined),
-  handleExportVault: vi.fn(),
   importVaultFromFile: vi.fn(),
 }));
 
@@ -18,7 +17,6 @@ vi.mock('quasar', async (importOriginal) => ({
 }));
 vi.mock('@/composables/useVaultManagement', () => ({
   useVaultManagement: () => ({
-    handleExportVault: testState.handleExportVault,
     importVaultFromFile: testState.importVaultFromFile,
   }),
 }));
@@ -55,10 +53,10 @@ const mountPage = () =>
             '<input class="password-stub" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
         },
         'q-btn': {
-          props: ['label', 'disable'],
+          props: ['label', 'disable', 'to'],
           emits: ['click'],
           template:
-            '<button v-bind="$attrs" :disabled="disable" @click="$emit(\'click\')">{{ label }}</button>',
+            '<button v-bind="$attrs" :data-to="JSON.stringify(to)" :disabled="disable" @click="$emit(\'click\')">{{ label }}</button>',
         },
       },
     },
@@ -97,12 +95,10 @@ describe('ImportVaultPage (#313)', () => {
     }
   });
 
-  it('offers to export the current vault first', async () => {
-    const wrapper = mountPage();
+  it('offers to export the current vault first, on the Export vault page (#314)', () => {
+    const exportFirst = mountPage().get('[data-testid="vault-import-export-first"]');
 
-    await wrapper.get('[data-testid="vault-import-export-first"]').trigger('click');
-
-    expect(testState.handleExportVault).toHaveBeenCalledOnce();
+    expect(JSON.parse(exportFirst.attributes('data-to')!)).toEqual({ name: 'export-vault' });
   });
 
   it('cannot start until a backup file is chosen and a password entered', async () => {

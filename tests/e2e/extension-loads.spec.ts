@@ -12,14 +12,17 @@ test.describe('the built extension', () => {
     expect(background.url()).toContain('background');
   });
 
-  test('asks for no permission beyond storage and sidePanel (NFR-18)', async ({ background }) => {
+  test('asks for no permission beyond storage, sidePanel and downloads (NFR-18)', async ({
+    background,
+  }) => {
     const permissions = await background.evaluate(
       () => chrome.runtime.getManifest().permissions ?? [],
     );
 
     // Adding a permission here is a product decision, not an implementation detail: it changes the
-    // install-time warning a key-protection product shows its users.
-    expect([...permissions].sort()).toEqual(['sidePanel', 'storage']);
+    // install-time warning a key-protection product shows its users. `downloads` was decided on
+    // 2026-10-17 so a vault backup is saved through a Save As dialog (#314).
+    expect([...permissions].sort()).toEqual(['downloads', 'sidePanel', 'storage']);
   });
 
   test('holds no host permissions, which is why tab.url is never readable (#154)', async ({

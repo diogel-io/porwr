@@ -18,7 +18,7 @@ defineOptions({ name: 'ImportVaultPage' });
 const { t } = useI18n();
 const $q = useQuasar();
 const router = useRouter();
-const { handleExportVault, importVaultFromFile } = useVaultManagement();
+const { importVaultFromFile } = useVaultManagement();
 
 const backupFile = ref<File | null>(null);
 const password = ref('');
@@ -92,7 +92,7 @@ onBeforeUnmount(() => {
               icon="download"
               data-testid="vault-import-export-first"
               :label="t('keyManagement.vaultImport.exportFirstButton')"
-              @click="handleExportVault"
+              :to="{ name: 'export-vault' }"
             />
           </template>
         </q-banner>

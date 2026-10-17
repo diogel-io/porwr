@@ -1,13 +1,6 @@
 import { mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-const vault = vi.hoisted(() => ({
-  handleExportVault: vi.fn(),
-}));
-
-vi.mock('@/composables/useVaultManagement', () => ({
-  useVaultManagement: () => vault,
-}));
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 
 import VaultBackupCard from '@/components/dashboard/key-management/VaultBackupCard.vue';
@@ -29,10 +22,6 @@ const mountCard = () =>
   });
 
 describe('VaultBackupCard (#297)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('is titled Vault Backup & Restore', () => {
     expect(mountCard().find('h2').text()).toBe('keyManagement.vaultBackup.title');
   });
@@ -60,11 +49,9 @@ describe('VaultBackupCard (#297)', () => {
     expect(wrapper.find('input[type="file"]').exists()).toBe(false);
   });
 
-  it('exports from the Export button', async () => {
-    const wrapper = mountCard();
+  it('sends Export to the Export vault page rather than downloading straight away (#314)', () => {
+    const exportButton = mountCard().get('[data-label="settings.export"]');
 
-    await wrapper.find('[data-label="settings.export"]').trigger('click');
-
-    expect(vault.handleExportVault).toHaveBeenCalledOnce();
+    expect(JSON.parse(exportButton.attributes('data-to')!)).toEqual({ name: 'export-vault' });
   });
 });
