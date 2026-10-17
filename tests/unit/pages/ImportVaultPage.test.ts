@@ -23,6 +23,7 @@ vi.mock('@/composables/useVaultManagement', () => ({
 
 import ImportVaultPage from '@/pages/dashboard/ImportVaultPage.vue';
 
+// Renders the banner's `action` slot too, so a button put there would show up in these tests.
 const slotStub = (tag = 'div') => ({ template: `<${tag}><slot /><slot name="action" /></${tag}>` });
 
 const QFileStub = {
@@ -95,10 +96,13 @@ describe('ImportVaultPage (#313)', () => {
     }
   });
 
-  it('offers to export the current vault first, on the Export vault page (#314)', () => {
-    const exportFirst = mountPage().get('[data-testid="vault-import-export-first"]');
+  it('advises exporting first without offering an export action of its own (#317)', () => {
+    const wrapper = mountPage();
+    const warning = wrapper.get('[data-testid="vault-import-warning"]');
 
-    expect(JSON.parse(exportFirst.attributes('data-to')!)).toEqual({ name: 'export-vault' });
+    expect(warning.text()).toContain('keyManagement.vaultImport.exportFirst');
+    expect(warning.findAll('button, a')).toHaveLength(0);
+    expect(wrapper.find('[data-to*="export-vault"]').exists()).toBe(false);
   });
 
   it('cannot start until a backup file is chosen and a password entered', async () => {

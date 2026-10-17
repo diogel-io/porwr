@@ -88,8 +88,7 @@ export default {
       password:
         'You need the password that was used when the backup was made, which may not be your current password.',
       exportFirst:
-        'If you might want your current vault back, export a backup of it before you go on.',
-      exportFirstButton: 'Export current vault first',
+        'If you might want your current vault back, export a backup of it from the Keys page before you go on.',
       fileLabel: 'Backup file',
       fileHint: 'A .json file exported from Porwr',
       passwordLabel: "Backup's password",

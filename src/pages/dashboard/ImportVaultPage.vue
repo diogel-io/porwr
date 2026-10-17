@@ -84,17 +84,6 @@ onBeforeUnmount(() => {
             <li>{{ t('keyManagement.vaultImport.password') }}</li>
             <li>{{ t('keyManagement.vaultImport.exportFirst') }}</li>
           </ul>
-          <template #action>
-            <q-btn
-              class="diogel-btn-secondary"
-              outline
-              no-caps
-              icon="download"
-              data-testid="vault-import-export-first"
-              :label="t('keyManagement.vaultImport.exportFirstButton')"
-              :to="{ name: 'export-vault' }"
-            />
-          </template>
         </q-banner>
 
         <div class="q-gutter-md">
