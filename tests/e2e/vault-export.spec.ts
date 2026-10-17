@@ -99,15 +99,4 @@ test.describe('Export vault (#314)', () => {
     await expect(outcome).toContainText('Not saved. Nothing was written.');
     await expect(outcome.getByRole('alert')).toHaveCount(0);
   });
-
-  test('is where Import sends the user to export first', async ({ openPage }) => {
-    const page = await openPage('/login');
-    await createVault(page);
-    await page.goto(page.url().replace(/#.*$/, '#/keys/vault/import'));
-    await page.reload();
-
-    await page.getByTestId('vault-import-warning').getByText('Export current vault first').click();
-
-    await expect(page.locator('.export-vault-page')).toBeVisible();
-  });
 });

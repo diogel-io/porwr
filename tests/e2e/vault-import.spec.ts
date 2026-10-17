@@ -78,7 +78,8 @@ test.describe('Import vault (#313)', () => {
     const warning = page.getByTestId('vault-import-warning');
     await expect(warning).toContainText('Everything in your current vault is erased');
     await expect(warning).toContainText('the password that was used when the backup was made');
-    await expect(warning.getByRole('link', { name: 'Export current vault first' })).toBeVisible();
+    // Exporting is left to the Keys page, so the import has only one action on screen (#317).
+    await expect(warning.getByRole('link')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Replace my vault' })).toBeDisabled();
 
     // A wrong password is refused in place, and nothing is written.
