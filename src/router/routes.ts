@@ -151,6 +151,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/dashboard/ImportKeyPage.vue'),
       },
       {
+        // Two segments, so it can never be read as a key's `:alias`.
+        path: 'vault/import',
+        name: 'import-vault',
+        component: () => import('@/pages/dashboard/ImportVaultPage.vue'),
+      },
+      {
         path: 'new',
         name: 'add-new-key',
         component: () => import('@/pages/dashboard/AddNewKeyPage.vue'),

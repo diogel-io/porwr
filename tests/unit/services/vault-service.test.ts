@@ -139,17 +139,17 @@ describe('vault-service (bridge messaging)', () => {
     await expect(exportVault()).resolves.toEqual({ success: true, encryptedData: 'v2:xyz' });
   });
 
-  it('importVault forwards the encrypted data', async () => {
+  it("importVault forwards the encrypted data and the backup's password", async () => {
     const send = vi.fn().mockResolvedValue({ data: { success: true } });
     setBridge(send);
 
     const { importVault } = await import('@/services/vault-service');
-    const result = await importVault('v2:xyz');
+    const result = await importVault('v2:xyz', 'pw');
 
     expect(send).toHaveBeenCalledWith({
       event: 'vault.import',
       to: 'background',
-      payload: { encryptedData: 'v2:xyz' },
+      payload: { encryptedData: 'v2:xyz', password: 'pw' },
     });
     expect(result).toEqual({ success: true });
   });

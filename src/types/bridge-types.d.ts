@@ -320,8 +320,9 @@ export interface BridgeRequestMap {
   'vault.import': {
     id: string;
     action: 'vault.import';
-    payload?: { encryptedData: string };
+    payload?: { encryptedData: string; password: string };
     encryptedData?: string;
+    password?: string;
   };
   'activity.mark': {
     id: string;

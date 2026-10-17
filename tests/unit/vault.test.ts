@@ -306,12 +306,86 @@ describe('Vault', () => {
       mockVaultsTable.clear();
       await lockVault();
 
-      const importRes = await importVault(encryptedVault!);
+      const importRes = await importVault(encryptedVault!, TEST_PASSWORD);
       expect(importRes.success).toBe(true);
 
       const unlockRes = await unlockVault(TEST_PASSWORD);
       expect(unlockRes.success).toBe(true);
       expect(unlockRes.vaultData).toEqual(TEST_DATA);
+    });
+  });
+
+  describe('Import checks the password before it writes (#313)', () => {
+    const BACKUP_PASSWORD = 'backup-password';
+    // One character more always changes the mock key's id, so this never opens the backup.
+    const WRONG_PASSWORD = `${BACKUP_PASSWORD}x`;
+    const BACKUP_DATA: VaultData = { accounts: [] };
+
+    const encryptBackup = async (data: unknown, password = BACKUP_PASSWORD) => {
+      const { key, salt } = await deriveNewKey(password);
+      return encryptWithKey(data, key, salt);
+    };
+
+    /** A current vault, unlocked, as the user has it before importing. */
+    const currentVault = async () => {
+      mockVaultsTable.clear();
+      await createNewVault(TEST_PASSWORD, TEST_DATA);
+      return mockVaultsTable.get('master')!.encryptedData;
+    };
+
+    it('refuses a wrong password and leaves the current vault and its session as they were', async () => {
+      const before = await currentVault();
+      const backup = await encryptBackup(BACKUP_DATA);
+
+      const result = await importVault(backup, WRONG_PASSWORD);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Invalid password',
+        errorCode: 'VLT_INVALID_PASSWORD',
+      });
+      expect(mockVaultsTable.get('master')!.encryptedData).toBe(before);
+      expect(isVaultUnlocked()).toBe(true);
+      await lockVault();
+      expect((await unlockVault(TEST_PASSWORD)).vaultData).toEqual(TEST_DATA);
+    });
+
+    it('refuses data that is not a v2 vault without writing', async () => {
+      const before = await currentVault();
+
+      const result = await importVault('not-a-vault', BACKUP_PASSWORD);
+
+      expect(result.errorCode).toBe('GEN_INVALID_INPUT');
+      expect(mockVaultsTable.get('master')!.encryptedData).toBe(before);
+      expect(isVaultUnlocked()).toBe(true);
+    });
+
+    it('refuses a backup that opens but is not a Porwr vault, without writing', async () => {
+      const before = await currentVault();
+      const backup = await encryptBackup(['not', 'a', 'vault']);
+
+      const result = await importVault(backup, BACKUP_PASSWORD);
+
+      expect(result.errorCode).toBe('GEN_INVALID_INPUT');
+      expect(mockVaultsTable.get('master')!.encryptedData).toBe(before);
+      expect(isVaultUnlocked()).toBe(true);
+    });
+
+    it('replaces the vault with the right password, then locks it and tells the lock listeners', async () => {
+      await currentVault();
+      const backup = await encryptBackup(BACKUP_DATA);
+      const onLocked = vi.fn();
+      const stopListening = onVaultLocked(onLocked);
+
+      const result = await importVault(backup, BACKUP_PASSWORD);
+      stopListening();
+
+      expect(result).toEqual({ success: true });
+      expect(mockVaultsTable.get('master')!.encryptedData).toBe(backup);
+      expect(isVaultUnlocked()).toBe(false);
+      expect(onLocked).toHaveBeenCalledTimes(1);
+      expect((await unlockVault(TEST_PASSWORD)).success).toBe(false);
+      expect((await unlockVault(BACKUP_PASSWORD)).vaultData).toEqual(BACKUP_DATA);
     });
   });
 });

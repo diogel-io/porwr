@@ -298,10 +298,44 @@ export async function exportVault() {
   }
 }
 
-export async function importVault(encryptedData: string) {
+/** A decrypted Porwr vault: an object holding an `accounts` array. */
+const isPorwrVault = (vaultData: unknown): boolean =>
+  !!vaultData &&
+  typeof vaultData === 'object' &&
+  !Array.isArray(vaultData) &&
+  Array.isArray((vaultData as { accounts?: unknown }).accounts);
+
+/**
+ * Replaces the vault with a backup, but only once `password` is proven to open it (#313).
+ *
+ * The backup is decrypted here first, checked, and the result dropped. A wrong password, a backup
+ * that is not a Porwr vault, or a failed write leaves the current vault and its unlock session as
+ * they were. Only a successful write locks the vault, through `lockVault`, so anything holding the
+ * old vault's material drops it too.
+ */
+export async function importVault(encryptedData: string, password: string) {
   try {
-    // Basic validation
     if (!encryptedData || !encryptedData.startsWith('v2:')) {
+      return {
+        success: false,
+        error: 'Invalid vault format',
+        errorCode: ErrorCode.GEN_INVALID_INPUT,
+      };
+    }
+
+    let opened: unknown;
+    try {
+      const { key } = await deriveKeyFromEncryptedVault(password, encryptedData);
+      opened = await decryptWithKey(encryptedData, key);
+    } catch {
+      return {
+        success: false,
+        error: 'Invalid password',
+        errorCode: ErrorCode.VLT_INVALID_PASSWORD,
+      };
+    }
+
+    if (!isPorwrVault(opened)) {
       return {
         success: false,
         error: 'Invalid vault format',
@@ -315,9 +349,7 @@ export async function importVault(encryptedData: string) {
       createdAt: new Date().toISOString(),
     });
 
-    // When importing a vault, it's safer to clear the current session's key
-    clearVaultKey();
-    await clearSession();
+    await lockVault();
 
     return { success: true };
   } catch (error: unknown) {

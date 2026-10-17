@@ -181,7 +181,7 @@ describe('keeping the vault unlocked (#245)', () => {
       encryptedVault: string;
     };
 
-    await vault.importVault(encryptedVault);
+    await vault.importVault(encryptedVault, PASSWORD);
     expect(state.vaultSession.size).toBe(0);
     expect(state.session.size).toBe(0);
 
