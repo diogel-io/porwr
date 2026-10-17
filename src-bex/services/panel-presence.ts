@@ -17,7 +17,7 @@
 
 import { LogLevel, logService } from '@/services/log-service';
 import { resolvePanelSurface } from './panel-surface';
-import { requeuePresented } from './request-queue';
+import { clearNoticeWhenNoPanel, requeuePresented } from './request-queue';
 import { classifySender, originOf } from './sender-policy';
 
 export const PANEL_PORT_NAME = 'porwr-panel';
@@ -51,12 +51,15 @@ const handleDisconnect = (port: chrome.runtime.Port): void => {
   if (panels.size > 0) return;
 
   // The last panel has gone. A request left in `presented` would otherwise stay that way until
-  // something else touched the queue, and would be re-presented to nobody.
-  void requeuePresented().catch((error: unknown) => {
-    logService.log(LogLevel.ERROR, '[Panel] Failed to requeue after the last panel closed', {
-      error: error instanceof Error ? error.message : String(error),
+  // something else touched the queue, and would be re-presented to nobody. An expired or
+  // interrupted notice goes with it: it was there to explain the panel, and there is none (S11).
+  void requeuePresented()
+    .then(() => clearNoticeWhenNoPanel())
+    .catch((error: unknown) => {
+      logService.log(LogLevel.ERROR, '[Panel] Failed to requeue after the last panel closed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     });
-  });
 };
 
 /**

@@ -743,6 +743,7 @@ export default {
       expired: 'This request expired before it was answered. The site must ask again.',
       interrupted:
         'This request was interrupted and can no longer be approved. The site must ask again.',
+      dismiss: 'Dismiss',
     },
   },
   sidebar: {

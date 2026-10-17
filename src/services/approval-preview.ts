@@ -7,7 +7,15 @@
  */
 
 import { nip19 } from 'nostr-tools';
-import type { ApprovalDuration } from '@/../src-bex/types/background';
+import type { ApprovalDuration, ApprovalRequestRecord } from '@/../src-bex/types/background';
+
+/**
+ * An expired or interrupted request, shown as a notice until it is dismissed (S13, S14).
+ *
+ * It can never be approved, so nothing that offers a decision should be handed one.
+ */
+export const isNotice = (record: ApprovalRequestRecord | null | undefined): boolean =>
+  record?.state === 'expired' || record?.state === 'interrupted';
 
 export type RequestRiskClass = 'standard' | 'elevated' | 'unknown' | 'payment';
 

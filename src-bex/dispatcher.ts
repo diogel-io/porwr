@@ -10,6 +10,7 @@ import {
 import { resetAutoLockTimer, startAutoLockTimer, stopAutoLockTimer } from './services/auto-lock';
 import { handleGetPublicKey, handleGetRelays, handleSignEvent } from './handlers/nip07';
 import {
+  dismissNotice,
   getCurrentRequest,
   getPendingCount,
   getRequestContent,
@@ -246,6 +247,11 @@ export async function dispatchMessage<K extends BridgeAction>(
     case 'nostr.requests.requeuePresented':
       await requeuePresented();
       return null;
+
+    case 'nostr.requests.dismiss': {
+      const dismissPayload = payload as BridgeRequestMap['nostr.requests.dismiss'];
+      return (await dismissNotice(dismissPayload.requestId)) as BridgeResponsePayload<K>;
+    }
 
     case 'pages.originForTab': {
       const tabPayload = payload as BridgeRequestMap['pages.originForTab'];

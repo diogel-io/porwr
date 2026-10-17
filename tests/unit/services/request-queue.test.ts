@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import {
+  clearNoticeWhenNoPanel,
+  dismissNotice,
   enqueueRequest,
   getCurrentRequest,
   getPendingCount,
@@ -14,7 +16,11 @@ import {
   onQueueChange,
   __resetLiveCallbacksForTests,
 } from '@/../src-bex/services/request-queue';
-import { REQUEST_EXPIRY_MINUTES, REQUEST_QUEUE_KEY } from '@/services/storage-service';
+import {
+  REQUEST_EXPIRY_MINUTES,
+  REQUEST_NOTICE_KEY,
+  REQUEST_QUEUE_KEY,
+} from '@/services/storage-service';
 import type { ApprovalRequestRecord } from '@/../src-bex/types/background';
 
 vi.mock('@/services/log-service', () => ({
@@ -34,6 +40,10 @@ vi.mock('@/services/storage-service', async () => {
       get: vi.fn((key: string) => Promise.resolve(store.get(key))),
       set: vi.fn((key: string, value: unknown) => {
         store.set(key, value);
+        return Promise.resolve();
+      }),
+      remove: vi.fn((key: string) => {
+        store.delete(key);
         return Promise.resolve();
       }),
     },
@@ -255,6 +265,123 @@ describe('request queue', () => {
 
       expect(interrupted).toHaveLength(0);
       expect(readStored().find((item) => item.id === record.id)?.state).toBe('approved');
+    });
+  });
+
+  describe('expired and interrupted notice (S13, S14)', () => {
+    const now = 1_000_000;
+    const later = now + 11 * 60 * 1000;
+
+    it('holds an expired presented request as the current one, ahead of anything waiting', async () => {
+      const { record } = await enqueueRequest(baseInput, { allowRemember: true }, now);
+      await markPresented(record.id, now);
+      // Created after the first, so it is still waiting when the first expires.
+      const { record: next } = await enqueueRequest(baseInput, { allowRemember: true }, later - 1);
+
+      const current = await getCurrentRequest(later);
+
+      expect(current).toMatchObject({ id: record.id, state: 'expired' });
+      // Nothing behind the notice is presented until it is dismissed.
+      expect(readStored().find((item) => item.id === next.id)?.state).toBe('queued');
+    });
+
+    it('never counts the notice as pending, so the badge drops at once', async () => {
+      const { record } = await enqueueRequest(baseInput, { allowRemember: true }, now);
+      await markPresented(record.id, now);
+
+      expect(await getPendingCount(later)).toBe(0);
+      expect(await listPendingRequests(later)).toHaveLength(0);
+      expect(await getCurrentRequest(later)).toMatchObject({ id: record.id });
+    });
+
+    it('raises no notice for a request that expired while only queued', async () => {
+      await enqueueRequest(baseInput, { allowRemember: true }, now);
+
+      expect(await getCurrentRequest(later)).toBeNull();
+    });
+
+    it('holds an interrupted presented request when its page goes', async () => {
+      const { record } = await enqueueRequest(baseInput);
+      await markPresented(record.id);
+
+      await interruptRequestsForOrigin('https://example.com');
+
+      expect(await getCurrentRequest()).toMatchObject({ id: record.id, state: 'interrupted' });
+    });
+
+    it('holds the presented request a worker restart interrupted, through the startup prune', async () => {
+      const { record } = await enqueueRequest(baseInput);
+      await markPresented(record.id);
+      __resetLiveCallbacksForTests();
+
+      // The order the background runs them in at startup.
+      await reconcileInterruptedRequests();
+      await pruneResolvedRequests();
+
+      expect(await getCurrentRequest()).toMatchObject({ id: record.id, state: 'interrupted' });
+    });
+
+    it('is still refused if a stale panel tries to approve it', async () => {
+      const { record } = await enqueueRequest(baseInput, { allowRemember: true }, now);
+      await markPresented(record.id, now);
+      await getCurrentRequest(later);
+
+      const result = await submitDecision(record.id, { approved: true, duration: 'once' }, later);
+      expect(result).toEqual({ applied: false, reason: 'expired' });
+    });
+
+    it('moves on to the next request once dismissed', async () => {
+      const { record } = await enqueueRequest(baseInput, { allowRemember: true }, now);
+      await markPresented(record.id, now);
+      const { record: next } = await enqueueRequest(baseInput, { allowRemember: true }, later - 1);
+      await getCurrentRequest(later);
+
+      expect(await dismissNotice(record.id, later)).toBe(true);
+
+      expect(await getCurrentRequest(later)).toMatchObject({ id: next.id });
+      expect(readStored().some((item) => item.id === record.id)).toBe(false);
+    });
+
+    it('notifies the panels when dismissed, so every window clears it (S9)', async () => {
+      const { record } = await enqueueRequest(baseInput);
+      await markPresented(record.id);
+      await interruptRequestsForOrigin('https://example.com');
+      const listener = vi.fn();
+      onQueueChange(listener);
+
+      await dismissNotice(record.id);
+
+      expect(listener).toHaveBeenCalled();
+    });
+
+    it('refuses to dismiss any other id', async () => {
+      const { record } = await enqueueRequest(baseInput);
+      await markPresented(record.id);
+      await interruptRequestsForOrigin('https://example.com');
+
+      expect(await dismissNotice('not-the-notice')).toBe(false);
+      expect(await getCurrentRequest()).toMatchObject({ id: record.id });
+    });
+
+    it('clears the notice when no panel is left to show it (S11)', async () => {
+      const { record } = await enqueueRequest(baseInput);
+      await markPresented(record.id);
+      await interruptRequestsForOrigin('https://example.com');
+
+      await clearNoticeWhenNoPanel();
+
+      expect(await getCurrentRequest()).toBeNull();
+    });
+
+    it('stores the notice as an id, never as request content (D6)', async () => {
+      const { record } = await enqueueRequest(baseInput, {
+        allowRemember: true,
+        ...({ plaintext: 'do not store me' } as object),
+      });
+      await markPresented(record.id);
+      await interruptRequestsForOrigin('https://example.com');
+
+      expect(store.get(REQUEST_NOTICE_KEY)).toBe(record.id);
     });
   });
 

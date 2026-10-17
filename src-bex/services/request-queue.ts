@@ -10,7 +10,7 @@
  * requirements forbid, so every read and every decision re-evaluates expiry first.
  */
 
-import { REQUEST_QUEUE_KEY, storageService } from '@/services/storage-service';
+import { REQUEST_NOTICE_KEY, REQUEST_QUEUE_KEY, storageService } from '@/services/storage-service';
 import { clampRequestExpiryMinutes } from '@/services/request-expiry';
 import { REQUEST_EXPIRY_MINUTES } from '@/services/storage-service';
 import { LogLevel, logService } from '@/services/log-service';
@@ -135,6 +135,7 @@ const loadQueue = async (now: number = Date.now()): Promise<ApprovalRequestRecor
   const { records, expired } = applyExpiry(stored, now);
 
   if (expired.length > 0) {
+    await raiseNoticeFor(stored, expired);
     await writeRecords(records.map(toDurableRecord));
     for (const record of expired) {
       const callback = liveCallbacks.get(record.id);
@@ -144,6 +145,44 @@ const loadQueue = async (now: number = Date.now()): Promise<ApprovalRequestRecor
   }
 
   return records;
+};
+
+/**
+ * The request the panel shows as a notice (S13, S14).
+ *
+ * When the request the user is looking at expires or is interrupted, it must not simply vanish:
+ * the panel names what happened until the user dismisses it. Only a `presented` request raises a
+ * notice — one that was still waiting in the queue was being read by nobody. The notice is held
+ * here rather than in the panel so that every window shows the same one and a dismissal in one
+ * clears it everywhere (S9), and in session storage so that a worker restart, which is itself what
+ * interrupts a request, does not lose it.
+ *
+ * Raised before the queue write that notifies the panel, so the panel's re-read already sees it.
+ */
+const readNoticeId = async (): Promise<string | null> =>
+  (await storageService.get<string>(REQUEST_NOTICE_KEY, 'session')) ?? null;
+
+const raiseNoticeFor = async (
+  before: ApprovalRequestRecord[],
+  changed: ApprovalRequestRecord[],
+): Promise<void> => {
+  const presented = changed.find(
+    (record) => before.find((prior) => prior.id === record.id)?.state === 'presented',
+  );
+  if (presented) await storageService.set(REQUEST_NOTICE_KEY, presented.id, 'session');
+};
+
+const clearNotice = async (): Promise<void> => {
+  await storageService.remove(REQUEST_NOTICE_KEY, 'session');
+};
+
+const findNotice = async (
+  records: ApprovalRequestRecord[],
+): Promise<ApprovalRequestRecord | null> => {
+  const id = await readNoticeId();
+  if (!id) return null;
+  const record = records.find((candidate) => candidate.id === id);
+  return record && isTerminal(record.state) ? record : null;
 };
 
 const resolveExpiryMinutes = async (): Promise<number> => {
@@ -163,21 +202,60 @@ const newRequestId = (): string => {
 const byQueueOrder = (a: ApprovalRequestRecord, b: ApprovalRequestRecord): number =>
   a.createdAt === b.createdAt ? a.id.localeCompare(b.id) : a.createdAt - b.createdAt;
 
+const pendingOf = (records: ApprovalRequestRecord[]): ApprovalRequestRecord[] =>
+  records.filter((record) => !isTerminal(record.state)).sort(byQueueOrder);
+
 export const listPendingRequests = async (
   now: number = Date.now(),
-): Promise<ApprovalRequestRecord[]> => {
-  const records = await loadQueue(now);
-  return records.filter((record) => !isTerminal(record.state)).sort(byQueueOrder);
-};
+): Promise<ApprovalRequestRecord[]> => pendingOf(await loadQueue(now));
 
 export const getPendingCount = async (now: number = Date.now()): Promise<number> =>
   (await listPendingRequests(now)).length;
 
+/**
+ * What the panel shows: a held notice first, then the presented request, then the oldest waiting.
+ *
+ * The notice is not pending, so it never reaches the count or the toolbar badge, which drop the
+ * moment the request expires. Nothing behind it is presented until it has been dismissed.
+ */
 export const getCurrentRequest = async (
   now: number = Date.now(),
 ): Promise<ApprovalRequestRecord | null> => {
-  const pending = await listPendingRequests(now);
+  const records = await loadQueue(now);
+  const notice = await findNotice(records);
+  if (notice) return notice;
+  const pending = pendingOf(records);
   return pending.find((record) => record.state === 'presented') ?? pending[0] ?? null;
+};
+
+/**
+ * Dismiss the notice for one request, and let the panel move on to the next state.
+ *
+ * Refuses any other id, so a stale panel cannot clear a notice it was never shown.
+ */
+export const dismissNotice = async (id: string, now: number = Date.now()): Promise<boolean> => {
+  if ((await readNoticeId()) !== id) return false;
+
+  await clearNotice();
+  const records = await loadQueue(now);
+  // Written even when nothing is dropped: the write is what tells every panel to re-read.
+  await writeRecords(
+    records.filter((record) => record.id !== id || !isTerminal(record.state)).map(toDurableRecord),
+  );
+  return true;
+};
+
+/**
+ * Clear any notice once no panel is left to show it (S11).
+ *
+ * A notice is information, not a decision, and one left waiting would greet the user on reopen
+ * long after it mattered. Called only when the last panel goes, so closing one window's panel does
+ * not clear the notice another window is still showing.
+ */
+export const clearNoticeWhenNoPanel = async (now: number = Date.now()): Promise<void> => {
+  const id = await readNoticeId();
+  if (!id) return;
+  await dismissNotice(id, now);
 };
 
 export const markPresented = async (
@@ -317,6 +395,7 @@ export const reconcileInterruptedRequests = async (
   });
 
   if (interrupted.length > 0) {
+    await raiseNoticeFor(records, interrupted);
     await writeRecords(next.map(toDurableRecord));
     logService.log(LogLevel.WARN, '[Queue] Marked requests interrupted after restart', {
       count: interrupted.length,
@@ -326,10 +405,16 @@ export const reconcileInterruptedRequests = async (
   return interrupted;
 };
 
-/** Drop terminal records so the session store does not grow without bound. */
+/**
+ * Drop terminal records so the session store does not grow without bound.
+ *
+ * Keeps the one held as a notice: this runs at startup straight after reconciliation, which is
+ * what raises the interrupted notice in the first place (S14).
+ */
 export const pruneResolvedRequests = async (now: number = Date.now()): Promise<void> => {
   const records = await loadQueue(now);
-  const next = records.filter((record) => !isTerminal(record.state));
+  const noticeId = await readNoticeId();
+  const next = records.filter((record) => !isTerminal(record.state) || record.id === noticeId);
   if (next.length !== records.length) {
     await writeRecords(next.map(toDurableRecord));
   }
@@ -364,6 +449,7 @@ export const interruptRequestsForOrigin = async (
 
   if (interrupted.length === 0) return [];
 
+  await raiseNoticeFor(records, interrupted);
   await writeRecords(next.map(toDurableRecord));
   for (const record of interrupted) {
     const callback = liveCallbacks.get(record.id);

@@ -2,6 +2,7 @@ import { computed, onMounted, onUnmounted, ref, type Ref } from 'vue';
 
 import { connectPanelPort, type PanelPortHandle } from '@/services/panel-port';
 import { sendBexMessage } from '@/services/bridge-client';
+import { isNotice } from '@/services/approval-preview';
 import { LogLevel, logService } from '@/services/log-service';
 import type {
   ApprovalDuration,
@@ -24,6 +25,10 @@ import type {
  * Nothing polls. The background pushes a bare "the queue moved" notification over the panel port
  * and this re-reads (#140). A push carries no state, so it cannot be stale or arrive behind a
  * decision the background has already applied; the answer always comes from a fresh read.
+ *
+ * The one exception is the current request's expiry. The background applies expiry when the queue
+ * is read, and an open panel nobody touches makes no reads, so it arms a single timer for that
+ * moment and re-reads then. The read is what expires the request; the timer only asks (S13).
  */
 
 export interface UseApprovalQueueResult {
@@ -34,7 +39,11 @@ export interface UseApprovalQueueResult {
   loading: Ref<boolean>;
   refresh: () => Promise<void>;
   decide: (id: string, approved: boolean, duration: ApprovalDuration) => Promise<DecisionResult>;
+  dismiss: (id: string) => Promise<boolean>;
 }
+
+/** Past `expiresAt`, so the read lands after the background would call the request expired. */
+const EXPIRY_GRACE_MS = 250;
 
 const pending = ref<ApprovalRequestRecord[]>([]);
 const current = ref<ApprovalRequestRecord | null>(null);
@@ -44,6 +53,23 @@ const pendingCount = computed(() => pending.value.length);
 
 let consumers = 0;
 let panelPort: PanelPortHandle | undefined;
+let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+
+const clearExpiryTimer = (): void => {
+  if (expiryTimer !== undefined) clearTimeout(expiryTimer);
+  expiryTimer = undefined;
+};
+
+const armExpiryTimer = (record: ApprovalRequestRecord | null): void => {
+  clearExpiryTimer();
+  // A read still in flight when the panel closed must not leave a timer behind it.
+  if (!record || isNotice(record) || consumers === 0) return;
+  const delay = Math.max(0, record.expiresAt - Date.now()) + EXPIRY_GRACE_MS;
+  expiryTimer = setTimeout(() => {
+    expiryTimer = undefined;
+    void refresh();
+  }, delay);
+};
 
 const loadContent = async (id: string | undefined): Promise<void> => {
   if (!id) {
@@ -61,8 +87,10 @@ const refresh = async (): Promise<void> => {
     const next = (await sendBexMessage('nostr.requests.current')) ?? null;
     const changed = next?.id !== current.value?.id;
     current.value = next;
+    armExpiryTimer(next);
 
-    if (next && next.state !== 'presented') {
+    // Only a waiting request is presented. A notice is already terminal and stays as it is.
+    if (next && next.state === 'queued') {
       await sendBexMessage('nostr.requests.present', { requestId: next.id });
     }
     if (changed) {
@@ -93,6 +121,12 @@ const decide = async (
   return result;
 };
 
+const dismiss = async (id: string): Promise<boolean> => {
+  const dismissed = (await sendBexMessage('nostr.requests.dismiss', { requestId: id })) ?? false;
+  await refresh();
+  return dismissed;
+};
+
 /**
  * Discards the shared queue state and stops the poller.
  *
@@ -100,6 +134,7 @@ const decide = async (
  * Exported so a suite can start from a known queue rather than inheriting the previous test's.
  */
 export function resetApprovalQueue(): void {
+  clearExpiryTimer();
   panelPort?.disconnect();
   panelPort = undefined;
   consumers = 0;
@@ -137,6 +172,7 @@ export function useApprovalQueue(): UseApprovalQueueResult {
 
     panelPort?.disconnect();
     panelPort = undefined;
+    clearExpiryTimer();
 
     // Closing the panel is never a decision: hand the request back to the queue (FR-6). This runs
     // only once the last consumer has gone, so navigating within the panel does not requeue. The
@@ -146,5 +182,5 @@ export function useApprovalQueue(): UseApprovalQueueResult {
     });
   });
 
-  return { pending, current, content, pendingCount, loading, refresh, decide };
+  return { pending, current, content, pendingCount, loading, refresh, decide, dismiss };
 }
