@@ -168,9 +168,12 @@ export const handleVaultExport = logWrapper(
 );
 
 export const handleVaultImport = logWrapper(
-  async (payload: { encryptedData: string }, _origin: string): Promise<HandlerResult<void>> => {
+  async (
+    payload: { encryptedData: string; password: string },
+    _origin: string,
+  ): Promise<HandlerResult<void>> => {
     void _origin;
-    const result = await importV(payload.encryptedData);
+    const result = await importV(payload.encryptedData, payload.password);
 
     if (result.success) {
       return { success: true, data: undefined };

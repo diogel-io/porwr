@@ -3,12 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const vault = vi.hoisted(() => ({
   handleExportVault: vi.fn(),
-  triggerImport: vi.fn(),
-  handleFileImport: vi.fn(),
 }));
 
 vi.mock('@/composables/useVaultManagement', () => ({
-  useVaultManagement: () => ({ fileInput: null, ...vault }),
+  useVaultManagement: () => vault,
 }));
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 
@@ -21,8 +19,9 @@ const mountCard = () =>
         'q-card': { template: '<div><slot /></div>' },
         'q-card-section': { template: '<section><slot /></section>' },
         'q-btn': {
-          template: '<button :data-label="label" @click="$emit(\'click\')">{{ label }}</button>',
-          props: ['label'],
+          template:
+            '<button :data-label="label" :data-to="JSON.stringify(to)" @click="$emit(\'click\')">{{ label }}</button>',
+          props: ['label', 'to'],
           emits: ['click'],
         },
       },
@@ -53,15 +52,12 @@ describe('VaultBackupCard (#297)', () => {
     expect(columns[1]!.classes()).toContain('vault-backup-card__export');
   });
 
-  it('starts an import from the Import button and hands the chosen file over', async () => {
+  it('sends Import to the Import vault page rather than opening a file picker (#313)', () => {
     const wrapper = mountCard();
 
-    await wrapper.find('[data-label="settings.import"]').trigger('click');
-    await wrapper.find('input[type="file"]').trigger('change');
-
-    expect(vault.triggerImport).toHaveBeenCalledOnce();
-    expect(vault.handleFileImport).toHaveBeenCalledOnce();
-    expect(wrapper.find('input[type="file"]').attributes('accept')).toBe('.json');
+    const importButton = wrapper.get('[data-label="settings.import"]');
+    expect(JSON.parse(importButton.attributes('data-to')!)).toEqual({ name: 'import-vault' });
+    expect(wrapper.find('input[type="file"]').exists()).toBe(false);
   });
 
   it('exports from the Export button', async () => {
@@ -70,6 +66,5 @@ describe('VaultBackupCard (#297)', () => {
     await wrapper.find('[data-label="settings.export"]').trigger('click');
 
     expect(vault.handleExportVault).toHaveBeenCalledOnce();
-    expect(vault.triggerImport).not.toHaveBeenCalled();
   });
 });

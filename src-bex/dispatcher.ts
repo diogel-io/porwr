@@ -27,6 +27,7 @@ import {
 } from './services/connected-sites';
 import { getSiteAccount, switchSiteToActiveAccount } from './services/site-account';
 import { createPubkey } from '@/types/pubkey';
+import { ErrorCode } from '@/types/error-codes.d';
 import { handleBlossomUpload } from './handlers/blossom-handler';
 import { handleNip04Encrypt, handleNip04Decrypt } from './handlers/nip04';
 import { handleNip44Encrypt, handleNip44Decrypt } from './handlers/nip44';
@@ -390,6 +391,7 @@ export async function dispatchMessage<K extends BridgeAction>(
     case 'vault.import': {
       const importPayload = payload as BridgeRequestMap['vault.import'];
       const encryptedData = importPayload.encryptedData || importPayload.payload?.encryptedData;
+      const password = importPayload.password || importPayload.payload?.password;
       if (!encryptedData) {
         return {
           success: false,
@@ -397,7 +399,14 @@ export async function dispatchMessage<K extends BridgeAction>(
           code: 'NOT_FOUND',
         } as unknown as BridgeResponsePayload<K>;
       }
-      const result = await handleVaultImport({ encryptedData }, origin);
+      if (!password) {
+        return {
+          success: false,
+          error: 'Missing password',
+          code: ErrorCode.GEN_INVALID_INPUT,
+        } as unknown as BridgeResponsePayload<K>;
+      }
+      const result = await handleVaultImport({ encryptedData, password }, origin);
       if (result.success) {
         return { success: true } as BridgeResponsePayload<K>;
       }

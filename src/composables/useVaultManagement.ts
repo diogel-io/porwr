@@ -1,16 +1,27 @@
-import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { exportVault, importVault } from '@/services/vault-service';
 import { useQuasar, exportFile } from 'quasar';
-import { useRouter } from 'vue-router';
-import type { ErrorCode } from '@/types/error-codes.d';
-import { formatErrorForUser } from '@/types/error-codes.d';
+import { ErrorCode, formatErrorForUser } from '@/types/error-codes.d';
+
+/** Why a vault import did not happen. Each one leaves the current vault untouched. */
+export type VaultImportFailure = 'invalidFile' | 'wrongPassword' | 'failed';
+
+export type VaultImportResult =
+  | { readonly success: true }
+  | { readonly success: false; readonly reason: VaultImportFailure };
+
+/** The text of a chosen file. Read with `FileReader`, which every surface Porwr runs in provides. */
+const readFileText = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
 
 export function useVaultManagement() {
   const { t } = useI18n();
   const $q = useQuasar();
-  const router = useRouter();
-  const fileInput = ref<HTMLInputElement | null>(null);
 
   async function handleExportVault() {
     const result = await exportVault();
@@ -40,71 +51,39 @@ export function useVaultManagement() {
     }
   }
 
-  function triggerImport() {
-    fileInput.value?.click();
-  }
+  /**
+   * Replaces the vault with the backup in `file`, once the background has proven `password` opens
+   * it (#313). Resolves to what happened so the Import vault page can say so in place.
+   */
+  async function importVaultFromFile(file: File, password: string): Promise<VaultImportResult> {
+    let encryptedData: unknown;
+    try {
+      encryptedData = (JSON.parse(await readFileText(file)) as { encryptedData?: unknown })
+        ?.encryptedData;
+    } catch {
+      return { success: false, reason: 'invalidFile' };
+    }
+    if (typeof encryptedData !== 'string' || !encryptedData) {
+      return { success: false, reason: 'invalidFile' };
+    }
 
-  function handleFileImport(event: Event) {
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
-    if (!file) return;
-
-    $q.dialog({
-      title: t('settings.importVault'),
-      message: t('settings.importConfirm'),
-      cancel: true,
-      persistent: true,
-    }).onOk(() => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const content = e.target?.result as string;
-          const backup = JSON.parse(content);
-
-          if (!backup.encryptedData) {
-            $q.notify({
-              type: 'negative',
-              message: t('settings.importInvalid'),
-            });
-            return;
-          }
-
-          importVault(backup.encryptedData)
-            .then((result) => {
-              if (result.success) {
-                $q.notify({
-                  type: 'positive',
-                  message: t('settings.importSuccess'),
-                });
-                void router.push({ name: 'login' });
-              } else {
-                $q.notify({
-                  type: 'negative',
-                  message: formatErrorForUser(result.error, result.code as ErrorCode),
-                });
-              }
-            })
-            .catch((err) => {
-              $q.notify({
-                type: 'negative',
-                message: (err as Error).message || t('settings.importError'),
-              });
-            });
-        } catch (err) {
-          $q.notify({
-            type: 'negative',
-            message: t('settings.importParseError') + (err as Error).message,
-          });
-        }
-      };
-      reader.readAsText(file);
-    });
+    try {
+      const result = await importVault(encryptedData, password);
+      if (result.success) return { success: true };
+      if (result.code === ErrorCode.VLT_INVALID_PASSWORD) {
+        return { success: false, reason: 'wrongPassword' };
+      }
+      if (result.code === ErrorCode.GEN_INVALID_INPUT) {
+        return { success: false, reason: 'invalidFile' };
+      }
+      return { success: false, reason: 'failed' };
+    } catch {
+      return { success: false, reason: 'failed' };
+    }
   }
 
   return {
-    fileInput,
     handleExportVault,
-    triggerImport,
-    handleFileImport,
+    importVaultFromFile,
   };
 }

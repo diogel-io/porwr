@@ -60,6 +60,31 @@ export default {
     vaultBackup: {
       title: 'Vault Backup & Restore',
     },
+    vaultImport: {
+      title: 'Import Vault',
+      caption: 'Replace this vault with one restored from a backup file.',
+      warningTitle: 'Importing replaces your current vault',
+      replaces: 'The vault in the backup file takes the place of the vault you are using now.',
+      erases:
+        'Everything in your current vault is erased: its keys, accounts and the settings stored in it.',
+      password:
+        'You need the password that was used when the backup was made, which may not be your current password.',
+      exportFirst:
+        'If you might want your current vault back, export a backup of it before you go on.',
+      exportFirstButton: 'Export current vault first',
+      fileLabel: 'Backup file',
+      fileHint: 'A .json file exported from Porwr',
+      passwordLabel: "Backup's password",
+      confirm: 'Replace my vault',
+      checking: 'Checking the backup…',
+      unchanged: 'Your current vault has not been changed.',
+      errors: {
+        invalidFile: 'This file is not a Porwr vault backup, or it is damaged.',
+        wrongPassword: 'That password does not open this backup.',
+        failed: 'The backup could not be imported.',
+      },
+      success: "Your vault was replaced from the backup. Unlock it with the backup's password.",
+    },
     importKey: 'Import Key',
     addNewKey: 'Add New Key',
     saveAlias: 'Update',
@@ -574,12 +599,6 @@ export default {
     },
     autoLockVaultCaption: ' Automatically lock the vault after inactivity. Set to Off to disable.',
     importVaultCaption: 'Restore your vault from a previously exported backup file.',
-    importButton: 'Import',
-    importConfirm: 'This will overwrite your current vault. Are you sure?',
-    importSuccess: 'Vault imported successfully. Please log in again.',
-    importError: 'Failed to import vault.',
-    importInvalid: 'Invalid backup file format',
-    importParseError: 'Failed to parse backup file: ',
     exportDeny: 'Browser denied file download',
     title: 'Extension Settings',
     dashboardCaption:

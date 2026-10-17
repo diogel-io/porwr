@@ -431,12 +431,12 @@ const cases: Case[] = [
   },
   {
     action: 'vault.import',
-    payload: { encryptedData: 'enc' },
+    payload: { encryptedData: 'enc', password: 'pw' },
     handler: vi.mocked(vault.handleVaultImport),
     name: 'handleVaultImport',
     resolves: { success: true },
     expected: { success: true },
-    expectArgs: [{ encryptedData: 'enc' }, ORIGIN],
+    expectArgs: [{ encryptedData: 'enc', password: 'pw' }, ORIGIN],
   },
   {
     action: 'blossom.upload',
@@ -794,13 +794,43 @@ describe('dispatcher decisions that are not pass-through', () => {
     expect(vault.handleVaultImport).not.toHaveBeenCalled();
   });
 
-  it('accepts an import whose encrypted data arrives nested', async () => {
+  it('refuses an import carrying no password, without calling the handler (#313)', async () => {
+    await expect(
+      dispatchMessage('vault.import', { encryptedData: 'enc' } as never, ORIGIN),
+    ).resolves.toEqual({
+      success: false,
+      error: 'Missing password',
+      code: 'GEN_INVALID_INPUT',
+    });
+    expect(vault.handleVaultImport).not.toHaveBeenCalled();
+  });
+
+  it('accepts an import whose encrypted data and password arrive nested', async () => {
     vi.mocked(vault.handleVaultImport).mockResolvedValue({ success: true } as never);
 
     await expect(
-      dispatchMessage('vault.import', { payload: { encryptedData: 'enc' } } as never, ORIGIN),
+      dispatchMessage(
+        'vault.import',
+        { payload: { encryptedData: 'enc', password: 'pw' } } as never,
+        ORIGIN,
+      ),
     ).resolves.toEqual({ success: true });
-    expect(vault.handleVaultImport).toHaveBeenCalledWith({ encryptedData: 'enc' }, ORIGIN);
+    expect(vault.handleVaultImport).toHaveBeenCalledWith(
+      { encryptedData: 'enc', password: 'pw' },
+      ORIGIN,
+    );
+  });
+
+  it('passes a wrong-password refusal back with its code (#313)', async () => {
+    vi.mocked(vault.handleVaultImport).mockResolvedValue({
+      success: false,
+      error: 'Invalid password',
+      code: 'VLT_INVALID_PASSWORD',
+    } as never);
+
+    await expect(
+      dispatchMessage('vault.import', { encryptedData: 'enc', password: 'wrong' } as never, ORIGIN),
+    ).resolves.toEqual({ success: false, error: 'Invalid password', code: 'VLT_INVALID_PASSWORD' });
   });
 
   it('converts a thrown wallet error into an error object rather than propagating it', async () => {

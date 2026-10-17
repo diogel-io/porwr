@@ -6,12 +6,13 @@ import { useVaultManagement } from '@/composables/useVaultManagement';
  * Backs up and restores the whole vault (#297).
  *
  * This lives on the Keys page rather than in Settings because the vault is what holds the keys. The
- * behaviour is `useVaultManagement`'s; this only places the controls.
+ * behaviour is `useVaultManagement`'s; this only places the controls. Import has its own page, which
+ * explains what it does before anything is replaced (#313).
  */
 defineOptions({ name: 'VaultBackupCard' });
 
 const { t } = useI18n();
-const { fileInput, handleExportVault, triggerImport, handleFileImport } = useVaultManagement();
+const { handleExportVault } = useVaultManagement();
 </script>
 
 <template>
@@ -31,14 +32,7 @@ const { fileInput, handleExportVault, triggerImport, handleFileImport } = useVau
             icon="upload"
             no-caps
             :label="t('settings.import')"
-            @click="triggerImport"
-          />
-          <input
-            ref="fileInput"
-            accept=".json"
-            style="display: none"
-            type="file"
-            @change="handleFileImport"
+            :to="{ name: 'import-vault' }"
           />
         </div>
 

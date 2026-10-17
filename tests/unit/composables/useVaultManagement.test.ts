@@ -1,15 +1,13 @@
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useVaultManagement } from '@/composables/useVaultManagement';
+import { type VaultImportResult, useVaultManagement } from '@/composables/useVaultManagement';
 
 const testState = vi.hoisted(() => ({
   notifyMock: vi.fn(),
-  pushMock: vi.fn(async () => undefined),
   exportFileMock: vi.fn(
     (_fileName: string, _rawData: string, _opts?: string): true | Error => true,
   ),
-  dialogOnOk: undefined as (() => void) | undefined,
   exportVaultMock: vi.fn(),
   importVaultMock: vi.fn(),
 }));
@@ -20,19 +18,10 @@ vi.mock('quasar', async (importOriginal) => {
     ...actual,
     useQuasar: () => ({
       notify: testState.notifyMock,
-      dialog: () => ({
-        onOk: (cb: () => void) => {
-          testState.dialogOnOk = cb;
-        },
-      }),
     }),
     exportFile: testState.exportFileMock,
   };
 });
-
-vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: testState.pushMock }),
-}));
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
@@ -44,10 +33,8 @@ vi.mock('@/services/vault-service', () => ({
 }));
 
 interface HarnessVm {
-  fileInput: HTMLInputElement | null;
   handleExportVault: () => Promise<void>;
-  triggerImport: () => void;
-  handleFileImport: (event: Event) => void;
+  importVaultFromFile: (file: File, password: string) => Promise<VaultImportResult>;
 }
 
 const TestHarness = defineComponent({
@@ -55,13 +42,12 @@ const TestHarness = defineComponent({
   setup() {
     return useVaultManagement();
   },
-  template: '<input ref="fileInput" type="file" />',
+  template: '<div />',
 });
 
 describe('useVaultManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    testState.dialogOnOk = undefined;
     testState.exportFileMock.mockReturnValue(true);
   });
 
@@ -113,123 +99,82 @@ describe('useVaultManagement', () => {
     });
   });
 
-  describe('triggerImport', () => {
-    it('clicks the hidden file input', () => {
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
-      const clickSpy = vi.spyOn(wrapper.find('input').element, 'click');
+  describe('importVaultFromFile (#313)', () => {
+    const backupFile = (content: string) =>
+      new File([content], 'backup.json', { type: 'application/json' });
+    const backup = (encryptedData: unknown) => backupFile(JSON.stringify({ encryptedData }));
 
-      vm.triggerImport();
+    const importFrom = (file: File, password = 'pw') => {
+      const vm = mount(TestHarness).vm as unknown as HarnessVm;
+      return vm.importVaultFromFile(file, password);
+    };
 
-      expect(clickSpy).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('handleFileImport', () => {
-    function fileImportEvent(file: File | undefined): Event {
-      return { target: { files: file ? [file] : [] } } as unknown as Event;
-    }
-
-    it('does nothing when no file was selected', () => {
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
-
-      vm.handleFileImport(fileImportEvent(undefined));
-
-      expect(testState.dialogOnOk).toBeUndefined();
-    });
-
-    it('imports the vault and redirects to login on success after confirmation', async () => {
+    it("sends the backup's encrypted data and password, and reports success", async () => {
       testState.importVaultMock.mockResolvedValue({ success: true });
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
-      const file = new File([JSON.stringify({ encryptedData: 'v2:abc' })], 'backup.json', {
-        type: 'application/json',
+
+      await expect(importFrom(backup('v2:abc'), 'secret')).resolves.toEqual({ success: true });
+
+      expect(testState.importVaultMock).toHaveBeenCalledWith('v2:abc', 'secret');
+    });
+
+    it('reports a wrong password when the background refuses it', async () => {
+      testState.importVaultMock.mockResolvedValue({
+        success: false,
+        error: 'Invalid password',
+        code: 'VLT_INVALID_PASSWORD',
       });
 
-      vm.handleFileImport(fileImportEvent(file));
-      expect(testState.dialogOnOk).toBeDefined();
-      testState.dialogOnOk!();
-
-      await vi.waitFor(() => expect(testState.notifyMock).toHaveBeenCalled());
-
-      expect(testState.importVaultMock).toHaveBeenCalledWith('v2:abc');
-      expect(testState.pushMock).toHaveBeenCalledWith({ name: 'login' });
-      expect(testState.notifyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'positive' }),
-      );
+      await expect(importFrom(backup('v2:abc'))).resolves.toEqual({
+        success: false,
+        reason: 'wrongPassword',
+      });
     });
 
-    it('notifies with a formatted error and does not redirect when importVault resolves unsuccessfully', async () => {
+    it('reports an invalid file when the background finds no Porwr vault in it', async () => {
       testState.importVaultMock.mockResolvedValue({
         success: false,
         error: 'Invalid vault format',
         code: 'GEN_INVALID_INPUT',
       });
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
-      const file = new File([JSON.stringify({ encryptedData: 'v2:corrupt' })], 'backup.json', {
-        type: 'application/json',
+
+      await expect(importFrom(backup('v2:corrupt'))).resolves.toEqual({
+        success: false,
+        reason: 'invalidFile',
       });
-
-      vm.handleFileImport(fileImportEvent(file));
-      testState.dialogOnOk!();
-      await vi.waitFor(() => expect(testState.notifyMock).toHaveBeenCalled());
-
-      expect(testState.pushMock).not.toHaveBeenCalled();
-      expect(testState.notifyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'negative' }),
-      );
     });
 
-    it('notifies with the rejection message when importVault itself rejects', async () => {
-      testState.importVaultMock.mockRejectedValue(new Error('network unreachable'));
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
-      const file = new File([JSON.stringify({ encryptedData: 'v2:abc' })], 'backup.json', {
-        type: 'application/json',
+    it('reports an invalid file, without asking the background, for a file that is not JSON', async () => {
+      await expect(importFrom(backupFile('not json'))).resolves.toEqual({
+        success: false,
+        reason: 'invalidFile',
       });
-
-      vm.handleFileImport(fileImportEvent(file));
-      testState.dialogOnOk!();
-      await vi.waitFor(() => expect(testState.notifyMock).toHaveBeenCalled());
-
-      expect(testState.notifyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'negative', message: 'network unreachable' }),
-      );
-    });
-
-    it('notifies without redirecting when the backup file has no encryptedData', async () => {
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
-      const file = new File([JSON.stringify({ notAValidBackup: true })], 'backup.json', {
-        type: 'application/json',
-      });
-
-      vm.handleFileImport(fileImportEvent(file));
-      testState.dialogOnOk!();
-      await vi.waitFor(() => expect(testState.notifyMock).toHaveBeenCalled());
-
       expect(testState.importVaultMock).not.toHaveBeenCalled();
-      expect(testState.notifyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'negative', message: 'settings.importInvalid' }),
-      );
     });
 
-    it('notifies with a parse error when the file is not valid JSON', async () => {
-      const wrapper = mount(TestHarness);
-      const vm = wrapper.vm as unknown as HarnessVm;
-      const file = new File(['not json'], 'backup.json', { type: 'application/json' });
+    it('reports an invalid file, without asking the background, when there is no encryptedData', async () => {
+      await expect(importFrom(backupFile(JSON.stringify({ other: true })))).resolves.toEqual({
+        success: false,
+        reason: 'invalidFile',
+      });
+      await expect(importFrom(backup(42))).resolves.toEqual({
+        success: false,
+        reason: 'invalidFile',
+      });
+      expect(testState.importVaultMock).not.toHaveBeenCalled();
+    });
 
-      vm.handleFileImport(fileImportEvent(file));
-      testState.dialogOnOk!();
-      await vi.waitFor(() => expect(testState.notifyMock).toHaveBeenCalled());
+    it('reports a general failure for any other refusal or a rejected call', async () => {
+      testState.importVaultMock.mockResolvedValueOnce({ success: false, code: 'GEN_UNKNOWN' });
+      await expect(importFrom(backup('v2:abc'))).resolves.toEqual({
+        success: false,
+        reason: 'failed',
+      });
 
-      expect(testState.notifyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'negative' }),
-      );
-      const message = testState.notifyMock.mock.calls[0]?.[0] as { message: string };
-      expect(message.message).toContain('settings.importParseError');
+      testState.importVaultMock.mockRejectedValueOnce(new Error('network unreachable'));
+      await expect(importFrom(backup('v2:abc'))).resolves.toEqual({
+        success: false,
+        reason: 'failed',
+      });
     });
   });
 });

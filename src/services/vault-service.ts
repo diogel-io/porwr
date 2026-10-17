@@ -157,11 +157,13 @@ export async function exportVault(): Promise<{
   }
 }
 
+/** Replaces the vault with a backup. The background checks `password` opens it first (#313). */
 export async function importVault(
   encryptedData: string,
+  password: string,
 ): Promise<{ success: boolean; error?: string; code?: string }> {
   try {
-    const data = await sendBexMessage('vault.import', { encryptedData });
+    const data = await sendBexMessage('vault.import', { encryptedData, password });
     return (
       (data as { success: boolean; error?: string; code?: string }) || {
         success: false,

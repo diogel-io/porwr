@@ -159,10 +159,27 @@ describe('vault-handler', () => {
     const { handleVaultImport } = await import('@/../src-bex/handlers/vault-handler');
     mockImportVault.mockResolvedValue({ success: true });
 
-    const result = await handleVaultImport({ encryptedData: 'v2:xyz' }, '');
+    const result = await handleVaultImport({ encryptedData: 'v2:xyz', password: 'pw' }, '');
 
-    expect(mockImportVault).toHaveBeenCalledWith('v2:xyz');
+    expect(mockImportVault).toHaveBeenCalledWith('v2:xyz', 'pw');
     expect(result).toEqual({ success: true, data: undefined });
+  });
+
+  it('handleVaultImport passes a refused import back with its code', async () => {
+    const { handleVaultImport } = await import('@/../src-bex/handlers/vault-handler');
+    mockImportVault.mockResolvedValue({
+      success: false,
+      error: 'Invalid password',
+      errorCode: 'VLT_INVALID_PASSWORD',
+    });
+
+    const result = await handleVaultImport({ encryptedData: 'v2:xyz', password: 'wrong' }, '');
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Invalid password',
+      code: 'VLT_INVALID_PASSWORD',
+    });
   });
 
   it('re-exports restoreVaultState from ../vault', async () => {
