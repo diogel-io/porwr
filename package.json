@@ -21,7 +21,8 @@
     "test:e2e": "npm run build:chrome && playwright test --project=chromium",
     "test:e2e:only": "playwright test",
     "test:e2e:firefox": "npm run build:firefox && playwright test --project=firefox",
-    "test:e2e:all": "npm run build:chrome && npm run build:firefox && playwright test"
+    "test:e2e:all": "npm run build:chrome && npm run build:firefox && playwright test",
+    "record:sidebar": "npm run build:chrome && playwright test --config tests/recordings/playwright.config.ts"
   },
   "dependencies": {
     "@noble/ciphers": "^0.5.3",
