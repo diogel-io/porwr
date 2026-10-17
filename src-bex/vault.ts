@@ -57,7 +57,10 @@ async function clearSession() {
 
 export async function restoreVaultState(): Promise<boolean> {
   try {
-    const items = await storageService.getMultiple([VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS], 'session');
+    const items = await storageService.getMultiple(
+      [VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS],
+      'session',
+    );
     if (LEGACY_SESSION_KEYS.some((key) => items[key] !== undefined)) {
       // An unlock from before #245 left raw key bytes behind. Never use them: lock instead.
       await clearSession();
@@ -199,7 +202,9 @@ const RETIRED_VAULT_FIELDS = ['mnemonic', 'passphrase', 'nip57ZapHistory'];
 /** The vault as it is written: without the retired fields, and otherwise exactly as given. */
 const withoutRetiredFields = (vaultData: unknown): unknown =>
   vaultData && typeof vaultData === 'object' && !Array.isArray(vaultData)
-    ? Object.fromEntries(Object.entries(vaultData).filter(([field]) => !RETIRED_VAULT_FIELDS.includes(field)))
+    ? Object.fromEntries(
+        Object.entries(vaultData).filter(([field]) => !RETIRED_VAULT_FIELDS.includes(field)),
+      )
     : vaultData;
 
 export async function updateVaultData(vaultData: unknown) {
@@ -207,12 +212,16 @@ export async function updateVaultData(vaultData: unknown) {
     return {
       success: false,
       error: 'Vault is locked',
-      errorCode: ErrorCode.VLT_LOCKED
+      errorCode: ErrorCode.VLT_LOCKED,
     };
   }
 
   try {
-    const encryptedVault = await encryptWithKey(withoutRetiredFields(vaultData), vaultKey, vaultSalt);
+    const encryptedVault = await encryptWithKey(
+      withoutRetiredFields(vaultData),
+      vaultKey,
+      vaultSalt,
+    );
 
     await db.vaults.put({
       id: 'master',
@@ -228,7 +237,7 @@ export async function updateVaultData(vaultData: unknown) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to update vault data',
-      errorCode: ErrorCode.GEN_UNKNOWN
+      errorCode: ErrorCode.GEN_UNKNOWN,
     };
   }
 }
@@ -238,7 +247,7 @@ export async function getVaultData() {
     return {
       success: false,
       error: 'Vault is locked',
-      errorCode: ErrorCode.VLT_LOCKED
+      errorCode: ErrorCode.VLT_LOCKED,
     };
   }
 
@@ -248,7 +257,7 @@ export async function getVaultData() {
       return {
         success: false,
         error: 'No vault found',
-        errorCode: ErrorCode.VLT_NOT_CREATED
+        errorCode: ErrorCode.VLT_NOT_CREATED,
       };
     }
 
@@ -261,7 +270,7 @@ export async function getVaultData() {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to read vault data',
-      errorCode: ErrorCode.GEN_UNKNOWN
+      errorCode: ErrorCode.GEN_UNKNOWN,
     };
   }
 }
@@ -273,7 +282,7 @@ export async function exportVault() {
       return {
         success: false,
         error: 'No vault found',
-        errorCode: ErrorCode.VLT_NOT_CREATED
+        errorCode: ErrorCode.VLT_NOT_CREATED,
       };
     }
     return { success: true, encryptedData: vault.encryptedData };
@@ -284,7 +293,7 @@ export async function exportVault() {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to export vault',
-      errorCode: ErrorCode.GEN_UNKNOWN
+      errorCode: ErrorCode.GEN_UNKNOWN,
     };
   }
 }
@@ -296,7 +305,7 @@ export async function importVault(encryptedData: string) {
       return {
         success: false,
         error: 'Invalid vault format',
-        errorCode: ErrorCode.GEN_INVALID_INPUT
+        errorCode: ErrorCode.GEN_INVALID_INPUT,
       };
     }
 
@@ -318,7 +327,7 @@ export async function importVault(encryptedData: string) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to import vault',
-      errorCode: ErrorCode.GEN_UNKNOWN
+      errorCode: ErrorCode.GEN_UNKNOWN,
     };
   }
 }

@@ -51,7 +51,12 @@ function toBirthdayFields(birthday?: NostrProfile['birthday']): BirthdayFormStat
   };
 }
 
-function parseBirthdayValue(value: string, min: number, max: number, exactDigits?: number): ParsedBirthdayValue {
+function parseBirthdayValue(
+  value: string,
+  min: number,
+  max: number,
+  exactDigits?: number,
+): ParsedBirthdayValue {
   const trimmedValue = value.trim();
   if (!trimmedValue) {
     return undefined;
@@ -267,7 +272,9 @@ watch(
           />
 
           <div class="profile-editor__field profile-editor__birthday">
-            <div class="profile-editor__birthday-label text-caption">{{ t('profile.birthday') }}</div>
+            <div class="profile-editor__birthday-label text-caption">
+              {{ t('profile.birthday') }}
+            </div>
             <div class="profile-editor__birthday-grid">
               <q-input
                 v-model="profile.birthday.year"

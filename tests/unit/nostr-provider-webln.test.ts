@@ -60,7 +60,9 @@ describe('injected provider zap route (#270)', () => {
 
     await expect(page.nostr!.signEvent(zapRequest)).resolves.toBe('signEvent ok');
     await expect(page.webln!.enable!()).resolves.toBe('webln.enable ok');
-    await expect(page.webln!.sendPayment!('lnbc210n1example')).resolves.toBe('webln.sendPayment ok');
+    await expect(page.webln!.sendPayment!('lnbc210n1example')).resolves.toBe(
+      'webln.sendPayment ok',
+    );
 
     expect(asked).toEqual([
       { method: 'signEvent', payload: { event: zapRequest } },
@@ -76,7 +78,9 @@ describe('injected provider zap route (#270)', () => {
       loadProvider();
 
       expect(typeof page.webln![method]).toBe('function');
-      await expect(page.webln![method]!()).rejects.toMatchObject({ name: 'UnsupportedMethodError' });
+      await expect(page.webln![method]!()).rejects.toMatchObject({
+        name: 'UnsupportedMethodError',
+      });
       expect(asked).toEqual([]);
     },
   );

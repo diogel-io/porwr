@@ -156,4 +156,3 @@ describe('provider error normalization source', () => {
     expect(providerSource).toContain('new Error(normalizeErrorMessage(event.data.error))');
   });
 });
-

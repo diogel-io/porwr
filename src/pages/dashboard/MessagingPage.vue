@@ -8,7 +8,11 @@ import ConversationView from '@/components/dashboard/messaging/ConversationView.
 import { useContactCache } from '@/composables/useContactCache';
 import { useDirectMessages } from '@/composables/useDirectMessages';
 import { SUPPORT_PUBKEY } from '@/data/support';
-import { fetchContactProfiles, formatContactNpub, getContactDisplayName } from '@/services/contact-list-service';
+import {
+  fetchContactProfiles,
+  formatContactNpub,
+  getContactDisplayName,
+} from '@/services/contact-list-service';
 import { addSavedPeer, getSavedPeers, removeSavedPeer } from '@/services/messaging-service';
 import { buildConversations, conversationMessages } from '@/utils/conversations';
 import { searchCachedContacts } from '@/utils/contact-search';
@@ -60,7 +64,10 @@ const {
   hasAccount: () => Boolean(activeKey.value),
   onMessages: (fetched) => loadRequestProfiles(fetched.map((message) => message.peer)),
   onRecipientNotReady: (peer) =>
-    $q.notify({ type: 'warning', message: t('messaging.view.recipientNotReady', { name: nameOf(peer) }) }),
+    $q.notify({
+      type: 'warning',
+      message: t('messaging.view.recipientNotReady', { name: nameOf(peer) }),
+    }),
 });
 
 const contactPubkeys = computed(() => contacts.value.map((contact) => contact.pubkey));
@@ -79,10 +86,16 @@ const conversations = computed(() =>
 const selectedMessages = computed(() =>
   selectedPeer.value ? conversationMessages(messages.value.values(), selectedPeer.value) : [],
 );
-const selectedPending = computed(() => pending.value.filter((message) => message.peer === selectedPeer.value));
+const selectedPending = computed(() =>
+  pending.value.filter((message) => message.peer === selectedPeer.value),
+);
 
 function nameOf(peer: string): string {
-  const contact = contacts.value.find((entry) => entry.pubkey === peer) ?? { pubkey: peer, relayUrl: '', petname: '' };
+  const contact = contacts.value.find((entry) => entry.pubkey === peer) ?? {
+    pubkey: peer,
+    relayUrl: '',
+    petname: '',
+  };
   return getContactDisplayName(contact, profiles.value[peer]);
 }
 

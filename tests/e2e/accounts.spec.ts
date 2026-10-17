@@ -17,14 +17,18 @@ import { createVault, seedAccount, TEST_ACCOUNT } from './fixtures/vault';
 const TEST_NSEC = nip19.nsecEncode(hexToBytes(TEST_ACCOUNT.privkey));
 
 test.describe('accounts', () => {
-  test('the private key is fetched only when the user asks to see it, and dropped when hidden', async ({ openPage }) => {
+  test('the private key is fetched only when the user asks to see it, and dropped when hidden', async ({
+    openPage,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccount(page);
 
     await page.goto(page.url().replace(/#.*$/, `#/keys/${TEST_ACCOUNT.alias}`));
     const privateKey = page.getByLabel('Private Key', { exact: true });
-    await expect(page.getByLabel('Public Key', { exact: true })).toHaveValue(nip19.npubEncode(TEST_ACCOUNT.pubkey));
+    await expect(page.getByLabel('Public Key', { exact: true })).toHaveValue(
+      nip19.npubEncode(TEST_ACCOUNT.pubkey),
+    );
     await expect(privateKey).not.toHaveValue(TEST_NSEC);
 
     await page.getByLabel('Show private key').click();
@@ -34,7 +38,9 @@ test.describe('accounts', () => {
     await expect(privateKey).not.toHaveValue(TEST_NSEC);
   });
 
-  test('importing an nsec on the Import page adds the account under its own public key', async ({ openPage }) => {
+  test('importing an nsec on the Import page adds the account under its own public key', async ({
+    openPage,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
 
@@ -45,14 +51,20 @@ test.describe('accounts', () => {
     await page.getByRole('button', { name: 'Save', exact: true }).click();
 
     await expect(page).toHaveURL(/#\/keys\/imported$/);
-    const view = (await page.evaluate(() => chrome.runtime.sendMessage({ type: 'vault.getView', payload: {} }))) as {
+    const view = (await page.evaluate(() =>
+      chrome.runtime.sendMessage({ type: 'vault.getView', payload: {} }),
+    )) as {
       accounts: { id: string; alias: string }[];
     };
-    expect(view.accounts).toEqual([expect.objectContaining({ id: TEST_ACCOUNT.pubkey, alias: 'imported' })]);
+    expect(view.accounts).toEqual([
+      expect.objectContaining({ id: TEST_ACCOUNT.pubkey, alias: 'imported' }),
+    ]);
     expect(JSON.stringify(view)).not.toContain(TEST_ACCOUNT.privkey);
   });
 
-  test('exporting a backup writes the revealed nsec into the password-protected file', async ({ openPage }) => {
+  test('exporting a backup writes the revealed nsec into the password-protected file', async ({
+    openPage,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccount(page);
@@ -83,6 +95,8 @@ test.describe('accounts', () => {
 
     expect(text).toContain(`nsec (Private Key): ${TEST_NSEC}`);
     expect(text).toContain(nip19.npubEncode(TEST_ACCOUNT.pubkey));
-    expect(await page.evaluate(() => (window as unknown as { cspViolations: string[] }).cspViolations)).toEqual([]);
+    expect(
+      await page.evaluate(() => (window as unknown as { cspViolations: string[] }).cspViolations),
+    ).toEqual([]);
   });
 });

@@ -162,7 +162,8 @@ onMounted(async () => {
             </div>
 
             <div v-if="site.boundAt" class="connected-sites__meta">
-              {{ t('dashboard.connectedSites.connectedOn') }} {{ d(new Date(site.boundAt), 'short') }}
+              {{ t('dashboard.connectedSites.connectedOn') }}
+              {{ d(new Date(site.boundAt), 'short') }}
             </div>
           </div>
 
@@ -190,7 +191,10 @@ onMounted(async () => {
           </div>
 
           <ul v-else class="connected-sites__grants">
-            <li v-for="grant in site.grants" :key="`${grant.requestType}-${String(grant.eventKind)}`">
+            <li
+              v-for="grant in site.grants"
+              :key="`${grant.requestType}-${String(grant.eventKind)}`"
+            >
               <span>{{ grantLabel(grant.requestType, grant.eventKind) }}</span>
               <span class="connected-sites__expiry">
                 {{

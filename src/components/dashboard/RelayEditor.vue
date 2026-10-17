@@ -193,7 +193,12 @@ watch(
           <q-item-section>
             <q-item-label>{{ relay.url }}</q-item-label>
             <q-item-label caption>
-              <q-badge v-if="relay.read" color="blue-2" :label="$t('relays.read')" text-color="blue-9" />
+              <q-badge
+                v-if="relay.read"
+                color="blue-2"
+                :label="$t('relays.read')"
+                text-color="blue-9"
+              />
               <q-badge
                 v-if="relay.write"
                 class="q-ml-xs"
@@ -205,7 +210,13 @@ watch(
           </q-item-section>
           <q-item-section side>
             <div class="row q-gutter-xs">
-              <q-btn class="diogel-btn-ghost" icon="delete" round size="sm" @click="removeRelay(index)" />
+              <q-btn
+                class="diogel-btn-ghost"
+                icon="delete"
+                round
+                size="sm"
+                @click="removeRelay(index)"
+              />
             </div>
           </q-item-section>
         </q-item>

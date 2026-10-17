@@ -45,12 +45,12 @@ describe('LogService', () => {
         account: 'acc1',
         hostname: 'host1',
         dateTime: expect.any(String),
-      })
+      }),
     );
-    expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('[ERROR] test error'),
-      { account: 'acc1', hostname: 'host1' }
-    );
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('[ERROR] test error'), {
+      account: 'acc1',
+      hostname: 'host1',
+    });
   });
 
   it('should log an approval to the database and console', async () => {
@@ -65,21 +65,20 @@ describe('LogService', () => {
         dateTime: expect.any(String),
         // Logged on the terminal transition now, so the row records what happened.
         outcome: 'unknown',
-      })
+      }),
     );
     expect(console.debug).toHaveBeenCalledWith(
       expect.stringContaining('[DEBUG] Approval unknown for kind 1 on host1'),
-      { account: 'acc1' }
+      { account: 'acc1' },
     );
   });
 
   it('should log a general message to the console', () => {
     logService.log(LogLevel.WARN, 'warn msg', { key: 'val' });
 
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining('[WARN] warn msg'),
-      { key: 'val' }
-    );
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('[WARN] warn msg'), {
+      key: 'val',
+    });
   });
 
   it('should wrap an async function with logging', async () => {
@@ -92,11 +91,11 @@ describe('LogService', () => {
     expect(result).toBe('success result');
     expect(console.debug).toHaveBeenCalledWith(
       expect.stringContaining('Calling TestService.testMethod'),
-      { argCount: 1 }
+      { argCount: 1 },
     );
     expect(console.debug).toHaveBeenCalledWith(
       expect.stringContaining('TestService.testMethod completed successfully'),
-      { resultType: 'string' }
+      { resultType: 'string' },
     );
   });
 
@@ -109,7 +108,7 @@ describe('LogService', () => {
 
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining('TestService.testMethod failed: fail'),
-      undefined
+      undefined,
     );
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(db.exceptions.add).toHaveBeenCalled();

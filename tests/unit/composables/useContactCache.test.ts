@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/contact-cache', () => ({ observeContactCache: mocks.observeContactCache }));
-vi.mock('@/services/contact-list-service', () => ({ requestContactRefresh: mocks.requestContactRefresh }));
+vi.mock('@/services/contact-list-service', () => ({
+  requestContactRefresh: mocks.requestContactRefresh,
+}));
 
 import { useContactCache } from '@/composables/useContactCache';
 
@@ -19,7 +21,8 @@ const ALICE = 'a'.repeat(64);
 const CAROL = 'c'.repeat(64);
 const bob = { pubkey: 'b'.repeat(64), relayUrl: '', petname: 'Bob' };
 
-const emit = (accountPubkey: string, snapshot: ContactCacheSnapshot) => mocks.listeners.get(accountPubkey)?.(snapshot);
+const emit = (accountPubkey: string, snapshot: ContactCacheSnapshot) =>
+  mocks.listeners.get(accountPubkey)?.(snapshot);
 
 const setup = (initial: string | undefined) => {
   const account = ref<string | undefined>(initial);
@@ -80,7 +83,11 @@ describe('useContactCache', () => {
     expect(mocks.stops.get(ALICE)).toHaveBeenCalled();
     expect(cache.contacts.value).toEqual([]);
     expect(cache.status.value).toBe('loading');
-    expect(mocks.observeContactCache).toHaveBeenLastCalledWith(CAROL, expect.any(Function), expect.any(Function));
+    expect(mocks.observeContactCache).toHaveBeenLastCalledWith(
+      CAROL,
+      expect.any(Function),
+      expect.any(Function),
+    );
     expect(mocks.requestContactRefresh).toHaveBeenCalledTimes(2);
 
     // A late update for the old account is ignored.

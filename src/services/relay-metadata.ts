@@ -51,7 +51,7 @@ export function getNip11Url(relayUrl: string): string {
  */
 export async function fetchRelayMetadata(
   relayUrl: string,
-  timeoutMs = 5000
+  timeoutMs = 5000,
 ): Promise<RelayMetadataResult> {
   const timestamp = Date.now();
   let nip11Url: string;
@@ -94,12 +94,12 @@ export async function fetchRelayMetadata(
 
     // Validate that the data is an object
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
-        return {
-            success: false,
-            url: relayUrl,
-            error: 'Invalid NIP-11 response: expected JSON object',
-            timestamp,
-        };
+      return {
+        success: false,
+        url: relayUrl,
+        error: 'Invalid NIP-11 response: expected JSON object',
+        timestamp,
+      };
     }
 
     return {
@@ -155,8 +155,18 @@ function mapNip11Response(data: Record<string, unknown>): RelayMetadata {
   // Preserve other fields for flexibility, but sanitize if needed
   // For now, we just pass through what's in the response to metadata
   // to support additional NIP-11 fields (like limitation, relay_countries, etc.)
-  Object.keys(data).forEach(key => {
-    if (!['name', 'description', 'pubkey', 'contact', 'supported_nips', 'software', 'version'].includes(key)) {
+  Object.keys(data).forEach((key) => {
+    if (
+      ![
+        'name',
+        'description',
+        'pubkey',
+        'contact',
+        'supported_nips',
+        'software',
+        'version',
+      ].includes(key)
+    ) {
       metadata[key] = data[key];
     }
   });

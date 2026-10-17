@@ -51,7 +51,9 @@ describe('SecurityWarning.vue', () => {
     const wrapper = mountWarning({ title: 'Important', message: 'Export your keys.' });
 
     expect(wrapper.find('.q-tooltip-stub .security-warning__title').text()).toBe('Important');
-    expect(wrapper.find('.q-tooltip-stub .security-warning__message').text()).toBe('Export your keys.');
+    expect(wrapper.find('.q-tooltip-stub .security-warning__message').text()).toBe(
+      'Export your keys.',
+    );
   });
 
   it('opens on keyboard focus and closes on blur or Escape, leaving hover to the tooltip', async () => {
@@ -76,9 +78,14 @@ describe('SecurityWarning.vue', () => {
     const page = mount(
       defineComponent({
         components: { SecurityWarning },
-        template: '<div><SecurityWarning title="A" message="a" /><SecurityWarning title="B" message="b" /></div>',
+        template:
+          '<div><SecurityWarning title="A" message="a" /><SecurityWarning title="B" message="b" /></div>',
       }),
-      { global: { stubs: { 'q-btn': { template: '<button><slot /></button>' }, 'q-tooltip': true } } },
+      {
+        global: {
+          stubs: { 'q-btn': { template: '<button><slot /></button>' }, 'q-tooltip': true },
+        },
+      },
     );
     const ids = page.findAll('button').map((button) => button.attributes('aria-describedby'));
 

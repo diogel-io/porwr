@@ -30,7 +30,11 @@ import { searchContacts } from '@/services/contact-list-service';
 const pubkeyOne = '0'.repeat(63) + '1';
 const pubkeyTwo = '0'.repeat(63) + '2';
 
-function createMetadataEvent(pubkey: string, content: Record<string, unknown>, createdAt = 100): NostrEvent {
+function createMetadataEvent(
+  pubkey: string,
+  content: Record<string, unknown>,
+  createdAt = 100,
+): NostrEvent {
   return {
     id: '1'.repeat(64),
     sig: '2'.repeat(128),
@@ -57,9 +61,7 @@ describe('searchContacts', () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       json: async () => ({ names: { alice: pubkeyOne } }),
     } as Response);
-    querySyncMock
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
+    querySyncMock.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
     const results = await searchContacts('alice@example.com');
 

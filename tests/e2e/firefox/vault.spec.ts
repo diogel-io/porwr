@@ -19,11 +19,17 @@ test.describe('the vault in Firefox', () => {
     await createVault();
     await openExtensionPage('/sidebar');
 
-    await driver.wait(until.elementLocated({ css: '.sidebar-root' }), 30_000, 'the panel never rendered');
+    await driver.wait(
+      until.elementLocated({ css: '.sidebar-root' }),
+      30_000,
+      'the panel never rendered',
+    );
 
     // The panel and the management surfaces share one bundle, so nothing structural keeps a
     // dashboard layout out of a 360px panel (D2, S9).
-    const dashboards = await driver.findElements({ css: '.dashboard-layout, .dashboard-navigation' });
+    const dashboards = await driver.findElements({
+      css: '.dashboard-layout, .dashboard-navigation',
+    });
     expect(dashboards).toHaveLength(0);
   });
 

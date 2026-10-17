@@ -16,7 +16,12 @@ const mocks = vi.hoisted(() => ({
   store: {
     activeKey: 'alice' as string | undefined,
     hasNoAccounts: false,
-    activeAccountOrFirst: { id: 'a'.repeat(64), alias: 'alice', createdAt: '', account: { privkey: '' } } as unknown,
+    activeAccountOrFirst: {
+      id: 'a'.repeat(64),
+      alias: 'alice',
+      createdAt: '',
+      account: { privkey: '' },
+    } as unknown,
   },
 }));
 
@@ -54,7 +59,13 @@ import SupportPage from '@/pages/dashboard/SupportPage.vue';
 
 enableAutoUnmount(afterEach);
 
-const msg = (id: string, peer: string, from: string, created_at: number, content = id): DirectMessage => ({
+const msg = (
+  id: string,
+  peer: string,
+  from: string,
+  created_at: number,
+  content = id,
+): DirectMessage => ({
   id,
   peer,
   pubkey: from,
@@ -65,7 +76,9 @@ const msg = (id: string, peer: string, from: string, created_at: number, content
 const stubs = {
   'q-page': { template: '<div><slot /></div>' },
   'q-card': { template: '<div><slot /></div>' },
-  'q-banner': { template: '<div class="q-banner" v-bind="$attrs"><slot /><slot name="action" /></div>' },
+  'q-banner': {
+    template: '<div class="q-banner" v-bind="$attrs"><slot /><slot name="action" /></div>',
+  },
   'q-btn': {
     template: '<button :disabled="disable" @click="$emit(\'click\', $event)">{{ label }}</button>',
     props: ['label', 'ariaLabel', 'disable', 'to'],
@@ -95,14 +108,24 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
   let uuid = 0;
-  Object.defineProperty(globalThis.crypto, 'randomUUID', { value: () => `uuid-${++uuid}`, configurable: true });
+  Object.defineProperty(globalThis.crypto, 'randomUUID', {
+    value: () => `uuid-${++uuid}`,
+    configurable: true,
+  });
   Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
   mocks.store.activeKey = 'alice';
   mocks.store.hasNoAccounts = false;
-  mocks.store.activeAccountOrFirst = { id: ME, alias: 'alice', createdAt: '', account: { privkey: '' } };
+  mocks.store.activeAccountOrFirst = {
+    id: ME,
+    alias: 'alice',
+    createdAt: '',
+    account: { privkey: '' },
+  };
   mocks.getKeys.mockResolvedValue(undefined);
   mocks.getReadState.mockResolvedValue({});
-  mocks.markConversationRead.mockImplementation((peer: string, readAt: number) => Promise.resolve({ [peer]: readAt }));
+  mocks.markConversationRead.mockImplementation((peer: string, readAt: number) =>
+    Promise.resolve({ [peer]: readAt }),
+  );
   mocks.fetchMessages.mockResolvedValue({ inbox: 'ready', messages: [], dropped: 0 });
 });
 
@@ -155,7 +178,9 @@ describe('SupportPage (#228)', () => {
       recipient: SUPPORT_PUBKEY,
       content: 'hello support',
     });
-    expect(wrapper.findAll('.conversation-view__bubble').map((bubble) => bubble.text())).toEqual(['hello support']);
+    expect(wrapper.findAll('.conversation-view__bubble').map((bubble) => bubble.text())).toEqual([
+      'hello support',
+    ]);
   });
 
   it('explains and blocks sending when the account has no direct message relays', async () => {
@@ -173,7 +198,9 @@ describe('SupportPage (#228)', () => {
 
     await typeAndSend(wrapper, 'hello?');
 
-    expect(wrapper.find('[data-testid="support-not-reachable"]').text()).toContain('support.notReachable');
+    expect(wrapper.find('[data-testid="support-not-reachable"]').text()).toContain(
+      'support.notReachable',
+    );
     expect(wrapper.find('.message-composer textarea').attributes('disabled')).toBeDefined();
   });
 

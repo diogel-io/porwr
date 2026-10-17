@@ -32,7 +32,11 @@ export function normalizePubkey(input: string): string | null {
 
   try {
     const decoded = nip19.decode(trimmed);
-    if (decoded.type === 'npub' && typeof decoded.data === 'string' && HEX_PUBKEY_PATTERN.test(decoded.data)) {
+    if (
+      decoded.type === 'npub' &&
+      typeof decoded.data === 'string' &&
+      HEX_PUBKEY_PATTERN.test(decoded.data)
+    ) {
       return decoded.data.toLowerCase();
     }
   } catch {
@@ -184,6 +188,8 @@ export async function fetchProfilesInBatches(
     }
   };
 
-  await Promise.all(Array.from({ length: Math.min(PROFILE_BATCH_CONCURRENCY, queue.length) }, worker));
+  await Promise.all(
+    Array.from({ length: Math.min(PROFILE_BATCH_CONCURRENCY, queue.length) }, worker),
+  );
   return profiles;
 }

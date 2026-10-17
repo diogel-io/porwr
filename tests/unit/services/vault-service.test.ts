@@ -108,13 +108,21 @@ describe('vault-service (bridge messaging)', () => {
   });
 
   it('getVaultView returns the view: accounts by id, alias and creation date (#240)', async () => {
-    const send = vi.fn().mockResolvedValue({ data: { accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] } });
+    const send = vi
+      .fn()
+      .mockResolvedValue({ data: { accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] } });
     setBridge(send);
 
     const { getVaultView } = await import('@/services/vault-service');
 
-    await expect(getVaultView()).resolves.toEqual({ accounts: [{ id: 'a', alias: 'main', createdAt: 't' }] });
-    expect(send).toHaveBeenCalledWith({ event: 'vault.getView', to: 'background', payload: undefined });
+    await expect(getVaultView()).resolves.toEqual({
+      accounts: [{ id: 'a', alias: 'main', createdAt: 't' }],
+    });
+    expect(send).toHaveBeenCalledWith({
+      event: 'vault.getView',
+      to: 'background',
+      payload: undefined,
+    });
   });
 
   it('getVaultView turns a refusal into an error', async () => {
@@ -153,7 +161,11 @@ describe('vault-service hasVault (direct DB access)', () => {
   });
 
   it('returns true when a master vault record exists', async () => {
-    mockDbVaultsGet.mockResolvedValue({ id: 'master', encryptedData: 'v2:abc', createdAt: '2026-01-01T00:00:00.000Z' });
+    mockDbVaultsGet.mockResolvedValue({
+      id: 'master',
+      encryptedData: 'v2:abc',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
 
     const { hasVault } = await import('@/services/vault-service');
     await expect(hasVault()).resolves.toBe(true);

@@ -6,7 +6,9 @@ const { sendBexMessage, connectPanelPort, disconnect, portOptions } = vi.hoisted
   sendBexMessage: vi.fn(),
   connectPanelPort: vi.fn(),
   disconnect: vi.fn(),
-  portOptions: { current: undefined as { onQueueChanged?: () => void; onReconnect?: () => void } | undefined },
+  portOptions: {
+    current: undefined as { onQueueChanged?: () => void; onReconnect?: () => void } | undefined,
+  },
 }));
 
 vi.mock('@/services/bridge-client', () => ({ sendBexMessage }));

@@ -3,7 +3,7 @@
  */
 
 export class MockCrypto {
-   private static readonly keyIds = new WeakMap<CryptoKey, number>();
+  private static readonly keyIds = new WeakMap<CryptoKey, number>();
   private static readonly passwordIds = new WeakMap<CryptoKey, number>();
 
   private static assignKeyId(key: CryptoKey, id?: number): CryptoKey {
@@ -22,7 +22,7 @@ export class MockCrypto {
         baseKey: CryptoKey,
         derivedKeyAlgorithm: AesKeyGenParams,
         extractable: boolean,
-        keyUsages: KeyUsage[]
+        keyUsages: KeyUsage[],
       ): Promise<CryptoKey> {
         const key = {
           algorithm: derivedKeyAlgorithm,
@@ -42,7 +42,7 @@ export class MockCrypto {
       async encrypt(
         algorithm: AesGcmParams,
         key: CryptoKey,
-        data: BufferSource
+        data: BufferSource,
       ): Promise<ArrayBuffer> {
         // Simple mock: prepend IV and return, but encode key id in the last byte (auth tag)
         const iv = algorithm.iv as Uint8Array;
@@ -50,7 +50,7 @@ export class MockCrypto {
         const output = new Uint8Array(iv.length + input.length + 16); // +16 for tag
         output.set(iv, 0);
         output.set(input, iv.length);
-       // const keyId = MockCrypto.keyIds.get(key) ?? 0;
+        // const keyId = MockCrypto.keyIds.get(key) ?? 0;
         output[output.length - 1] = MockCrypto.keyIds.get(key) ?? 0;
         return Promise.resolve(output.buffer);
       },
@@ -59,7 +59,7 @@ export class MockCrypto {
       async decrypt(
         algorithm: AesGcmParams,
         key: CryptoKey,
-        data: BufferSource
+        data: BufferSource,
       ): Promise<ArrayBuffer> {
         const input = new Uint8Array(data as ArrayBuffer);
         const ivLength = 12; // Standard GCM IV length
@@ -77,7 +77,7 @@ export class MockCrypto {
         keyData: BufferSource,
         algorithm: AlgorithmIdentifier,
         extractable: boolean,
-        keyUsages: KeyUsage[]
+        keyUsages: KeyUsage[],
       ): Promise<CryptoKey> {
         const key = {
           algorithm,
@@ -99,7 +99,7 @@ export class MockCrypto {
       async generateKey(
         algorithm: AlgorithmIdentifier,
         extractable: boolean,
-        keyUsages: KeyUsage[]
+        keyUsages: KeyUsage[],
       ): Promise<CryptoKey> {
         const key = {
           algorithm,
@@ -111,22 +111,19 @@ export class MockCrypto {
       },
 
       // Mock exportKey
-      async exportKey(
-        format: 'raw' | 'jwk',
-        key: CryptoKey
-      ): Promise<ArrayBuffer | JsonWebKey> {
+      async exportKey(format: 'raw' | 'jwk', key: CryptoKey): Promise<ArrayBuffer | JsonWebKey> {
         if (format === 'raw') {
           // Return a 32-byte pseudo key
           return Promise.resolve(new Uint8Array(32).fill(0x11).buffer);
         }
-        return Promise.resolve({ kty: 'oct', k: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' } as unknown as JsonWebKey);
+        return Promise.resolve({
+          kty: 'oct',
+          k: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        } as unknown as JsonWebKey);
       },
 
       // Mock digest
-      async digest(
-        algorithm: AlgorithmIdentifier,
-        data: BufferSource
-      ): Promise<ArrayBuffer> {
+      async digest(algorithm: AlgorithmIdentifier, data: BufferSource): Promise<ArrayBuffer> {
         // Return a dummy digest
         return Promise.resolve(new Uint8Array(32).fill(0).buffer);
       },

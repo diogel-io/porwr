@@ -59,8 +59,12 @@ describe('KeyManagementPage.vue', () => {
     expect(warning.attributes('aria-label')).toBe('keyManagement.securityWarning.title');
     expect(warning.text()).toContain('keyManagement.securityWarning.message');
     const markup = wrapper.html();
-    expect(markup.indexOf('security-warning')).toBeLessThan(markup.indexOf('keyManagement.importKey'));
-    expect(markup.indexOf('security-warning')).toBeGreaterThan(markup.indexOf('navigation.keys.caption'));
+    expect(markup.indexOf('security-warning')).toBeLessThan(
+      markup.indexOf('keyManagement.importKey'),
+    );
+    expect(markup.indexOf('security-warning')).toBeGreaterThan(
+      markup.indexOf('navigation.keys.caption'),
+    );
 
     const importButton = wrapper.find('[data-label="keyManagement.importKey"]');
     expect(importButton.exists()).toBe(true);
@@ -77,6 +81,8 @@ describe('KeyManagementPage.vue', () => {
     // Vault backup and restore sit in their own card below the keys (#297).
     const html = wrapper.html();
     expect(wrapper.find('.vault-backup-card-stub').exists()).toBe(true);
-    expect(html.indexOf('vault-backup-card-stub')).toBeGreaterThan(html.indexOf('key-management-table-stub'));
+    expect(html.indexOf('vault-backup-card-stub')).toBeGreaterThan(
+      html.indexOf('key-management-table-stub'),
+    );
   });
 });

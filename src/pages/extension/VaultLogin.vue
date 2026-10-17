@@ -70,7 +70,13 @@
             label="Create"
             @click="handleCreate"
           />
-          <q-btn v-else :loading="loading" class="diogel-btn-primary" label="Unlock" @click="handleUnlock" />
+          <q-btn
+            v-else
+            :loading="loading"
+            class="diogel-btn-primary"
+            label="Unlock"
+            @click="handleUnlock"
+          />
         </q-card-actions>
       </q-card>
     </div>

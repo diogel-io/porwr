@@ -3,7 +3,12 @@
 // app global css in SCSS form
 html,
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-y: auto;
@@ -183,7 +188,8 @@ html.extension-popup body::-webkit-scrollbar {
   background: linear-gradient(
     90deg,
     var(--border-color) 25%,
-    rgba(255, 255, 255, 0.3) 50%, // Use overlay instead of lighten()
+    rgba(255, 255, 255, 0.3) 50%,
+    // Use overlay instead of lighten()
     var(--border-color) 75%
   );
   background-size: 200% 100%;
@@ -781,7 +787,6 @@ html.extension-popup body {
   }
 }
 
-
 // Standardized select dropdown
 .diogel-select {
   width: 100%;
@@ -795,13 +800,13 @@ html.extension-popup body {
     transition: all 0.2s ease;
 
     &:hover {
-      border-color: $secondary-light;  // Slate hover
+      border-color: $secondary-light; // Slate hover
     }
   }
 
   &.q-field--focused .q-field__control {
-    border-color: $primary;  // Threenine Orange on focus
-    box-shadow: 0 0 0 3px rgba($primary, 0.15);  // Orange glow
+    border-color: $primary; // Threenine Orange on focus
+    box-shadow: 0 0 0 3px rgba($primary, 0.15); // Orange glow
   }
 
   .q-field__label {
@@ -826,7 +831,7 @@ html.extension-popup body {
   }
 
   &.q-field--focused .q-select__dropdown-icon {
-    color: $primary;  // Threenine Orange when focused
+    color: $primary; // Threenine Orange when focused
     transform: rotate(180deg);
   }
 }
@@ -834,8 +839,9 @@ html.extension-popup body {
 // Select menu styling
 .q-menu {
   border-radius: 8px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-              0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
   border: 1px solid var(--border-color);
   animation: menuFadeIn 0.15s ease;
   @extend .diogel-scrollbar;
@@ -849,8 +855,8 @@ html.extension-popup body {
     }
 
     &.q-item--active {
-      background: rgba($primary, 0.1);  // Light orange background
-      color: $primary;  // Threenine Orange text
+      background: rgba($primary, 0.1); // Light orange background
+      color: $primary; // Threenine Orange text
       font-weight: 500;
     }
   }

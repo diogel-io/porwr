@@ -61,15 +61,17 @@ describe('Nip47Client.sendRequest', () => {
     const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
     const client = new Nip47Client();
 
-    await expect(client.sendRequest(buildConnection(), { method: 'get_balance', params: {} })).rejects.toThrow(
-      'Failed to publish NIP-47 request to any relay',
-    );
+    await expect(
+      client.sendRequest(buildConnection(), { method: 'get_balance', params: {} }),
+    ).rejects.toThrow('Failed to publish NIP-47 request to any relay');
 
     expect(closeSpy).toHaveBeenCalled();
   });
 
   it('resolves with the wallet response once a matching relay event is published successfully', async () => {
-    let onEvent: ((event: { pubkey: string; tags: string[][]; content: string }) => void) | undefined;
+    let onEvent:
+      | ((event: { pubkey: string; tags: string[][]; content: string }) => void)
+      | undefined;
     mockPoolInstance.subscribe.mockImplementation(
       (
         _relays: string[],
@@ -86,9 +88,16 @@ describe('Nip47Client.sendRequest', () => {
     const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
     const client = new Nip47Client();
 
-    const requestPromise = client.sendRequest(buildConnection(), { method: 'get_balance', params: {} });
+    const requestPromise = client.sendRequest(buildConnection(), {
+      method: 'get_balance',
+      params: {},
+    });
 
-    onEvent?.({ pubkey: 'wallet-service-pubkey', tags: [['e', 'event-id']], content: 'encrypted-response' });
+    onEvent?.({
+      pubkey: 'wallet-service-pubkey',
+      tags: [['e', 'event-id']],
+      content: 'encrypted-response',
+    });
 
     const response = await requestPromise;
     expect(response.result).toEqual({ balance: 1000 });

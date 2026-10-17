@@ -61,9 +61,7 @@ describe('what a site holds', () => {
       origin: 'https://example.com',
       boundPubkey: ALICE,
       boundAt: 500,
-      grants: [
-        { accountPubkey: ALICE, requestType: 'sign_event', eventKind: 1, grantedAt: 1000 },
-      ],
+      grants: [{ accountPubkey: ALICE, requestType: 'sign_event', eventKind: 1, grantedAt: 1000 }],
     });
   });
 
@@ -239,7 +237,11 @@ describe('one account’s sites (#309)', () => {
       grant({ origin: 'https://bob.example', accountPubkey: ALICE, requestType: 'nip04_encrypt' }),
       // Unbound, holding grants for each account.
       grant({ origin: 'https://unbound.example', accountPubkey: ALICE }),
-      grant({ origin: 'https://unbound.example', accountPubkey: BOB, requestType: 'nip44_encrypt' }),
+      grant({
+        origin: 'https://unbound.example',
+        accountPubkey: BOB,
+        requestType: 'nip44_encrypt',
+      }),
       // Unbound, Bob's only.
       grant({ origin: 'https://bob-only.example', accountPubkey: BOB }),
     ]);
@@ -248,7 +250,10 @@ describe('one account’s sites (#309)', () => {
   it('lists sites bound to the account, and unbound ones it holds grants on', async () => {
     const sites = await listConnectedSitesFor(ALICE);
 
-    expect(sites.map((site) => site.origin)).toEqual(['https://alice.example', 'https://unbound.example']);
+    expect(sites.map((site) => site.origin)).toEqual([
+      'https://alice.example',
+      'https://unbound.example',
+    ]);
   });
 
   it('lists only the account’s own grants on each site', async () => {
@@ -280,22 +285,40 @@ describe('disconnecting for one account (#309)', () => {
   });
 
   it('revokes only that account’s grants and its binding', async () => {
-    mocks.getBinding.mockResolvedValue({ origin: 'https://example.com', pubkey: ALICE, boundAt: 500 });
+    mocks.getBinding.mockResolvedValue({
+      origin: 'https://example.com',
+      pubkey: ALICE,
+      boundAt: 500,
+    });
 
     await expect(disconnectSiteFor('https://example.com', ALICE)).resolves.toBe(true);
 
     expect(mocks.revokePermission).toHaveBeenCalledTimes(1);
-    expect(mocks.revokePermission).toHaveBeenCalledWith('https://example.com', ALICE, 'sign_event', 1);
+    expect(mocks.revokePermission).toHaveBeenCalledWith(
+      'https://example.com',
+      ALICE,
+      'sign_event',
+      1,
+    );
     expect(mocks.removeBinding).toHaveBeenCalledWith('https://example.com');
   });
 
   it('keeps a binding that belongs to another account', async () => {
-    mocks.getBinding.mockResolvedValue({ origin: 'https://example.com', pubkey: BOB, boundAt: 500 });
+    mocks.getBinding.mockResolvedValue({
+      origin: 'https://example.com',
+      pubkey: BOB,
+      boundAt: 500,
+    });
 
     await disconnectSiteFor('https://example.com', ALICE);
 
     expect(mocks.removeBinding).not.toHaveBeenCalled();
-    expect(mocks.revokePermission).not.toHaveBeenCalledWith('https://example.com', BOB, 'nip44_encrypt', 1);
+    expect(mocks.revokePermission).not.toHaveBeenCalledWith(
+      'https://example.com',
+      BOB,
+      'nip44_encrypt',
+      1,
+    );
   });
 
   it('refuses an origin it cannot normalise, or no account', async () => {

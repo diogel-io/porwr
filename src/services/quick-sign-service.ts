@@ -43,10 +43,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
 }
 
-
 function extractPublishErrorMessage(error: unknown): string {
   if (error instanceof AggregateError) {
-    const firstError = error.errors.find((nestedError): nestedError is Error => nestedError instanceof Error);
+    const firstError = error.errors.find(
+      (nestedError): nestedError is Error => nestedError instanceof Error,
+    );
     if (firstError?.message) {
       return firstError.message;
     }
@@ -98,7 +99,10 @@ function isValidRelayUrl(url: string): boolean {
   }
 }
 
-export async function getQuickSignAvailability(publish: boolean, relayUrls: string[] = []): Promise<QuickSignAvailabilityResult> {
+export async function getQuickSignAvailability(
+  publish: boolean,
+  relayUrls: string[] = [],
+): Promise<QuickSignAvailabilityResult> {
   const unlocked = await isVaultUnlocked();
   if (!unlocked) {
     return { state: 'locked' };
@@ -139,7 +143,9 @@ export async function listQuickSignAccounts(): Promise<QuickSignAccountOption[]>
  * fallback relays could not be reached, so the card does not mistake a failed lookup for an
  * account with no relay list (#285).
  */
-export async function listQuickSignAccountRelayUrls(accountAlias: string): Promise<QuickSignAccountRelays> {
+export async function listQuickSignAccountRelayUrls(
+  accountAlias: string,
+): Promise<QuickSignAccountRelays> {
   const alias = accountAlias.trim();
   if (!alias) {
     return { state: 'ready', relayUrls: [] };
@@ -166,7 +172,10 @@ function isQuickSignSupportedKind(kind: number): kind is QuickSignSupportedKind 
   return QUICK_SIGN_SUPPORTED_KINDS.includes(kind as QuickSignSupportedKind);
 }
 
-function parseQuickSignInput(input: QuickSignFormInput): { value?: QuickSignSanitizedInput; errors: string[] } {
+function parseQuickSignInput(input: QuickSignFormInput): {
+  value?: QuickSignSanitizedInput;
+  errors: string[];
+} {
   const errors: string[] = [];
 
   const kindRaw: number = input.kind;
@@ -224,7 +233,10 @@ function parseQuickSignInput(input: QuickSignFormInput): { value?: QuickSignSani
   };
 }
 
-export function validateQuickSignInput(input: QuickSignFormInput, publishInput?: QuickSignPublishInput): QuickSignValidationResult {
+export function validateQuickSignInput(
+  input: QuickSignFormInput,
+  publishInput?: QuickSignPublishInput,
+): QuickSignValidationResult {
   const errors: string[] = [];
 
   if (!input.accountAlias.trim()) {
@@ -239,7 +251,9 @@ export function validateQuickSignInput(input: QuickSignFormInput, publishInput?:
       errors.push('Select at least one relay to publish.');
     }
 
-    if (publishInput.relayUrls.some((url) => url.trim().length === 0 || !isValidRelayUrl(url.trim()))) {
+    if (
+      publishInput.relayUrls.some((url) => url.trim().length === 0 || !isValidRelayUrl(url.trim()))
+    ) {
       errors.push('Relay URLs must be valid ws:// or wss:// URLs.');
     }
   }
@@ -321,7 +335,11 @@ async function publishSignedEvent(
 
   const successCount = relayResults.filter((relayResult) => relayResult.success).length;
   const publishStatus: QuickSignPublishStatus =
-    successCount === 0 ? 'failed' : successCount === relayResults.length ? 'success' : 'partial-failure';
+    successCount === 0
+      ? 'failed'
+      : successCount === relayResults.length
+        ? 'success'
+        : 'partial-failure';
 
   return {
     publishStatus,

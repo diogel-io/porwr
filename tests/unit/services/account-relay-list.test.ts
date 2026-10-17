@@ -14,17 +14,24 @@ import { fetchAccountRelayList, fetchAccountRelayListEvent } from '@/services/re
 // reads it per pool, which lets these tests hand it the fake sockets below.
 vi.mock('nostr-tools', async () => ({
   ...(await vi.importActual<typeof import('nostr-tools')>('nostr-tools')),
-  SimplePool: (await vi.importActual<typeof import('nostr-tools/pool')>('nostr-tools/pool')).SimplePool,
+  SimplePool: (await vi.importActual<typeof import('nostr-tools/pool')>('nostr-tools/pool'))
+    .SimplePool,
 }));
 
 const { settingsStoreMock } = vi.hoisted(() => {
-  const mock = { fallbackRelays: [] as string[], getFallbackRelays: async () => mock.fallbackRelays };
+  const mock = {
+    fallbackRelays: [] as string[],
+    getFallbackRelays: async () => mock.fallbackRelays,
+  };
   return { settingsStoreMock: mock };
 });
 
 vi.mock('@/stores/settings-store', () => ({ default: () => settingsStoreMock }));
 
-type RelayBehaviour = { kind: 'answers'; events: unknown[] } | { kind: 'refuses' } | { kind: 'silent' };
+type RelayBehaviour =
+  | { kind: 'answers'; events: unknown[] }
+  | { kind: 'refuses' }
+  | { kind: 'silent' };
 
 const relays = new Map<string, RelayBehaviour>();
 
@@ -75,7 +82,10 @@ const secretKey = generateSecretKey();
 const pubkey = getPublicKey(secretKey);
 
 function relayList(createdAt: number, relayUrl: string) {
-  return finalizeEvent({ kind: 10002, created_at: createdAt, tags: [['r', relayUrl]], content: '' }, secretKey);
+  return finalizeEvent(
+    { kind: 10002, created_at: createdAt, tags: [['r', relayUrl]], content: '' },
+    secretKey,
+  );
 }
 
 describe('looking up an account relay list (#285)', () => {

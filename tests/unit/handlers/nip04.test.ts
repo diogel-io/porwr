@@ -64,10 +64,16 @@ describe('Nip04Handler', () => {
     it('should encrypt when vault is unlocked and account exists', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
       vi.mocked(storageService['get']).mockResolvedValue('test-alias');
-      vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [mockAccount] } });
+      vi.mocked(getVaultData).mockResolvedValue({
+        success: true,
+        vaultData: { accounts: [mockAccount] },
+      });
       vi.mocked(nip04.encrypt).mockReturnValue('ciphertext');
 
-      const result = await handleNip04Encrypt({ pubkey: 'recipient-pubkey', plaintext: 'hello' }, ORIGIN);
+      const result = await handleNip04Encrypt(
+        { pubkey: 'recipient-pubkey', plaintext: 'hello' },
+        ORIGIN,
+      );
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -79,7 +85,10 @@ describe('Nip04Handler', () => {
     it('should return error when vault is locked', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(false);
 
-      const result = await handleNip04Encrypt({ pubkey: 'recipient-pubkey', plaintext: 'hello' }, ORIGIN);
+      const result = await handleNip04Encrypt(
+        { pubkey: 'recipient-pubkey', plaintext: 'hello' },
+        ORIGIN,
+      );
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -91,7 +100,10 @@ describe('Nip04Handler', () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
       vi.mocked(storageService['get']).mockResolvedValue(null);
 
-      const result = await handleNip04Encrypt({ pubkey: 'recipient-pubkey', plaintext: 'hello' }, ORIGIN);
+      const result = await handleNip04Encrypt(
+        { pubkey: 'recipient-pubkey', plaintext: 'hello' },
+        ORIGIN,
+      );
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -104,10 +116,16 @@ describe('Nip04Handler', () => {
     it('should decrypt when vault is unlocked and account exists', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
       vi.mocked(storageService['get']).mockResolvedValue('test-alias');
-      vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [mockAccount] } });
+      vi.mocked(getVaultData).mockResolvedValue({
+        success: true,
+        vaultData: { accounts: [mockAccount] },
+      });
       vi.mocked(nip04.decrypt).mockReturnValue('plaintext');
 
-      const result = await handleNip04Decrypt({ pubkey: 'sender-pubkey', ciphertext: 'ciphertext' }, ORIGIN);
+      const result = await handleNip04Decrypt(
+        { pubkey: 'sender-pubkey', ciphertext: 'ciphertext' },
+        ORIGIN,
+      );
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -119,12 +137,18 @@ describe('Nip04Handler', () => {
     it('should catch and return errors during decryption', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
       vi.mocked(storageService['get']).mockResolvedValue('test-alias');
-      vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [mockAccount] } });
+      vi.mocked(getVaultData).mockResolvedValue({
+        success: true,
+        vaultData: { accounts: [mockAccount] },
+      });
       vi.mocked(nip04.decrypt).mockImplementation(() => {
         throw new Error('Decryption failed');
       });
 
-      const result = await handleNip04Decrypt({ pubkey: 'sender-pubkey', ciphertext: 'ciphertext' }, ORIGIN);
+      const result = await handleNip04Decrypt(
+        { pubkey: 'sender-pubkey', ciphertext: 'ciphertext' },
+        ORIGIN,
+      );
 
       expect(result.success).toBe(false);
       if (!result.success) {

@@ -8,8 +8,6 @@ export interface UseActiveTabResult {
   activeOrigin: Ref<string>;
 }
 
-
-
 /**
  * Track the active tab's origin for panel context.
  *

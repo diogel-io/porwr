@@ -53,7 +53,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   __resetPanelPresenceForTests();
   vi.stubGlobal('chrome', {
-    runtime: { onConnect: { addListener }, id: EXTENSION_ID, getURL: (path: string) => `${EXTENSION_ORIGIN}/${path}` },
+    runtime: {
+      onConnect: { addListener },
+      id: EXTENSION_ID,
+      getURL: (path: string) => `${EXTENSION_ORIGIN}/${path}`,
+    },
   });
 });
 
@@ -78,17 +82,25 @@ describe('panel presence', () => {
     const connect = startObserving();
 
     openPort(connect, {
-      sender: { id: EXTENSION_ID, url: `${EXTENSION_ORIGIN}/www/index.html#/sidebar`, tab: { id: 1 } } as chrome.runtime.MessageSender,
+      sender: {
+        id: EXTENSION_ID,
+        url: `${EXTENSION_ORIGIN}/www/index.html#/sidebar`,
+        tab: { id: 1 },
+      } as chrome.runtime.MessageSender,
     });
 
     expect(isPanelPresent()).toBe(true);
   });
 
-  it("ignores a content script that names its port after the panel (#240)", () => {
+  it('ignores a content script that names its port after the panel (#240)', () => {
     const connect = startObserving();
 
     openPort(connect, {
-      sender: { id: EXTENSION_ID, url: 'https://example.com/', tab: { id: 1 } } as chrome.runtime.MessageSender,
+      sender: {
+        id: EXTENSION_ID,
+        url: 'https://example.com/',
+        tab: { id: 1 },
+      } as chrome.runtime.MessageSender,
     });
 
     expect(isPanelPresent()).toBe(false);
@@ -97,7 +109,12 @@ describe('panel presence', () => {
   it('ignores a port from another extension, or with no sender', () => {
     const connect = startObserving();
 
-    openPort(connect, { sender: { id: 'someone-else', url: 'chrome-extension://someone-else/x.html' } as chrome.runtime.MessageSender });
+    openPort(connect, {
+      sender: {
+        id: 'someone-else',
+        url: 'chrome-extension://someone-else/x.html',
+      } as chrome.runtime.MessageSender,
+    });
     openPort(connect, { sender: undefined } as unknown as Partial<chrome.runtime.Port>);
 
     expect(isPanelPresent()).toBe(false);

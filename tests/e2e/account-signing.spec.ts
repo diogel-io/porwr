@@ -23,7 +23,10 @@ async function seedTwoAccounts(page: Page, fallbackRelay: string): Promise<void>
   // Point the background at the local relay before adding accounts: adding one starts reads from
   // the fallback relays, and reads from the real seed relays would make Chrome hold back this
   // extension's later WebSocket connections, the local relay's included, for seconds.
-  await page.evaluate((relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }), fallbackRelay);
+  await page.evaluate(
+    (relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }),
+    fallbackRelay,
+  );
   await seedVaultAccounts(page, [TEST_ACCOUNT, SECOND]);
 }
 
@@ -41,13 +44,19 @@ const signAs = (page: Page, accountPubkey: string, kind: number) =>
     ([pubkey, eventKind]) =>
       chrome.runtime.sendMessage({
         type: 'account.signEvent',
-        payload: { accountPubkey: pubkey, template: { kind: eventKind, content: 'from e2e', tags: [] } },
+        payload: {
+          accountPubkey: pubkey,
+          template: { kind: eventKind, content: 'from e2e', tags: [] },
+        },
       }),
     [accountPubkey, kind] as const,
   ) as Promise<Event | { success: false; error: string }>;
 
 test.describe('signing in the background', () => {
-  test('the Relays page publishes a relay list the background signed', async ({ openPage, relays }) => {
+  test('the Relays page publishes a relay list the background signed', async ({
+    openPage,
+    relays,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedTwoAccounts(page, relays.plain);
@@ -64,10 +73,15 @@ test.describe('signing in the background', () => {
     const event = await latest(relays.plain, 10002, TEST_ACCOUNT.pubkey);
     expect(event).not.toBeNull();
     expect(verifyEvent(event!)).toBe(true);
-    expect(event!.tags).toEqual(expect.arrayContaining([expect.arrayContaining(['r', relays.plain])]));
+    expect(event!.tags).toEqual(
+      expect.arrayContaining([expect.arrayContaining(['r', relays.plain])]),
+    );
   });
 
-  test('signs as the account asked for, even when it is not active, and refuses other kinds', async ({ openPage, relays }) => {
+  test('signs as the account asked for, even when it is not active, and refuses other kinds', async ({
+    openPage,
+    relays,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedTwoAccounts(page, relays.plain);
@@ -77,6 +91,9 @@ test.describe('signing in the background', () => {
     expect(verifyEvent(asSecond)).toBe(true);
 
     expect(await signAs(page, SECOND.pubkey, 4)).toMatchObject({ success: false });
-    expect(await signAs(page, 'c'.repeat(64), 1)).toEqual({ success: false, error: 'Account not found' });
+    expect(await signAs(page, 'c'.repeat(64), 1)).toEqual({
+      success: false,
+      error: 'Account not found',
+    });
   });
 });

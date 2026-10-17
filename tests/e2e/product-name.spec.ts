@@ -8,7 +8,10 @@ import { createVault } from './fixtures/vault';
  * panel header, the tab title, and the signer name a site reads from `window.nostr`.
  */
 test.describe('the product name', () => {
-  test('is Porwr in the manifest, the panel and the tab title', async ({ openPage, background }) => {
+  test('is Porwr in the manifest, the panel and the tab title', async ({
+    openPage,
+    background,
+  }) => {
     const manifest = await background.evaluate(() => chrome.runtime.getManifest());
     expect(manifest.name).toBe('Porwr');
     expect(manifest.action?.default_title).toBe('Porwr');
@@ -26,7 +29,9 @@ test.describe('the product name', () => {
     await site.goto('https://example.com');
 
     await site.waitForFunction(() => 'nostr' in window, undefined, { timeout: 15_000 });
-    const name = await site.evaluate(() => (window as unknown as { nostr: { name: string } }).nostr.name);
+    const name = await site.evaluate(
+      () => (window as unknown as { nostr: { name: string } }).nostr.name,
+    );
 
     expect(name).toBe('Porwr');
   });

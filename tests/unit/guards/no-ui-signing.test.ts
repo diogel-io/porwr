@@ -15,7 +15,6 @@ import { describe, it, expect } from 'vitest';
  */
 const ALLOWED: Record<string, string> = {};
 
-
 const ROOT = resolve(__dirname, '../../..');
 const SRC = join(ROOT, 'src');
 
@@ -27,7 +26,10 @@ const sourceFiles = (dir: string): string[] =>
   });
 
 describe('extension pages never hold a private key', () => {
-  const files = sourceFiles(SRC).map((path) => ({ path: relative(ROOT, path), source: readFileSync(path, 'utf8') }));
+  const files = sourceFiles(SRC).map((path) => ({
+    path: relative(ROOT, path),
+    source: readFileSync(path, 'utf8'),
+  }));
 
   it('scans the UI source', () => {
     expect(files.length).toBeGreaterThan(100);
@@ -47,7 +49,10 @@ describe('extension pages never hold a private key', () => {
     for (const path of Object.keys(ALLOWED)) {
       const file = files.find((entry) => entry.path === path);
       expect(file, `${path} no longer exists`).toBeDefined();
-      expect(/\bfinalizeEvent\b|account\.privkey/.test(file!.source), `${path} no longer needs the exception`).toBe(true);
+      expect(
+        /\bfinalizeEvent\b|account\.privkey/.test(file!.source),
+        `${path} no longer needs the exception`,
+      ).toBe(true);
     }
   });
 

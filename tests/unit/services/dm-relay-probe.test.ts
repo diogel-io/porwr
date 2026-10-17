@@ -3,7 +3,11 @@ import type { Event, EventTemplate, Filter, SimplePool, VerifiedEvent } from 'no
 
 import { DmRelayProbe } from '@/../src-bex/services/dm-relay-probe';
 
-type PublishParams = { maxWait: number; abort: AbortSignal; onauth: (t: EventTemplate) => Promise<VerifiedEvent> };
+type PublishParams = {
+  maxWait: number;
+  abort: AbortSignal;
+  onauth: (t: EventTemplate) => Promise<VerifiedEvent>;
+};
 type ReadParams = {
   onauth: (t: EventTemplate) => Promise<VerifiedEvent>;
   onevent: (event: Event) => void;
@@ -17,7 +21,11 @@ type ReadParams = {
  * - `hides` will not serve the wrap back; `silent` never answers the read-back
  */
 let behaviour: Record<string, string>;
-let pools: { publish: ReturnType<typeof vi.fn>; subscribeEose: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }[];
+let pools: {
+  publish: ReturnType<typeof vi.fn>;
+  subscribeEose: ReturnType<typeof vi.fn>;
+  destroy: ReturnType<typeof vi.fn>;
+}[];
 let published: { url: string; event: Event; params: PublishParams }[];
 let clock: number;
 
@@ -29,7 +37,8 @@ function fakePool() {
     const mode = behaviour[url] ?? 'keeps';
     if (mode === 'down') return [Promise.reject(new Error('connection failure: Error: refused'))];
     if (mode === 'slow') return [new Promise(() => {})];
-    if (mode.startsWith('refuses:')) return [Promise.reject(new Error(mode.slice('refuses:'.length)))];
+    if (mode.startsWith('refuses:'))
+      return [Promise.reject(new Error(mode.slice('refuses:'.length)))];
     if (mode !== 'drops') held.set(event.id, event);
     return [Promise.resolve('')];
   });
@@ -37,7 +46,9 @@ function fakePool() {
     const mode = behaviour[relays[0]!] ?? 'keeps';
     if (mode === 'silent') return { close: vi.fn() };
     if (mode === 'hides') {
-      params.onclose([{ url: relays[0]!, reason: 'restricted: gift wraps are only served to their recipient' }]);
+      params.onclose([
+        { url: relays[0]!, reason: 'restricted: gift wraps are only served to their recipient' },
+      ]);
       return { close: vi.fn() };
     }
     for (const id of filter.ids ?? []) {
@@ -82,22 +93,35 @@ describe('DmRelayProbe', () => {
     behaviour['wss://down.example'] = 'down';
 
     await expect(probe().check(['wss://down.example'])).resolves.toEqual({
-      checks: [{ url: 'wss://down.example', status: 'unchecked', reason: 'connection failure: Error: refused' }],
+      checks: [
+        {
+          url: 'wss://down.example',
+          status: 'unchecked',
+          reason: 'connection failure: Error: refused',
+        },
+      ],
     });
   });
 
-  it.each(['blocked: kind 1059 not allowed', 'restricted: members only', 'invalid: created_at too old', 'pow: difficulty 20'])(
-    'reports a relay that refuses the gift wrap as dropping messages (%s)',
-    async (reason) => {
-      behaviour['wss://picky.example'] = `refuses:${reason}`;
+  it.each([
+    'blocked: kind 1059 not allowed',
+    'restricted: members only',
+    'invalid: created_at too old',
+    'pow: difficulty 20',
+  ])('reports a relay that refuses the gift wrap as dropping messages (%s)', async (reason) => {
+    behaviour['wss://picky.example'] = `refuses:${reason}`;
 
-      await expect(probe().check(['wss://picky.example'])).resolves.toEqual({
-        checks: [{ url: 'wss://picky.example', status: 'drops', reason }],
-      });
-    },
-  );
+    await expect(probe().check(['wss://picky.example'])).resolves.toEqual({
+      checks: [{ url: 'wss://picky.example', status: 'drops', reason }],
+    });
+  });
 
-  it.each(['rate-limited: slow down', 'auth-required: still not authenticated', 'error: database down', 'publish timed out'])(
+  it.each([
+    'rate-limited: slow down',
+    'auth-required: still not authenticated',
+    'error: database down',
+    'publish timed out',
+  ])(
     "reports a refusal that says nothing about gift wraps as couldn't check (%s)",
     async (reason) => {
       behaviour['wss://busy.example'] = `refuses:${reason}`;
@@ -112,22 +136,41 @@ describe('DmRelayProbe', () => {
     behaviour['wss://inbox.example'] = 'hides';
 
     await expect(probe().check(['wss://inbox.example'])).resolves.toEqual({
-      checks: [{ url: 'wss://inbox.example', status: 'unchecked', reason: 'would not serve the test message back' }],
+      checks: [
+        {
+          url: 'wss://inbox.example',
+          status: 'unchecked',
+          reason: 'would not serve the test message back',
+        },
+      ],
     });
   });
 
   it('checks every relay at once, in list order, inside the 4 s deadline', async () => {
     vi.useFakeTimers();
-    behaviour = { 'wss://slow.example': 'slow', 'wss://silent.example': 'silent', 'wss://damus.example': 'drops' };
+    behaviour = {
+      'wss://slow.example': 'slow',
+      'wss://silent.example': 'silent',
+      'wss://damus.example': 'drops',
+    };
 
-    const result = probe().check(['wss://slow.example', 'wss://keeps.example', 'wss://silent.example', 'wss://damus.example']);
+    const result = probe().check([
+      'wss://slow.example',
+      'wss://keeps.example',
+      'wss://silent.example',
+      'wss://damus.example',
+    ]);
     await vi.advanceTimersByTimeAsync(4_000);
 
     await expect(result).resolves.toEqual({
       checks: [
         { url: 'wss://slow.example', status: 'unchecked', reason: 'timed out' },
         { url: 'wss://keeps.example', status: 'keeps' },
-        { url: 'wss://silent.example', status: 'unchecked', reason: 'could not confirm the relay stored it' },
+        {
+          url: 'wss://silent.example',
+          status: 'unchecked',
+          reason: 'could not confirm the relay stored it',
+        },
         { url: 'wss://damus.example', status: 'drops', reason: 'accepted but not stored' },
       ],
     });
@@ -140,7 +183,9 @@ describe('DmRelayProbe', () => {
     const result = probe().check(['wss://slow.example']);
     await vi.advanceTimersByTimeAsync(1_500);
 
-    await expect(result).resolves.toMatchObject({ checks: [{ status: 'unchecked', reason: 'timed out' }] });
+    await expect(result).resolves.toMatchObject({
+      checks: [{ status: 'unchecked', reason: 'timed out' }],
+    });
     expect(published[0]!.params.maxWait).toBe(1_500);
   });
 
@@ -161,7 +206,11 @@ describe('DmRelayProbe', () => {
     const recipient = event.tags.find((tag) => tag[0] === 'p')![1];
     const challenge = { kind: 22242, created_at: 1, tags: [['challenge', 'c']], content: '' };
     await expect(params.onauth(challenge)).resolves.toMatchObject({ pubkey: recipient });
-    const [, filter, readParams] = pools[0]!.subscribeEose.mock.calls[0]! as [string[], Filter, ReadParams];
+    const [, filter, readParams] = pools[0]!.subscribeEose.mock.calls[0]! as [
+      string[],
+      Filter,
+      ReadParams,
+    ];
     expect(filter).toEqual({ ids: [event.id] });
     await expect(readParams.onauth(challenge)).resolves.toMatchObject({ pubkey: recipient });
   });
@@ -180,7 +229,9 @@ describe('DmRelayProbe', () => {
 
     await checker.check(['wss://keeps.example', 'wss://damus.example']);
     clock += 10 * 60 * 1000;
-    await expect(checker.check(['wss://keeps.example', 'wss://damus.example'])).resolves.toMatchObject({
+    await expect(
+      checker.check(['wss://keeps.example', 'wss://damus.example']),
+    ).resolves.toMatchObject({
       checks: [{ status: 'keeps' }, { status: 'drops' }],
     });
     expect(published).toHaveLength(2);

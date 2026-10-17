@@ -32,7 +32,9 @@ const searchResults = ref<ContactSearchResult[]>([]);
 const searchingContacts = ref(false);
 const formError = ref('');
 
-const activeStoredKey = computed<AccountSummary | undefined>(() => accountStore.activeAccountOrFirst);
+const activeStoredKey = computed<AccountSummary | undefined>(
+  () => accountStore.activeAccountOrFirst,
+);
 const contactCache = useContactCache(() => activeStoredKey.value?.id);
 
 /** Until relays have answered once for this account, there is no list to show — not an empty one. */
@@ -104,7 +106,12 @@ function getContactBio(contact: Nip02Contact): string {
 }
 
 function getSearchResultName(result: ContactSearchResult): string {
-  return result.profile?.displayName || result.profile?.name || result.profile?.nip05 || formatContactNpub(result.pubkey);
+  return (
+    result.profile?.displayName ||
+    result.profile?.name ||
+    result.profile?.nip05 ||
+    formatContactNpub(result.pubkey)
+  );
 }
 
 function getSearchResultSubtitle(result: ContactSearchResult): string {
@@ -252,7 +259,11 @@ onMounted(async () => {
         <q-icon color="grey-5" name="account_circle" size="4em" />
         <div class="text-h6 text-grey-7 q-mt-md">{{ t('account.noAccounts') }}</div>
         <p class="text-grey-6">{{ t('account.noAccountDesc') }}</p>
-        <q-btn class="q-mt-md diogel-btn-primary" :label="t('account.create')" :to="{ name: 'add-new-key' }" />
+        <q-btn
+          class="q-mt-md diogel-btn-primary"
+          :label="t('account.create')"
+          :to="{ name: 'add-new-key' }"
+        />
       </div>
     </q-card>
 
@@ -289,7 +300,12 @@ onMounted(async () => {
           />
         </div>
         <div class="contacts-page__actions">
-          <q-btn icon="person_add" color="primary" :label="t('contacts.add')" @click="openAddDialog" />
+          <q-btn
+            icon="person_add"
+            color="primary"
+            :label="t('contacts.add')"
+            @click="openAddDialog"
+          />
           <q-btn
             class="diogel-btn-primary"
             icon="publish"
@@ -325,7 +341,12 @@ onMounted(async () => {
 
           <q-banner v-if="formError" class="bg-red-1 text-red-10" rounded>{{ formError }}</q-banner>
 
-          <q-list v-if="searchResults.length > 0" bordered separator class="contacts-page__search-results">
+          <q-list
+            v-if="searchResults.length > 0"
+            bordered
+            separator
+            class="contacts-page__search-results"
+          >
             <q-item
               v-for="result in searchResults"
               :key="result.pubkey"
@@ -361,7 +382,11 @@ onMounted(async () => {
       </q-card-section>
 
       <q-list v-else-if="sortedContacts.length > 0" separator>
-        <q-item v-for="contact in sortedContacts" :key="contact.pubkey" class="contacts-page__contact">
+        <q-item
+          v-for="contact in sortedContacts"
+          :key="contact.pubkey"
+          class="contacts-page__contact"
+        >
           <q-item-section avatar>
             <q-avatar v-if="getProfile(contact)?.picture">
               <img :src="getProfile(contact)?.picture" alt="" />
@@ -385,7 +410,15 @@ onMounted(async () => {
           </q-item-section>
           <q-item-section side>
             <div class="contacts-page__row-actions">
-              <q-btn flat round dense color="negative" icon="delete" :aria-label="t('contacts.remove')" @click="removeContact(contact)" />
+              <q-btn
+                flat
+                round
+                dense
+                color="negative"
+                icon="delete"
+                :aria-label="t('contacts.remove')"
+                @click="removeContact(contact)"
+              />
             </div>
           </q-item-section>
         </q-item>
@@ -397,7 +430,6 @@ onMounted(async () => {
         <p class="text-grey-6">{{ t('contacts.emptyCaption') }}</p>
       </q-card-section>
     </q-card>
-
   </q-page>
 </template>
 

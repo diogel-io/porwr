@@ -87,7 +87,9 @@ test('the Profile page has no preview of its own', async ({ openPage }) => {
   await expect(page.getByText('Profile Preview', { exact: true })).toHaveCount(0);
 });
 
-test('an empty banner is neutral and follows the theme, not brand orange (#301)', async ({ openPage }) => {
+test('an empty banner is neutral and follows the theme, not brand orange (#301)', async ({
+  openPage,
+}) => {
   const page = await openProfile(openPage, 1100);
   await expect(page.locator('.profile-header__banner-image')).toHaveCount(0);
 

@@ -160,7 +160,9 @@ describe('contact-list-service', () => {
       ).toBe('alice');
 
       expect(getContactDisplayName(contact)).toBe('local alice');
-      expect(getContactDisplayName({ pubkey: pubkeyOne, relayUrl: '', petname: '' })).toBe(nip19.npubEncode(pubkeyOne));
+      expect(getContactDisplayName({ pubkey: pubkeyOne, relayUrl: '', petname: '' })).toBe(
+        nip19.npubEncode(pubkeyOne),
+      );
     });
   });
 

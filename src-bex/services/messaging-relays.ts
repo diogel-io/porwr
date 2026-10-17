@@ -72,7 +72,9 @@ export async function getFallbackRelays(): Promise<string[]> {
 /** The `relay` tags of a kind 10050, normalised, in the order the user published them. */
 export function parseDmRelayList(event: Pick<Event, 'tags'>): string[] {
   return normalizeAll(
-    event.tags.filter((tag) => tag[0] === 'relay' && typeof tag[1] === 'string').map((tag) => tag[1]!),
+    event.tags
+      .filter((tag) => tag[0] === 'relay' && typeof tag[1] === 'string')
+      .map((tag) => tag[1]!),
   );
 }
 
@@ -103,12 +105,20 @@ export function parseNip07RelayMap(event: Pick<Event, 'tags'>): Nip07RelayMap {
 export function parseWriteRelays(event: Pick<Event, 'tags'>): string[] {
   return normalizeAll(
     event.tags
-      .filter((tag) => tag[0] === 'r' && typeof tag[1] === 'string' && (tag[2] === undefined || tag[2] === 'write'))
+      .filter(
+        (tag) =>
+          tag[0] === 'r' &&
+          typeof tag[1] === 'string' &&
+          (tag[2] === undefined || tag[2] === 'write'),
+      )
       .map((tag) => tag[1]!),
   );
 }
 
-export function buildDmRelayListTemplate(relays: readonly string[], createdAt: number): EventTemplate {
+export function buildDmRelayListTemplate(
+  relays: readonly string[],
+  createdAt: number,
+): EventTemplate {
   return {
     kind: DM_RELAY_LIST_KIND,
     created_at: createdAt,
@@ -121,7 +131,9 @@ export function buildDmRelayListTemplate(relays: readonly string[], createdAt: n
  * Validates a list a page asked to publish. Every URL must be a ws:// or wss:// relay; a single bad
  * entry rejects the list rather than being dropped silently.
  */
-export function validateDmRelays(relays: readonly string[]): { valid: true; relays: string[] } | { valid: false; error: string } {
+export function validateDmRelays(
+  relays: readonly string[],
+): { valid: true; relays: string[] } | { valid: false; error: string } {
   for (const url of relays) {
     const normalized = normalizeRelayUrl(url);
     if (!normalized.valid) {
@@ -184,7 +196,8 @@ export class MessagingRelays {
    */
   async lookupDmRelays(pubkey: string): Promise<DmRelayList> {
     const cached = this.dmRelayCache.get(pubkey);
-    const ttl = cached && cached.list.relays.length === 0 ? EMPTY_DM_RELAY_CACHE_MS : DM_RELAY_CACHE_MS;
+    const ttl =
+      cached && cached.list.relays.length === 0 ? EMPTY_DM_RELAY_CACHE_MS : DM_RELAY_CACHE_MS;
     if (cached && this.now() - cached.at < ttl) {
       return cached.list;
     }
@@ -266,7 +279,10 @@ export class MessagingRelays {
    * as rejected; when the user's kind 10002 is not back in time, the list goes to the fallback and
    * DM relays only.
    */
-  async publishDmRelays(secretKey: Uint8Array, relays: readonly string[]): Promise<DmRelayPublishResult> {
+  async publishDmRelays(
+    secretKey: Uint8Array,
+    relays: readonly string[],
+  ): Promise<DmRelayPublishResult> {
     const deadlineAt = this.now() + PUBLISH_DEADLINE_MS;
     const pubkey = getPublicKey(secretKey);
     const fallback = await getFallbackRelays();
@@ -278,7 +294,10 @@ export class MessagingRelays {
     );
     const targets = normalizeAll([...fallback, ...ownWriteRelays, ...relays]);
 
-    const event = finalizeEvent(buildDmRelayListTemplate(relays, Math.floor(Date.now() / 1000)), secretKey);
+    const event = finalizeEvent(
+      buildDmRelayListTemplate(relays, Math.floor(Date.now() / 1000)),
+      secretKey,
+    );
     const publishPool = this.createPool();
     const abort = new AbortController();
     let outcomes: PromiseSettledResult<string>[];
@@ -291,7 +310,12 @@ export class MessagingRelays {
             onauth: authSigner(secretKey),
           })
           .map((publish) =>
-            withDeadline(publish, deadlineAt, () => Promise.reject(new Error('timed out')), this.now),
+            withDeadline(
+              publish,
+              deadlineAt,
+              () => Promise.reject(new Error('timed out')),
+              this.now,
+            ),
           ),
       );
     } finally {
@@ -313,7 +337,10 @@ export class MessagingRelays {
     });
 
     if (accepted.length > 0) {
-      this.dmRelayCache.set(pubkey, { list: { relays: [...relays], updatedAt: event.created_at }, at: this.now() });
+      this.dmRelayCache.set(pubkey, {
+        list: { relays: [...relays], updatedAt: event.created_at },
+        at: this.now(),
+      });
     }
     return { relays: [...relays], accepted, rejected };
   }

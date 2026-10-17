@@ -47,7 +47,11 @@ describe('nip47 pending authorization store', () => {
   it('keeps a saved authorization in session storage with an expiry', async () => {
     const saved = await savePendingNip47Authorization(entry('a'), NOW);
 
-    expect(saved).toMatchObject({ pendingId: 'a', createdAt: NOW, expiresAt: NOW + PENDING_AUTHORIZATION_TTL_MS });
+    expect(saved).toMatchObject({
+      pendingId: 'a',
+      createdAt: NOW,
+      expiresAt: NOW + PENDING_AUTHORIZATION_TTL_MS,
+    });
     expect(session.value).toEqual([saved]);
   });
 

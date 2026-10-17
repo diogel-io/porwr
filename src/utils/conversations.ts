@@ -32,7 +32,10 @@ export function mergeMessages(
 }
 
 /** A conversation's messages, oldest first. */
-export function conversationMessages(messages: Iterable<DirectMessage>, peer: string): DirectMessage[] {
+export function conversationMessages(
+  messages: Iterable<DirectMessage>,
+  peer: string,
+): DirectMessage[] {
   return [...messages]
     .filter((message) => message.peer === peer)
     .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
@@ -99,7 +102,11 @@ export function buildConversations(
 export function newestFrom(messages: readonly DirectMessage[], peer: string): number | undefined {
   let newest: number | undefined;
   for (const message of messages) {
-    if (message.peer === peer && message.pubkey === peer && (newest === undefined || message.created_at > newest)) {
+    if (
+      message.peer === peer &&
+      message.pubkey === peer &&
+      (newest === undefined || message.created_at > newest)
+    ) {
       newest = message.created_at;
     }
   }

@@ -12,7 +12,11 @@ import { RELAY_SEEDS } from '@/data/relay-seeds';
 export const DISCOVERY_STALENESS_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours
 export const METADATA_STALENESS_THRESHOLD = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-export async function loadSeedRelays(): Promise<{ added: number; updated: number; skipped: number }> {
+export async function loadSeedRelays(): Promise<{
+  added: number;
+  updated: number;
+  skipped: number;
+}> {
   let added = 0;
   let updated = 0;
   let skipped = 0;
@@ -20,7 +24,8 @@ export async function loadSeedRelays(): Promise<{ added: number; updated: number
   // Use the same fallback relay source for consistency across the app.
   // This allows the catalog seeds to stay in sync with what the user considers "fallback" relays.
   const storedSeeds = await storageService.get<string[]>(FALLBACK_RELAYS);
-  const seedsToUse = Array.isArray(storedSeeds) && storedSeeds.length > 0 ? storedSeeds : RELAY_SEEDS;
+  const seedsToUse =
+    Array.isArray(storedSeeds) && storedSeeds.length > 0 ? storedSeeds : RELAY_SEEDS;
 
   for (const seedUrl of seedsToUse) {
     const result = normalizeRelayUrl(seedUrl);
@@ -62,7 +67,6 @@ export async function loadSeedRelays(): Promise<{ added: number; updated: number
   return { added, updated, skipped };
 }
 
-
 /**
  * Service for reading relay catalog entries from the database.
  * This service is read-only and provides predictable formatting and sorting for the UI.
@@ -79,7 +83,9 @@ export class RelayCatalogService {
    *
    * @param entry Partial entry to upsert (must have url and hostname).
    */
-  async upsertEntry(entry: Partial<RelayCatalogEntry> & { url: string; hostname: string }): Promise<void> {
+  async upsertEntry(
+    entry: Partial<RelayCatalogEntry> & { url: string; hostname: string },
+  ): Promise<void> {
     await db.transaction('rw', db.relayCatalog, async () => {
       const existing = await db.relayCatalog.get(entry.url);
       const now = Date.now();
@@ -94,27 +100,29 @@ export class RelayCatalogService {
           const sources = new Set(
             (existing.source || '')
               .split(',')
-              .map(s => s.trim())
+              .map((s) => s.trim())
               .filter(Boolean),
           );
           entry.source
             .split(',')
-            .map(s => s.trim())
+            .map((s) => s.trim())
             .filter(Boolean)
-            .forEach(s => sources.add(s));
+            .forEach((s) => sources.add(s));
           updates.source = Array.from(sources).join(',');
         }
 
         // 2. Combine flags
         if (entry.isSeed !== undefined) updates.isSeed = existing.isSeed || entry.isSeed;
-        if (entry.isUserAdded !== undefined) updates.isUserAdded = existing.isUserAdded || entry.isUserAdded;
+        if (entry.isUserAdded !== undefined)
+          updates.isUserAdded = existing.isUserAdded || entry.isUserAdded;
 
         // 3. Status handling: only update if not 'error' or if the new status is better
         // A 'failed' fetch shouldn't destroy 'online' status immediately unless we're sure
         if (entry.status && entry.status !== 'unknown') {
           // If existing is 'online' and new is 'error' or 'offline', we only downgrade if it's been a while
           const isDowngrade =
-            existing.status === 'online' && (entry.status === 'offline' || entry.status === 'error');
+            existing.status === 'online' &&
+            (entry.status === 'offline' || entry.status === 'error');
           const isRecentlySeen = existing.lastSeen && now - existing.lastSeen < 60 * 60 * 1000; // 1 hour
 
           if (!isDowngrade || !isRecentlySeen) {
@@ -140,7 +148,9 @@ export class RelayCatalogService {
               value !== undefined &&
               value !== null &&
               (typeof value !== 'string' || value.trim().length > 0) &&
-              (existingValue === undefined || existingValue === null || (typeof existingValue === 'string' && existingValue.trim().length === 0));
+              (existingValue === undefined ||
+                existingValue === null ||
+                (typeof existingValue === 'string' && existingValue.trim().length === 0));
 
             // Also allow overwriting if they are both strings but new one is different and not empty
             // (e.g. name changed)
@@ -202,8 +212,8 @@ export class RelayCatalogService {
     // Filter out obviously invalid entries (e.g., missing URL)
     // And return clones to prevent mutation of the underlying data
     const validEntries = allEntries
-      .filter(entry => this.isValidEntry(entry))
-      .map(entry => ({ ...entry }));
+      .filter((entry) => this.isValidEntry(entry))
+      .map((entry) => ({ ...entry }));
 
     // Sort entries based on the required criteria
     return validEntries.sort((a, b) => this.compareEntries(a, b));
@@ -244,7 +254,11 @@ export class RelayCatalogService {
     const hasMetadata = !!(entry.metadata && (entry.metadata.name || entry.metadata.description));
     const hasAnyMetadata =
       hasMetadata ||
-      !!(entry.metadata && entry.metadata.supported_nips && entry.metadata.supported_nips.length > 0);
+      !!(
+        entry.metadata &&
+        entry.metadata.supported_nips &&
+        entry.metadata.supported_nips.length > 0
+      );
 
     // 3.a Give a 24-hour grace period for newly discovered online relays to be crawled for metadata.
     if (entry.status === 'online' && !hasAnyMetadata && !isSpecial) {
@@ -311,9 +325,21 @@ export class RelayCatalogService {
       return 0;
     }
 
-    const hasName = !!(entry.metadata && entry.metadata.name && entry.metadata.name.trim().length > 0);
-    const hasDescription = !!(entry.metadata && entry.metadata.description && entry.metadata.description.trim().length > 0);
-    const hasNips = !!(entry.metadata && entry.metadata.supported_nips && entry.metadata.supported_nips.length > 0);
+    const hasName = !!(
+      entry.metadata &&
+      entry.metadata.name &&
+      entry.metadata.name.trim().length > 0
+    );
+    const hasDescription = !!(
+      entry.metadata &&
+      entry.metadata.description &&
+      entry.metadata.description.trim().length > 0
+    );
+    const hasNips = !!(
+      entry.metadata &&
+      entry.metadata.supported_nips &&
+      entry.metadata.supported_nips.length > 0
+    );
 
     if (entry.isSeed && hasName && hasDescription) {
       return 100;

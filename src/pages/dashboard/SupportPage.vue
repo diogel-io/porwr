@@ -36,8 +36,12 @@ const {
   reset,
 } = useDirectMessages({ hasAccount: () => Boolean(activeKey.value) });
 
-const supportMessages = computed(() => conversationMessages(messages.value.values(), SUPPORT_PUBKEY));
-const supportPending = computed(() => pending.value.filter((message) => message.peer === SUPPORT_PUBKEY));
+const supportMessages = computed(() =>
+  conversationMessages(messages.value.values(), SUPPORT_PUBKEY),
+);
+const supportPending = computed(() =>
+  pending.value.filter((message) => message.peer === SUPPORT_PUBKEY),
+);
 /** Support has no kind 10050 that a send could find, so nothing can reach it. */
 const supportNotReachable = computed(() => notReadyPeers.value.has(SUPPORT_PUBKEY));
 
@@ -101,7 +105,12 @@ onMounted(async () => {
       <q-banner v-if="loadFailed" class="q-mb-md" rounded data-testid="load-failed">
         {{ t('messaging.loadError') }}
       </q-banner>
-      <q-banner v-if="supportNotReachable" class="q-mb-md" rounded data-testid="support-not-reachable">
+      <q-banner
+        v-if="supportNotReachable"
+        class="q-mb-md"
+        rounded
+        data-testid="support-not-reachable"
+      >
         {{ t('support.notReachable') }}
       </q-banner>
 

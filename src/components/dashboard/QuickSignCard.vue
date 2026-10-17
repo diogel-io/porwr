@@ -336,7 +336,11 @@ onMounted(async () => {
         }}
       </p>
 
-      <p v-if="relayState === 'loading'" class="quick-sign-card__hint" data-testid="quick-sign-relays-loading">
+      <p
+        v-if="relayState === 'loading'"
+        class="quick-sign-card__hint"
+        data-testid="quick-sign-relays-loading"
+      >
         {{ t('dashboard.widgets.quickSign.relaysLoading') }}
       </p>
 

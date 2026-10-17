@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { dispatchMessage } from '@/../src-bex/dispatcher';
-import { handleRelayBrowserList, handleRelayBrowserGetStatus } from '@/../src-bex/handlers/relay-browser-handler';
+import {
+  handleRelayBrowserList,
+  handleRelayBrowserGetStatus,
+} from '@/../src-bex/handlers/relay-browser-handler';
 import { handleVaultUnlock } from '@/../src-bex/handlers/vault-handler';
 import { handleBlossomUpload } from '@/../src-bex/handlers/blossom-handler';
 import { handleNip44Encrypt, handleNip44Decrypt } from '@/../src-bex/handlers/nip44';
@@ -70,18 +73,23 @@ describe('Dispatcher', () => {
   });
 
   it('should route relay.browser.list correctly', async () => {
-    const mockEntries: RelayCatalogEntry[] = [{
-      url: 'wss://relay.com',
-      hostname: 'relay.com',
-      isUserAdded: false,
-      isSeed: true,
-      status: 'online',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    }];
+    const mockEntries: RelayCatalogEntry[] = [
+      {
+        url: 'wss://relay.com',
+        hostname: 'relay.com',
+        isUserAdded: false,
+        isSeed: true,
+        status: 'online',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
     vi.mocked(handleRelayBrowserList).mockResolvedValue({ success: true, data: mockEntries });
 
-    const result = await dispatchMessage('relay.browser.list', createBridgeRequest('relay.browser.list', {}));
+    const result = await dispatchMessage(
+      'relay.browser.list',
+      createBridgeRequest('relay.browser.list', {}),
+    );
 
     expect(result).toEqual(mockEntries);
     expect(handleRelayBrowserList).toHaveBeenCalled();
@@ -90,7 +98,10 @@ describe('Dispatcher', () => {
   it('should return empty array for relay.browser.list when handler fails', async () => {
     vi.mocked(handleRelayBrowserList).mockResolvedValue({ success: false, error: 'Fail' });
 
-    const result = await dispatchMessage('relay.browser.list', createBridgeRequest('relay.browser.list', {}));
+    const result = await dispatchMessage(
+      'relay.browser.list',
+      createBridgeRequest('relay.browser.list', {}),
+    );
 
     expect(result).toEqual([]);
     expect(handleRelayBrowserList).toHaveBeenCalled();
@@ -104,7 +115,10 @@ describe('Dispatcher', () => {
     };
     vi.mocked(handleRelayBrowserGetStatus).mockResolvedValue({ success: true, data: mockStatus });
 
-    const result = await dispatchMessage('relay.browser.getStatus', createBridgeRequest('relay.browser.getStatus', {}));
+    const result = await dispatchMessage(
+      'relay.browser.getStatus',
+      createBridgeRequest('relay.browser.getStatus', {}),
+    );
 
     expect(result).toEqual(mockStatus);
     expect(handleRelayBrowserGetStatus).toHaveBeenCalled();
@@ -113,7 +127,10 @@ describe('Dispatcher', () => {
   it('should return null for relay.browser.getStatus when handler fails', async () => {
     vi.mocked(handleRelayBrowserGetStatus).mockResolvedValue({ success: false, error: 'Fail' });
 
-    const result = await dispatchMessage('relay.browser.getStatus', createBridgeRequest('relay.browser.getStatus', {}));
+    const result = await dispatchMessage(
+      'relay.browser.getStatus',
+      createBridgeRequest('relay.browser.getStatus', {}),
+    );
 
     expect(result).toBeNull();
     expect(handleRelayBrowserGetStatus).toHaveBeenCalled();
@@ -134,19 +151,25 @@ describe('Dispatcher', () => {
     const mockVaultData: { vaultData: VaultData } = { vaultData: { accounts: [] } };
     vi.mocked(handleVaultUnlock).mockResolvedValue({ success: true, data: mockVaultData });
 
-    const result = await dispatchMessage('vault.unlock', createBridgeRequest('vault.unlock', { password: 'test-password' }));
+    const result = await dispatchMessage(
+      'vault.unlock',
+      createBridgeRequest('vault.unlock', { password: 'test-password' }),
+    );
 
     // The decrypted vault stays in the background (#240).
     expect(result).toEqual({ success: true });
     expect(autoLockMocks.resetAutoLockTimer).toHaveBeenCalled();
     expect(autoLockMocks.startAutoLockTimer).toHaveBeenCalled();
-    expect(
-      autoLockMocks.resetAutoLockTimer.mock.invocationCallOrder[0]!,
-    ).toBeLessThan(autoLockMocks.startAutoLockTimer.mock.invocationCallOrder[0]!);
+    expect(autoLockMocks.resetAutoLockTimer.mock.invocationCallOrder[0]!).toBeLessThan(
+      autoLockMocks.startAutoLockTimer.mock.invocationCallOrder[0]!,
+    );
   });
 
   it('should return undefined for unknown message type', async () => {
-    const result = await dispatchMessage('unknown.action' as never, { id: 'test', action: 'unknown.action' } as never);
+    const result = await dispatchMessage(
+      'unknown.action' as never,
+      { id: 'test', action: 'unknown.action' } as never,
+    );
     expect(result).toBeUndefined();
   });
 
@@ -263,12 +286,15 @@ describe('Dispatcher', () => {
 
         await dispatchMessage(
           action as 'nostr.getPublicKey',
-          createBridgeRequest(action as 'nostr.getPublicKey', {
-            pubkey: 'p',
-            plaintext: 't',
-            ciphertext: 'c',
-            event: { kind: 1, content: '', tags: [], created_at: 0 },
-          } as never),
+          createBridgeRequest(
+            action as 'nostr.getPublicKey',
+            {
+              pubkey: 'p',
+              plaintext: 't',
+              ciphertext: 'c',
+              event: { kind: 1, content: '', tags: [], created_at: 0 },
+            } as never,
+          ),
           ORIGIN,
         );
 

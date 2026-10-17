@@ -31,8 +31,6 @@ export async function createEncryptedZipBytes(
   return await zipBlob.arrayBuffer();
 }
 
-
-
 /**
  * Check if a string is a valid hexadecimal string
  */
@@ -70,7 +68,7 @@ function generateKeyExportText(key: AccountSummary, revealedNsec: string): strin
   return formatKeyBackupText(key.alias, key.createdAt, npub, nsec);
 }
 
-export default generateKeyExportText
+export default generateKeyExportText;
 export function formatKeyBackupText(
   alias: string,
   createdAt: string,

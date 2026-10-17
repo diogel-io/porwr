@@ -81,7 +81,10 @@ describe('Nip07Handler', () => {
     it("returns the site's account relay list", async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
       vi.mocked(storageService['get']).mockResolvedValue('test-alias');
-      vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [mockAccount] } });
+      vi.mocked(getVaultData).mockResolvedValue({
+        success: true,
+        vaultData: { accounts: [mockAccount] },
+      });
       vi.mocked(messagingRelays.loadRelayMap).mockResolvedValue(relayMap);
 
       const result = await handleGetRelays({}, mockOrigin);
@@ -197,7 +200,10 @@ describe('Nip07Handler', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(finalizeEvent).mockReturnValue(signedEvent as any);
 
-      const result = await handleSignEvent({ event: { ...mockEvent } as UnsignedEvent }, mockOrigin);
+      const result = await handleSignEvent(
+        { event: { ...mockEvent } as UnsignedEvent },
+        mockOrigin,
+      );
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -270,7 +276,10 @@ describe('Nip07Handler', () => {
         throw new Error('Signing failed');
       });
 
-      const result = await handleSignEvent({ event: { ...mockEvent } as UnsignedEvent }, mockOrigin);
+      const result = await handleSignEvent(
+        { event: { ...mockEvent } as UnsignedEvent },
+        mockOrigin,
+      );
 
       expect(result.success).toBe(false);
       if (!result.success) {

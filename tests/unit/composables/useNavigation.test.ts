@@ -67,7 +67,10 @@ describe('useNavigation', () => {
       const wrapper = mount(TestHarness);
       const vm = wrapper.vm as unknown as HarnessVm;
       const keysItem = vm.utilityLinks.find((item) => item.id === 'keys');
-      expect(keysItem?.target && keysItem.isActive(), `expected keys active for route "${routeName}"`).toBe(true);
+      expect(
+        keysItem?.target && keysItem.isActive(),
+        `expected keys active for route "${routeName}"`,
+      ).toBe(true);
     }
   });
 
@@ -95,7 +98,12 @@ describe('useNavigation', () => {
     const wrapper = mount(TestHarness);
     const vm = wrapper.vm as unknown as HarnessVm;
 
-    expect(vm.utilityLinks.map((link) => link.id)).toEqual(['keys', 'settings', 'documentation', 'support']);
+    expect(vm.utilityLinks.map((link) => link.id)).toEqual([
+      'keys',
+      'settings',
+      'documentation',
+      'support',
+    ]);
     expect(vm.utilityLinks.find((l) => l.id === 'keys')?.target).toEqual({ name: 'keys' });
     expect(vm.utilityLinks.find((l) => l.id === 'settings')?.target).toEqual({ name: 'settings' });
   });
@@ -108,7 +116,9 @@ describe('useNavigation', () => {
     // An in-app support chat, not the GitHub issue tracker (#228).
     expect(support?.target).toEqual({ name: 'support' });
     expect(support?.href).toBeUndefined();
-    expect(vm.utilityLinks.find((l) => l.id === 'documentation')?.href).toBe('https://diogel.io/docs/porwr');
+    expect(vm.utilityLinks.find((l) => l.id === 'documentation')?.href).toBe(
+      'https://diogel.io/docs/porwr',
+    );
   });
 
   it('marks settings active only on the settings route', () => {

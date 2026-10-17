@@ -18,7 +18,7 @@ const mockVaultsTable = new Map<string, MockVault>();
 // Mock Dexie
 vi.mock('@/services/database', () => {
   const vaultsMock = {
-    get: vi.fn(async (id: string) =>  Promise.resolve(mockVaultsTable.get(id))),
+    get: vi.fn(async (id: string) => Promise.resolve(mockVaultsTable.get(id))),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     put: vi.fn(async (vault: any) => {
       mockVaultsTable.set(vault.id, vault);
@@ -60,7 +60,6 @@ import {
   deriveKeyFromEncryptedVault,
 } from '@/services/crypto';
 import type { VaultData } from '@/types/bridge';
-
 
 // Mock chrome storage
 const chromeMock = {
@@ -260,7 +259,12 @@ describe('Vault', () => {
     });
 
     it('drops the retired mnemonic and passphrase on the next write, and keeps everything else (#244)', async () => {
-      const oldVault = { ...TEST_DATA, mnemonic: 'Generating...', passphrase: '', createdAt: '2026-01-01' };
+      const oldVault = {
+        ...TEST_DATA,
+        mnemonic: 'Generating...',
+        passphrase: '',
+        createdAt: '2026-01-01',
+      };
       await createNewVault(TEST_PASSWORD, oldVault);
       await lockVault();
 

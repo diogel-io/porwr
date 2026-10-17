@@ -28,7 +28,10 @@ test.describe('after the last request is decided', () => {
     const panel = await openPage('/sidebar');
     await panel.locator('.current-request').waitFor({ state: 'visible', timeout: 20_000 });
 
-    await panel.getByRole('button', { name: /approve/i }).first().click();
+    await panel
+      .getByRole('button', { name: /approve/i })
+      .first()
+      .click();
 
     // The idle view, not the request screen. Generous timeout on purpose: the failure mode was a
     // 5s call timeout retried twice, so a short wait here would fail for the right reason by

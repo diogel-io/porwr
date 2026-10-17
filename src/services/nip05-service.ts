@@ -72,7 +72,10 @@ export function parseNip05Identifier(identifier: string): ParsedNip05Identifier 
 }
 
 export const nip05Service = {
-  async verifyIdentifier(identifier: string, expectedPubkey: string): Promise<Nip05VerificationResult> {
+  async verifyIdentifier(
+    identifier: string,
+    expectedPubkey: string,
+  ): Promise<Nip05VerificationResult> {
     const parsed = parseNip05Identifier(identifier);
     const normalizedIdentifier = identifier.trim();
 

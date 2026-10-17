@@ -17,7 +17,10 @@ vi.mock('@/services/account-signing-client', () => ({ signAsAccount: signAsAccou
 const backgroundSigns = () =>
   signAsAccountMock.mockImplementation((_pubkey: string, template: AccountEventTemplate) =>
     Promise.resolve(
-      finalizeEvent({ ...template, created_at: template.created_at ?? 1 }, hexToBytes(TEST_PRIVKEY)),
+      finalizeEvent(
+        { ...template, created_at: template.created_at ?? 1 },
+        hexToBytes(TEST_PRIVKEY),
+      ),
     ),
   );
 
@@ -107,12 +110,17 @@ describe('profileService.saveProfile', () => {
     const { profileService } = await import('@/services/profile-service');
     await profileService.saveProfile(pubkey, { name: 'New Name' });
 
-    expect(signAsAccountMock).toHaveBeenCalledWith(pubkey, expect.objectContaining({ kind: 0, tags: [] }));
+    expect(signAsAccountMock).toHaveBeenCalledWith(
+      pubkey,
+      expect.objectContaining({ kind: 0, tags: [] }),
+    );
     expect(JSON.stringify(signAsAccountMock.mock.calls)).not.toContain(TEST_PRIVKEY);
   });
 
   it('merges the new profile fields over the latest fetched profile and publishes it', async () => {
-    poolGetMock.mockResolvedValue({ content: JSON.stringify({ name: 'Old Name', picture: 'old.png' }) });
+    poolGetMock.mockResolvedValue({
+      content: JSON.stringify({ name: 'Old Name', picture: 'old.png' }),
+    });
     poolPublishMock.mockReturnValue([Promise.resolve('relay-ack')]);
 
     const { profileService } = await import('@/services/profile-service');
@@ -121,7 +129,10 @@ describe('profileService.saveProfile', () => {
     expect(poolGetMock).toHaveBeenCalledWith(fallbackRelays, { authors: [pubkey], kinds: [0] });
     expect(poolPublishMock).toHaveBeenCalledTimes(1);
 
-    const [relays, signedEvent] = poolPublishMock.mock.calls[0] as [string[], { content: string; pubkey: string; kind: number }];
+    const [relays, signedEvent] = poolPublishMock.mock.calls[0] as [
+      string[],
+      { content: string; pubkey: string; kind: number },
+    ];
     expect(relays).toEqual(fallbackRelays);
     expect(signedEvent.pubkey).toBe(pubkey);
     expect(signedEvent.kind).toBe(0);

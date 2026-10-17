@@ -116,7 +116,9 @@ async function copyPublicKey(npub: string): Promise<void> {
             {{ slotProps.row.npubDisplay }}
           </span>
           <q-btn
-            :aria-label="t('keyManagement.table.copyPublicKeyAriaLabel', { alias: slotProps.row.alias })"
+            :aria-label="
+              t('keyManagement.table.copyPublicKeyAriaLabel', { alias: slotProps.row.alias })
+            "
             class="key-management-table__copy-btn"
             color="secondary"
             :disable="!slotProps.row.canCopyNpub"
@@ -131,7 +133,10 @@ async function copyPublicKey(npub: string): Promise<void> {
 
     <template v-slot:body-cell-createdAt="slotProps">
       <q-td :props="slotProps" class="key-management-table__created-date-cell">
-        <span class="key-management-table__created-date-text" :title="formatCreatedDate(slotProps.row.createdAt)">
+        <span
+          class="key-management-table__created-date-text"
+          :title="formatCreatedDate(slotProps.row.createdAt)"
+        >
           {{ formatCreatedDate(slotProps.row.createdAt) }}
         </span>
       </q-td>
@@ -174,7 +179,9 @@ async function copyPublicKey(npub: string): Promise<void> {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
   font-size: 0.875rem;
 }
 

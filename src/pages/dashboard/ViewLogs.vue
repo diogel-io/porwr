@@ -70,9 +70,12 @@ onMounted(() => {
   void fetchLogs();
 });
 
-watch(() => accountStore.activeKey, () => {
-  void fetchLogs();
-});
+watch(
+  () => accountStore.activeKey,
+  () => {
+    void fetchLogs();
+  },
+);
 
 const approvalColumns = computed<QTableColumn[]>(() => [
   {

@@ -35,7 +35,9 @@ vi.mock('@/stores/account-store', async () => {
   const { computed, reactive } = await import('vue');
   const state = reactive<FakeAccounts>({ storedKeys: new Set(), activeId: undefined });
   (globalThis as { __sitesAccounts?: FakeAccounts }).__sitesAccounts = state;
-  const activeAccount = computed(() => Array.from(state.storedKeys).find((key) => key.id === state.activeId));
+  const activeAccount = computed(() =>
+    Array.from(state.storedKeys).find((key) => key.id === state.activeId),
+  );
   const store = {
     get storedKeys() {
       return state.storedKeys;
@@ -48,7 +50,8 @@ vi.mock('@/stores/account-store', async () => {
   return { default: () => store };
 });
 
-const accounts = (): FakeAccounts => (globalThis as { __sitesAccounts?: FakeAccounts }).__sitesAccounts!;
+const accounts = (): FakeAccounts =>
+  (globalThis as { __sitesAccounts?: FakeAccounts }).__sitesAccounts!;
 
 import ConnectedSitesPage from '@/pages/dashboard/ConnectedSitesPage.vue';
 
@@ -194,9 +197,7 @@ describe('the connected sites page', () => {
       await wrapper.findAll('button').at(-1)?.trigger('click');
       await flushPromises();
 
-      expect(mocks.notify).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'negative' }),
-      );
+      expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'negative' }));
     });
   });
 
@@ -223,7 +224,9 @@ describe('one account’s sites at a time (#309)', () => {
   it('names the account and lists only its sites', async () => {
     const wrapper = await mountPage();
 
-    expect(wrapper.find('[data-testid="sites-account"]').text()).toBe('dashboard.connectedSites.accountCaption:alice');
+    expect(wrapper.find('[data-testid="sites-account"]').text()).toBe(
+      'dashboard.connectedSites.accountCaption:alice',
+    );
     expect(mocks.listConnectedSites).toHaveBeenCalledWith(ALICE);
   });
 
@@ -237,7 +240,11 @@ describe('one account’s sites at a time (#309)', () => {
 
   it('re-lists for the new account when the user switches, dropping the old one’s sites', async () => {
     mocks.listConnectedSites.mockImplementation((owner: string) =>
-      Promise.resolve(owner === ALICE ? [site({ origin: 'https://alice.example' })] : [site({ origin: 'https://bob.example', boundPubkey: BOB })]),
+      Promise.resolve(
+        owner === ALICE
+          ? [site({ origin: 'https://alice.example' })]
+          : [site({ origin: 'https://bob.example', boundPubkey: BOB })],
+      ),
     );
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain('https://alice.example');
@@ -248,7 +255,9 @@ describe('one account’s sites at a time (#309)', () => {
     expect(mocks.listConnectedSites).toHaveBeenLastCalledWith(BOB);
     expect(wrapper.text()).not.toContain('https://alice.example');
     expect(wrapper.text()).toContain('https://bob.example');
-    expect(wrapper.find('[data-testid="sites-account"]').text()).toBe('dashboard.connectedSites.accountCaption:bob');
+    expect(wrapper.find('[data-testid="sites-account"]').text()).toBe(
+      'dashboard.connectedSites.accountCaption:bob',
+    );
   });
 
   it('disconnects for the account the page is showing', async () => {
@@ -267,7 +276,9 @@ describe('one account’s sites at a time (#309)', () => {
 
     const wrapper = await mountPage();
 
-    expect(wrapper.find('[data-testid="sites-account"]').text()).toBe('dashboard.connectedSites.noAccount');
+    expect(wrapper.find('[data-testid="sites-account"]').text()).toBe(
+      'dashboard.connectedSites.noAccount',
+    );
     expect(mocks.listConnectedSites).not.toHaveBeenCalled();
     expect(wrapper.text()).not.toContain('dashboard.connectedSites.empty');
   });

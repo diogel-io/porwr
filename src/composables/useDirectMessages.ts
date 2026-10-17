@@ -1,5 +1,10 @@
 import { onBeforeUnmount, ref, shallowRef } from 'vue';
-import { fetchMessages, getReadState, markConversationRead, sendMessage } from '@/services/messaging-service';
+import {
+  fetchMessages,
+  getReadState,
+  markConversationRead,
+  sendMessage,
+} from '@/services/messaging-service';
 import { conversationMessages, mergeMessages, newestFrom } from '@/utils/conversations';
 import type { DirectMessage, MessagingReadState, PendingMessage } from '@/types/messaging';
 
@@ -51,7 +56,10 @@ export function useDirectMessages(options: DirectMessagesOptions) {
       loadFailed.value = false;
       if (result.messages.length > 0) {
         messages.value = mergeMessages(messages.value, result.messages);
-        newestFetched = Math.max(newestFetched ?? 0, ...result.messages.map((message) => message.created_at));
+        newestFetched = Math.max(
+          newestFetched ?? 0,
+          ...result.messages.map((message) => message.created_at),
+        );
         await options.onMessages?.(result.messages);
       }
     } catch {
@@ -107,7 +115,9 @@ export function useDirectMessages(options: DirectMessagesOptions) {
         recipient: message.peer,
         content: message.content,
       });
-      pending.value = pending.value.filter((entry) => entry.clientMessageId !== message.clientMessageId);
+      pending.value = pending.value.filter(
+        (entry) => entry.clientMessageId !== message.clientMessageId,
+      );
       if (result.status === 'sent') {
         messages.value = mergeMessages(messages.value, [result.message]);
       } else {
@@ -122,7 +132,12 @@ export function useDirectMessages(options: DirectMessagesOptions) {
   }
 
   function send(peer: string, content: string) {
-    const message: PendingMessage = { clientMessageId: crypto.randomUUID(), peer, content, status: 'sending' };
+    const message: PendingMessage = {
+      clientMessageId: crypto.randomUUID(),
+      peer,
+      content,
+      status: 'sending',
+    };
     pending.value = [...pending.value, message];
     void deliver(message);
   }
@@ -131,7 +146,9 @@ export function useDirectMessages(options: DirectMessagesOptions) {
     const message = pending.value.find((entry) => entry.clientMessageId === clientMessageId);
     if (!message) return;
     const again: PendingMessage = { ...message, status: 'sending' };
-    pending.value = pending.value.map((entry) => (entry.clientMessageId === clientMessageId ? again : entry));
+    pending.value = pending.value.map((entry) =>
+      entry.clientMessageId === clientMessageId ? again : entry,
+    );
     void deliver(again);
   }
 

@@ -4,7 +4,6 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AccountDropdown from '@/components/shared/AccountDropdown.vue';
 
-
 const route = useRoute();
 const { t } = useI18n();
 
@@ -30,9 +29,7 @@ const pageTitle = computed(() => {
       .join(' ');
   }
 
-  const pathSegment = route.path
-    .split('/')
-    .filter(Boolean)[0];
+  const pathSegment = route.path.split('/').filter(Boolean)[0];
 
   if (!pathSegment) {
     return t('navigation.dashboard.label');
@@ -40,14 +37,12 @@ const pageTitle = computed(() => {
 
   return pathSegment.charAt(0).toUpperCase() + pathSegment.slice(1);
 });
-
 </script>
 
 <template>
   <q-header class="dashboard-topbar">
     <q-toolbar class="dashboard-topbar__toolbar">
-      <div class="dashboard-topbar__brand">
-      </div>
+      <div class="dashboard-topbar__brand"></div>
       <q-toolbar-title class="dashboard-topbar__title">{{ pageTitle }}</q-toolbar-title>
       <div class="dashboard-topbar__account"><account-dropdown /></div>
     </q-toolbar>

@@ -14,11 +14,11 @@ import type {
 function isErrorResponse(value: unknown): value is { success: false; error: string } {
   return Boolean(
     value &&
-      typeof value === 'object' &&
-      'success' in value &&
-      (value as { success?: unknown }).success === false &&
-      'error' in value &&
-      typeof (value as { error?: unknown }).error === 'string',
+    typeof value === 'object' &&
+    'success' in value &&
+    (value as { success?: unknown }).success === false &&
+    'error' in value &&
+    typeof (value as { error?: unknown }).error === 'string',
   );
 }
 
@@ -33,7 +33,9 @@ function throwIfError(value: unknown): void {
  * checks the account against the vault and finds no connection of any other account's.
  */
 
-export async function listNip47Connections(accountPubkey: string): Promise<Nip47ConnectionSummary[]> {
+export async function listNip47Connections(
+  accountPubkey: string,
+): Promise<Nip47ConnectionSummary[]> {
   const response = await sendBexMessage('nip47.connections.list', { accountPubkey });
   throwIfError(response);
   return Array.isArray(response) ? response : [];
@@ -50,8 +52,14 @@ export async function importNip47Connection(
   return response;
 }
 
-export async function removeNip47Connection(accountPubkey: string, connectionId: string): Promise<void> {
-  const response = await sendBexMessage('nip47.connections.remove', { accountPubkey, connectionId });
+export async function removeNip47Connection(
+  accountPubkey: string,
+  connectionId: string,
+): Promise<void> {
+  const response = await sendBexMessage('nip47.connections.remove', {
+    accountPubkey,
+    connectionId,
+  });
   throwIfError(response);
 }
 
@@ -60,7 +68,10 @@ export async function setActiveNip47Connection(
   connectionId: string,
 ): Promise<Nip47ConnectionSummary> {
   try {
-    const response = await sendBexMessage('nip47.connections.setActive', { accountPubkey, connectionId });
+    const response = await sendBexMessage('nip47.connections.setActive', {
+      accountPubkey,
+      connectionId,
+    });
     throwIfError(response);
     if (!response || typeof response !== 'object' || !('id' in response)) {
       throw new Error('Invalid NIP-47 active connection response');
@@ -73,7 +84,10 @@ export async function setActiveNip47Connection(
   }
 }
 
-export async function getNip47Info(accountPubkey: string, connectionId: string): Promise<Nip47InfoResponse> {
+export async function getNip47Info(
+  accountPubkey: string,
+  connectionId: string,
+): Promise<Nip47InfoResponse> {
   const response = await sendBexMessage('nip47.getInfo', { accountPubkey, connectionId });
   throwIfError(response);
   if (!response || typeof response !== 'object' || !('capabilities' in response)) {
@@ -82,7 +96,10 @@ export async function getNip47Info(accountPubkey: string, connectionId: string):
   return response;
 }
 
-export async function getNip47Balance(accountPubkey: string, connectionId: string): Promise<Nip47BalanceResponse> {
+export async function getNip47Balance(
+  accountPubkey: string,
+  connectionId: string,
+): Promise<Nip47BalanceResponse> {
   const response = await sendBexMessage('nip47.getBalance', { accountPubkey, connectionId });
   throwIfError(response);
   if (!response || typeof response !== 'object' || !('balanceMsat' in response)) {
@@ -96,7 +113,11 @@ export async function payNip47Invoice(
   connectionId: string,
   invoice: string,
 ): Promise<Nip47PayInvoiceResponse> {
-  const response = await sendBexMessage('nip47.payInvoice', { accountPubkey, connectionId, invoice });
+  const response = await sendBexMessage('nip47.payInvoice', {
+    accountPubkey,
+    connectionId,
+    invoice,
+  });
   throwIfError(response);
   if (!response || typeof response !== 'object' || !('preimage' in response)) {
     throw new Error('Invalid NIP-47 pay_invoice response');
@@ -104,7 +125,9 @@ export async function payNip47Invoice(
   return response;
 }
 
-export async function listNip47PaymentHistory(accountPubkey: string): Promise<Nip47PaymentHistoryEntry[]> {
+export async function listNip47PaymentHistory(
+  accountPubkey: string,
+): Promise<Nip47PaymentHistoryEntry[]> {
   const response = await sendBexMessage('nip47.payments.list', { accountPubkey });
   throwIfError(response);
   return Array.isArray(response) ? response : [];
@@ -133,7 +156,9 @@ export async function completeNip47Authorization(
 }
 
 /** @returns The saved connection, or `null` when the wallet did not approve Porwr. */
-export async function probeNip47Authorization(pendingId: string): Promise<Nip47ConnectionSummary | null> {
+export async function probeNip47Authorization(
+  pendingId: string,
+): Promise<Nip47ConnectionSummary | null> {
   const response = await sendBexMessage('nip47.authorization.probe', { pendingId });
   throwIfError(response);
   return response && typeof response === 'object' && 'id' in response ? response : null;

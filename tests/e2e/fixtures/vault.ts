@@ -101,7 +101,10 @@ export async function seedAccounts(page: Page, accounts: readonly SeedAccount[])
     const answers: unknown[] = [];
     for (const account of list) {
       answers.push(
-        await chrome.runtime.sendMessage({ type: 'accounts.add', payload: { alias: account.alias, privkey: account.privkey } }),
+        await chrome.runtime.sendMessage({
+          type: 'accounts.add',
+          payload: { alias: account.alias, privkey: account.privkey },
+        }),
       );
     }
     await chrome.storage.local.set({ 'nostr:active': list[0]?.alias });
@@ -110,7 +113,11 @@ export async function seedAccounts(page: Page, accounts: readonly SeedAccount[])
 
   results.forEach((result, index) => {
     const expected = accounts[index]!;
-    if (!result || typeof result !== 'object' || (result as { id?: string }).id !== expected.pubkey) {
+    if (
+      !result ||
+      typeof result !== 'object' ||
+      (result as { id?: string }).id !== expected.pubkey
+    ) {
       throw new Error(`Could not seed ${expected.alias}: ${JSON.stringify(result)}`);
     }
   });
@@ -129,8 +136,9 @@ export async function seedAccount(page: Page): Promise<void> {
  */
 export async function requestSignatureFromPage(sitePage: Page): Promise<void> {
   await sitePage.evaluate(() => {
-    const provider = (window as unknown as { nostr?: { signEvent: (event: unknown) => Promise<unknown> } })
-      .nostr;
+    const provider = (
+      window as unknown as { nostr?: { signEvent: (event: unknown) => Promise<unknown> } }
+    ).nostr;
     if (!provider) throw new Error('window.nostr was not injected into the page');
 
     // Held so the promise is not garbage, and so a later test can inspect it if needed.

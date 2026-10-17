@@ -19,7 +19,11 @@ const account = (id: string, alias: string): StoredKey => ({
 });
 
 /** A connection as 0.2.x stored it: no `accountPubkey`. */
-function legacyConnection(id: string, isActive: boolean, updatedAt = '2026-06-14T00:00:00.000Z'): Nip47Connection {
+function legacyConnection(
+  id: string,
+  isActive: boolean,
+  updatedAt = '2026-06-14T00:00:00.000Z',
+): Nip47Connection {
   return {
     id,
     label: id,
@@ -46,11 +50,15 @@ const legacyPayment = (id: string): Nip47PaymentHistoryEntry =>
 
 describe('mainAccountPubkey', () => {
   it('is the account aliased Main Account, wherever it sits', () => {
-    expect(mainAccountPubkey({ accounts: [account(WORK, 'work'), account(MAIN, 'Main Account')] })).toBe(MAIN);
+    expect(
+      mainAccountPubkey({ accounts: [account(WORK, 'work'), account(MAIN, 'Main Account')] }),
+    ).toBe(MAIN);
   });
 
   it('falls back to the first account when none carries the alias', () => {
-    expect(mainAccountPubkey({ accounts: [account(WORK, 'work'), account(MAIN, 'personal')] })).toBe(WORK);
+    expect(
+      mainAccountPubkey({ accounts: [account(WORK, 'work'), account(MAIN, 'personal')] }),
+    ).toBe(WORK);
   });
 
   it('is null for a vault with no accounts', () => {
@@ -104,7 +112,10 @@ describe('assignUnownedWalletData', () => {
   it('never moves data that already has an owner', () => {
     const vault: VaultData = {
       accounts: [account(MAIN, 'Main Account'), account(WORK, 'work')],
-      nip47Connections: [legacyConnection('legacy', false), { ...legacyConnection('work', true), accountPubkey: WORK }],
+      nip47Connections: [
+        legacyConnection('legacy', false),
+        { ...legacyConnection('work', true), accountPubkey: WORK },
+      ],
     };
 
     const migrated = assignUnownedWalletData(vault);
@@ -126,6 +137,8 @@ describe('assignUnownedWalletData', () => {
 
     const migrated = assignUnownedWalletData(vault);
 
-    expect(migrated.nip47Connections?.filter((item) => item.isActive).map((item) => item.id)).toEqual(['newer']);
+    expect(
+      migrated.nip47Connections?.filter((item) => item.isActive).map((item) => item.id),
+    ).toEqual(['newer']);
   });
 });

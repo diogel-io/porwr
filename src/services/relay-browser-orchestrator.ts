@@ -22,23 +22,32 @@ export class RelayBrowserOrchestrator {
    */
   async refreshCatalog(force = false): Promise<void> {
     if (this.isRefreshing) {
-      logService.log(LogLevel.DEBUG, '[RelayBrowserOrchestrator] Refresh already in progress, skipping');
+      logService.log(
+        LogLevel.DEBUG,
+        '[RelayBrowserOrchestrator] Refresh already in progress, skipping',
+      );
       return;
     }
 
     const state = await relayCatalogService.getDiscoveryState('global');
     if (state?.isDiscoveryInProgress) {
-       logService.log(LogLevel.DEBUG, '[RelayBrowserOrchestrator] Discovery already marked in progress in DB, skipping');
-       return;
+      logService.log(
+        LogLevel.DEBUG,
+        '[RelayBrowserOrchestrator] Discovery already marked in progress in DB, skipping',
+      );
+      return;
     }
 
     this.isRefreshing = true;
 
     try {
       // 1. Initial State Update: Mark in progress
-      await relayCatalogService.updateDiscoveryState({
-        isDiscoveryInProgress: true,
-      }, 'global');
+      await relayCatalogService.updateDiscoveryState(
+        {
+          isDiscoveryInProgress: true,
+        },
+        'global',
+      );
 
       // 2. Load Seeds if empty
       const initialEntries = await relayCatalogService.getEntries();
@@ -52,7 +61,6 @@ export class RelayBrowserOrchestrator {
 
       // 5. Final State Update: Success
       await this.updateCompletionState(initialEntries.length);
-
     } catch (error) {
       await this.handleFailure(error);
     } finally {
@@ -62,7 +70,10 @@ export class RelayBrowserOrchestrator {
 
   private async ensureSeedCatalog(entries: RelayCatalogEntry[]): Promise<void> {
     if (entries.length === 0) {
-      logService.log(LogLevel.INFO, '[RelayBrowserOrchestrator] Catalog empty, loading seed relays');
+      logService.log(
+        LogLevel.INFO,
+        '[RelayBrowserOrchestrator] Catalog empty, loading seed relays',
+      );
       await loadSeedRelays();
     }
   }
@@ -72,13 +83,15 @@ export class RelayBrowserOrchestrator {
     if (force || relayCatalogService.isDiscoveryStale(currentState)) {
       logService.log(LogLevel.INFO, '[RelayBrowserOrchestrator] Triggering discovery');
       const seeds = (await relayCatalogService.getEntries())
-        .filter(e => e.isSeed)
-        .map(e => e.url);
+        .filter((e) => e.isSeed)
+        .map((e) => e.url);
 
       const discoveryResult = await relayDiscoveryService.discoverFromRelays(seeds);
 
       if (discoveryResult.errors.length > 0) {
-        logService.log(LogLevel.WARN, '[RelayBrowserOrchestrator] Discovery had errors', { errors: discoveryResult.errors });
+        logService.log(LogLevel.WARN, '[RelayBrowserOrchestrator] Discovery had errors', {
+          errors: discoveryResult.errors,
+        });
       }
 
       // Upsert discovered relays
@@ -89,18 +102,24 @@ export class RelayBrowserOrchestrator {
         }
       }
 
-      await relayCatalogService.updateDiscoveryState({
-        lastGlobalDiscoveryAt: Date.now(),
-      }, 'global');
+      await relayCatalogService.updateDiscoveryState(
+        {
+          lastGlobalDiscoveryAt: Date.now(),
+        },
+        'global',
+      );
     } else {
       logService.log(LogLevel.DEBUG, '[RelayBrowserOrchestrator] Discovery is fresh, skipping');
     }
   }
 
   private async runMetadataPhase(force: boolean): Promise<void> {
-    logService.log(LogLevel.DEBUG, '[RelayBrowserOrchestrator] Starting metadata refresh for stale entries');
+    logService.log(
+      LogLevel.DEBUG,
+      '[RelayBrowserOrchestrator] Starting metadata refresh for stale entries',
+    );
     const allEntries = await relayCatalogService.getEntries();
-    const staleEntries = allEntries.filter(e => force || relayCatalogService.isMetadataStale(e));
+    const staleEntries = allEntries.filter((e) => force || relayCatalogService.isMetadataStale(e));
 
     const CONCURRENCY_LIMIT = 5;
     const activePromises = new Set<Promise<void>>();
@@ -126,7 +145,11 @@ export class RelayBrowserOrchestrator {
             });
           }
         } catch (e) {
-          logService.log(LogLevel.ERROR, `[RelayBrowserOrchestrator] Metadata fetch failed for ${entry.url}`, { error: e });
+          logService.log(
+            LogLevel.ERROR,
+            `[RelayBrowserOrchestrator] Metadata fetch failed for ${entry.url}`,
+            { error: e },
+          );
         }
       })();
 
@@ -142,29 +165,39 @@ export class RelayBrowserOrchestrator {
 
   private async updateCompletionState(initialCount: number): Promise<void> {
     const finalEntries = await relayCatalogService.getEntries();
-    await relayCatalogService.updateDiscoveryState({
-      isDiscoveryInProgress: false,
-      discoveryStats: {
-         totalDiscovered: finalEntries.length,
-         newFound: finalEntries.length - initialCount,
-      }
-    }, 'global');
+    await relayCatalogService.updateDiscoveryState(
+      {
+        isDiscoveryInProgress: false,
+        discoveryStats: {
+          totalDiscovered: finalEntries.length,
+          newFound: finalEntries.length - initialCount,
+        },
+      },
+      'global',
+    );
   }
 
   private async handleFailure(error: unknown): Promise<void> {
     logService.log(LogLevel.ERROR, '[RelayBrowserOrchestrator] Refresh failed', { error });
     try {
       const currentEntries = await relayCatalogService.getEntries();
-      await relayCatalogService.updateDiscoveryState({
-        isDiscoveryInProgress: false,
-        discoveryStats: {
-           totalDiscovered: currentEntries.length,
-           newFound: 0,
-           lastError: error instanceof Error ? error.message : String(error),
-        }
-      }, 'global');
+      await relayCatalogService.updateDiscoveryState(
+        {
+          isDiscoveryInProgress: false,
+          discoveryStats: {
+            totalDiscovered: currentEntries.length,
+            newFound: 0,
+            lastError: error instanceof Error ? error.message : String(error),
+          },
+        },
+        'global',
+      );
     } catch (innerError) {
-      logService.log(LogLevel.ERROR, '[RelayBrowserOrchestrator] Failed to update discovery state after error', { error: innerError });
+      logService.log(
+        LogLevel.ERROR,
+        '[RelayBrowserOrchestrator] Failed to update discovery state after error',
+        { error: innerError },
+      );
     }
   }
 }

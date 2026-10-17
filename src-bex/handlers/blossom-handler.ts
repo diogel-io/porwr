@@ -19,9 +19,7 @@ export async function handleBlossomUpload(
   void _origin;
   const { base64Data, fileType, blossomServer, uploadId } = payload;
 
-  const uploadStatusKey = uploadId
-    ? `blossom:upload_status:${uploadId}`
-    : BLOSSOM_UPLOAD_STATUS;
+  const uploadStatusKey = uploadId ? `blossom:upload_status:${uploadId}` : BLOSSOM_UPLOAD_STATUS;
 
   if (!base64Data || !blossomServer) {
     return {
@@ -187,7 +185,9 @@ async function getActiveStoredKey(): Promise<StoredKey | null> {
   const activeAlias = await storageService.get<string>(NOSTR_ACTIVE);
 
   if (!activeAlias) {
-    const vaultDataRes = (await handleVaultGetData({}, '')) as HandlerResult<{ vaultData?: VaultData }>;
+    const vaultDataRes = (await handleVaultGetData({}, '')) as HandlerResult<{
+      vaultData?: VaultData;
+    }>;
     if (vaultDataRes.success && vaultDataRes.data.vaultData) {
       const vaultData = vaultDataRes.data.vaultData;
       const accounts = vaultData.accounts || [];
@@ -204,7 +204,9 @@ async function getActiveStoredKey(): Promise<StoredKey | null> {
 
   const vaultRes = (await handleVaultGetData({}, '')) as HandlerResult<{ vaultData?: VaultData }>;
   if (vaultRes.success && vaultRes.data.vaultData) {
-    return vaultRes.data.vaultData.accounts?.find((account) => account.alias === activeAlias) || null;
+    return (
+      vaultRes.data.vaultData.accounts?.find((account) => account.alias === activeAlias) || null
+    );
   }
 
   return null;

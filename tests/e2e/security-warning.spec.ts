@@ -44,7 +44,11 @@ test.describe('security warning (#298)', () => {
     await createVault(page);
     await seedAccounts(page, [TEST_ACCOUNT]);
     await goTo(page, '/keys');
-    await page.getByRole('button', { name: 'View' }).or(page.getByRole('link', { name: 'View' })).first().click();
+    await page
+      .getByRole('button', { name: 'View' })
+      .or(page.getByRole('link', { name: 'View' }))
+      .first()
+      .click();
 
     const warning = page.locator('.view-key-page__card .security-warning');
     await expect(warning).toBeVisible();

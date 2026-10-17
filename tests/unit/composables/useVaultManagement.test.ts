@@ -96,14 +96,20 @@ describe('useVaultManagement', () => {
     });
 
     it('notifies with a formatted error when exportVault fails', async () => {
-      testState.exportVaultMock.mockResolvedValue({ success: false, error: 'No vault found', code: 'VLT_NOT_CREATED' });
+      testState.exportVaultMock.mockResolvedValue({
+        success: false,
+        error: 'No vault found',
+        code: 'VLT_NOT_CREATED',
+      });
       const wrapper = mount(TestHarness);
       const vm = wrapper.vm as unknown as HarnessVm;
 
       await vm.handleExportVault();
 
       expect(testState.exportFileMock).not.toHaveBeenCalled();
-      expect(testState.notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'negative' }));
+      expect(testState.notifyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'negative' }),
+      );
     });
   });
 
@@ -149,11 +155,17 @@ describe('useVaultManagement', () => {
 
       expect(testState.importVaultMock).toHaveBeenCalledWith('v2:abc');
       expect(testState.pushMock).toHaveBeenCalledWith({ name: 'login' });
-      expect(testState.notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'positive' }));
+      expect(testState.notifyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'positive' }),
+      );
     });
 
     it('notifies with a formatted error and does not redirect when importVault resolves unsuccessfully', async () => {
-      testState.importVaultMock.mockResolvedValue({ success: false, error: 'Invalid vault format', code: 'GEN_INVALID_INPUT' });
+      testState.importVaultMock.mockResolvedValue({
+        success: false,
+        error: 'Invalid vault format',
+        code: 'GEN_INVALID_INPUT',
+      });
       const wrapper = mount(TestHarness);
       const vm = wrapper.vm as unknown as HarnessVm;
       const file = new File([JSON.stringify({ encryptedData: 'v2:corrupt' })], 'backup.json', {
@@ -165,7 +177,9 @@ describe('useVaultManagement', () => {
       await vi.waitFor(() => expect(testState.notifyMock).toHaveBeenCalled());
 
       expect(testState.pushMock).not.toHaveBeenCalled();
-      expect(testState.notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'negative' }));
+      expect(testState.notifyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'negative' }),
+      );
     });
 
     it('notifies with the rejection message when importVault itself rejects', async () => {

@@ -18,14 +18,22 @@ const mocks = vi.hoisted(() => ({
   addSavedPeer: vi.fn(),
   removeSavedPeer: vi.fn(),
   observeContactCache: vi.fn(),
-  cachedContacts: {} as Record<string, { pubkey: string; relayUrl: string; petname: string }[] | undefined>,
+  cachedContacts: {} as Record<
+    string,
+    { pubkey: string; relayUrl: string; petname: string }[] | undefined
+  >,
   notify: vi.fn(),
   getKeys: vi.fn(),
   setActiveKey: vi.fn(),
   store: {
     activeKey: 'alice' as string | undefined,
     hasNoAccounts: false,
-    activeAccountOrFirst: { id: 'a'.repeat(64), alias: 'alice', createdAt: '', account: { privkey: '' } } as unknown,
+    activeAccountOrFirst: {
+      id: 'a'.repeat(64),
+      alias: 'alice',
+      createdAt: '',
+      account: { privkey: '' },
+    } as unknown,
   },
 }));
 
@@ -43,8 +51,10 @@ vi.mock('@/services/contact-list-service', () => ({
   fetchContactProfiles: mocks.fetchContactProfiles,
   requestContactRefresh: mocks.requestContactRefresh,
   formatContactNpub: (pubkey: string) => `npub1${pubkey}`,
-  getContactDisplayName: (contact: { pubkey: string; petname: string }, profile?: { name: string }) =>
-    profile?.name || contact.petname || `npub-${contact.pubkey.slice(0, 4)}`,
+  getContactDisplayName: (
+    contact: { pubkey: string; petname: string },
+    profile?: { name: string },
+  ) => profile?.name || contact.petname || `npub-${contact.pubkey.slice(0, 4)}`,
 }));
 
 vi.mock('@/services/contact-cache', () => ({
@@ -82,7 +92,13 @@ import MessagingPage from '@/pages/dashboard/MessagingPage.vue';
 // in the next test.
 enableAutoUnmount(afterEach);
 
-const msg = (id: string, peer: string, from: string, created_at: number, content = id): DirectMessage => ({
+const msg = (
+  id: string,
+  peer: string,
+  from: string,
+  created_at: number,
+  content = id,
+): DirectMessage => ({
   id,
   peer,
   pubkey: from,
@@ -93,9 +109,12 @@ const msg = (id: string, peer: string, from: string, created_at: number, content
 const stubs = {
   'q-page': { template: '<div><slot /></div>' },
   'q-card': { template: '<div><slot /></div>' },
-  'q-banner': { template: '<div class="q-banner" v-bind="$attrs"><slot /><slot name="action" /></div>' },
+  'q-banner': {
+    template: '<div class="q-banner" v-bind="$attrs"><slot /><slot name="action" /></div>',
+  },
   'q-btn': {
-    template: '<button :disabled="disable" :aria-label="ariaLabel || label" @click="$emit(\'click\', $event)">{{ label }}</button>',
+    template:
+      '<button :disabled="disable" :aria-label="ariaLabel || label" @click="$emit(\'click\', $event)">{{ label }}</button>',
     props: ['label', 'ariaLabel', 'disable', 'to'],
     emits: ['click'],
   },
@@ -106,13 +125,20 @@ const stubs = {
     emits: ['update:modelValue', 'keydown'],
   },
   'q-list': { template: '<ul><slot /></ul>' },
-  'q-item': { template: '<li class="conversation" :data-peer="$attrs[\'data-peer\']" @click="$emit(\'click\')"><slot /></li>', emits: ['click'] },
+  'q-item': {
+    template:
+      '<li class="conversation" :data-peer="$attrs[\'data-peer\']" @click="$emit(\'click\')"><slot /></li>',
+    emits: ['click'],
+  },
   'q-item-section': { template: '<div><slot /></div>' },
   'q-item-label': { template: '<span><slot /></span>' },
   'q-avatar': { template: '<span><slot /></span>' },
   'q-badge': { template: '<span class="unread">{{ label }}</span>', props: ['label'] },
   'q-tabs': { template: '<div role="tablist"><slot /></div>' },
-  'q-tab': { template: '<button role="tab" @click="$emit(\'click\', $event)"><slot /></button>', emits: ['click'] },
+  'q-tab': {
+    template: '<button role="tab" @click="$emit(\'click\', $event)"><slot /></button>',
+    emits: ['click'],
+  },
 };
 
 const mountPage = async () => {
@@ -139,17 +165,28 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
   uuid = 0;
-  Object.defineProperty(globalThis.crypto, 'randomUUID', { value: () => `uuid-${++uuid}`, configurable: true });
+  Object.defineProperty(globalThis.crypto, 'randomUUID', {
+    value: () => `uuid-${++uuid}`,
+    configurable: true,
+  });
   Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
   mocks.store.activeKey = 'alice';
   mocks.store.hasNoAccounts = false;
-  mocks.store.activeAccountOrFirst = { id: ME, alias: 'alice', createdAt: '', account: { privkey: '' } };
+  mocks.store.activeAccountOrFirst = {
+    id: ME,
+    alias: 'alice',
+    createdAt: '',
+    account: { privkey: '' },
+  };
   mocks.getKeys.mockResolvedValue(undefined);
   mocks.cachedContacts = { [ME]: [{ pubkey: BOB, relayUrl: '', petname: 'Bob' }] };
   mocks.observeContactCache.mockImplementation(
     (accountPubkey: string, onChange: (snapshot: unknown) => void) => {
       const contacts = mocks.cachedContacts[accountPubkey];
-      onChange({ list: contacts ? { accountPubkey, contacts, fetchedAt: 1 } : undefined, profiles: {} });
+      onChange({
+        list: contacts ? { accountPubkey, contacts, fetchedAt: 1 } : undefined,
+        profiles: {},
+      });
       return () => undefined;
     },
   );
@@ -160,7 +197,9 @@ beforeEach(() => {
   mocks.getSavedPeers.mockResolvedValue([BOB]);
   mocks.addSavedPeer.mockImplementation((peer: string) => Promise.resolve([BOB, peer]));
   mocks.removeSavedPeer.mockResolvedValue([]);
-  mocks.markConversationRead.mockImplementation((peer: string, readAt: number) => Promise.resolve({ [peer]: readAt }));
+  mocks.markConversationRead.mockImplementation((peer: string, readAt: number) =>
+    Promise.resolve({ [peer]: readAt }),
+  );
   mocks.fetchMessages.mockResolvedValue({ inbox: 'ready', messages: [], dropped: 0 });
 });
 
@@ -172,7 +211,10 @@ describe('MessagingPage', () => {
   it('keeps the support conversation on the Support page when support is not a contact (#228)', async () => {
     mocks.fetchMessages.mockResolvedValue({
       inbox: 'ready',
-      messages: [msg('s', SUPPORT_PUBKEY, SUPPORT_PUBKEY, 30, 'support reply'), msg('1', BOB, BOB, 10, 'hi from bob')],
+      messages: [
+        msg('s', SUPPORT_PUBKEY, SUPPORT_PUBKEY, 30, 'support reply'),
+        msg('1', BOB, BOB, 10, 'hi from bob'),
+      ],
       dropped: 0,
     });
 
@@ -207,7 +249,10 @@ describe('MessagingPage', () => {
   it('lists conversations under Chats and non-contacts under Requests, with unread counts', async () => {
     mocks.fetchMessages.mockResolvedValue({
       inbox: 'ready',
-      messages: [msg('1', BOB, BOB, 10, 'hi from bob'), msg('2', STRANGER, STRANGER, 20, 'who dis')],
+      messages: [
+        msg('1', BOB, BOB, 10, 'hi from bob'),
+        msg('2', STRANGER, STRANGER, 20, 'who dis'),
+      ],
       dropped: 0,
     });
 
@@ -236,7 +281,9 @@ describe('MessagingPage', () => {
 
     await wrapper.find('[data-testid="conversation-search"]').setValue('bob');
     await flushPromises();
-    await wrapper.find(`[data-testid="conversation-search-results"] li[data-peer="${BOB}"]`).trigger('click');
+    await wrapper
+      .find(`[data-testid="conversation-search-results"] li[data-peer="${BOB}"]`)
+      .trigger('click');
     await flushPromises();
 
     expect(mocks.addSavedPeer).toHaveBeenCalledWith(BOB);
@@ -252,7 +299,9 @@ describe('MessagingPage', () => {
 
     await wrapper.find('[data-testid="conversation-search"]').setValue('bob');
     await flushPromises();
-    await wrapper.find(`[data-testid="conversation-search-results"] li[data-peer="${BOB}"]`).trigger('click');
+    await wrapper
+      .find(`[data-testid="conversation-search-results"] li[data-peer="${BOB}"]`)
+      .trigger('click');
     await flushPromises();
 
     expect(wrapper.find('[data-testid="conversation-list-chats"]').exists()).toBe(false);
@@ -262,7 +311,9 @@ describe('MessagingPage', () => {
   it('removes an added conversation that has no messages', async () => {
     const wrapper = await mountPage();
 
-    await wrapper.find(`li[data-peer="${BOB}"] [data-testid="conversation-remove"]`).trigger('click');
+    await wrapper
+      .find(`li[data-peer="${BOB}"] [data-testid="conversation-remove"]`)
+      .trigger('click');
     await flushPromises();
 
     expect(mocks.removeSavedPeer).toHaveBeenCalledWith(BOB);
@@ -298,7 +349,11 @@ describe('MessagingPage', () => {
 
     await typeAndSend(wrapper, 'are you there?');
 
-    expect(mocks.sendMessage).toHaveBeenCalledWith({ clientMessageId: 'uuid-1', recipient: BOB, content: 'are you there?' });
+    expect(mocks.sendMessage).toHaveBeenCalledWith({
+      clientMessageId: 'uuid-1',
+      recipient: BOB,
+      content: 'are you there?',
+    });
     expect(wrapper.find('[data-from="me"]').text()).toContain('are you there?');
     expect(wrapper.find('[data-status]').exists()).toBe(false);
   });
@@ -320,7 +375,10 @@ describe('MessagingPage', () => {
     await wrapper.find('[data-status="failed"] button').trigger('click');
     await flushPromises();
 
-    expect(mocks.sendMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({ clientMessageId: 'uuid-1' }));
+    expect(mocks.sendMessage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ clientMessageId: 'uuid-1' }),
+    );
     expect(wrapper.find('[data-status]').exists()).toBe(false);
     expect(wrapper.find('[data-from="me"]').text()).toContain('retry me');
   });
@@ -344,7 +402,11 @@ describe('MessagingPage', () => {
   });
 
   it('checks for new messages while visible, overlapping the last fetch, and stops when left', async () => {
-    mocks.fetchMessages.mockResolvedValueOnce({ inbox: 'ready', messages: [msg('1', BOB, BOB, 1_000)], dropped: 0 });
+    mocks.fetchMessages.mockResolvedValueOnce({
+      inbox: 'ready',
+      messages: [msg('1', BOB, BOB, 1_000)],
+      dropped: 0,
+    });
     const wrapper = await mountPage();
     expect(mocks.fetchMessages).toHaveBeenCalledWith(undefined);
 
@@ -407,12 +469,21 @@ describe('MessagingPage', () => {
     const wrapper = await mountPage();
     expect(mocks.observeContactCache).toHaveBeenCalledTimes(1);
 
-    mocks.store.activeAccountOrFirst = { id: STRANGER, alias: 'other', createdAt: '', account: { privkey: '' } };
+    mocks.store.activeAccountOrFirst = {
+      id: STRANGER,
+      alias: 'other',
+      createdAt: '',
+      account: { privkey: '' },
+    };
     // The store is not reactive in this test; re-mounting stands in for the switch the watcher covers.
     wrapper.unmount();
     const next = await mountPage();
 
-    expect(mocks.observeContactCache).toHaveBeenLastCalledWith(STRANGER, expect.any(Function), expect.any(Function));
+    expect(mocks.observeContactCache).toHaveBeenLastCalledWith(
+      STRANGER,
+      expect.any(Function),
+      expect.any(Function),
+    );
     // The other account has no cached contacts, so Bob must not appear under it.
     expect(next.find(`li[data-peer="${BOB}"]`).exists()).toBe(false);
   });

@@ -3,7 +3,11 @@ import { ref, watch, onMounted, computed, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { logService, LogLevel } from '@/services/log-service';
 import type { RelayCatalogEntry } from '@/types/relay';
-import { listRelayCatalog, refreshRelayCatalog, getRelayDiscoveryStatus } from '@/services/relay-service';
+import {
+  listRelayCatalog,
+  refreshRelayCatalog,
+  getRelayDiscoveryStatus,
+} from '@/services/relay-service';
 import { filterRelays } from '@/utils/relay-filters';
 
 const { t } = useI18n();
@@ -77,7 +81,9 @@ async function checkStatus() {
     const status = await getRelayDiscoveryStatus();
 
     // Determine if we should trigger an automatic refresh
-    const isStale = !status || !status.lastGlobalDiscoveryAt ||
+    const isStale =
+      !status ||
+      !status.lastGlobalDiscoveryAt ||
       Date.now() - status.lastGlobalDiscoveryAt > 24 * 60 * 60 * 1000; // 24 hours
     const isEmpty = relays.value.length === 0 && !loading.value;
 
@@ -249,7 +255,10 @@ function selectRelay(relay: RelayCatalogEntry) {
         </div>
       </q-card-section>
 
-      <q-card-actions v-if="!loading && filteredRelays.length > 0" class="row items-center justify-between q-px-md q-pb-md">
+      <q-card-actions
+        v-if="!loading && filteredRelays.length > 0"
+        class="row items-center justify-between q-px-md q-pb-md"
+      >
         <q-select
           v-model="pageSize"
           :options="pageSizeOptions"
@@ -275,5 +284,4 @@ function selectRelay(relay: RelayCatalogEntry) {
   </q-dialog>
 </template>
 
-<style scoped>
-</style>
+<style scoped></style>

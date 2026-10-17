@@ -15,9 +15,16 @@ const LEGIBLE_ALIAS_PX = 48;
 const renameActiveAccount = async (page: import('@playwright/test').Page, alias: string) => {
   const renamed = await page.evaluate(async (name) => {
     const current = (await chrome.storage.local.get('nostr:active'))['nostr:active'] as string;
-    return chrome.runtime.sendMessage({ type: 'accounts.rename', payload: { currentAlias: current, newAlias: name } });
+    return chrome.runtime.sendMessage({
+      type: 'accounts.rename',
+      payload: { currentAlias: current, newAlias: name },
+    });
   }, alias);
-  if (!renamed || typeof renamed !== 'object' || (renamed as { alias?: string }).alias !== alias.trim()) {
+  if (
+    !renamed ||
+    typeof renamed !== 'object' ||
+    (renamed as { alias?: string }).alias !== alias.trim()
+  ) {
     throw new Error(`Could not rename the account: ${JSON.stringify(renamed)}`);
   }
   await page.reload();
@@ -33,7 +40,8 @@ const measure = (page: import('@playwright/test').Page) =>
     const header = document.querySelector('.sidebar-header');
     return {
       alias: width('.account-switcher__alias'),
-      aliasText: (document.querySelector('.account-switcher__alias') as HTMLElement | null)?.innerText ?? '',
+      aliasText:
+        (document.querySelector('.account-switcher__alias') as HTMLElement | null)?.innerText ?? '',
       brandName: width('.sidebar-brand__name'),
       overflows: header ? header.scrollWidth > header.clientWidth : true,
     };

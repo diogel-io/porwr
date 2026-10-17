@@ -68,13 +68,21 @@ describe('the wallet connect window (workspace#76)', () => {
     const wrapper = await mountPage();
 
     expect(mocks.connect).toHaveBeenCalledExactlyOnceWith('coinos', ACCOUNT, undefined);
-    expect(mocks.post).toHaveBeenCalledExactlyOnceWith('request-1', { status: 'connected', connection });
+    expect(mocks.post).toHaveBeenCalledExactlyOnceWith('request-1', {
+      status: 'connected',
+      connection,
+    });
     expect(mocks.remove).toHaveBeenCalledWith(9);
     expect(message(wrapper)).toBe('walletManagement.connectWindow.finished');
   });
 
   it('passes a custom Alby Hub origin through', async () => {
-    mocks.query = { provider: 'alby-hub', request: 'request-1', account: ACCOUNT, origin: 'https://hub.example.com' };
+    mocks.query = {
+      provider: 'alby-hub',
+      request: 'request-1',
+      account: ACCOUNT,
+      origin: 'https://hub.example.com',
+    };
     mocks.connect.mockResolvedValue({ status: 'no-response' });
 
     await mountPage();
@@ -113,7 +121,10 @@ describe('the wallet connect window (workspace#76)', () => {
 
     await mountPage();
 
-    expect(mocks.post).toHaveBeenCalledWith('request-1', { status: 'error', message: 'Vault is locked' });
+    expect(mocks.post).toHaveBeenCalledWith('request-1', {
+      status: 'error',
+      message: 'Vault is locked',
+    });
     expect(mocks.remove).toHaveBeenCalledWith(9);
   });
 
@@ -131,7 +142,10 @@ describe('the wallet connect window (workspace#76)', () => {
     ['no request id', { provider: 'coinos', account: ACCOUNT }],
     // No account to connect for: never fall back to whichever account is active (#304).
     ['no account', { provider: 'coinos', request: 'request-1' }],
-    ['an account that is not a public key', { provider: 'coinos', request: 'request-1', account: 'npub1x' }],
+    [
+      'an account that is not a public key',
+      { provider: 'coinos', request: 'request-1', account: 'npub1x' },
+    ],
   ])('does nothing for %s', async (_label, query) => {
     mocks.query = query;
 

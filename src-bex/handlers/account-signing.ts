@@ -19,10 +19,15 @@ import { getSecretKeyForAccount } from './active-key';
  */
 
 const isStringMatrix = (value: unknown): value is string[][] =>
-  Array.isArray(value) && value.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === 'string'));
+  Array.isArray(value) &&
+  value.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === 'string'));
 
-export async function handleAccountSignEvent(payload: AccountSignRequest): Promise<HandlerResult<Event>> {
-  const pubkey = createPubkey(typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '');
+export async function handleAccountSignEvent(
+  payload: AccountSignRequest,
+): Promise<HandlerResult<Event>> {
+  const pubkey = createPubkey(
+    typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '',
+  );
   if (!pubkey) {
     return { success: false, error: 'accountPubkey must be a hex public key' };
   }
@@ -40,7 +45,10 @@ export async function handleAccountSignEvent(payload: AccountSignRequest): Promi
   if (!isStringMatrix(template.tags)) {
     return { success: false, error: 'tags must be a list of string lists' };
   }
-  if (template.created_at !== undefined && (!Number.isInteger(template.created_at) || template.created_at < 0)) {
+  if (
+    template.created_at !== undefined &&
+    (!Number.isInteger(template.created_at) || template.created_at < 0)
+  ) {
     return { success: false, error: 'created_at must be a timestamp' };
   }
 

@@ -67,11 +67,11 @@ single devDependency that ran perhaps once a year (threenine/diogel#204).
 `package.json` carries an `allowScripts` block. npm runs a dependency's install script only if it
 is listed there, so a package newly gaining one fails the install rather than running quietly.
 
-| Entry | Script | Why |
-|---|---|---|
-| `esbuild@0.27.7` | `postinstall: node install.js` | Fetches the platform binary. The build does not run without it. |
-| `geckodriver@6.1.1` | `postinstall: node ./dist/install.js` | Fetches the Firefox WebDriver binary the Firefox end-to-end project drives. |
-| `@parcel/watcher` | `install: node scripts/build-from-source.js` | **Denied.** Compiles native code at install time, and nothing here loads it. |
+| Entry               | Script                                       | Why                                                                          |
+| ------------------- | -------------------------------------------- | ---------------------------------------------------------------------------- |
+| `esbuild@0.27.7`    | `postinstall: node install.js`               | Fetches the platform binary. The build does not run without it.              |
+| `geckodriver@6.1.1` | `postinstall: node ./dist/install.js`        | Fetches the Firefox WebDriver binary the Firefox end-to-end project drives.  |
+| `@parcel/watcher`   | `install: node scripts/build-from-source.js` | **Denied.** Compiles native code at install time, and nothing here loads it. |
 
 The two approvals are **pinned to a version**, so an upgrade needs approving again rather than
 inheriting trust from the version that was reviewed. Expect `npm ci` to fail after bumping esbuild
@@ -130,11 +130,11 @@ npm run build:chrome
 
 What each change costs:
 
-| Changed | Needed |
-|---|---|
-| Panel UI (`src/`) | rebuild, reload the extension, reopen the panel |
-| Background (`src-bex/`) | rebuild, reload the extension — the worker restarts, and every pending request becomes `interrupted` by design (ADR D7) |
-| Manifest (`src-bex/manifest.json`) | rebuild and **remove and re-add** the unpacked extension; Chromium does not always pick up manifest changes on reload |
+| Changed                            | Needed                                                                                                                  |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Panel UI (`src/`)                  | rebuild, reload the extension, reopen the panel                                                                         |
+| Background (`src-bex/`)            | rebuild, reload the extension — the worker restarts, and every pending request becomes `interrupted` by design (ADR D7) |
+| Manifest (`src-bex/manifest.json`) | rebuild and **remove and re-add** the unpacked extension; Chromium does not always pick up manifest changes on reload   |
 
 Reloading the extension tears down the panel's connection to the background. That is the same path
 as a service-worker restart, which the panel already handles by reconnecting and re-reading, so it is
@@ -175,12 +175,12 @@ breached, and CI runs it on every pull request.
 The thresholds are a **ratchet**, not an achievement. Each one sits just below where coverage
 actually stands, so a genuine regression fails and ordinary noise does not:
 
-| | Floor | Actual (2026-08-21) |
-|---|---|---|
-| Statements | 59% | 59.77% |
-| Branches | 52% | 52.05% |
-| Functions | 51% | 51.39% |
-| Lines | 60% | 60.02% |
+|            | Floor | Actual (2026-08-21) |
+| ---------- | ----- | ------------------- |
+| Statements | 59%   | 59.77%              |
+| Branches   | 52%   | 52.05%              |
+| Functions  | 51%   | 51.39%              |
+| Lines      | 60%   | 60.02%              |
 
 **The target is 75%** across the board. The floors are raised toward it as coverage rises, and are
 never lowered: if a change cannot meet the current floor, the answer is a test, not a smaller number.

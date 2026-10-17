@@ -1,8 +1,4 @@
-import type {
-  BridgeAction,
-  BridgeRequestMap,
-  BridgeResponsePayload,
-} from '@/types/bridge';
+import type { BridgeAction, BridgeRequestMap, BridgeResponsePayload } from '@/types/bridge';
 import {
   handleVaultUnlock,
   handleVaultLock,
@@ -11,11 +7,7 @@ import {
   handleVaultExport,
   handleVaultImport,
 } from './handlers/vault-handler';
-import {
-  resetAutoLockTimer,
-  startAutoLockTimer,
-  stopAutoLockTimer,
-} from './services/auto-lock';
+import { resetAutoLockTimer, startAutoLockTimer, stopAutoLockTimer } from './services/auto-lock';
 import { handleGetPublicKey, handleGetRelays, handleSignEvent } from './handlers/nip07';
 import {
   getCurrentRequest,
@@ -37,7 +29,11 @@ import { createPubkey } from '@/types/pubkey';
 import { handleBlossomUpload } from './handlers/blossom-handler';
 import { handleNip04Encrypt, handleNip04Decrypt } from './handlers/nip04';
 import { handleNip44Encrypt, handleNip44Decrypt } from './handlers/nip44';
-import { handleRelayBrowserList, handleRelayBrowserGetStatus, handleRelayBrowserRefresh } from './handlers/relay-browser-handler';
+import {
+  handleRelayBrowserList,
+  handleRelayBrowserGetStatus,
+  handleRelayBrowserRefresh,
+} from './handlers/relay-browser-handler';
 import {
   handleDmRelaysGet,
   handleDmRelaysPublish,
@@ -72,11 +68,7 @@ import {
   handleNip47PayInvoice,
   handleNip47PaymentHistoryList,
 } from './handlers/nip47';
-import {
-  handleWebLnEnable,
-  handleWebLnGetInfo,
-  handleWebLnSendPayment,
-} from './handlers/webln';
+import { handleWebLnEnable, handleWebLnGetInfo, handleWebLnSendPayment } from './handlers/webln';
 
 /**
  * Dispatches messages to the appropriate handlers.
@@ -101,7 +93,11 @@ export async function dispatchMessage<K extends BridgeAction>(
       if (result.success) {
         return result.data as BridgeResponsePayload<K>;
       }
-      return { success: false, error: result.error, code: result.code } as unknown as BridgeResponsePayload<K>;
+      return {
+        success: false,
+        error: result.error,
+        code: result.code,
+      } as unknown as BridgeResponsePayload<K>;
     }
 
     case 'nostr.signEvent': {
@@ -110,7 +106,11 @@ export async function dispatchMessage<K extends BridgeAction>(
       if (result.success) {
         return result.data as BridgeResponsePayload<K>;
       }
-      return { success: false, error: result.error, code: result.code } as unknown as BridgeResponsePayload<K>;
+      return {
+        success: false,
+        error: result.error,
+        code: result.code,
+      } as unknown as BridgeResponsePayload<K>;
     }
 
     case 'nostr.getRelays': {
@@ -122,7 +122,10 @@ export async function dispatchMessage<K extends BridgeAction>(
     }
 
     case 'nostr.nip04.encrypt': {
-      const result = await handleNip04Encrypt(payload as BridgeRequestMap['nostr.nip04.encrypt'], origin);
+      const result = await handleNip04Encrypt(
+        payload as BridgeRequestMap['nostr.nip04.encrypt'],
+        origin,
+      );
       if (result.success) {
         return result.data as BridgeResponsePayload<K>;
       }
@@ -130,7 +133,10 @@ export async function dispatchMessage<K extends BridgeAction>(
     }
 
     case 'nostr.nip04.decrypt': {
-      const result = await handleNip04Decrypt(payload as BridgeRequestMap['nostr.nip04.decrypt'], origin);
+      const result = await handleNip04Decrypt(
+        payload as BridgeRequestMap['nostr.nip04.decrypt'],
+        origin,
+      );
       if (result.success) {
         return result.data as BridgeResponsePayload<K>;
       }
@@ -138,7 +144,10 @@ export async function dispatchMessage<K extends BridgeAction>(
     }
 
     case 'nostr.nip44.encrypt': {
-      const result = await handleNip44Encrypt(payload as BridgeRequestMap['nostr.nip44.encrypt'], origin);
+      const result = await handleNip44Encrypt(
+        payload as BridgeRequestMap['nostr.nip44.encrypt'],
+        origin,
+      );
       if (result.success) {
         return result.data as BridgeResponsePayload<K>;
       }
@@ -146,7 +155,10 @@ export async function dispatchMessage<K extends BridgeAction>(
     }
 
     case 'nostr.nip44.decrypt': {
-      const result = await handleNip44Decrypt(payload as BridgeRequestMap['nostr.nip44.decrypt'], origin);
+      const result = await handleNip44Decrypt(
+        payload as BridgeRequestMap['nostr.nip44.decrypt'],
+        origin,
+      );
       if (result.success) {
         return result.data as BridgeResponsePayload<K>;
       }
@@ -167,7 +179,11 @@ export async function dispatchMessage<K extends BridgeAction>(
         // The decrypted vault stays here; a page learns only that unlocking worked (#240).
         return { success: true } as BridgeResponsePayload<K>;
       }
-      return { success: false, error: result.error, code: result.code } as unknown as BridgeResponsePayload<K>;
+      return {
+        success: false,
+        error: result.error,
+        code: result.code,
+      } as unknown as BridgeResponsePayload<K>;
     }
 
     case 'vault.lock': {
@@ -185,7 +201,11 @@ export async function dispatchMessage<K extends BridgeAction>(
           ...(result.data.encryptedVault ? { encryptedVault: result.data.encryptedVault } : {}),
         } as BridgeResponsePayload<K>;
       }
-      return { success: false, error: result.error, code: result.code } as unknown as BridgeResponsePayload<K>;
+      return {
+        success: false,
+        error: result.error,
+        code: result.code,
+      } as unknown as BridgeResponsePayload<K>;
     }
 
     /**
@@ -236,14 +256,20 @@ export async function dispatchMessage<K extends BridgeAction>(
     // account answers nothing rather than every account's sites.
     case 'sites.list': {
       const listPayload = payload as BridgeRequestMap['sites.list'];
-      const account = createPubkey(typeof listPayload?.accountPubkey === 'string' ? listPayload.accountPubkey : '');
+      const account = createPubkey(
+        typeof listPayload?.accountPubkey === 'string' ? listPayload.accountPubkey : '',
+      );
       return (account ? await listConnectedSitesFor(account) : []) as BridgeResponsePayload<K>;
     }
 
     case 'sites.revoke': {
       const revokePayload = payload as BridgeRequestMap['sites.revoke'];
-      const account = createPubkey(typeof revokePayload?.accountPubkey === 'string' ? revokePayload.accountPubkey : '');
-      return (account ? await disconnectSiteFor(revokePayload.origin, account) : false) as BridgeResponsePayload<K>;
+      const account = createPubkey(
+        typeof revokePayload?.accountPubkey === 'string' ? revokePayload.accountPubkey : '',
+      );
+      return (
+        account ? await disconnectSiteFor(revokePayload.origin, account) : false
+      ) as BridgeResponsePayload<K>;
     }
 
     case 'sites.binding': {
@@ -271,7 +297,10 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -283,7 +312,10 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -295,7 +327,10 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -307,51 +342,77 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'accounts.revealSecret': {
       try {
-        const result = await handleAccountsRevealSecret(payload as BridgeRequestMap['accounts.revealSecret']);
+        const result = await handleAccountsRevealSecret(
+          payload as BridgeRequestMap['accounts.revealSecret'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'vault.export': {
       const result = await handleVaultExport({}, origin);
       if (result.success) {
-        return { success: true, encryptedData: result.data.encryptedData } as BridgeResponsePayload<K>;
+        return {
+          success: true,
+          encryptedData: result.data.encryptedData,
+        } as BridgeResponsePayload<K>;
       }
-      return { success: false, error: result.error, code: result.code } as unknown as BridgeResponsePayload<K>;
+      return {
+        success: false,
+        error: result.error,
+        code: result.code,
+      } as unknown as BridgeResponsePayload<K>;
     }
 
     case 'vault.import': {
       const importPayload = payload as BridgeRequestMap['vault.import'];
       const encryptedData = importPayload.encryptedData || importPayload.payload?.encryptedData;
       if (!encryptedData) {
-        return { success: false, error: 'Missing encrypted data', code: 'NOT_FOUND' } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: 'Missing encrypted data',
+          code: 'NOT_FOUND',
+        } as unknown as BridgeResponsePayload<K>;
       }
       const result = await handleVaultImport({ encryptedData }, origin);
       if (result.success) {
         return { success: true } as BridgeResponsePayload<K>;
       }
-      return { success: false, error: result.error, code: result.code } as unknown as BridgeResponsePayload<K>;
+      return {
+        success: false,
+        error: result.error,
+        code: result.code,
+      } as unknown as BridgeResponsePayload<K>;
     }
 
     case 'blossom.upload': {
       const blossomPayload = payload as BridgeRequestMap['blossom.upload'];
-      const result = await handleBlossomUpload({
-        base64Data: blossomPayload.base64Data || '',
-        fileType: blossomPayload.fileType || '',
-        blossomServer: blossomPayload.blossomServer || '',
-        ...(blossomPayload.uploadId ? { uploadId: blossomPayload.uploadId } : {}),
-      }, origin);
+      const result = await handleBlossomUpload(
+        {
+          base64Data: blossomPayload.base64Data || '',
+          fileType: blossomPayload.fileType || '',
+          blossomServer: blossomPayload.blossomServer || '',
+          ...(blossomPayload.uploadId ? { uploadId: blossomPayload.uploadId } : {}),
+        },
+        origin,
+      );
       if (result.success) {
         return { success: true, url: result.data } as unknown as BridgeResponsePayload<K>;
       }
@@ -380,7 +441,9 @@ export async function dispatchMessage<K extends BridgeAction>(
     }
 
     case 'relay.browser.refresh': {
-      const result = await handleRelayBrowserRefresh(payload as BridgeRequestMap['relay.browser.refresh']);
+      const result = await handleRelayBrowserRefresh(
+        payload as BridgeRequestMap['relay.browser.refresh'],
+      );
       if (result.success) {
         return true as BridgeResponsePayload<K>;
       }
@@ -391,49 +454,69 @@ export async function dispatchMessage<K extends BridgeAction>(
       // An error, not an empty list: "this account has no wallets" and "you named no account" are
       // different answers, and the page must not show the first for the second (#304).
       try {
-        const result = await handleNip47ConnectionsList(payload as BridgeRequestMap['nip47.connections.list']);
+        const result = await handleNip47ConnectionsList(
+          payload as BridgeRequestMap['nip47.connections.list'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'nip47.connections.import': {
       try {
-        const result = await handleNip47ConnectionImport(payload as BridgeRequestMap['nip47.connections.import']);
+        const result = await handleNip47ConnectionImport(
+          payload as BridgeRequestMap['nip47.connections.import'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'nip47.connections.remove': {
       try {
-        const result = await handleNip47ConnectionRemove(payload as BridgeRequestMap['nip47.connections.remove']);
+        const result = await handleNip47ConnectionRemove(
+          payload as BridgeRequestMap['nip47.connections.remove'],
+        );
         if (result.success) {
           return true as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'nip47.connections.setActive': {
       try {
-        const result = await handleNip47ConnectionSetActive(payload as BridgeRequestMap['nip47.connections.setActive']);
+        const result = await handleNip47ConnectionSetActive(
+          payload as BridgeRequestMap['nip47.connections.setActive'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -445,7 +528,10 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -457,7 +543,10 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -469,55 +558,78 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'nip47.payments.list': {
       try {
-        const result = await handleNip47PaymentHistoryList(payload as BridgeRequestMap['nip47.payments.list']);
+        const result = await handleNip47PaymentHistoryList(
+          payload as BridgeRequestMap['nip47.payments.list'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'nip47.authorization.begin': {
       try {
-        const result = await handleNip47AuthorizationBegin(payload as BridgeRequestMap['nip47.authorization.begin']);
+        const result = await handleNip47AuthorizationBegin(
+          payload as BridgeRequestMap['nip47.authorization.begin'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'nip47.authorization.complete': {
       try {
-        const result = await handleNip47AuthorizationComplete(payload as BridgeRequestMap['nip47.authorization.complete']);
+        const result = await handleNip47AuthorizationComplete(
+          payload as BridgeRequestMap['nip47.authorization.complete'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'nip47.authorization.probe': {
       try {
-        const result = await handleNip47AuthorizationProbe(payload as BridgeRequestMap['nip47.authorization.probe']);
+        const result = await handleNip47AuthorizationProbe(
+          payload as BridgeRequestMap['nip47.authorization.probe'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -529,31 +641,44 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'messaging.dmRelays.publish': {
       try {
-        const result = await handleDmRelaysPublish(payload as BridgeRequestMap['messaging.dmRelays.publish']);
+        const result = await handleDmRelaysPublish(
+          payload as BridgeRequestMap['messaging.dmRelays.publish'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'messaging.dmRelays.check': {
       try {
-        const result = await handleDmRelaysCheck(payload as BridgeRequestMap['messaging.dmRelays.check']);
+        const result = await handleDmRelaysCheck(
+          payload as BridgeRequestMap['messaging.dmRelays.check'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -565,7 +690,10 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -577,7 +705,10 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -589,7 +720,10 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -601,31 +735,44 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'messaging.savedPeers.add': {
       try {
-        const result = await handleSavedPeersAdd(payload as BridgeRequestMap['messaging.savedPeers.add']);
+        const result = await handleSavedPeersAdd(
+          payload as BridgeRequestMap['messaging.savedPeers.add'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'messaging.savedPeers.remove': {
       try {
-        const result = await handleSavedPeersRemove(payload as BridgeRequestMap['messaging.savedPeers.remove']);
+        const result = await handleSavedPeersRemove(
+          payload as BridgeRequestMap['messaging.savedPeers.remove'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -637,31 +784,44 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'account.signEvent': {
       try {
-        const result = await handleAccountSignEvent(payload as BridgeRequestMap['account.signEvent']);
+        const result = await handleAccountSignEvent(
+          payload as BridgeRequestMap['account.signEvent'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'messaging.markRead': {
       try {
-        const result = await handleMessagesMarkRead(payload as BridgeRequestMap['messaging.markRead']);
+        const result = await handleMessagesMarkRead(
+          payload as BridgeRequestMap['messaging.markRead'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -673,7 +833,10 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
@@ -685,19 +848,27 @@ export async function dispatchMessage<K extends BridgeAction>(
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 
     case 'webln.sendPayment': {
       try {
-        const result = await handleWebLnSendPayment(payload as BridgeRequestMap['webln.sendPayment']);
+        const result = await handleWebLnSendPayment(
+          payload as BridgeRequestMap['webln.sendPayment'],
+        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }
         return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
       } catch (error: unknown) {
-        return { success: false, error: error instanceof Error ? error.message : String(error) } as unknown as BridgeResponsePayload<K>;
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
       }
     }
 

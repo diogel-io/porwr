@@ -31,7 +31,9 @@ vi.mock('@/../src-bex/services/nip17-messaging', () => ({
 
 vi.mock('@/../src-bex/services/dm-relay-probe', () => ({ dmRelayProbe: { check: mocks.check } }));
 
-vi.mock('@/../src-bex/handlers/active-key', () => ({ getActiveSecretKey: mocks.getActiveSecretKey }));
+vi.mock('@/../src-bex/handlers/active-key', () => ({
+  getActiveSecretKey: mocks.getActiveSecretKey,
+}));
 
 vi.mock('@/../src-bex/services/messaging-relays', async () => {
   const actual = await vi.importActual<typeof import('@/../src-bex/services/messaging-relays')>(
@@ -85,7 +87,11 @@ describe('handleDmRelaysGet', () => {
 
 describe('handleDmRelaysPublish', () => {
   it('signs with the active key inside the background and returns the outcome', async () => {
-    const outcome = { relays: ['wss://inbox.example'], accepted: ['wss://inbox.example'], rejected: [] };
+    const outcome = {
+      relays: ['wss://inbox.example'],
+      accepted: ['wss://inbox.example'],
+      rejected: [],
+    };
     mocks.publishDmRelays.mockResolvedValue(outcome);
 
     await expect(handleDmRelaysPublish({ relays: ['wss://inbox.example/'] })).resolves.toEqual({
@@ -112,7 +118,10 @@ describe('handleDmRelaysPublish', () => {
 
     const result = await handleDmRelaysPublish({ relays: ['wss://inbox.example'] });
 
-    expect(result).toMatchObject({ success: false, error: 'No relay accepted the direct message relay list' });
+    expect(result).toMatchObject({
+      success: false,
+      error: 'No relay accepted the direct message relay list',
+    });
   });
 });
 
@@ -139,7 +148,10 @@ describe('handleDmRelaysCheck (#277)', () => {
   it('treats a missing list as empty', async () => {
     mocks.check.mockResolvedValue({ checks: [] });
 
-    await expect(handleDmRelaysCheck(undefined as never)).resolves.toEqual({ success: true, data: { checks: [] } });
+    await expect(handleDmRelaysCheck(undefined as never)).resolves.toEqual({
+      success: true,
+      data: { checks: [] },
+    });
   });
 });
 
@@ -149,7 +161,10 @@ describe('handleMessagesSend', () => {
   it('sends with the active key and returns the outcome', async () => {
     mocks.send.mockResolvedValue({ status: 'recipient-not-ready' });
 
-    await expect(handleMessagesSend(valid)).resolves.toEqual({ success: true, data: { status: 'recipient-not-ready' } });
+    await expect(handleMessagesSend(valid)).resolves.toEqual({
+      success: true,
+      data: { status: 'recipient-not-ready' },
+    });
     expect(mocks.send).toHaveBeenCalledWith(SECRET_KEY, valid);
   });
 
@@ -167,7 +182,9 @@ describe('handleMessagesSend', () => {
   });
 
   it('refuses a message to the active account itself', async () => {
-    await expect(handleMessagesSend({ ...valid, recipient: ME })).resolves.toMatchObject({ success: false });
+    await expect(handleMessagesSend({ ...valid, recipient: ME })).resolves.toMatchObject({
+      success: false,
+    });
     expect(mocks.send).not.toHaveBeenCalled();
   });
 });
@@ -194,10 +211,16 @@ describe('read state', () => {
   it("returns the active account's read state from the vault", async () => {
     mocks.getVaultData.mockResolvedValue({
       success: true,
-      vaultData: { accounts: [], messagingReadState: { [ME]: { [PEER]: 9 }, other: { [PEER]: 1 } } },
+      vaultData: {
+        accounts: [],
+        messagingReadState: { [ME]: { [PEER]: 9 }, other: { [PEER]: 1 } },
+      },
     });
 
-    await expect(handleMessagesReadState()).resolves.toEqual({ success: true, data: { [PEER]: 9 } });
+    await expect(handleMessagesReadState()).resolves.toEqual({
+      success: true,
+      data: { [PEER]: 9 },
+    });
   });
 
   it('saves a conversation as read inside the vault', async () => {
@@ -222,8 +245,12 @@ describe('read state', () => {
   });
 
   it('refuses an invalid peer or timestamp', async () => {
-    await expect(handleMessagesMarkRead({ peer: 'nope', readAt: 1 })).resolves.toMatchObject({ success: false });
-    await expect(handleMessagesMarkRead({ peer: PEER, readAt: -1 })).resolves.toMatchObject({ success: false });
+    await expect(handleMessagesMarkRead({ peer: 'nope', readAt: 1 })).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(handleMessagesMarkRead({ peer: PEER, readAt: -1 })).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   it('fails while the vault is locked', async () => {
@@ -256,7 +283,10 @@ describe('saved peers (#258)', () => {
   });
 
   it('adds a peer inside the vault', async () => {
-    await expect(handleSavedPeersAdd({ peer: PEER })).resolves.toEqual({ success: true, data: [PEER] });
+    await expect(handleSavedPeersAdd({ peer: PEER })).resolves.toEqual({
+      success: true,
+      data: [PEER],
+    });
     expect(mocks.updateVaultData).toHaveBeenCalledWith(
       expect.objectContaining({ messagingSavedPeers: { [ME]: [PEER] } }),
     );
@@ -265,35 +295,50 @@ describe('saved peers (#258)', () => {
   it('does not write when the peer is already saved', async () => {
     mocks.getVaultData.mockResolvedValue(vaultWith({ [ME]: [PEER] }));
 
-    await expect(handleSavedPeersAdd({ peer: PEER })).resolves.toEqual({ success: true, data: [PEER] });
+    await expect(handleSavedPeersAdd({ peer: PEER })).resolves.toEqual({
+      success: true,
+      data: [PEER],
+    });
     expect(mocks.updateVaultData).not.toHaveBeenCalled();
   });
 
   it('removes a peer', async () => {
     mocks.getVaultData.mockResolvedValue(vaultWith({ [ME]: [PEER] }));
 
-    await expect(handleSavedPeersRemove({ peer: PEER })).resolves.toEqual({ success: true, data: [] });
+    await expect(handleSavedPeersRemove({ peer: PEER })).resolves.toEqual({
+      success: true,
+      data: [],
+    });
     expect(mocks.updateVaultData).toHaveBeenCalledWith(
       expect.objectContaining({ messagingSavedPeers: { [ME]: [] } }),
     );
   });
 
   it('refuses a peer that is not a hex key, or the account itself', async () => {
-    await expect(handleSavedPeersAdd({ peer: 'npub1x' })).resolves.toMatchObject({ success: false });
-    await expect(handleSavedPeersRemove({ peer: 'npub1x' })).resolves.toMatchObject({ success: false });
+    await expect(handleSavedPeersAdd({ peer: 'npub1x' })).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(handleSavedPeersRemove({ peer: 'npub1x' })).resolves.toMatchObject({
+      success: false,
+    });
     await expect(handleSavedPeersAdd({ peer: ME })).resolves.toMatchObject({ success: false });
     expect(mocks.updateVaultData).not.toHaveBeenCalled();
   });
 
   it('serialises a saved peer and a read so neither loses the other', async () => {
     let vault: Record<string, unknown> = { accounts: [] };
-    mocks.getVaultData.mockImplementation(() => Promise.resolve({ success: true, vaultData: structuredClone(vault) }));
+    mocks.getVaultData.mockImplementation(() =>
+      Promise.resolve({ success: true, vaultData: structuredClone(vault) }),
+    );
     mocks.updateVaultData.mockImplementation((next: Record<string, unknown>) => {
       vault = structuredClone(next);
       return Promise.resolve({ success: true });
     });
 
-    await Promise.all([handleSavedPeersAdd({ peer: PEER }), handleMessagesMarkRead({ peer: PEER, readAt: 10 })]);
+    await Promise.all([
+      handleSavedPeersAdd({ peer: PEER }),
+      handleMessagesMarkRead({ peer: PEER, readAt: 10 }),
+    ]);
 
     expect(vault).toMatchObject({
       messagingSavedPeers: { [ME]: [PEER] },

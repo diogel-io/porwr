@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { relayCatalogService, DISCOVERY_STALENESS_THRESHOLD, METADATA_STALENESS_THRESHOLD } from '@/services/relay-catalog';
+import {
+  relayCatalogService,
+  DISCOVERY_STALENESS_THRESHOLD,
+  METADATA_STALENESS_THRESHOLD,
+} from '@/services/relay-catalog';
 import type { RelayDiscoveryState, RelayCatalogEntry } from '@/types/relay';
 
 // Mock the database
@@ -58,7 +62,7 @@ describe('Relay Catalog Service - Discovery State', () => {
     expect(state?.lastGlobalDiscoveryAt).toBe(now);
   });
 
-  it('should create a new state if it doesn\'t exist during update', async () => {
+  it("should create a new state if it doesn't exist during update", async () => {
     await relayCatalogService.updateDiscoveryState({ isDiscoveryInProgress: true });
     const state = await relayCatalogService.getDiscoveryState('global');
     expect(state?.id).toBe('global');
@@ -161,22 +165,22 @@ describe('Relay Catalog Service - Staleness Logic', () => {
     });
 
     it('should work independently from discovery staleness', () => {
-        // This is more of a logical check that they use different thresholds and different state objects
-        expect(DISCOVERY_STALENESS_THRESHOLD).not.toBe(METADATA_STALENESS_THRESHOLD);
+      // This is more of a logical check that they use different thresholds and different state objects
+      expect(DISCOVERY_STALENESS_THRESHOLD).not.toBe(METADATA_STALENESS_THRESHOLD);
 
-        const state: RelayDiscoveryState = {
-            id: 'global',
-            isDiscoveryInProgress: false,
-            lastGlobalDiscoveryAt: Date.now() - 1000, // fresh discovery
-            updatedAt: Date.now(),
-        };
-        const entry: RelayCatalogEntry = {
-            ...baseEntry,
-            lastChecked: Date.now() - METADATA_STALENESS_THRESHOLD - 1000, // stale metadata
-        };
+      const state: RelayDiscoveryState = {
+        id: 'global',
+        isDiscoveryInProgress: false,
+        lastGlobalDiscoveryAt: Date.now() - 1000, // fresh discovery
+        updatedAt: Date.now(),
+      };
+      const entry: RelayCatalogEntry = {
+        ...baseEntry,
+        lastChecked: Date.now() - METADATA_STALENESS_THRESHOLD - 1000, // stale metadata
+      };
 
-        expect(relayCatalogService.isDiscoveryStale(state)).toBe(false);
-        expect(relayCatalogService.isMetadataStale(entry)).toBe(true);
+      expect(relayCatalogService.isDiscoveryStale(state)).toBe(false);
+      expect(relayCatalogService.isMetadataStale(entry)).toBe(true);
     });
   });
 });

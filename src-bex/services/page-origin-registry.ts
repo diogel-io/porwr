@@ -107,7 +107,8 @@ export const restorePageOrigins = async (): Promise<void> => {
     origins.clear();
     for (const entry of entries as Array<[number, PageOriginRecord]>) {
       const [tabId, record] = entry;
-      if (typeof tabId === 'number' && typeof record?.origin === 'string') origins.set(tabId, record);
+      if (typeof tabId === 'number' && typeof record?.origin === 'string')
+        origins.set(tabId, record);
     }
   } catch (error: unknown) {
     logService.log(LogLevel.DEBUG, '[Pages] Failed to restore page origins', {

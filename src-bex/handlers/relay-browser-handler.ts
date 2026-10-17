@@ -28,7 +28,9 @@ export async function handleRelayBrowserList(): Promise<HandlerResult<RelayCatal
  * Handles the 'relay.browser.getStatus' action.
  * Returns the current relay discovery status from the database.
  */
-export async function handleRelayBrowserGetStatus(): Promise<HandlerResult<RelayDiscoveryState | null>> {
+export async function handleRelayBrowserGetStatus(): Promise<
+  HandlerResult<RelayDiscoveryState | null>
+> {
   try {
     const status = await relayCatalogService.getDiscoveryState('global');
     return {
@@ -36,7 +38,9 @@ export async function handleRelayBrowserGetStatus(): Promise<HandlerResult<Relay
       data: status,
     };
   } catch (error) {
-    logService.log(LogLevel.ERROR, '[RelayBrowserHandler] Failed to get discovery status', { error });
+    logService.log(LogLevel.ERROR, '[RelayBrowserHandler] Failed to get discovery status', {
+      error,
+    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error fetching discovery status',
@@ -48,7 +52,9 @@ export async function handleRelayBrowserGetStatus(): Promise<HandlerResult<Relay
  * Handles the 'relay.browser.refresh' action.
  * Triggers the relay browser refresh flow.
  */
-export function handleRelayBrowserRefresh(payload?: { force?: boolean }): Promise<HandlerResult<void>> {
+export function handleRelayBrowserRefresh(payload?: {
+  force?: boolean;
+}): Promise<HandlerResult<void>> {
   try {
     const force = payload?.force || false;
     // We don't await the full refresh here to avoid blocking the BEX response,

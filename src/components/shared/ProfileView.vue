@@ -67,10 +67,10 @@ const birthdayText = computed(() => formatBirthday(profile.value.birthday));
 const hasDetails = computed(() =>
   Boolean(
     profile.value.website ||
-      profile.value.nip05 ||
-      profile.value.lud16 ||
-      profile.value.bot ||
-      birthdayText.value,
+    profile.value.nip05 ||
+    profile.value.lud16 ||
+    profile.value.bot ||
+    birthdayText.value,
   ),
 );
 

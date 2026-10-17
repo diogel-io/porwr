@@ -54,7 +54,9 @@ function parseRelays(record: Record<string, unknown>): string[] {
   const relays = candidates
     .slice(0, MAX_RELAYS)
     .map((candidate) => (typeof candidate === 'string' ? createRelayUrl(candidate) : null))
-    .filter((relay): relay is NonNullable<typeof relay> => relay !== null && relay.startsWith('wss://'));
+    .filter(
+      (relay): relay is NonNullable<typeof relay> => relay !== null && relay.startsWith('wss://'),
+    );
   return Array.from(new Set<string>(relays));
 }
 
@@ -71,7 +73,8 @@ function createAuthorizedWalletService(
   relays: string[],
   lud16: unknown,
 ): Nip47AuthorizedWalletService | null {
-  const walletServicePubkey = typeof walletPubkey === 'string' ? walletPubkey.trim().toLowerCase() : '';
+  const walletServicePubkey =
+    typeof walletPubkey === 'string' ? walletPubkey.trim().toLowerCase() : '';
   if (!HEX_64.test(walletServicePubkey) || relays.length === 0) {
     return null;
   }

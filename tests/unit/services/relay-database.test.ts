@@ -57,7 +57,7 @@ vi.mock('@/services/database', () => {
       open = vi.fn(async () => Promise.resolve());
       delete = vi.fn(async () => Promise.resolve());
     },
-    db: {}
+    db: {},
   };
 });
 
@@ -85,8 +85,8 @@ describe('Relay Database Schema', () => {
     expect(db.relayDiscoveryState).toBeDefined();
 
     await db.open();
-    expect(db.tables.map(t => t.name)).toContain('relayCatalog');
-    expect(db.tables.map(t => t.name)).toContain('relayDiscoveryState');
+    expect(db.tables.map((t) => t.name)).toContain('relayCatalog');
+    expect(db.tables.map((t) => t.name)).toContain('relayDiscoveryState');
   });
 
   it('should insert and retrieve a relay catalog entry', async () => {
@@ -98,7 +98,7 @@ describe('Relay Database Schema', () => {
       status: 'online',
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      source: 'manual'
+      source: 'manual',
     };
 
     await db.relayCatalog.add(entry);
@@ -114,8 +114,8 @@ describe('Relay Database Schema', () => {
       updatedAt: Date.now(),
       discoveryStats: {
         totalDiscovered: 10,
-        newFound: 2
-      }
+        newFound: 2,
+      },
     };
 
     await db.relayDiscoveryState.add(state);
@@ -126,9 +126,17 @@ describe('Relay Database Schema', () => {
 
   it('should not break existing tables (vaults, exceptions, approvals)', async () => {
     // Test that we can still use existing tables
-    await db.vaults.add({ id: 'master', encryptedData: 'abc', createdAt: new Date().toISOString() });
+    await db.vaults.add({
+      id: 'master',
+      encryptedData: 'abc',
+      createdAt: new Date().toISOString(),
+    });
     await db.exceptions.add({ dateTime: new Date().toISOString(), message: 'test error' });
-    await db.approvals.add({ dateTime: new Date().toISOString(), eventKind: 1, hostname: 'localhost' });
+    await db.approvals.add({
+      dateTime: new Date().toISOString(),
+      eventKind: 1,
+      hostname: 'localhost',
+    });
 
     const vault = await db.vaults.get('master');
     const exceptionCount = await db.exceptions.count();

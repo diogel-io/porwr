@@ -20,10 +20,16 @@ const QUEUE_KEY = 'nostr:request-queue';
 
 /** A signed Nostr event carries `sig`. Anything without one is not a signature. */
 const isSignature = (value: unknown): boolean =>
-  typeof value === 'object' && value !== null && typeof (value as { sig?: unknown }).sig === 'string';
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { sig?: unknown }).sig === 'string';
 
 test.describe('a request that expires', () => {
-  test('is refused at the page rather than left signable', async ({ openPage, background, context }) => {
+  test('is refused at the page rather than left signable', async ({
+    openPage,
+    background,
+    context,
+  }) => {
     const extensionPage = await openPage('/login');
     await createVault(extensionPage);
     await seedAccount(extensionPage);
@@ -52,14 +58,18 @@ test.describe('a request that expires', () => {
     expect(aged).toBe(1);
 
     // Any read of the queue applies expiry. This is the one the panel itself makes.
-    await extensionPage.evaluate(() => chrome.runtime.sendMessage({ type: 'nostr.requests.count' }));
+    await extensionPage.evaluate(() =>
+      chrome.runtime.sendMessage({ type: 'nostr.requests.count' }),
+    );
 
     await expect
       .poll(() => background.evaluate(() => chrome.action.getBadgeText({})), { timeout: 15_000 })
       .toBe('');
 
     // The guarantee that matters: the site's promise settles, and not with a signature.
-    const outcome = await site.evaluate(() => (window as unknown as { __signing: Promise<unknown> }).__signing);
+    const outcome = await site.evaluate(
+      () => (window as unknown as { __signing: Promise<unknown> }).__signing,
+    );
     expect(isSignature(outcome)).toBe(false);
 
     await site.close();
@@ -107,7 +117,9 @@ test.describe('a request that expires', () => {
 
     expect(result).toMatchObject({ applied: false, reason: 'expired' });
 
-    const outcome = await site.evaluate(() => (window as unknown as { __signing: Promise<unknown> }).__signing);
+    const outcome = await site.evaluate(
+      () => (window as unknown as { __signing: Promise<unknown> }).__signing,
+    );
     expect(isSignature(outcome)).toBe(false);
 
     await site.close();
@@ -115,7 +127,11 @@ test.describe('a request that expires', () => {
 });
 
 test.describe('a request that is already decided', () => {
-  test('refuses a second decision rather than applying it', async ({ openPage, background, context }) => {
+  test('refuses a second decision rather than applying it', async ({
+    openPage,
+    background,
+    context,
+  }) => {
     const extensionPage = await openPage('/login');
     await createVault(extensionPage);
     await seedAccount(extensionPage);
@@ -137,7 +153,10 @@ test.describe('a request that is already decided', () => {
     // Rejected through the panel, the way a user does it.
     await extensionPage.goto(extensionPage.url().replace(/#.*$/, '#/sidebar'));
     await extensionPage.locator('.current-request').waitFor({ state: 'visible', timeout: 15_000 });
-    await extensionPage.getByRole('button', { name: /reject/i }).first().click();
+    await extensionPage
+      .getByRole('button', { name: /reject/i })
+      .first()
+      .click();
 
     await expect
       .poll(() => background.evaluate(() => chrome.action.getBadgeText({})), { timeout: 15_000 })
@@ -155,7 +174,9 @@ test.describe('a request that is already decided', () => {
 
     expect(result).toMatchObject({ applied: false, reason: 'already-resolved' });
 
-    const outcome = await site.evaluate(() => (window as unknown as { __signing: Promise<unknown> }).__signing);
+    const outcome = await site.evaluate(
+      () => (window as unknown as { __signing: Promise<unknown> }).__signing,
+    );
     expect(isSignature(outcome)).toBe(false);
 
     await site.close();
@@ -236,12 +257,11 @@ test.describe('a request interrupted by a worker restart', () => {
      * request nobody can approve is — so the assertion is that no signature appears, not that the
      * promise settles.
      */
-    const outcome = await site.evaluate(
-      () =>
-        Promise.race([
-          (window as unknown as { __signing: Promise<unknown> }).__signing,
-          new Promise((resolve) => setTimeout(() => resolve({ stillPending: true }), 3_000)),
-        ]),
+    const outcome = await site.evaluate(() =>
+      Promise.race([
+        (window as unknown as { __signing: Promise<unknown> }).__signing,
+        new Promise((resolve) => setTimeout(() => resolve({ stillPending: true }), 3_000)),
+      ]),
     );
     expect(isSignature(outcome)).toBe(false);
 

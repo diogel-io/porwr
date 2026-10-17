@@ -23,7 +23,11 @@ const profile = (pubkey: string, fields: Partial<ContactProfile>): ContactProfil
 
 const contacts = [contact(ALEX), contact(BOB, 'Bobby'), contact(CALEB), contact(DANA)];
 const profiles = {
-  [ALEX]: profile(ALEX, { displayName: 'Alex Brennan', name: 'alexb', nip05: 'alex@nostr.example' }),
+  [ALEX]: profile(ALEX, {
+    displayName: 'Alex Brennan',
+    name: 'alexb',
+    nip05: 'alex@nostr.example',
+  }),
   [CALEB]: profile(CALEB, { displayName: 'Caleb Moss', nip05: 'caleb@moss.dev' }),
   [DANA]: profile(DANA, { name: 'dana', nip05: 'd@halal.example' }),
 };

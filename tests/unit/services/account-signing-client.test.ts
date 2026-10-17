@@ -28,7 +28,13 @@ describe('signAsAccount', () => {
     send.mockResolvedValue(undefined);
     await expect(signAsAccount(PUBKEY, template)).rejects.toThrow('Invalid signing response');
 
-    send.mockResolvedValue({ ...template, id: 'e', pubkey: 'c'.repeat(64), created_at: 1, sig: 's' });
+    send.mockResolvedValue({
+      ...template,
+      id: 'e',
+      pubkey: 'c'.repeat(64),
+      created_at: 1,
+      sig: 's',
+    });
     await expect(signAsAccount(PUBKEY, template)).rejects.toThrow('Invalid signing response');
   });
 });

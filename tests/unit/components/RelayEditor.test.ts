@@ -74,16 +74,19 @@ describe('RelayEditor.vue', () => {
 
   const globalStubs = {
     'q-input': {
-      template: '<div data-testid="q-input"><input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)"><slot name="append" /></div>',
+      template:
+        '<div data-testid="q-input"><input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)"><slot name="append" /></div>',
       props: ['modelValue'],
       emits: ['update:modelValue'],
     },
     'q-btn': {
-      template: '<button data-testid="q-btn" :data-icon="icon" @click="$emit(\'click\')"><slot /></button>',
-      props: ['icon']
+      template:
+        '<button data-testid="q-btn" :data-icon="icon" @click="$emit(\'click\')"><slot /></button>',
+      props: ['icon'],
     },
     'q-checkbox': {
-      template: '<input data-testid="q-checkbox" type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
+      template:
+        '<input data-testid="q-checkbox" type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
       props: ['modelValue', 'label'],
     },
     'q-list': {
@@ -105,10 +108,10 @@ describe('RelayEditor.vue', () => {
     'q-spinner': true,
     'q-tooltip': true,
     'relay-browser-modal': {
-       template: '<div v-if="modelValue" class="mock-modal">Relay Browser Modal</div>',
-       props: ['modelValue'],
-       emits: ['select']
-    }
+      template: '<div v-if="modelValue" class="mock-modal">Relay Browser Modal</div>',
+      props: ['modelValue'],
+      emits: ['select'],
+    },
   };
 
   it('renders Browse button', () => {
@@ -214,7 +217,7 @@ describe('RelayEditor.vue', () => {
 
     // It should show "relays.read" badge but NOT "relays.write" badge
     const badges = lastItem!.findAll('[data-testid="q-badge"]');
-    const badgeTexts = badges.map(b => b.text());
+    const badgeTexts = badges.map((b) => b.text());
     expect(badgeTexts).toContain('relays.read');
     expect(badgeTexts).not.toContain('relays.write');
   });

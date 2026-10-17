@@ -28,7 +28,12 @@ const hostname = computed(() => {
 
 const isSecure = computed(() => props.origin.startsWith('https://'));
 
-const initials = computed(() => hostname.value.replace(/^www\./, '').slice(0, 2).toUpperCase());
+const initials = computed(() =>
+  hostname.value
+    .replace(/^www\./, '')
+    .slice(0, 2)
+    .toUpperCase(),
+);
 </script>
 
 <template>

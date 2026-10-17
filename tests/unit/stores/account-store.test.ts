@@ -5,14 +5,15 @@ import useAccountStore from '@/stores/account-store';
 import useVaultStore from '@/stores/vault-store';
 import type { StoredKey } from '@/types';
 
-const { mockSave, mockGet, mockGetActive, mockSetActive, mockRenameAlias, mockOnChanged } = vi.hoisted(() => ({
-  mockSave: vi.fn(),
-  mockGet: vi.fn(),
-  mockGetActive: vi.fn(),
-  mockSetActive: vi.fn(),
-  mockRenameAlias: vi.fn(),
-  mockOnChanged: vi.fn(),
-}));
+const { mockSave, mockGet, mockGetActive, mockSetActive, mockRenameAlias, mockOnChanged } =
+  vi.hoisted(() => ({
+    mockSave: vi.fn(),
+    mockGet: vi.fn(),
+    mockGetActive: vi.fn(),
+    mockSetActive: vi.fn(),
+    mockRenameAlias: vi.fn(),
+    mockOnChanged: vi.fn(),
+  }));
 
 vi.mock('@/services/dexie-storage', () => ({
   save: mockSave,
@@ -68,7 +69,9 @@ describe('account-store', () => {
       mockSave.mockResolvedValue(summary);
       const store = useAccountStore();
 
-      await expect(store.saveKey({ alias: 'alpha', privkey: 'e'.repeat(64) })).resolves.toEqual(summary);
+      await expect(store.saveKey({ alias: 'alpha', privkey: 'e'.repeat(64) })).resolves.toEqual(
+        summary,
+      );
 
       expect(mockSave).toHaveBeenCalledWith({ alias: 'alpha', privkey: 'e'.repeat(64) });
       expect(Array.from(store.storedKeys)).toEqual([summary]);

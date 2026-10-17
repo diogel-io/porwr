@@ -16,7 +16,10 @@ async function seed(page: Page, fallbackRelay: string): Promise<void> {
   // Point the background at the local relay before adding accounts: adding one starts reads from
   // the fallback relays, and reads from the real seed relays would make Chrome hold back this
   // extension's later WebSocket connections, the local relay's included, for seconds.
-  await page.evaluate((relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }), fallbackRelay);
+  await page.evaluate(
+    (relay) => chrome.storage.local.set({ 'nostr:fallback-relays': [relay] }),
+    fallbackRelay,
+  );
   await seedAccounts(page, [TEST_ACCOUNT]);
 }
 
@@ -29,7 +32,10 @@ async function openSupportFromMenu(page: Page): Promise<void> {
 }
 
 test.describe('support', () => {
-  test('opens inside Porwr and waits for the account to have direct message relays', async ({ openPage, relays }) => {
+  test('opens inside Porwr and waits for the account to have direct message relays', async ({
+    openPage,
+    relays,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seed(page, relays.plain);
@@ -40,12 +46,19 @@ test.describe('support', () => {
     await expect(page.getByLabel('Message', { exact: true })).toBeDisabled();
   });
 
-  test('says support cannot be reached when support has no inbox the account can find', async ({ openPage, relays }) => {
+  test('says support cannot be reached when support has no inbox the account can find', async ({
+    openPage,
+    relays,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seed(page, relays.plain);
     const result = (await page.evaluate(
-      (list) => chrome.runtime.sendMessage({ type: 'messaging.dmRelays.publish', payload: { relays: list } }),
+      (list) =>
+        chrome.runtime.sendMessage({
+          type: 'messaging.dmRelays.publish',
+          payload: { relays: list },
+        }),
       [relays.inbox],
     )) as { accepted?: string[] };
     expect(result.accepted).toEqual(expect.arrayContaining([relays.inbox]));

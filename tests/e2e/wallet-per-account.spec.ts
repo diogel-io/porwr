@@ -22,13 +22,15 @@ const SECOND_ACCOUNT = {
   pubkey: '466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27',
 };
 
-const NWC_URI =
-  `nostr+walletconnect://${'b'.repeat(64)}?relay=${encodeURIComponent('wss://127.0.0.1:9/')}&secret=${'3'.repeat(64)}`;
+const NWC_URI = `nostr+walletconnect://${'b'.repeat(64)}?relay=${encodeURIComponent('wss://127.0.0.1:9/')}&secret=${'3'.repeat(64)}`;
 
 async function importWalletFor(page: Page, accountPubkey: string, label: string): Promise<void> {
   const result = await page.evaluate(
     ({ accountPubkey, label, uri }) =>
-      chrome.runtime.sendMessage({ type: 'nip47.connections.import', payload: { accountPubkey, uri, label } }),
+      chrome.runtime.sendMessage({
+        type: 'nip47.connections.import',
+        payload: { accountPubkey, uri, label },
+      }),
     { accountPubkey, label, uri: NWC_URI },
   );
   if (!result || typeof result !== 'object' || (result as { label?: string }).label !== label) {
@@ -66,7 +68,9 @@ test.describe('wallets per account (#304)', () => {
     await expect(page.getByText('Main wallet').first()).toBeVisible();
   });
 
-  test('the background refuses another account’s connection, and wallet calls that name no account', async ({ openPage }) => {
+  test('the background refuses another account’s connection, and wallet calls that name no account', async ({
+    openPage,
+  }) => {
     const page = await openPage('/login');
     await createVault(page);
     await seedAccounts(page, [TEST_ACCOUNT, SECOND_ACCOUNT]);
@@ -74,12 +78,19 @@ test.describe('wallets per account (#304)', () => {
 
     const answers = await page.evaluate(
       async ({ main, second }) => {
-        const send = (type: string, payload: unknown) => chrome.runtime.sendMessage({ type, payload });
-        const [connection] = (await send('nip47.connections.list', { accountPubkey: main })) as Array<{ id: string }>;
+        const send = (type: string, payload: unknown) =>
+          chrome.runtime.sendMessage({ type, payload });
+        const [connection] = (await send('nip47.connections.list', {
+          accountPubkey: main,
+        })) as Array<{ id: string }>;
         return {
-          mainCount: ((await send('nip47.connections.list', { accountPubkey: main })) as unknown[]).length,
+          mainCount: ((await send('nip47.connections.list', { accountPubkey: main })) as unknown[])
+            .length,
           secondList: await send('nip47.connections.list', { accountPubkey: second }),
-          crossBalance: await send('nip47.getBalance', { accountPubkey: second, connectionId: connection!.id }),
+          crossBalance: await send('nip47.getBalance', {
+            accountPubkey: second,
+            connectionId: connection!.id,
+          }),
           noAccount: await send('nip47.connections.list', {}),
         };
       },
@@ -88,7 +99,10 @@ test.describe('wallets per account (#304)', () => {
 
     expect(answers.mainCount).toBe(1);
     expect(answers.secondList).toEqual([]);
-    expect(answers.crossBalance).toMatchObject({ success: false, error: 'NIP-47 connection not found' });
+    expect(answers.crossBalance).toMatchObject({
+      success: false,
+      error: 'NIP-47 connection not found',
+    });
     expect(answers.noAccount).toMatchObject({ success: false });
   });
 
@@ -100,10 +114,19 @@ test.describe('wallets per account (#304)', () => {
 
     const after = await page.evaluate(
       async ({ second }) => {
-        await chrome.runtime.sendMessage({ type: 'accounts.remove', payload: { accountPubkey: second } });
+        await chrome.runtime.sendMessage({
+          type: 'accounts.remove',
+          payload: { accountPubkey: second },
+        });
         // Re-adding the same key must not bring the old wallet back with it.
-        await chrome.runtime.sendMessage({ type: 'accounts.add', payload: { alias: 'work', privkey: '2'.repeat(64) } });
-        return chrome.runtime.sendMessage({ type: 'nip47.connections.list', payload: { accountPubkey: second } });
+        await chrome.runtime.sendMessage({
+          type: 'accounts.add',
+          payload: { alias: 'work', privkey: '2'.repeat(64) },
+        });
+        return chrome.runtime.sendMessage({
+          type: 'nip47.connections.list',
+          payload: { accountPubkey: second },
+        });
       },
       { second: SECOND_ACCOUNT.pubkey },
     );

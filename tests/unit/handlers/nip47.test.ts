@@ -54,7 +54,8 @@ vi.mock('@/services/nip47-uri', () => ({
 }));
 
 vi.mock('@/../src-bex/services/nip47-payment-history-store', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/../src-bex/services/nip47-payment-history-store')>();
+  const actual =
+    await importOriginal<typeof import('@/../src-bex/services/nip47-payment-history-store')>();
   return {
     ...actual,
     listNip47PaymentHistory: vi.fn(actual.listNip47PaymentHistory),
@@ -92,7 +93,9 @@ const INVOICE = 'lnbc1u1pjqxyz';
 describe('handleNip47PayInvoice', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    globalThis.crypto.randomUUID = vi.fn(() => 'history-entry-id') as () => `${string}-${string}-${string}-${string}-${string}`;
+    globalThis.crypto.randomUUID = vi.fn(
+      () => 'history-entry-id',
+    ) as () => `${string}-${string}-${string}-${string}-${string}`;
     vi.mocked(updateVaultData).mockResolvedValue({ success: true });
   });
 
@@ -111,7 +114,11 @@ describe('handleNip47PayInvoice', () => {
       raw: {},
     });
 
-    const result = await handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE });
+    const result = await handleNip47PayInvoice({
+      accountPubkey: ACCOUNT,
+      connectionId: 'wallet-a',
+      invoice: INVOICE,
+    });
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -130,11 +137,13 @@ describe('handleNip47PayInvoice', () => {
 
   it('records a failed payment history entry when the wallet rejects the payment', async () => {
     mockVault(buildConnection());
-    vi.mocked(nip47Client.payInvoice).mockRejectedValue(new Error('PAYMENT_FAILED: insufficient balance'));
-
-    await expect(handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE })).rejects.toThrow(
-      'PAYMENT_FAILED: insufficient balance',
+    vi.mocked(nip47Client.payInvoice).mockRejectedValue(
+      new Error('PAYMENT_FAILED: insufficient balance'),
     );
+
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow('PAYMENT_FAILED: insufficient balance');
 
     expect(updateVaultData).toHaveBeenCalledTimes(1);
     const savedVaultData = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
@@ -148,9 +157,9 @@ describe('handleNip47PayInvoice', () => {
   it('rejects payment when the connection does not advertise pay_invoice support', async () => {
     mockVault(buildConnection({ capabilities: ['get_balance'] }));
 
-    await expect(handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE })).rejects.toThrow(
-      'does not advertise pay_invoice support',
-    );
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow('does not advertise pay_invoice support');
 
     expect(nip47Client.payInvoice).not.toHaveBeenCalled();
     expect(updateVaultData).not.toHaveBeenCalled();
@@ -160,7 +169,11 @@ describe('handleNip47PayInvoice', () => {
     mockVault(buildConnection({ capabilities: [] }));
     vi.mocked(nip47Client.payInvoice).mockResolvedValue({ preimage: 'preimage', raw: {} });
 
-    const result = await handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE });
+    const result = await handleNip47PayInvoice({
+      accountPubkey: ACCOUNT,
+      connectionId: 'wallet-a',
+      invoice: INVOICE,
+    });
 
     expect(result.success).toBe(true);
     expect(nip47Client.payInvoice).toHaveBeenCalled();
@@ -169,9 +182,13 @@ describe('handleNip47PayInvoice', () => {
   it('throws when the connection cannot be found', async () => {
     mockVault(buildConnection());
 
-    await expect(handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'missing-wallet', invoice: INVOICE })).rejects.toThrow(
-      'NIP-47 connection not found',
-    );
+    await expect(
+      handleNip47PayInvoice({
+        accountPubkey: ACCOUNT,
+        connectionId: 'missing-wallet',
+        invoice: INVOICE,
+      }),
+    ).rejects.toThrow('NIP-47 connection not found');
   });
 });
 
@@ -197,7 +214,10 @@ describe('handleNip47ConnectionsList', () => {
   });
 
   it('returns an empty list when the vault has no connections', async () => {
-    vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [MAIN_ACCOUNT] } });
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [MAIN_ACCOUNT] },
+    });
 
     const result = await handleNip47ConnectionsList({ accountPubkey: ACCOUNT });
 
@@ -218,9 +238,16 @@ describe('handleNip47ConnectionImport', () => {
   });
 
   it('creates a new connection from a parsed NWC URI', async () => {
-    vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [MAIN_ACCOUNT] } });
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [MAIN_ACCOUNT] },
+    });
 
-    const result = await handleNip47ConnectionImport({ accountPubkey: ACCOUNT, uri: 'nostr+walletconnect://...', label: 'My Wallet' });
+    const result = await handleNip47ConnectionImport({
+      accountPubkey: ACCOUNT,
+      uri: 'nostr+walletconnect://...',
+      label: 'My Wallet',
+    });
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -248,7 +275,10 @@ describe('handleNip47ConnectionImport', () => {
       vaultData: { accounts: [MAIN_ACCOUNT], nip47Connections: [existing] },
     });
 
-    const result = await handleNip47ConnectionImport({ accountPubkey: ACCOUNT, uri: 'nostr+walletconnect://...' });
+    const result = await handleNip47ConnectionImport({
+      accountPubkey: ACCOUNT,
+      uri: 'nostr+walletconnect://...',
+    });
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -272,7 +302,10 @@ describe('handleNip47ConnectionRemove', () => {
       vaultData: { accounts: [MAIN_ACCOUNT], nip47Connections: [buildConnection()] },
     });
 
-    const result = await handleNip47ConnectionRemove({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+    const result = await handleNip47ConnectionRemove({
+      accountPubkey: ACCOUNT,
+      connectionId: 'wallet-a',
+    });
 
     expect(result).toEqual({ success: true, data: true });
     const saved = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
@@ -294,7 +327,10 @@ describe('handleNip47ConnectionSetActive', () => {
       vaultData: { accounts: [MAIN_ACCOUNT], nip47Connections: [other, target] },
     });
 
-    const result = await handleNip47ConnectionSetActive({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+    const result = await handleNip47ConnectionSetActive({
+      accountPubkey: ACCOUNT,
+      connectionId: 'wallet-a',
+    });
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -306,11 +342,14 @@ describe('handleNip47ConnectionSetActive', () => {
   });
 
   it('rejects when the connection does not exist', async () => {
-    vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [MAIN_ACCOUNT] } });
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [MAIN_ACCOUNT] },
+    });
 
-    await expect(handleNip47ConnectionSetActive({ accountPubkey: ACCOUNT, connectionId: 'missing' })).rejects.toThrow(
-      'NIP-47 connection not found',
-    );
+    await expect(
+      handleNip47ConnectionSetActive({ accountPubkey: ACCOUNT, connectionId: 'missing' }),
+    ).rejects.toThrow('NIP-47 connection not found');
   });
 });
 
@@ -337,13 +376,20 @@ describe('handleNip47GetInfo', () => {
       expect(result.data.capabilities).toEqual(['pay_invoice', 'get_balance']);
     }
     const saved = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
-    expect(saved.nip47Connections?.[0]).toMatchObject({ capabilities: ['pay_invoice', 'get_balance'] });
+    expect(saved.nip47Connections?.[0]).toMatchObject({
+      capabilities: ['pay_invoice', 'get_balance'],
+    });
   });
 
   it('rejects when the connection does not exist', async () => {
-    vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [MAIN_ACCOUNT] } });
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [MAIN_ACCOUNT] },
+    });
 
-    await expect(handleNip47GetInfo({ accountPubkey: ACCOUNT, connectionId: 'missing' })).rejects.toThrow('NIP-47 connection not found');
+    await expect(
+      handleNip47GetInfo({ accountPubkey: ACCOUNT, connectionId: 'missing' }),
+    ).rejects.toThrow('NIP-47 connection not found');
   });
 });
 
@@ -359,15 +405,23 @@ describe('handleNip47GetBalance', () => {
     });
     vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 100_000 } as never);
 
-    const result = await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+    const result = await handleNip47GetBalance({
+      accountPubkey: ACCOUNT,
+      connectionId: 'wallet-a',
+    });
 
     expect(result).toEqual({ success: true, data: { balanceMsat: 100_000 } });
   });
 
   it('rejects when the connection does not exist', async () => {
-    vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts: [MAIN_ACCOUNT] } });
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [MAIN_ACCOUNT] },
+    });
 
-    await expect(handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'missing' })).rejects.toThrow('NIP-47 connection not found');
+    await expect(
+      handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'missing' }),
+    ).rejects.toThrow('NIP-47 connection not found');
   });
 });
 
@@ -417,25 +471,39 @@ describe('wallet authorization (#110)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vaultData = { accounts: [MAIN_ACCOUNT], nip47Connections: [buildConnection({ id: 'existing', isActive: true })] };
+    vaultData = {
+      accounts: [MAIN_ACCOUNT],
+      nip47Connections: [buildConnection({ id: 'existing', isActive: true })],
+    };
     vi.mocked(getVaultData).mockImplementation(() => Promise.resolve({ success: true, vaultData }));
     vi.mocked(updateVaultData).mockImplementation((next) => {
       vaultData = next as VaultData;
       return Promise.resolve({ success: true });
     });
-    vi.mocked(buildNip47ConnectionId).mockImplementation((wallet, client) => `nip47:${wallet}:${client}`);
+    vi.mocked(buildNip47ConnectionId).mockImplementation(
+      (wallet, client) => `nip47:${wallet}:${client}`,
+    );
     vi.mocked(savePendingNip47Authorization).mockImplementation((entry) =>
       Promise.resolve({ ...entry, createdAt: 0, expiresAt: 1 }),
     );
-    globalThis.crypto.randomUUID = vi.fn(() => 'pending-uuid') as () => `${string}-${string}-${string}-${string}-${string}`;
+    globalThis.crypto.randomUUID = vi.fn(
+      () => 'pending-uuid',
+    ) as () => `${string}-${string}-${string}-${string}-${string}`;
   });
 
   describe('handleNip47AuthorizationBegin', () => {
     it('keeps the secret in the background and returns only public values', async () => {
-      const result = await handleNip47AuthorizationBegin({ accountPubkey: ACCOUNT, provider: 'coinos' });
+      const result = await handleNip47AuthorizationBegin({
+        accountPubkey: ACCOUNT,
+        provider: 'coinos',
+      });
 
       const saved = vi.mocked(savePendingNip47Authorization).mock.calls[0]![0];
-      expect(saved).toMatchObject({ pendingId: 'pending-uuid', providerId: 'coinos', origin: 'https://coinos.io' });
+      expect(saved).toMatchObject({
+        pendingId: 'pending-uuid',
+        providerId: 'coinos',
+        origin: 'https://coinos.io',
+      });
       expect(saved.clientSecret).toMatch(/^[0-9a-f]{64}$/);
 
       const data = dataOf(result);
@@ -443,7 +511,9 @@ describe('wallet authorization (#110)', () => {
         pendingId: 'pending-uuid',
         clientPubkey: saved.clientPubkey,
         origin: 'https://coinos.io',
-        authorizationUrl: expect.stringContaining(`https://coinos.io/apps/new?name=Porwr&pubkey=${saved.clientPubkey}`),
+        authorizationUrl: expect.stringContaining(
+          `https://coinos.io/apps/new?name=Porwr&pubkey=${saved.clientPubkey}`,
+        ),
       });
       expect(JSON.stringify(data)).not.toContain(saved.clientSecret);
     });
@@ -460,35 +530,59 @@ describe('wallet authorization (#110)', () => {
     });
 
     it('rejects an unknown provider and an unusable address', async () => {
-      await expect(handleNip47AuthorizationBegin({ accountPubkey: ACCOUNT, provider: 'mutiny' })).rejects.toThrow('Unsupported wallet provider');
       await expect(
-        handleNip47AuthorizationBegin({ accountPubkey: ACCOUNT, provider: 'alby-hub', customOrigin: 'http://hub.example.com' }),
+        handleNip47AuthorizationBegin({ accountPubkey: ACCOUNT, provider: 'mutiny' }),
+      ).rejects.toThrow('Unsupported wallet provider');
+      await expect(
+        handleNip47AuthorizationBegin({
+          accountPubkey: ACCOUNT,
+          provider: 'alby-hub',
+          customOrigin: 'http://hub.example.com',
+        }),
       ).rejects.toThrow('https:// address of your Alby Hub');
       expect(savePendingNip47Authorization).not.toHaveBeenCalled();
     });
 
     it('refuses while the vault is locked', async () => {
-      vi.mocked(getVaultData).mockResolvedValue({ success: false, error: 'Vault is locked', errorCode: ErrorCode.VLT_LOCKED });
+      vi.mocked(getVaultData).mockResolvedValue({
+        success: false,
+        error: 'Vault is locked',
+        errorCode: ErrorCode.VLT_LOCKED,
+      });
 
-      await expect(handleNip47AuthorizationBegin({ accountPubkey: ACCOUNT, provider: 'coinos' })).rejects.toThrow('Vault is locked');
+      await expect(
+        handleNip47AuthorizationBegin({ accountPubkey: ACCOUNT, provider: 'coinos' }),
+      ).rejects.toThrow('Vault is locked');
       expect(savePendingNip47Authorization).not.toHaveBeenCalled();
     });
   });
 
   describe('handleNip47AuthorizationComplete', () => {
-    const request = { pendingId: 'pending-1', walletServicePubkey: WALLET, relays: ['wss://relay.example.com'], lud16: 'alice@coinos.io' };
+    const request = {
+      pendingId: 'pending-1',
+      walletServicePubkey: WALLET,
+      relays: ['wss://relay.example.com'],
+      lud16: 'alice@coinos.io',
+    };
 
     it('saves a checked connection as the active wallet and returns no secret', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
       vi.mocked(nip47Client.getInfo).mockResolvedValue({
-        pubkey: WALLET, capabilities: ['pay_invoice', 'get_balance'], relays: [], encryption: [], notifications: [],
-        rawContent: '', checkedAt: '2026-10-12T00:00:00.000Z',
+        pubkey: WALLET,
+        capabilities: ['pay_invoice', 'get_balance'],
+        relays: [],
+        encryption: [],
+        notifications: [],
+        rawContent: '',
+        checkedAt: '2026-10-12T00:00:00.000Z',
       });
 
       const result = await handleNip47AuthorizationComplete(request);
 
       expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1');
-      expect(nip47Client.getInfo).toHaveBeenCalledWith(expect.objectContaining({ walletServicePubkey: WALLET, clientSecret: SECRET }));
+      expect(nip47Client.getInfo).toHaveBeenCalledWith(
+        expect.objectContaining({ walletServicePubkey: WALLET, clientSecret: SECRET }),
+      );
       expect(dataOf(result)).toMatchObject({
         id: `nip47:${WALLET}:client-pubkey`,
         label: 'Coinos',
@@ -509,9 +603,13 @@ describe('wallet authorization (#110)', () => {
 
     it('saves nothing when the wallet service does not answer', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
-      vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('No NIP-47 wallet info event found'));
+      vi.mocked(nip47Client.getInfo).mockRejectedValue(
+        new Error('No NIP-47 wallet info event found'),
+      );
 
-      await expect(handleNip47AuthorizationComplete(request)).rejects.toThrow('No NIP-47 wallet info event found');
+      await expect(handleNip47AuthorizationComplete(request)).rejects.toThrow(
+        'No NIP-47 wallet info event found',
+      );
       expect(updateVaultData).not.toHaveBeenCalled();
     });
 
@@ -544,7 +642,11 @@ describe('wallet authorization (#110)', () => {
       const result = await handleNip47AuthorizationProbe({ pendingId: 'pending-1' });
 
       expect(nip47Client.sendRequest).toHaveBeenCalledWith(
-        expect.objectContaining({ walletServicePubkey: COINOS_WALLET, relays: ['wss://relay.coinos.io'], clientSecret: SECRET }),
+        expect.objectContaining({
+          walletServicePubkey: COINOS_WALLET,
+          relays: ['wss://relay.coinos.io'],
+          clientSecret: SECRET,
+        }),
         { method: 'get_info', params: {} },
       );
       expect(dataOf(result)).toMatchObject({
@@ -557,7 +659,9 @@ describe('wallet authorization (#110)', () => {
 
     it('treats any wallet error other than UNAUTHORIZED as approval', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
-      vi.mocked(nip47Client.sendRequest).mockResolvedValue({ error: { code: 'RESTRICTED', message: 'not allowed' } });
+      vi.mocked(nip47Client.sendRequest).mockResolvedValue({
+        error: { code: 'RESTRICTED', message: 'not allowed' },
+      });
 
       const result = await handleNip47AuthorizationProbe({ pendingId: 'pending-1' });
 
@@ -566,31 +670,48 @@ describe('wallet authorization (#110)', () => {
 
     it('saves nothing when the wallet refuses the key', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
-      vi.mocked(nip47Client.sendRequest).mockResolvedValue({ error: { code: 'UNAUTHORIZED', message: 'no' } });
+      vi.mocked(nip47Client.sendRequest).mockResolvedValue({
+        error: { code: 'UNAUTHORIZED', message: 'no' },
+      });
 
-      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({ success: true, data: null });
+      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({
+        success: true,
+        data: null,
+      });
       expect(updateVaultData).not.toHaveBeenCalled();
     });
 
     it('saves nothing when the wallet does not answer', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
-      vi.mocked(nip47Client.sendRequest).mockRejectedValue(new Error('Timed out waiting for NIP-47 wallet response'));
+      vi.mocked(nip47Client.sendRequest).mockRejectedValue(
+        new Error('Timed out waiting for NIP-47 wallet response'),
+      );
 
-      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({ success: true, data: null });
+      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({
+        success: true,
+        data: null,
+      });
       expect(updateVaultData).not.toHaveBeenCalled();
     });
 
     it('cannot probe a provider without a known wallet service', async () => {
-      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending({ providerId: 'alby-hub' }));
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(
+        pending({ providerId: 'alby-hub' }),
+      );
 
-      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({ success: true, data: null });
+      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({
+        success: true,
+        data: null,
+      });
       expect(nip47Client.sendRequest).not.toHaveBeenCalled();
     });
 
     it('rejects an expired request', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(null);
 
-      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).rejects.toThrow('expired');
+      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).rejects.toThrow(
+        'expired',
+      );
     });
   });
 });
@@ -620,7 +741,9 @@ describe('wallets belong to one account (#304)', () => {
       vaultData = next as VaultData;
       return Promise.resolve({ success: true });
     });
-    globalThis.crypto.randomUUID = vi.fn(() => 'uuid') as () => `${string}-${string}-${string}-${string}-${string}`;
+    globalThis.crypto.randomUUID = vi.fn(
+      () => 'uuid',
+    ) as () => `${string}-${string}-${string}-${string}-${string}`;
   });
 
   it('lists only the named account’s connections', async () => {
@@ -631,8 +754,12 @@ describe('wallets belong to one account (#304)', () => {
 
   it('refuses an action that names no account, or one not in the vault', async () => {
     // Falling back to the active account is how one wallet came to serve every account.
-    await expect(handleNip47ConnectionsList({} as never)).rejects.toThrow('accountPubkey must be a hex public key');
-    await expect(handleNip47ConnectionsList({ accountPubkey: 'd'.repeat(64) })).rejects.toThrow('Account not found');
+    await expect(handleNip47ConnectionsList({} as never)).rejects.toThrow(
+      'accountPubkey must be a hex public key',
+    );
+    await expect(handleNip47ConnectionsList({ accountPubkey: 'd'.repeat(64) })).rejects.toThrow(
+      'Account not found',
+    );
   });
 
   it('does not find another account’s connection, whatever the action', async () => {
@@ -640,8 +767,12 @@ describe('wallets belong to one account (#304)', () => {
 
     await expect(handleNip47GetBalance(request)).rejects.toThrow('NIP-47 connection not found');
     await expect(handleNip47GetInfo(request)).rejects.toThrow('NIP-47 connection not found');
-    await expect(handleNip47ConnectionSetActive(request)).rejects.toThrow('NIP-47 connection not found');
-    await expect(handleNip47PayInvoice({ ...request, invoice: INVOICE })).rejects.toThrow('NIP-47 connection not found');
+    await expect(handleNip47ConnectionSetActive(request)).rejects.toThrow(
+      'NIP-47 connection not found',
+    );
+    await expect(handleNip47PayInvoice({ ...request, invoice: INVOICE })).rejects.toThrow(
+      'NIP-47 connection not found',
+    );
     expect(nip47Client.payInvoice).not.toHaveBeenCalled();
   });
 
@@ -652,20 +783,32 @@ describe('wallets belong to one account (#304)', () => {
   });
 
   it('activating a connection leaves every other account’s active connection active', async () => {
-    vaultData.nip47Connections!.push(buildConnection({ id: 'wallet-a2', accountPubkey: ACCOUNT, isActive: false }));
+    vaultData.nip47Connections!.push(
+      buildConnection({ id: 'wallet-a2', accountPubkey: ACCOUNT, isActive: false }),
+    );
 
     await handleNip47ConnectionSetActive({ accountPubkey: ACCOUNT, connectionId: 'wallet-a2' });
 
-    const active = vaultData.nip47Connections!.filter((item) => item.isActive).map((item) => item.id).sort();
+    const active = vaultData
+      .nip47Connections!.filter((item) => item.isActive)
+      .map((item) => item.id)
+      .sort();
     expect(active).toEqual(['wallet-a2', 'wallet-b']);
   });
 
   it('records a payment against the paying account and lists it only for that account', async () => {
     vi.mocked(nip47Client.payInvoice).mockResolvedValue({ preimage: 'preimage', raw: {} });
 
-    await handleNip47PayInvoice({ accountPubkey: OTHER, connectionId: 'wallet-b', invoice: INVOICE });
+    await handleNip47PayInvoice({
+      accountPubkey: OTHER,
+      connectionId: 'wallet-b',
+      invoice: INVOICE,
+    });
 
-    expect(vaultData.nip47PaymentHistory?.[0]).toMatchObject({ accountPubkey: OTHER, connectionId: 'wallet-b' });
+    expect(vaultData.nip47PaymentHistory?.[0]).toMatchObject({
+      accountPubkey: OTHER,
+      connectionId: 'wallet-b',
+    });
     const mine = await handleNip47PaymentHistoryList({ accountPubkey: ACCOUNT });
     const theirs = await handleNip47PaymentHistoryList({ accountPubkey: OTHER });
     expect(mine.success && mine.data).toEqual([]);
@@ -696,11 +839,22 @@ describe('wallets belong to one account (#304)', () => {
     const saved = vi.mocked(savePendingNip47Authorization).mock.calls[0]![0];
     expect(saved.accountPubkey).toBe(OTHER);
 
-    vi.mocked(buildNip47ConnectionId).mockImplementation((wallet, client) => `nip47:${wallet}:${client}`);
-    vi.mocked(takePendingNip47Authorization).mockResolvedValue({ ...saved, createdAt: 0, expiresAt: Number.MAX_SAFE_INTEGER });
+    vi.mocked(buildNip47ConnectionId).mockImplementation(
+      (wallet, client) => `nip47:${wallet}:${client}`,
+    );
+    vi.mocked(takePendingNip47Authorization).mockResolvedValue({
+      ...saved,
+      createdAt: 0,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    });
     vi.mocked(nip47Client.getInfo).mockResolvedValue({
-      pubkey: 'b'.repeat(64), capabilities: ['pay_invoice'], relays: [], encryption: [], notifications: [],
-      rawContent: '', checkedAt: '2026-10-16T00:00:00.000Z',
+      pubkey: 'b'.repeat(64),
+      capabilities: ['pay_invoice'],
+      relays: [],
+      encryption: [],
+      notifications: [],
+      rawContent: '',
+      checkedAt: '2026-10-16T00:00:00.000Z',
     });
 
     const result = await handleNip47AuthorizationComplete({
@@ -715,16 +869,31 @@ describe('wallets belong to one account (#304)', () => {
 
   it('saves nothing when the account was removed while the user was in the wallet’s popup', async () => {
     vi.mocked(takePendingNip47Authorization).mockResolvedValue({
-      pendingId: 'p', accountPubkey: 'd'.repeat(64), providerId: 'coinos', origin: 'https://coinos.io',
-      clientSecret: '1'.repeat(64), clientPubkey: 'client', createdAt: 0, expiresAt: Number.MAX_SAFE_INTEGER,
+      pendingId: 'p',
+      accountPubkey: 'd'.repeat(64),
+      providerId: 'coinos',
+      origin: 'https://coinos.io',
+      clientSecret: '1'.repeat(64),
+      clientPubkey: 'client',
+      createdAt: 0,
+      expiresAt: Number.MAX_SAFE_INTEGER,
     });
     vi.mocked(nip47Client.getInfo).mockResolvedValue({
-      pubkey: 'b'.repeat(64), capabilities: [], relays: [], encryption: [], notifications: [],
-      rawContent: '', checkedAt: '2026-10-16T00:00:00.000Z',
+      pubkey: 'b'.repeat(64),
+      capabilities: [],
+      relays: [],
+      encryption: [],
+      notifications: [],
+      rawContent: '',
+      checkedAt: '2026-10-16T00:00:00.000Z',
     });
 
     await expect(
-      handleNip47AuthorizationComplete({ pendingId: 'p', walletServicePubkey: 'b'.repeat(64), relays: ['wss://relay.example.com'] }),
+      handleNip47AuthorizationComplete({
+        pendingId: 'p',
+        walletServicePubkey: 'b'.repeat(64),
+        relays: ['wss://relay.example.com'],
+      }),
     ).rejects.toThrow('Account not found');
     expect(vaultData.nip47Connections).toHaveLength(2);
   });

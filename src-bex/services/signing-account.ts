@@ -19,12 +19,9 @@ import { ErrorCode } from '@/types/error-codes.d';
 import { getVaultData, isVaultUnlocked } from '../vault';
 import { bindOriginIfUnbound, getBinding } from './site-binding-store';
 
-export type SigningAccountResult =
-  | { account: StoredKey }
-  | { error: string; code: ErrorCode };
+export type SigningAccountResult = { account: StoredKey } | { error: string; code: ErrorCode };
 
-export const BOUND_ACCOUNT_GONE =
-  'The account this site is connected to is no longer available';
+export const BOUND_ACCOUNT_GONE = 'The account this site is connected to is no longer available';
 
 export async function listAccounts(): Promise<StoredKey[]> {
   const vaultDataRes = await getVaultData();

@@ -22,12 +22,13 @@ vi.mock('@/services/vault-service', () => ({
   isVaultUnlocked: vi.fn(),
 }));
 
-const { approvalsWhereMock, approvalsEqualsMock, approvalsToArrayMock, exceptionsToArrayMock } = vi.hoisted(() => ({
-  approvalsWhereMock: vi.fn(),
-  approvalsEqualsMock: vi.fn(),
-  approvalsToArrayMock: vi.fn(),
-  exceptionsToArrayMock: vi.fn(),
-}));
+const { approvalsWhereMock, approvalsEqualsMock, approvalsToArrayMock, exceptionsToArrayMock } =
+  vi.hoisted(() => ({
+    approvalsWhereMock: vi.fn(),
+    approvalsEqualsMock: vi.fn(),
+    approvalsToArrayMock: vi.fn(),
+    exceptionsToArrayMock: vi.fn(),
+  }));
 
 const {
   relayMetadataGetMock,
@@ -261,7 +262,14 @@ describe('dashboard-service', () => {
     vi.mocked(dexieStorage.get).mockResolvedValue({
       alpha: { id: 'pubkey-alpha', alias: 'alpha', createdAt: '2026-01-01' },
     });
-    const event = { id: 'evt-1', kind: 10002, tags: [['r', 'wss://relay.one'], ['r', 'wss://relay.two']] };
+    const event = {
+      id: 'evt-1',
+      kind: 10002,
+      tags: [
+        ['r', 'wss://relay.one'],
+        ['r', 'wss://relay.two'],
+      ],
+    };
     fetchAccountRelayListEventMock.mockResolvedValue(event);
     parseRelayListEventMock.mockReturnValue(['wss://relay.one', 'wss://relay.two']);
     normalizeAndDeduplicateRelaysMock.mockReturnValue(['wss://relay.one', 'wss://relay.two']);
@@ -364,8 +372,24 @@ describe('dashboard-service', () => {
     });
 
     getEventsMock.mockResolvedValue([
-      { id: '1', kind: 1, created_at: 1735689600, tags: [], content: 'hello', pubkey: 'pubkey-alpha', sig: 'sig' },
-      { id: '2', kind: 0, created_at: 1735693200, tags: [], content: '{}', pubkey: 'pubkey-alpha', sig: 'sig' },
+      {
+        id: '1',
+        kind: 1,
+        created_at: 1735689600,
+        tags: [],
+        content: 'hello',
+        pubkey: 'pubkey-alpha',
+        sig: 'sig',
+      },
+      {
+        id: '2',
+        kind: 0,
+        created_at: 1735693200,
+        tags: [],
+        content: '{}',
+        pubkey: 'pubkey-alpha',
+        sig: 'sig',
+      },
     ]);
 
     const result = await dashboardService.getRecentEventsFromRelays(2);

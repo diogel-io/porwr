@@ -33,17 +33,17 @@ function onClick() {
 <template>
   <q-card class="dashboard-card" :clickable="clickable" @click="onClick">
     <q-card-section class="dashboard-card-section dashboard-widget-card__section">
-
       <div class="dashboard-widget-card__header">
         <q-icon name="key" size="xl" color="primary" />
-        <span class="dashboard-widget-card__title">{{ t('dashboard.widgets.activeKeys.title') }}</span>
+        <span class="dashboard-widget-card__title">{{
+          t('dashboard.widgets.activeKeys.title')
+        }}</span>
       </div>
 
       <div class="dashboard-widget-card__metric">
         <q-spinner v-if="loading" color="primary" size="24px" />
         <span v-else>{{ summary?.activeKeys ?? 0 }}</span>
       </div>
-
     </q-card-section>
   </q-card>
 </template>
@@ -78,5 +78,4 @@ function onClick() {
   font-size: 1.9rem;
   font-weight: 700;
 }
-
 </style>

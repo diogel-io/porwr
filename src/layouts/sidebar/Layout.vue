@@ -53,12 +53,7 @@ const pendingLabel = computed(() =>
         -->
         <AccountSwitcher v-if="vaultStore.isUnlocked" @switched="onAccountSwitched" />
 
-        <q-badge
-          v-if="hasPending"
-          class="sidebar-header__pending"
-          aria-hidden="true"
-          rounded
-        >
+        <q-badge v-if="hasPending" class="sidebar-header__pending" aria-hidden="true" rounded>
           {{ pendingCount }}
         </q-badge>
 

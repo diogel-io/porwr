@@ -69,7 +69,8 @@ export default {
     viewTitle: 'View Key',
     viewCaption: 'Review and export this key. Only alias naming can be edited.',
     importTitle: 'Import Key',
-    importCaption: 'Import an existing key from an nsec private key. Your private key will not be stored on the server, it is stored in an encrypted vault within the browser.',
+    importCaption:
+      'Import an existing key from an nsec private key. Your private key will not be stored on the server, it is stored in an encrypted vault within the browser.',
     addNewTitle: 'Add New Key',
     addNewCaption: 'Generate and register a new key in your vault.',
     keyNotFound: 'The selected key could not be found.',
@@ -124,8 +125,8 @@ export default {
     nip05StatusIdle: 'Not verified yet',
     nip05StatusVerifying: 'Checking identifier...',
     nip05StatusVerifiedTitle: 'Verified',
-    nip05StatusVerifiedDescription: 'The domain returned this account\'s public key.',
-    nip05StatusVerifiedDescriptionDomain: '{domain} returned this account\'s public key.',
+    nip05StatusVerifiedDescription: "The domain returned this account's public key.",
+    nip05StatusVerifiedDescriptionDomain: "{domain} returned this account's public key.",
     nip05StatusFailureTitle: 'Not verified',
     lud16: 'Lightning Address (LUD-16)',
     lud16Description: 'Where zaps to this profile are paid.',
@@ -317,7 +318,8 @@ export default {
       needsClick: 'Your browser needs one more click to open {provider}.',
       continue: 'Continue to {provider}',
       finished: 'Connection finished. You can close this window.',
-      invalid: 'This connection request is not valid. Close this window and try again from Wallet Management.',
+      invalid:
+        'This connection request is not valid. Close this window and try again from Wallet Management.',
     },
     import: {
       title: 'Connect a wallet',
@@ -381,11 +383,13 @@ export default {
     },
     safety: {
       title: 'Every payment needs your approval',
-      caption: 'Websites can request payments only through WebLN, and only after you enable WebLN for them. Every payment, whether from a website or made here, still needs your approval.',
+      caption:
+        'Websites can request payments only through WebLN, and only after you enable WebLN for them. Every payment, whether from a website or made here, still needs your approval.',
     },
     empty: {
       title: 'No wallet connections yet',
-      caption: 'Import a Nostr Wallet Connect URI from a wallet such as Alby Hub to check balances, pay invoices here, and approve WebLN payment requests from websites you enable.',
+      caption:
+        'Import a Nostr Wallet Connect URI from a wallet such as Alby Hub to check balances, pay invoices here, and approve WebLN payment requests from websites you enable.',
     },
     history: {
       title: 'Payment history',
@@ -400,21 +404,24 @@ export default {
     },
     payment: {
       title: 'Approve Lightning payment',
-      caption: 'This sends real money through the selected NWC wallet connection. Review it carefully before approving.',
+      caption:
+        'This sends real money through the selected NWC wallet connection. Review it carefully before approving.',
       walletConnection: 'Wallet connection',
       bolt11Invoice: 'BOLT11 invoice',
       parsedAmount: 'Parsed amount',
       invoicePreview: 'Invoice preview',
       noInvoiceEntered: 'No invoice entered',
       amountNotEncoded: 'Amount not encoded in invoice',
-      approvalLabel: 'I understand this will attempt to pay the invoice using this wallet connection.',
+      approvalLabel:
+        'I understand this will attempt to pay the invoice using this wallet connection.',
     },
     notifications: {
       imported: 'Wallet connection imported into the encrypted vault.',
       connected: '{label} connected.',
       noResponse:
         "We didn't hear back from {provider}. If you approved Porwr, try again, or paste a connection string instead.",
-      popupBlocked: 'Your browser blocked the wallet window. Allow pop-ups for Porwr and try again.',
+      popupBlocked:
+        'Your browser blocked the wallet window. Allow pop-ups for Porwr and try again.',
       infoLoaded: 'Wallet info loaded. Capabilities: {capabilities}.',
       balanceLoaded: 'Balance loaded for {label}.',
       activeWallet: '{label} Wallet is now active wallet',
@@ -501,8 +508,7 @@ export default {
       body: "Diogel Support replies to your Direct Message Relays. Choose relays that keep private messages, such as wss://nos.lol or wss://relay.primal.net. Some relays, including relay.damus.io, accept private messages but don't keep them, so replies sent there never arrive.",
       action: 'Check your relays',
     },
-    notReachable:
-      "Diogel Support can't receive messages right now. Please try again later.",
+    notReachable: "Diogel Support can't receive messages right now. Please try again later.",
   },
   messaging: {
     title: 'Messaging',
@@ -539,7 +545,8 @@ export default {
       sending: 'Sending…',
       failed: 'Not sent.',
       retry: 'Retry',
-      recipientNotReady: "{name} can't receive private messages yet: they have not published direct message relays.",
+      recipientNotReady:
+        "{name} can't receive private messages yet: they have not published direct message relays.",
     },
     composer: {
       label: 'Message',
@@ -639,9 +646,11 @@ export default {
       url: 'Direct message relay URL',
       add: 'Add direct message relay',
       remove: 'Remove {url}',
-      empty: 'No direct message relays. Without any, other people cannot send you private messages.',
+      empty:
+        'No direct message relays. Without any, other people cannot send you private messages.',
       notPublished: 'You have not published a direct message relay list yet.',
-      loadError: 'Could not load your direct message relays. Saving will publish the list shown here.',
+      loadError:
+        'Could not load your direct message relays. Saving will publish the list shown here.',
       keepsMessages:
         "When you save, Porwr checks that each relay keeps private messages by sending it a test message from a throwaway key. Inbox relays that use NIP-42 authentication work best, because they show your messages only to you. Some relays, including relay.damus.io, accept private messages but don't keep them, so nothing sent there reaches you.",
       checking: 'Checking that each relay keeps private messages…',
@@ -655,7 +664,7 @@ export default {
         'No relay in this list keeps private messages, so nobody could reach you: {relays}. Add a relay that keeps them, then save again.',
       someDropTitle: 'Some relays drop messages',
       someDropBody:
-        "Private messages sent to {relays} are accepted but not kept, so they never reach you. Publish the list anyway?",
+        'Private messages sent to {relays} are accepted but not kept, so they never reach you. Publish the list anyway?',
       publishAnyway: 'Publish anyway',
       cancel: 'Cancel',
       recommendedSize: 'NIP-17 recommends keeping this list small: 1 to 3 relays.',
@@ -732,7 +741,8 @@ export default {
     },
     states: {
       expired: 'This request expired before it was answered. The site must ask again.',
-      interrupted: 'This request was interrupted and can no longer be approved. The site must ask again.',
+      interrupted:
+        'This request was interrupted and can no longer be approved. The site must ask again.',
     },
   },
   sidebar: {

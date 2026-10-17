@@ -98,7 +98,12 @@ export class DmRelayProbe {
       try {
         // nostr-tools' own waits run past `maxWait`, so only ours decides (#265). A relay it could not
         // connect to rejects with "connection failure: …", which leaves the relay unchecked.
-        await withDeadline(publish!, publishBy, () => Promise.reject(new Error('timed out')), this.now);
+        await withDeadline(
+          publish!,
+          publishBy,
+          () => Promise.reject(new Error('timed out')),
+          this.now,
+        );
       } catch (error) {
         const reason = reasonOf(error);
         return { url, status: REFUSES_EVENT.test(reason) ? 'drops' : 'unchecked', reason };

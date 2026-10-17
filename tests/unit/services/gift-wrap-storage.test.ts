@@ -32,7 +32,9 @@ afterEach(() => vi.useRealTimers());
 
 describe('checkStored', () => {
   it('asks only that relay for that wrap, authenticating where it asks', async () => {
-    const { pool, subscribeEose } = poolAnswering((params) => params.onclose([{ url: URL, reason: 'closed automatically on eose' }]));
+    const { pool, subscribeEose } = poolAnswering((params) =>
+      params.onclose([{ url: URL, reason: 'closed automatically on eose' }]),
+    );
 
     await read(pool);
 
@@ -63,9 +65,15 @@ describe('checkStored', () => {
   });
 
   it('reports a relay that answered without the wrap as missing', async () => {
-    const { pool } = poolAnswering((params) => params.onclose([{ url: URL, reason: 'closed automatically on eose' }]));
+    const { pool } = poolAnswering((params) =>
+      params.onclose([{ url: URL, reason: 'closed automatically on eose' }]),
+    );
 
-    await expect(read(pool)).resolves.toEqual({ url: URL, storage: 'missing', reason: 'accepted but not stored' });
+    await expect(read(pool)).resolves.toEqual({
+      url: URL,
+      storage: 'missing',
+      reason: 'accepted but not stored',
+    });
   });
 
   it.each(['restricted: only for the recipient', 'auth-required: sign in'])(
@@ -78,9 +86,15 @@ describe('checkStored', () => {
   );
 
   it('reports any other close as unanswered, with its reason', async () => {
-    const { pool } = poolAnswering((params) => params.onclose([{ url: URL, reason: 'connection failure' }]));
+    const { pool } = poolAnswering((params) =>
+      params.onclose([{ url: URL, reason: 'connection failure' }]),
+    );
 
-    await expect(read(pool)).resolves.toEqual({ url: URL, storage: 'unanswered', reason: 'connection failure' });
+    await expect(read(pool)).resolves.toEqual({
+      url: URL,
+      storage: 'unanswered',
+      reason: 'connection failure',
+    });
   });
 
   it('gives a reason when the relay closed without one', async () => {

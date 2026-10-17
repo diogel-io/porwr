@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
-import { chromium, test as base, type BrowserContext, type Page, type Worker } from '@playwright/test';
+import {
+  chromium,
+  test as base,
+  type BrowserContext,
+  type Page,
+  type Worker,
+} from '@playwright/test';
 
 // The package is ESM, so `__dirname` does not exist here.
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -40,11 +46,7 @@ export const test = base.extend<ExtensionFixtures>({
       // that starts fine and simply never produces a service worker.
       channel: 'chromium',
       headless: true,
-      args: [
-        `--disable-extensions-except=${DIST}`,
-        `--load-extension=${DIST}`,
-        '--no-first-run',
-      ],
+      args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, '--no-first-run'],
     });
 
     await use(context);

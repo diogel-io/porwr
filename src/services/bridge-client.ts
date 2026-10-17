@@ -66,8 +66,7 @@ export class BackgroundTimeoutError extends Error {
   }
 }
 
-const delay = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 const withTimeout = <T>(operation: Promise<T>, message: string): Promise<T> =>
   Promise.race([
@@ -85,9 +84,11 @@ async function attempt<T extends BridgeAction>(
   if (bridge) {
     try {
       const response = await withTimeout(
-        bridge.send<BridgeResponsePayload<T>>({ event: type, to: 'background', payload }) as Promise<
-          BridgeEnvelope<BridgeResponsePayload<T>> | BridgeResponsePayload<T>
-        >,
+        bridge.send<BridgeResponsePayload<T>>({
+          event: type,
+          to: 'background',
+          payload,
+        }) as Promise<BridgeEnvelope<BridgeResponsePayload<T>> | BridgeResponsePayload<T>>,
         'Bridge timeout',
       );
       if (response && typeof response === 'object' && 'data' in response) {
@@ -105,7 +106,10 @@ async function attempt<T extends BridgeAction>(
   }
 
   if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-    logService.log(LogLevel.DEBUG, `[BridgeClient] Using direct chrome.runtime.sendMessage for ${type}`);
+    logService.log(
+      LogLevel.DEBUG,
+      `[BridgeClient] Using direct chrome.runtime.sendMessage for ${type}`,
+    );
     return await withTimeout(
       new Promise<BridgeResponsePayload<T> | undefined>((resolve, reject) => {
         chrome.runtime.sendMessage({ type, payload }, (response) => {

@@ -36,7 +36,9 @@ export const summarise = (account: StoredKey): AccountSummary => ({
 });
 
 /** The vault as a page may see it: accounts by id, alias and creation date, and nothing secret. */
-export const viewOf = (vault: VaultData): VaultView => ({ accounts: (vault.accounts ?? []).map(summarise) });
+export const viewOf = (vault: VaultData): VaultView => ({
+  accounts: (vault.accounts ?? []).map(summarise),
+});
 
 /** The account whose stored key produces `pubkey`, matched on the key itself rather than the stored id. */
 const findByKey = (vault: VaultData, pubkey: string): StoredKey | undefined =>
@@ -52,7 +54,9 @@ const checkAlias = (vault: VaultData, alias: unknown, ignore?: string): string =
   const trimmed = typeof alias === 'string' ? alias.trim() : '';
   if (!trimmed) throw new Error('Alias is required.');
   if (trimmed === MAIN_ACCOUNT_ALIAS) throw new Error(`Alias "${MAIN_ACCOUNT_ALIAS}" is reserved.`);
-  if ((vault.accounts ?? []).some((account) => account.alias === trimmed && account.alias !== ignore)) {
+  if (
+    (vault.accounts ?? []).some((account) => account.alias === trimmed && account.alias !== ignore)
+  ) {
     throw new Error('Key with the same alias already exists.');
   }
   return trimmed;
@@ -67,7 +71,9 @@ export async function handleVaultGetView(): Promise<HandlerResult<VaultView>> {
   return { success: true, data: viewOf(await readVault()) };
 }
 
-export async function handleAccountsAdd(payload: AddAccountRequest): Promise<HandlerResult<AccountSummary>> {
+export async function handleAccountsAdd(
+  payload: AddAccountRequest,
+): Promise<HandlerResult<AccountSummary>> {
   let secretKey: Uint8Array;
   if (payload?.privkey === undefined) {
     secretKey = generateSecretKey();
@@ -89,7 +95,10 @@ export async function handleAccountsAdd(payload: AddAccountRequest): Promise<Han
         account: { privkey: bytesToHex(secretKey) },
         createdAt: new Date().toISOString(),
       };
-      return { vault: { ...vault, accounts: [...(vault.accounts ?? []), account] }, result: summarise(account) };
+      return {
+        vault: { ...vault, accounts: [...(vault.accounts ?? []), account] },
+        result: summarise(account),
+      };
     });
     return { success: true, data: added };
   } catch (error: unknown) {
@@ -97,7 +106,9 @@ export async function handleAccountsAdd(payload: AddAccountRequest): Promise<Han
   }
 }
 
-export async function handleAccountsRename(payload: RenameAccountRequest): Promise<HandlerResult<AccountSummary>> {
+export async function handleAccountsRename(
+  payload: RenameAccountRequest,
+): Promise<HandlerResult<AccountSummary>> {
   const currentAlias = typeof payload?.currentAlias === 'string' ? payload.currentAlias : '';
   try {
     const renamed = await mutateVault((vault) => {
@@ -124,19 +135,27 @@ export async function handleAccountsRename(payload: RenameAccountRequest): Promi
   }
 }
 
-export async function handleAccountsRemove(payload: AccountRequest): Promise<HandlerResult<boolean>> {
-  const pubkey = createPubkey(typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '');
+export async function handleAccountsRemove(
+  payload: AccountRequest,
+): Promise<HandlerResult<boolean>> {
+  const pubkey = createPubkey(
+    typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '',
+  );
   if (!pubkey) return { success: false, error: 'accountPubkey must be a hex public key' };
 
   try {
     const removedId = await mutateVault((vault) => {
-      const target = findByKey(vault, pubkey) ?? (vault.accounts ?? []).find((account) => account.id === pubkey);
+      const target =
+        findByKey(vault, pubkey) ?? (vault.accounts ?? []).find((account) => account.id === pubkey);
       if (!target) return { vault, result: undefined };
       // Its wallets go with it, in the same write (#304): a connection with no account behind it
       // would otherwise be migrated to the main account on the next wallet action.
       const withoutWallets = removeAccountWalletData(vault, target.id);
       return {
-        vault: { ...withoutWallets, accounts: (vault.accounts ?? []).filter((account) => account !== target) },
+        vault: {
+          ...withoutWallets,
+          accounts: (vault.accounts ?? []).filter((account) => account !== target),
+        },
         result: target.id,
       };
     });
@@ -156,8 +175,12 @@ export async function handleAccountsRemove(payload: AccountRequest): Promise<Han
  * The only action that returns a private key to a page. It does not ask for the password again (a
  * decision on #240): the vault must already be unlocked, and only Porwr's own pages can call it.
  */
-export async function handleAccountsRevealSecret(payload: AccountRequest): Promise<HandlerResult<RevealedSecret>> {
-  const pubkey = createPubkey(typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '');
+export async function handleAccountsRevealSecret(
+  payload: AccountRequest,
+): Promise<HandlerResult<RevealedSecret>> {
+  const pubkey = createPubkey(
+    typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '',
+  );
   if (!pubkey) return { success: false, error: 'accountPubkey must be a hex public key' };
 
   try {

@@ -35,7 +35,9 @@ const { t } = useI18n();
 
 const heading = ref<HTMLElement | null>(null);
 
-const riskClass = computed(() => classifyRequest(props.request.requestType, props.request.eventKind));
+const riskClass = computed(() =>
+  classifyRequest(props.request.requestType, props.request.eventKind),
+);
 
 const requestTypeLabel = computed(() => getRequestTypeLabel(props.request.requestType));
 
@@ -47,9 +49,7 @@ const kindLabel = computed(() =>
  * The server an HTTP authentication event would prove the user's identity to, when it is not the
  * site asking (#215). Warned about, not refused: an app may call its own API on another host.
  */
-const otherOrigin = computed(() =>
-  httpAuthOtherOrigin(props.content?.event, props.request.origin),
-);
+const otherOrigin = computed(() => httpAuthOtherOrigin(props.content?.event, props.request.origin));
 
 /**
  * The site is connected as one account and another is active (#116, workspace#23).
@@ -62,8 +62,8 @@ const notActiveAlias = computed(() => {
   return activeAccountAlias;
 });
 
-const isTerminal = computed(() =>
-  props.request.state === 'expired' || props.request.state === 'interrupted',
+const isTerminal = computed(
+  () => props.request.state === 'expired' || props.request.state === 'interrupted',
 );
 
 // Focus lands on the heading, never on an approve control (NFR-2).
@@ -106,9 +106,7 @@ watch(
     <!-- A terminal request shows why it cannot be acted on, and offers no approval control. -->
     <div v-if="isTerminal" class="current-request__terminal" role="status">
       {{
-        request.state === 'expired'
-          ? t('request.states.expired')
-          : t('request.states.interrupted')
+        request.state === 'expired' ? t('request.states.expired') : t('request.states.interrupted')
       }}
     </div>
 

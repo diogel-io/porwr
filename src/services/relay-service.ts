@@ -23,7 +23,9 @@ export async function refreshRelayCatalog(force = false): Promise<void> {
   try {
     await sendBexMessage('relay.browser.refresh', { force });
   } catch (error) {
-    logService.log(LogLevel.ERROR, '[RelayService] Failed to trigger relay catalog refresh', { error });
+    logService.log(LogLevel.ERROR, '[RelayService] Failed to trigger relay catalog refresh', {
+      error,
+    });
   }
 }
 
@@ -35,7 +37,9 @@ export async function getRelayDiscoveryStatus(): Promise<RelayDiscoveryState | n
     const data = await sendBexMessage('relay.browser.getStatus');
     return data || null;
   } catch (error) {
-    logService.log(LogLevel.ERROR, '[RelayService] Failed to fetch relay discovery status', { error });
+    logService.log(LogLevel.ERROR, '[RelayService] Failed to fetch relay discovery status', {
+      error,
+    });
     return null;
   }
 }

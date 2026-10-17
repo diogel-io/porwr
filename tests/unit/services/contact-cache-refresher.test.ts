@@ -25,29 +25,42 @@ vi.mock('@/services/contact-fetch', () => ({
   fetchContactListSnapshot: mocks.fetchContactListSnapshot,
   fetchProfilesInBatches: mocks.fetchProfilesInBatches,
 }));
-vi.mock('@/../src-bex/services/messaging-relays', () => ({ getFallbackRelays: mocks.getFallbackRelays }));
+vi.mock('@/../src-bex/services/messaging-relays', () => ({
+  getFallbackRelays: mocks.getFallbackRelays,
+}));
 vi.mock('@/services/log-service', () => ({
   LogLevel: { WARN: 'WARN' },
   logService: { log: mocks.log },
 }));
 
-import { refreshContacts, refreshContactsInBackground } from '@/../src-bex/services/contact-cache-refresher';
+import {
+  refreshContacts,
+  refreshContactsInBackground,
+} from '@/../src-bex/services/contact-cache-refresher';
 
 const ALICE = 'a'.repeat(64);
 const BOB = 'b'.repeat(64);
 const RELAYS = ['wss://relay.example'];
 const bobProfile: ContactProfile = {
-  pubkey: BOB, name: 'bob', displayName: '', about: '', picture: '', nip05: '', updatedAt: 1,
+  pubkey: BOB,
+  name: 'bob',
+  displayName: '',
+  about: '',
+  picture: '',
+  nip05: '',
+  updatedAt: 1,
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.list = undefined;
   mocks.readContactList.mockImplementation(() => Promise.resolve(mocks.list));
-  mocks.writeContactList.mockImplementation((accountPubkey: string, snapshot: Omit<CachedContactList, 'accountPubkey' | 'fetchedAt'>) => {
-    mocks.list = { accountPubkey, ...snapshot, fetchedAt: 1 };
-    return Promise.resolve(true);
-  });
+  mocks.writeContactList.mockImplementation(
+    (accountPubkey: string, snapshot: Omit<CachedContactList, 'accountPubkey' | 'fetchedAt'>) => {
+      mocks.list = { accountPubkey, ...snapshot, fetchedAt: 1 };
+      return Promise.resolve(true);
+    },
+  );
   mocks.upsertProfiles.mockResolvedValue(undefined);
   mocks.pruneProfiles.mockResolvedValue(undefined);
   mocks.isStale.mockReturnValue(true);
@@ -58,7 +71,12 @@ beforeEach(() => {
     sourceCreatedAt: 100,
   });
   mocks.fetchProfilesInBatches.mockImplementation(
-    async (_pool: unknown, _relays: string[], _pubkeys: string[], onBatch: (p: Record<string, ContactProfile>) => Promise<void>) => {
+    async (
+      _pool: unknown,
+      _relays: string[],
+      _pubkeys: string[],
+      onBatch: (p: Record<string, ContactProfile>) => Promise<void>,
+    ) => {
       await onBatch({ [BOB]: bobProfile });
       return { [BOB]: bobProfile };
     },
@@ -70,8 +88,16 @@ describe('refreshContacts', () => {
     await refreshContacts(ALICE);
 
     expect(mocks.fetchContactListSnapshot).toHaveBeenCalledWith(expect.anything(), RELAYS, ALICE);
-    expect(mocks.writeContactList).toHaveBeenCalledWith(ALICE, expect.objectContaining({ sourceEventId: 'e1' }));
-    expect(mocks.fetchProfilesInBatches).toHaveBeenCalledWith(expect.anything(), RELAYS, [BOB], expect.any(Function));
+    expect(mocks.writeContactList).toHaveBeenCalledWith(
+      ALICE,
+      expect.objectContaining({ sourceEventId: 'e1' }),
+    );
+    expect(mocks.fetchProfilesInBatches).toHaveBeenCalledWith(
+      expect.anything(),
+      RELAYS,
+      [BOB],
+      expect.any(Function),
+    );
     expect(mocks.upsertProfiles).toHaveBeenCalledWith(ALICE, [bobProfile]);
     expect(mocks.pruneProfiles).toHaveBeenCalledWith(ALICE, [BOB]);
   });
@@ -106,13 +132,22 @@ describe('refreshContacts', () => {
     const dave = 'd'.repeat(64);
     // A publish already stored a newer list; the relay's older answer loses.
     mocks.writeContactList.mockImplementation(() => {
-      mocks.list = { accountPubkey: ALICE, contacts: [{ pubkey: dave, relayUrl: '', petname: '' }], fetchedAt: 1 };
+      mocks.list = {
+        accountPubkey: ALICE,
+        contacts: [{ pubkey: dave, relayUrl: '', petname: '' }],
+        fetchedAt: 1,
+      };
       return Promise.resolve(false);
     });
 
     await refreshContacts(ALICE);
 
-    expect(mocks.fetchProfilesInBatches).toHaveBeenCalledWith(expect.anything(), RELAYS, [dave], expect.any(Function));
+    expect(mocks.fetchProfilesInBatches).toHaveBeenCalledWith(
+      expect.anything(),
+      RELAYS,
+      [dave],
+      expect.any(Function),
+    );
   });
 
   it('shares one run between concurrent refreshes of the same account', async () => {
@@ -126,7 +161,10 @@ describe('refreshContacts', () => {
 
   it('runs once more for a forced refresh that arrives mid-run, however many arrive', async () => {
     const first = refreshContacts(ALICE);
-    const forced = [refreshContacts(ALICE, { force: true }), refreshContacts(ALICE, { force: true })];
+    const forced = [
+      refreshContacts(ALICE, { force: true }),
+      refreshContacts(ALICE, { force: true }),
+    ];
 
     await Promise.all([first, ...forced]);
 
@@ -147,6 +185,8 @@ describe('refreshContactsInBackground', () => {
     mocks.getFallbackRelays.mockRejectedValue(new Error('storage unavailable'));
 
     expect(() => refreshContactsInBackground(ALICE)).not.toThrow();
-    await vi.waitFor(() => expect(mocks.log).toHaveBeenCalledWith('WARN', expect.any(String), expect.anything()));
+    await vi.waitFor(() =>
+      expect(mocks.log).toHaveBeenCalledWith('WARN', expect.any(String), expect.anything()),
+    );
   });
 });

@@ -5,7 +5,10 @@ import { useI18n } from 'vue-i18n';
 
 import DiogelLogo from '@/components/shared/DiogelLogo.vue';
 import { useWalletAuthorization } from '@/composables/useWalletAuthorization';
-import { postWalletConnectOutcome, type WalletConnectOutcome } from '@/services/wallet-connect-channel';
+import {
+  postWalletConnectOutcome,
+  type WalletConnectOutcome,
+} from '@/services/wallet-connect-channel';
 import { WALLET_PROVIDERS, createWalletProviderId } from '@/types/wallet-provider';
 import { createPubkey } from '@/types/pubkey';
 
@@ -92,7 +95,10 @@ async function start(fromClick: boolean): Promise<void> {
     }
     await finish(result);
   } catch (error: unknown) {
-    await finish({ status: 'error', message: error instanceof Error ? error.message : String(error) });
+    await finish({
+      status: 'error',
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -110,7 +116,9 @@ onMounted(() => {
         </q-card-section>
 
         <q-card-section class="text-center">
-          <div class="text-h6">{{ t('walletManagement.connectWindow.title', { provider: providerName }) }}</div>
+          <div class="text-h6">
+            {{ t('walletManagement.connectWindow.title', { provider: providerName }) }}
+          </div>
           <p class="q-mt-sm q-mb-none" data-testid="wallet-connect-message">{{ message }}</p>
         </q-card-section>
 

@@ -4,7 +4,10 @@ import type { VaultData } from '@/types/bridge';
 const MAX_PAYMENT_HISTORY_ENTRIES = 100;
 
 /** The account's payments, newest first (#304). */
-export function listNip47PaymentHistory(vaultData: VaultData, accountPubkey: string): Nip47PaymentHistoryEntry[] {
+export function listNip47PaymentHistory(
+  vaultData: VaultData,
+  accountPubkey: string,
+): Nip47PaymentHistoryEntry[] {
   return (vaultData.nip47PaymentHistory ?? [])
     .filter((entry) => entry.accountPubkey === accountPubkey)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));

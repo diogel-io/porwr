@@ -15,7 +15,12 @@ export type QuickSignSupportedKind = (typeof QUICK_SIGN_SUPPORTED_KINDS)[number]
  * list (10002), and QuickSign's kinds. Anything else is refused, so the action cannot be turned into
  * a general-purpose signer.
  */
-export const ACCOUNT_SIGNABLE_KINDS: readonly number[] = [0, 3, 10002, ...QUICK_SIGN_SUPPORTED_KINDS];
+export const ACCOUNT_SIGNABLE_KINDS: readonly number[] = [
+  0,
+  3,
+  10002,
+  ...QUICK_SIGN_SUPPORTED_KINDS,
+];
 
 export interface AccountEventTemplate {
   kind: number;

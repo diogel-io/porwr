@@ -11,7 +11,9 @@ import { mutateVault } from './vault-mutation';
  * vault is not written back.
  */
 export async function mutateWalletVault<T>(
-  mutator: (vaultData: VaultData) => { vaultData: VaultData; data: T } | Promise<{ vaultData: VaultData; data: T }>,
+  mutator: (
+    vaultData: VaultData,
+  ) => { vaultData: VaultData; data: T } | Promise<{ vaultData: VaultData; data: T }>,
 ): Promise<T> {
   return mutateVault(async (vault) => {
     const { vaultData, data } = await mutator(assignUnownedWalletData(vault));

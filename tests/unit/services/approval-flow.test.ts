@@ -79,7 +79,10 @@ describe('deciding a site request', () => {
     });
 
     it('is not consulted when no account can act, so the user is always asked', async () => {
-      mocks.resolveSigningAccount.mockResolvedValue({ error: 'Vault is locked', code: 'VLT_LOCKED' });
+      mocks.resolveSigningAccount.mockResolvedValue({
+        error: 'Vault is locked',
+        code: 'VLT_LOCKED',
+      });
 
       await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
 

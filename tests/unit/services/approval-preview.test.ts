@@ -171,20 +171,39 @@ describe('approval preview rules', () => {
 
     it('shows an addressable event coordinate when there is no event id', () => {
       const coordinate = `30023:${recipient}:article`;
-      const fields = formatEventFields(zap([['amount', '1000'], ['p', recipient], ['a', coordinate]]));
+      const fields = formatEventFields(
+        zap([
+          ['amount', '1000'],
+          ['p', recipient],
+          ['a', coordinate],
+        ]),
+      );
       expect(field(fields, 'Zapped event')).toBe(coordinate);
     });
 
     it('calls a zap with no event a profile zap', () => {
-      const fields = formatEventFields(zap([['amount', '1000'], ['p', recipient]]));
+      const fields = formatEventFields(
+        zap([
+          ['amount', '1000'],
+          ['p', recipient],
+        ]),
+      );
       expect(field(fields, 'Zapped event')).toBe('None (profile zap)');
       expect(field(fields, 'Zap comment')).toBeUndefined();
     });
 
     it('shows a sub-sat amount in millisats', () => {
-      expect(field(formatEventFields(zap([['amount', '1500'], ['p', recipient]])), 'Zap amount')).toBe(
-        `${(1500).toLocaleString()} millisats`,
-      );
+      expect(
+        field(
+          formatEventFields(
+            zap([
+              ['amount', '1500'],
+              ['p', recipient],
+            ]),
+          ),
+          'Zap amount',
+        ),
+      ).toBe(`${(1500).toLocaleString()} millisats`);
     });
 
     it('says when the amount or recipient is missing or invalid rather than leaving it out', () => {
@@ -194,7 +213,9 @@ describe('approval preview rules', () => {
     });
 
     it('adds no zap fields to other kinds', () => {
-      const labels = formatEventFields({ ...zap([['amount', '1000']]), kind: 1 }).map((f) => f.label);
+      const labels = formatEventFields({ ...zap([['amount', '1000']]), kind: 1 }).map(
+        (f) => f.label,
+      );
       expect(labels).not.toContain('Zap amount');
     });
   });
@@ -229,7 +250,10 @@ describe('approval preview rules', () => {
 
     it('shows the URL and method it authorises, the method upper-cased', () => {
       const fields = formatEventFields(login);
-      expect(fields).toContainEqual({ label: 'URL', value: 'https://bancwr.example/api/auth/login' });
+      expect(fields).toContainEqual({
+        label: 'URL',
+        value: 'https://bancwr.example/api/auth/login',
+      });
       expect(fields).toContainEqual({ label: 'Method', value: 'POST' });
     });
 
@@ -263,10 +287,12 @@ describe('approval preview rules', () => {
         reason: 'missing-method',
       });
       expect(
-        httpAuthTarget(httpAuth([
-          ['u', 'not a url'],
-          ['method', 'GET'],
-        ])),
+        httpAuthTarget(
+          httpAuth([
+            ['u', 'not a url'],
+            ['method', 'GET'],
+          ]),
+        ),
       ).toEqual({ valid: false, reason: 'invalid-url' });
     });
 

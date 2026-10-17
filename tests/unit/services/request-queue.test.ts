@@ -71,8 +71,16 @@ describe('request queue', () => {
 
     it('presents requests in deterministic order', async () => {
       const now = 1_000_000;
-      await enqueueRequest({ ...baseInput, origin: 'https://a.example' }, { allowRemember: true }, now);
-      await enqueueRequest({ ...baseInput, origin: 'https://b.example' }, { allowRemember: true }, now + 10);
+      await enqueueRequest(
+        { ...baseInput, origin: 'https://a.example' },
+        { allowRemember: true },
+        now,
+      );
+      await enqueueRequest(
+        { ...baseInput, origin: 'https://b.example' },
+        { allowRemember: true },
+        now + 10,
+      );
 
       const current = await getCurrentRequest(now + 20);
       expect(current?.origin).toBe('https://a.example');

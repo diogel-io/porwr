@@ -26,7 +26,10 @@ const { t } = useI18n();
 const scroller = ref<HTMLElement | null>(null);
 
 function timeOf(message: DirectMessage): string {
-  return new Date(message.created_at * 1000).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(message.created_at * 1000).toLocaleString(undefined, {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
 }
 
 watch(
@@ -40,15 +43,32 @@ watch(
 </script>
 
 <template>
-  <section class="conversation-view column no-wrap" :aria-label="t('messaging.view.label', { name: peerName })">
+  <section
+    class="conversation-view column no-wrap"
+    :aria-label="t('messaging.view.label', { name: peerName })"
+  >
     <header class="conversation-view__header q-pa-md text-subtitle1">{{ peerName }}</header>
 
-    <q-banner v-if="recipientNotReady" class="q-mx-md" dense rounded data-testid="recipient-not-ready">
+    <q-banner
+      v-if="recipientNotReady"
+      class="q-mx-md"
+      dense
+      rounded
+      data-testid="recipient-not-ready"
+    >
       {{ t('messaging.view.recipientNotReady', { name: peerName }) }}
     </q-banner>
 
-    <div ref="scroller" class="conversation-view__messages col q-pa-md" role="log" aria-live="polite">
-      <div v-if="messages.length === 0 && pending.length === 0" class="text-center text-grey q-pa-md">
+    <div
+      ref="scroller"
+      class="conversation-view__messages col q-pa-md"
+      role="log"
+      aria-live="polite"
+    >
+      <div
+        v-if="messages.length === 0 && pending.length === 0"
+        class="text-center text-grey q-pa-md"
+      >
         {{ t('messaging.view.empty') }}
       </div>
 
@@ -56,7 +76,11 @@ watch(
         v-for="message in messages"
         :key="message.id"
         class="conversation-view__message q-mb-sm"
-        :class="message.pubkey === me ? 'conversation-view__message--mine' : 'conversation-view__message--theirs'"
+        :class="
+          message.pubkey === me
+            ? 'conversation-view__message--mine'
+            : 'conversation-view__message--theirs'
+        "
         :data-from="message.pubkey === me ? 'me' : 'peer'"
       >
         <div class="conversation-view__bubble">{{ message.content }}</div>
@@ -70,16 +94,27 @@ watch(
         :data-status="message.status"
       >
         <div class="conversation-view__bubble">{{ message.content }}</div>
-        <div v-if="message.status === 'sending'" class="text-caption text-grey">{{ t('messaging.view.sending') }}</div>
+        <div v-if="message.status === 'sending'" class="text-caption text-grey">
+          {{ t('messaging.view.sending') }}
+        </div>
         <div v-else class="text-caption text-negative">
           {{ t('messaging.view.failed') }}
-          <q-btn flat dense size="sm" :label="t('messaging.view.retry')" @click="emit('retry', message.clientMessageId)" />
+          <q-btn
+            flat
+            dense
+            size="sm"
+            :label="t('messaging.view.retry')"
+            @click="emit('retry', message.clientMessageId)"
+          />
         </div>
       </div>
     </div>
 
     <div class="q-pa-md">
-      <MessageComposer :disabled="disabled || recipientNotReady" @send="(content) => emit('send', content)" />
+      <MessageComposer
+        :disabled="disabled || recipientNotReady"
+        @send="(content) => emit('send', content)"
+      />
     </div>
   </section>
 </template>

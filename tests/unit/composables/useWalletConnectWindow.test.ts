@@ -3,7 +3,10 @@ import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useWalletConnectWindow, type UseWalletConnectWindowResult } from '@/composables/useWalletConnectWindow';
+import {
+  useWalletConnectWindow,
+  type UseWalletConnectWindowResult,
+} from '@/composables/useWalletConnectWindow';
 import { postWalletConnectOutcome } from '@/services/wallet-connect-channel';
 
 const removedListeners = new Set<(id: number) => void>();
@@ -63,9 +66,13 @@ describe('useWalletConnectWindow (workspace#76)', () => {
     await settle();
 
     expect(window.open).not.toHaveBeenCalled();
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ type: 'popup', width: 420, height: 680 }));
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'popup', width: 420, height: 680 }),
+    );
     const { url, params } = openedRequest();
-    expect(url.href.startsWith('chrome-extension://porwr/www/index.html#/wallet-connect?')).toBe(true);
+    expect(url.href.startsWith('chrome-extension://porwr/www/index.html#/wallet-connect?')).toBe(
+      true,
+    );
     expect(params.get('provider')).toBe('alby-hub');
     expect(params.get('origin')).toBe('https://hub.example.com');
     expect(params.get('request')).toMatch(/^[0-9a-f-]{36}$/);
@@ -84,7 +91,10 @@ describe('useWalletConnectWindow (workspace#76)', () => {
       connection: { id: 'w', label: 'Coinos' } as never,
     });
 
-    await expect(pending).resolves.toEqual({ status: 'connected', connection: { id: 'w', label: 'Coinos' } });
+    await expect(pending).resolves.toEqual({
+      status: 'connected',
+      connection: { id: 'w', label: 'Coinos' },
+    });
     expect(api.connecting.value).toBeNull();
     expect(removedListeners.size).toBe(0);
   });
@@ -104,7 +114,10 @@ describe('useWalletConnectWindow (workspace#76)', () => {
 
     const pending = api.connect('coinos', ACCOUNT);
     await settle();
-    postWalletConnectOutcome(openedRequest().params.get('request')!, { status: 'error', message: 'Vault is locked' });
+    postWalletConnectOutcome(openedRequest().params.get('request')!, {
+      status: 'error',
+      message: 'Vault is locked',
+    });
 
     await expect(pending).rejects.toThrow('Vault is locked');
     expect(api.connecting.value).toBeNull();

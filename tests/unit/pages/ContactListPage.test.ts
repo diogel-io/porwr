@@ -43,8 +43,10 @@ vi.mock('@/services/contact-list-service', () => ({
   publishContactList: mocks.publishContactList,
   searchContacts: vi.fn(),
   formatContactNpub: (pubkey: string) => `npub-${pubkey.slice(0, 4)}`,
-  getContactDisplayName: (contact: { pubkey: string; petname: string }, profile?: { name: string }) =>
-    profile?.name || contact.petname || `npub-${contact.pubkey.slice(0, 4)}`,
+  getContactDisplayName: (
+    contact: { pubkey: string; petname: string },
+    profile?: { name: string },
+  ) => profile?.name || contact.petname || `npub-${contact.pubkey.slice(0, 4)}`,
 }));
 
 vi.mock('@/stores/account-store', () => ({
@@ -99,7 +101,10 @@ const mountPage = async () => {
   return wrapper;
 };
 
-const cachedList = (contacts: CachedContactList['contacts'], createdAt = 100): CachedContactList => ({
+const cachedList = (
+  contacts: CachedContactList['contacts'],
+  createdAt = 100,
+): CachedContactList => ({
   accountPubkey: ME,
   contacts,
   sourceEventId: `event-${createdAt}`,
@@ -135,7 +140,15 @@ describe('ContactListPage (#257)', () => {
   it('shows cached contacts with their cached profiles at once', async () => {
     mocks.cache.list.value = cachedList([bob]);
     mocks.cache.profiles.value = {
-      [BOB]: { pubkey: BOB, name: 'Bobby', displayName: '', about: '', picture: '', nip05: '', updatedAt: 1 },
+      [BOB]: {
+        pubkey: BOB,
+        name: 'Bobby',
+        displayName: '',
+        about: '',
+        picture: '',
+        nip05: '',
+        updatedAt: 1,
+      },
     };
     mocks.cache.status.value = 'ready';
 

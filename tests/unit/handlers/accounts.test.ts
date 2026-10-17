@@ -18,7 +18,11 @@ vi.mock('@/services/contact-cache', () => ({ clearAccount: state.clearContactCac
 
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(() =>
-    Promise.resolve(state.vault ? { success: true, vaultData: structuredClone(state.vault) } : { success: false, error: 'Vault is locked' }),
+    Promise.resolve(
+      state.vault
+        ? { success: true, vaultData: structuredClone(state.vault) }
+        : { success: false, error: 'Vault is locked' },
+    ),
   ),
   updateVaultData: vi.fn((next: VaultData) => {
     state.vault = structuredClone(next);
@@ -39,7 +43,9 @@ vi.mock('@/services/storage-service', () => ({
 }));
 
 vi.mock('@/services/database', () => {
-  const table = (modify: ReturnType<typeof vi.fn>) => ({ where: () => ({ equals: () => ({ modify }) }) });
+  const table = (modify: ReturnType<typeof vi.fn>) => ({
+    where: () => ({ equals: () => ({ modify }) }),
+  });
   return { db: { approvals: table(state.approvals), exceptions: table(state.exceptions) } };
 });
 
@@ -65,7 +71,12 @@ beforeEach(() => {
     mnemonic: 'abandon abandon abandon',
     passphrase: 'correct horse',
     accounts: [
-      { id: ALICE, alias: 'alice', account: { privkey: bytesToHex(aliceKey) }, createdAt: '2026-01-01' },
+      {
+        id: ALICE,
+        alias: 'alice',
+        account: { privkey: bytesToHex(aliceKey) },
+        createdAt: '2026-01-01',
+      },
       { id: BOB, alias: 'bob', account: { privkey: bytesToHex(bobKey) }, createdAt: '2026-01-02' },
     ],
   };
@@ -96,7 +107,11 @@ describe('accounts.add', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.data).toEqual({ id: expect.stringMatching(/^[0-9a-f]{64}$/), alias: 'carol', createdAt: expect.any(String) });
+    expect(result.data).toEqual({
+      id: expect.stringMatching(/^[0-9a-f]{64}$/),
+      alias: 'carol',
+      createdAt: expect.any(String),
+    });
     expect(JSON.stringify(result)).not.toMatch(/privkey|nsec/);
 
     const stored = state.vault!.accounts.find((account) => account.alias === 'carol')!;
@@ -109,7 +124,10 @@ describe('accounts.add', () => {
 
     const result = await handleAccountsAdd({ alias: 'carol', privkey: bytesToHex(carolKey) });
 
-    expect(result).toMatchObject({ success: true, data: { id: getPublicKey(carolKey), alias: 'carol' } });
+    expect(result).toMatchObject({
+      success: true,
+      data: { id: getPublicKey(carolKey), alias: 'carol' },
+    });
     expect(state.vault!.accounts).toHaveLength(3);
   });
 
@@ -117,8 +135,16 @@ describe('accounts.add', () => {
     ['an empty alias', { alias: '   ' }, 'Alias is required.'],
     ['the reserved alias', { alias: 'Main Account' }, 'Alias "Main Account" is reserved.'],
     ['a taken alias', { alias: 'alice' }, 'Key with the same alias already exists.'],
-    ['a key already in the vault', { alias: 'again', privkey: bytesToHex(aliceKey) }, 'Key with the same npub already exists.'],
-    ['a key that is not hex', { alias: 'x', privkey: 'nsec1notallowedhere' }, 'privkey must be a 64-character hex key'],
+    [
+      'a key already in the vault',
+      { alias: 'again', privkey: bytesToHex(aliceKey) },
+      'Key with the same npub already exists.',
+    ],
+    [
+      'a key that is not hex',
+      { alias: 'x', privkey: 'nsec1notallowedhere' },
+      'privkey must be a 64-character hex key',
+    ],
   ])('refuses %s and writes nothing', async (_label, request, error) => {
     await expect(handleAccountsAdd(request)).resolves.toEqual({ success: false, error });
     expect(state.writes).toBe(0);
@@ -127,7 +153,12 @@ describe('accounts.add', () => {
   it('serialises concurrent adds so neither is lost', async () => {
     await Promise.all([handleAccountsAdd({ alias: 'one' }), handleAccountsAdd({ alias: 'two' })]);
 
-    expect(state.vault!.accounts.map((account) => account.alias)).toEqual(['alice', 'bob', 'one', 'two']);
+    expect(state.vault!.accounts.map((account) => account.alias)).toEqual([
+      'alice',
+      'bob',
+      'one',
+      'two',
+    ]);
   });
 });
 
@@ -135,7 +166,9 @@ describe('accounts.rename', () => {
   it('renames one account and leaves every key, and the other account, exactly as they were', async () => {
     const before = structuredClone(state.vault!);
 
-    await expect(handleAccountsRename({ currentAlias: 'alice', newAlias: 'alicia' })).resolves.toEqual({
+    await expect(
+      handleAccountsRename({ currentAlias: 'alice', newAlias: 'alicia' }),
+    ).resolves.toEqual({
       success: true,
       data: { id: ALICE, alias: 'alicia', createdAt: '2026-01-01' },
     });
@@ -159,9 +192,15 @@ describe('accounts.rename', () => {
   });
 
   it('refuses a missing account, the reserved alias, and a taken alias', async () => {
-    await expect(handleAccountsRename({ currentAlias: 'nobody', newAlias: 'x' })).resolves.toMatchObject({ success: false });
-    await expect(handleAccountsRename({ currentAlias: 'alice', newAlias: 'Main Account' })).resolves.toMatchObject({ success: false });
-    await expect(handleAccountsRename({ currentAlias: 'alice', newAlias: 'bob' })).resolves.toMatchObject({ success: false });
+    await expect(
+      handleAccountsRename({ currentAlias: 'nobody', newAlias: 'x' }),
+    ).resolves.toMatchObject({ success: false });
+    await expect(
+      handleAccountsRename({ currentAlias: 'alice', newAlias: 'Main Account' }),
+    ).resolves.toMatchObject({ success: false });
+    await expect(
+      handleAccountsRename({ currentAlias: 'alice', newAlias: 'bob' }),
+    ).resolves.toMatchObject({ success: false });
     expect(state.writes).toBe(0);
   });
 });
@@ -170,7 +209,10 @@ describe('accounts.remove', () => {
   it('removes one account and keeps the other’s key exactly as it was', async () => {
     const bob = structuredClone(state.vault!.accounts[1]);
 
-    await expect(handleAccountsRemove({ accountPubkey: ALICE })).resolves.toEqual({ success: true, data: true });
+    await expect(handleAccountsRemove({ accountPubkey: ALICE })).resolves.toEqual({
+      success: true,
+      data: true,
+    });
 
     expect(state.vault!.accounts).toEqual([bob]);
   });
@@ -186,33 +228,76 @@ describe('accounts.remove', () => {
   it('still reports the removal if clearing the contact cache fails', async () => {
     state.clearContactCache.mockRejectedValue(new Error('IndexedDB unavailable'));
 
-    await expect(handleAccountsRemove({ accountPubkey: ALICE })).resolves.toEqual({ success: true, data: true });
+    await expect(handleAccountsRemove({ accountPubkey: ALICE })).resolves.toEqual({
+      success: true,
+      data: true,
+    });
   });
 
   it('answers false for an account that is not there', async () => {
-    await expect(handleAccountsRemove({ accountPubkey: 'c'.repeat(64) })).resolves.toEqual({ success: true, data: false });
+    await expect(handleAccountsRemove({ accountPubkey: 'c'.repeat(64) })).resolves.toEqual({
+      success: true,
+      data: false,
+    });
     expect(state.clearContactCache).not.toHaveBeenCalled();
   });
 
   it('refuses a pubkey that is not hex', async () => {
-    await expect(handleAccountsRemove({ accountPubkey: 'npub1x' })).resolves.toMatchObject({ success: false });
+    await expect(handleAccountsRemove({ accountPubkey: 'npub1x' })).resolves.toMatchObject({
+      success: false,
+    });
   });
 
   it('takes the account’s wallets, grants and payments with it, in the same write (#304)', async () => {
     const connection = (id: string, accountPubkey: string) => ({
-      id, accountPubkey, label: id, walletServicePubkey: 'w', clientSecret: 's', clientPubkey: 'c',
-      relays: [], capabilities: [], createdAt: '2026-01-01', updatedAt: '2026-01-01', isActive: true,
+      id,
+      accountPubkey,
+      label: id,
+      walletServicePubkey: 'w',
+      clientSecret: 's',
+      clientPubkey: 'c',
+      relays: [],
+      capabilities: [],
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+      isActive: true,
     });
     state.vault = {
       ...state.vault!,
       nip47Connections: [connection('alice-wallet', ALICE), connection('bob-wallet', BOB)],
       nip47PaymentHistory: [
-        { id: 'p1', accountPubkey: ALICE, connectionId: 'alice-wallet', connectionLabel: '', invoicePreview: '', status: 'succeeded', createdAt: '2026-01-01' },
-        { id: 'p2', accountPubkey: BOB, connectionId: 'bob-wallet', connectionLabel: '', invoicePreview: '', status: 'succeeded', createdAt: '2026-01-01' },
+        {
+          id: 'p1',
+          accountPubkey: ALICE,
+          connectionId: 'alice-wallet',
+          connectionLabel: '',
+          invoicePreview: '',
+          status: 'succeeded',
+          createdAt: '2026-01-01',
+        },
+        {
+          id: 'p2',
+          accountPubkey: BOB,
+          connectionId: 'bob-wallet',
+          connectionLabel: '',
+          invoicePreview: '',
+          status: 'succeeded',
+          createdAt: '2026-01-01',
+        },
       ],
       webLnPermissions: [
-        { origin: 'https://a.example', connectionId: 'alice-wallet', methods: ['enable'], createdAt: '2026-01-01' },
-        { origin: 'https://b.example', connectionId: 'bob-wallet', methods: ['enable'], createdAt: '2026-01-01' },
+        {
+          origin: 'https://a.example',
+          connectionId: 'alice-wallet',
+          methods: ['enable'],
+          createdAt: '2026-01-01',
+        },
+        {
+          origin: 'https://b.example',
+          connectionId: 'bob-wallet',
+          methods: ['enable'],
+          createdAt: '2026-01-01',
+        },
       ],
     };
 
@@ -241,6 +326,8 @@ describe('accounts.revealSecret', () => {
       error: 'Account not found',
     });
     state.vault = null;
-    await expect(handleAccountsRevealSecret({ accountPubkey: BOB })).resolves.toMatchObject({ success: false });
+    await expect(handleAccountsRevealSecret({ accountPubkey: BOB })).resolves.toMatchObject({
+      success: false,
+    });
   });
 });

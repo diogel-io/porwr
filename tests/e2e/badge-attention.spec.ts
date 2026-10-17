@@ -1,10 +1,5 @@
 import { expect, test } from './fixtures/extension';
-import {
-  TEST_ACCOUNT,
-  createVault,
-  requestSignatureFromPage,
-  seedAccount,
-} from './fixtures/vault';
+import { TEST_ACCOUNT, createVault, requestSignatureFromPage, seedAccount } from './fixtures/vault';
 
 /**
  * The closed-panel attention path (#177, #113's last acceptance criterion).
@@ -55,7 +50,10 @@ test.describe('the toolbar while a request waits', () => {
     // Decided through the panel, so the assertion covers the path a user actually takes.
     await extensionPage.goto(extensionPage.url().replace(/#.*$/, '#/sidebar'));
     await extensionPage.locator('.current-request').waitFor({ state: 'visible', timeout: 15_000 });
-    await extensionPage.getByRole('button', { name: /reject/i }).first().click();
+    await extensionPage
+      .getByRole('button', { name: /reject/i })
+      .first()
+      .click();
 
     await expect
       .poll(() => background.evaluate(() => chrome.action.getBadgeText({})), { timeout: 15_000 })

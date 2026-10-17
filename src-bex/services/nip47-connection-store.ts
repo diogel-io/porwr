@@ -23,11 +23,17 @@ export function listAllNip47Connections(vaultData?: VaultData | null): Nip47Conn
   return vaultData?.nip47Connections ?? [];
 }
 
-export function listNip47Connections(vaultData: VaultData | null | undefined, accountPubkey: string): Nip47Connection[] {
+export function listNip47Connections(
+  vaultData: VaultData | null | undefined,
+  accountPubkey: string,
+): Nip47Connection[] {
   return listAllNip47Connections(vaultData).filter((item) => item.accountPubkey === accountPubkey);
 }
 
-export function findActiveNip47Connection(vaultData: VaultData, accountPubkey: string): Nip47Connection | undefined {
+export function findActiveNip47Connection(
+  vaultData: VaultData,
+  accountPubkey: string,
+): Nip47Connection | undefined {
   return listNip47Connections(vaultData, accountPubkey).find((item) => item.isActive);
 }
 
@@ -37,12 +43,20 @@ export function findActiveNip47Connection(vaultData: VaultData, accountPubkey: s
  * Matched on id and account together: two accounts can hold connections to the same wallet service
  * and, with an imported string, even the same client key. Each is that account's own record.
  */
-export function upsertNip47Connection(vaultData: VaultData, connection: Nip47Connection): VaultData {
+export function upsertNip47Connection(
+  vaultData: VaultData,
+  connection: Nip47Connection,
+): VaultData {
   const others = listAllNip47Connections(vaultData)
-    .filter((item) => !(item.id === connection.id && item.accountPubkey === connection.accountPubkey))
+    .filter(
+      (item) => !(item.id === connection.id && item.accountPubkey === connection.accountPubkey),
+    )
     .map((item) => ({
       ...item,
-      isActive: connection.isActive && item.accountPubkey === connection.accountPubkey ? false : item.isActive,
+      isActive:
+        connection.isActive && item.accountPubkey === connection.accountPubkey
+          ? false
+          : item.isActive,
     }));
   return {
     ...vaultData,
@@ -50,7 +64,11 @@ export function upsertNip47Connection(vaultData: VaultData, connection: Nip47Con
   };
 }
 
-export function setActiveNip47Connection(vaultData: VaultData, accountPubkey: string, connectionId: string): VaultData {
+export function setActiveNip47Connection(
+  vaultData: VaultData,
+  accountPubkey: string,
+  connectionId: string,
+): VaultData {
   if (!findNip47Connection(vaultData, accountPubkey, connectionId)) {
     throw new Error('NIP-47 connection not found');
   }
@@ -69,7 +87,11 @@ export function setActiveNip47Connection(vaultData: VaultData, accountPubkey: st
   };
 }
 
-export function removeNip47Connection(vaultData: VaultData, accountPubkey: string, connectionId: string): VaultData {
+export function removeNip47Connection(
+  vaultData: VaultData,
+  accountPubkey: string,
+  connectionId: string,
+): VaultData {
   return {
     ...vaultData,
     nip47Connections: listAllNip47Connections(vaultData).filter(
@@ -99,13 +121,19 @@ export function removeAccountWalletData(vaultData: VaultData, accountPubkey: str
   const kept = all.filter((item) => item.accountPubkey !== accountPubkey);
   const keptIds = new Set(kept.map((item) => item.id));
   const removedIds = new Set(
-    all.filter((item) => item.accountPubkey === accountPubkey && !keptIds.has(item.id)).map((item) => item.id),
+    all
+      .filter((item) => item.accountPubkey === accountPubkey && !keptIds.has(item.id))
+      .map((item) => item.id),
   );
 
   return {
     ...vaultData,
     nip47Connections: kept,
-    nip47PaymentHistory: (vaultData.nip47PaymentHistory ?? []).filter((entry) => entry.accountPubkey !== accountPubkey),
-    webLnPermissions: (vaultData.webLnPermissions ?? []).filter((grant) => !removedIds.has(grant.connectionId)),
+    nip47PaymentHistory: (vaultData.nip47PaymentHistory ?? []).filter(
+      (entry) => entry.accountPubkey !== accountPubkey,
+    ),
+    webLnPermissions: (vaultData.webLnPermissions ?? []).filter(
+      (grant) => !removedIds.has(grant.connectionId),
+    ),
   };
 }
