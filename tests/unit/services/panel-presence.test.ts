@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { requeuePresented } = vi.hoisted(() => ({ requeuePresented: vi.fn(async () => undefined) }));
+const { requeuePresented, clearNoticeWhenNoPanel } = vi.hoisted(() => ({
+  requeuePresented: vi.fn(async () => undefined),
+  clearNoticeWhenNoPanel: vi.fn(async () => undefined),
+}));
 
-vi.mock('@/../src-bex/services/request-queue', () => ({ requeuePresented }));
+vi.mock('@/../src-bex/services/request-queue', () => ({
+  requeuePresented,
+  clearNoticeWhenNoPanel,
+}));
 vi.mock('@/../src-bex/services/panel-surface', () => ({ resolvePanelSurface: vi.fn() }));
 vi.mock('@/services/log-service', () => ({
   LogLevel: { ERROR: 'error' },
@@ -143,6 +149,20 @@ describe('panel presence', () => {
       // Closing the panel is never a decision (FR-6): the request goes back to the queue.
       expect(requeuePresented).toHaveBeenCalledTimes(1);
       expect(isPanelPresent()).toBe(false);
+    });
+
+    it('clears an expired or interrupted notice only once the last one has gone (S11)', async () => {
+      const connect = startObserving();
+      const first = openPort(connect);
+      const second = openPort(connect);
+
+      // Another window's panel is still showing the notice, so it stays.
+      first.disconnect();
+      await Promise.resolve();
+      expect(clearNoticeWhenNoPanel).not.toHaveBeenCalled();
+
+      second.disconnect();
+      await vi.waitFor(() => expect(clearNoticeWhenNoPanel).toHaveBeenCalledTimes(1));
     });
 
     it('ignores a repeated disconnect for the same port', () => {

@@ -40,6 +40,7 @@ vi.mock('@/../src-bex/services/request-queue', () => ({
   getCurrentRequest: vi.fn(),
   getPendingCount: vi.fn(),
   getRequestContent: vi.fn(),
+  dismissNotice: vi.fn(),
   listPendingRequests: vi.fn(),
   markPresented: vi.fn(),
   requeuePresented: vi.fn(),
@@ -313,6 +314,15 @@ const cases: Case[] = [
     name: 'requeuePresented',
     resolves: undefined,
     expected: null,
+  },
+  {
+    action: 'nostr.requests.dismiss',
+    payload: { requestId: 'r1' },
+    handler: vi.mocked(queue.dismissNotice),
+    name: 'dismissNotice',
+    resolves: true,
+    expected: true,
+    expectArgs: ['r1'],
   },
   {
     action: 'pages.originForTab',

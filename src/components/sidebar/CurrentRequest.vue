@@ -11,6 +11,7 @@ import {
   getEventKindLabel,
   getRequestTypeLabel,
   httpAuthOtherOrigin,
+  isNotice,
 } from '@/services/approval-preview';
 import type {
   ApprovalDuration,
@@ -29,6 +30,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'decide', id: string, approved: boolean, duration: ApprovalDuration): void;
   (event: 'rejectAndSwitch', request: ApprovalRequestRecord): void;
+  (event: 'dismiss', id: string): void;
 }>();
 
 const { t } = useI18n();
@@ -62,9 +64,7 @@ const notActiveAlias = computed(() => {
   return activeAccountAlias;
 });
 
-const isTerminal = computed(
-  () => props.request.state === 'expired' || props.request.state === 'interrupted',
-);
+const isTerminal = computed(() => isNotice(props.request));
 
 // Focus lands on the heading, never on an approve control (NFR-2).
 watch(
@@ -103,12 +103,27 @@ watch(
       </span>
     </div>
 
-    <!-- A terminal request shows why it cannot be acted on, and offers no approval control. -->
-    <div v-if="isTerminal" class="current-request__terminal" role="status">
-      {{
-        request.state === 'expired' ? t('request.states.expired') : t('request.states.interrupted')
-      }}
-    </div>
+    <!-- A terminal request shows why it cannot be acted on, and offers no approval control. Dismiss
+         is the only way on, so the request never vanishes unexplained (S13, S14). -->
+    <template v-if="isTerminal">
+      <div class="current-request__terminal" role="status">
+        {{
+          request.state === 'expired'
+            ? t('request.states.expired')
+            : t('request.states.interrupted')
+        }}
+      </div>
+      <q-btn
+        no-caps
+        unelevated
+        color="primary"
+        class="current-request__dismiss"
+        data-testid="dismiss-notice"
+        :disable="busy"
+        :label="t('request.states.dismiss')"
+        @click="emit('dismiss', request.id)"
+      />
+    </template>
 
     <template v-else>
       <RequestPreview :content="content" :risk-class="riskClass" :open-full="!!otherOrigin" />
@@ -194,6 +209,10 @@ watch(
   font-weight: 600;
   text-align: right;
   overflow-wrap: anywhere;
+}
+
+.current-request__dismiss {
+  align-self: flex-start;
 }
 
 .current-request__terminal {

@@ -74,6 +74,7 @@ const SURFACE_ACTIONS = [
   'nostr.requests.present',
   'nostr.requests.respond',
   'nostr.requests.requeuePresented',
+  'nostr.requests.dismiss',
   'pages.originForTab',
   'sites.list',
   'sites.revoke',

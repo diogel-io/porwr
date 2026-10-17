@@ -85,8 +85,25 @@ describe('a request that can no longer be decided', () => {
         expect(notice.exists()).toBe(true);
         expect(notice.text()).toBe(`request.states.${state}`);
       });
+
+      it('offers Dismiss, the only way on, so the panel can move to the next state', async () => {
+        const wrapper = mountRequest(request({ state }));
+
+        const dismiss = wrapper.find('[data-testid="dismiss-notice"]');
+        expect(dismiss.text()).toBe('request.states.dismiss');
+        await dismiss.trigger('click');
+
+        expect(wrapper.emitted('dismiss')?.[0]).toEqual(['req-1']);
+        expect(wrapper.emitted('decide')).toBeUndefined();
+      });
     });
   }
+
+  it('offers no Dismiss for a live request', () => {
+    const wrapper = mountRequest(request({ state: 'presented' }));
+
+    expect(wrapper.find('[data-testid="dismiss-notice"]').exists()).toBe(false);
+  });
 
   it('still shows the controls for a live request', () => {
     const wrapper = mountRequest(request({ state: 'presented' }));
