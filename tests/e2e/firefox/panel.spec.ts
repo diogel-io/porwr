@@ -49,6 +49,7 @@ test.describe('the panel in Firefox', () => {
 
     expect(manifest.sidebar_action).toBeTruthy();
     // Firefox gets no sidePanel permission; that key is Chromium's (NFR-18).
-    expect(manifest.permissions ?? []).toEqual(['storage']);
+    // `downloads` saves a vault backup through a Save As dialog (#314).
+    expect([...(manifest.permissions ?? [])].sort()).toEqual(['downloads', 'storage']);
   });
 });

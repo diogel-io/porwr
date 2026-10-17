@@ -1,7 +1,6 @@
-import { useI18n } from 'vue-i18n';
 import { exportVault, importVault } from '@/services/vault-service';
-import { useQuasar, exportFile } from 'quasar';
-import { ErrorCode, formatErrorForUser } from '@/types/error-codes.d';
+import { saveVaultBackup, type VaultBackupSaveResult } from '@/services/vault-backup-download';
+import { ErrorCode } from '@/types/error-codes.d';
 
 /** Why a vault import did not happen. Each one leaves the current vault untouched. */
 export type VaultImportFailure = 'invalidFile' | 'wrongPassword' | 'failed';
@@ -19,36 +18,28 @@ const readFileText = (file: File): Promise<string> =>
     reader.readAsText(file);
   });
 
+/** The default name for a backup saved today: `diogel-vault-backup-<YYYY-MM-DD>.json`. */
+export const vaultBackupFileName = (now = new Date()): string =>
+  `diogel-vault-backup-${now.toISOString().split('T')[0]}.json`;
+
 export function useVaultManagement() {
-  const { t } = useI18n();
-  const $q = useQuasar();
-
-  async function handleExportVault() {
+  /**
+   * Saves an encrypted backup of the vault where the user chooses, through a Save As dialog (#314).
+   * The file is the same as before: `version`, the vault's `encryptedData` and `exportedAt`.
+   */
+  async function exportVaultBackup(): Promise<VaultBackupSaveResult> {
     const result = await exportVault();
-    if (result.success && result.encryptedData) {
-      const backup = {
-        version: 1,
-        encryptedData: result.encryptedData,
-        exportedAt: new Date().toISOString(),
-      };
-      const status = exportFile(
-        `diogel-vault-backup-${new Date().toISOString().split('T')[0]}.json`,
-        JSON.stringify(backup, null, 2),
-        'application/json',
-      );
-
-      if (status !== true) {
-        $q.notify({
-          type: 'negative',
-          message: t('settings.exportDeny'),
-        });
-      }
-    } else {
-      $q.notify({
-        type: 'negative',
-        message: formatErrorForUser(result.error, result.code as ErrorCode),
-      });
+    if (!result.success || !result.encryptedData) {
+      return { status: 'failed', error: result.error || 'Failed to export vault' };
     }
+
+    const now = new Date();
+    const backup = {
+      version: 1,
+      encryptedData: result.encryptedData,
+      exportedAt: now.toISOString(),
+    };
+    return saveVaultBackup(vaultBackupFileName(now), JSON.stringify(backup, null, 2));
   }
 
   /**
@@ -83,7 +74,7 @@ export function useVaultManagement() {
   }
 
   return {
-    handleExportVault,
+    exportVaultBackup,
     importVaultFromFile,
   };
 }
