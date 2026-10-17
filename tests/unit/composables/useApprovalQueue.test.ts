@@ -36,6 +36,16 @@ const flush = async (): Promise<void> => {
   await vi.waitFor(() => expect(sendBexMessage).toHaveBeenCalled());
 };
 
+/** The background's answer: this record is the whole queue and the current request. */
+const answerWith = (record: { id: string; state: string; expiresAt: number }): void => {
+  sendBexMessage.mockImplementation((event: string) => {
+    if (event === 'nostr.requests.list') return Promise.resolve([record]);
+    if (event === 'nostr.requests.current') return Promise.resolve(record);
+    if (event === 'nostr.requests.dismiss') return Promise.resolve(true);
+    return Promise.resolve(null);
+  });
+};
+
 describe('useApprovalQueue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -157,6 +167,95 @@ describe('useApprovalQueue', () => {
 
       expect(wrapper.vm.current).toEqual(record);
       wrapper.unmount();
+    });
+
+    it('presents a request that is waiting', async () => {
+      const record = { id: 'req-1', state: 'queued', expiresAt: Date.now() + 60_000 };
+      answerWith(record);
+
+      const wrapper = mount(Consumer);
+
+      await vi.waitFor(() =>
+        expect(sendBexMessage).toHaveBeenCalledWith('nostr.requests.present', {
+          requestId: 'req-1',
+        }),
+      );
+      wrapper.unmount();
+    });
+
+    it('never presents an expired or interrupted notice (S13, S14)', async () => {
+      const notice = { id: 'req-1', state: 'expired', expiresAt: Date.now() - 1 };
+      answerWith(notice);
+
+      const wrapper = mount(Consumer);
+      await vi.waitFor(() => expect(wrapper.vm.current).toEqual(notice));
+
+      expect(sendBexMessage).not.toHaveBeenCalledWith('nostr.requests.present', expect.anything());
+      wrapper.unmount();
+    });
+  });
+
+  describe('dismiss', () => {
+    it('asks the background to dismiss the notice, then re-reads', async () => {
+      answerWith({ id: 'req-1', state: 'interrupted', expiresAt: 0 });
+      const wrapper = mount(Consumer);
+      await flush();
+      sendBexMessage.mockClear();
+
+      await wrapper.vm.dismiss('req-1');
+
+      expect(sendBexMessage).toHaveBeenCalledWith('nostr.requests.dismiss', { requestId: 'req-1' });
+      expect(sendBexMessage).toHaveBeenCalledWith('nostr.requests.current');
+      wrapper.unmount();
+    });
+  });
+
+  describe('expiry while the panel is open (S13)', () => {
+    /** Lets the mounted refresh finish without `vi.waitFor`, which would move the fake clock. */
+    const settle = async (): Promise<void> => {
+      for (let step = 0; step < 5; step += 1) await vi.advanceTimersByTimeAsync(0);
+    };
+
+    it('re-reads once the current request is due to expire', async () => {
+      vi.useFakeTimers();
+      answerWith({ id: 'req-1', state: 'presented', expiresAt: Date.now() + 1_000 });
+      const wrapper = mount(Consumer);
+      await settle();
+      sendBexMessage.mockClear();
+
+      await vi.advanceTimersByTimeAsync(900);
+      expect(sendBexMessage).not.toHaveBeenCalledWith('nostr.requests.list');
+
+      // The read is what expires the request; the timer only makes sure one happens.
+      await vi.advanceTimersByTimeAsync(400);
+      expect(sendBexMessage).toHaveBeenCalledWith('nostr.requests.list');
+      wrapper.unmount();
+    });
+
+    it('arms nothing for a notice, which cannot expire again', async () => {
+      vi.useFakeTimers();
+      answerWith({ id: 'req-1', state: 'expired', expiresAt: Date.now() - 1 });
+      const wrapper = mount(Consumer);
+      await settle();
+      sendBexMessage.mockClear();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(sendBexMessage).not.toHaveBeenCalledWith('nostr.requests.list');
+      wrapper.unmount();
+    });
+
+    it('stops the timer when the panel closes', async () => {
+      vi.useFakeTimers();
+      answerWith({ id: 'req-1', state: 'presented', expiresAt: Date.now() + 1_000 });
+      const wrapper = mount(Consumer);
+      await settle();
+      wrapper.unmount();
+      sendBexMessage.mockClear();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(sendBexMessage).not.toHaveBeenCalledWith('nostr.requests.list');
     });
   });
 });

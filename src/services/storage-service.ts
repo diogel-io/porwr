@@ -6,6 +6,11 @@ export const REQUEST_EXPIRY_MINUTES = 'nostr:request-expiry-minutes' as const;
 // Session-scoped: the queue starts empty on every browser restart by design (ADR D6, D7).
 export const REQUEST_QUEUE_KEY = 'nostr:request-queue' as const;
 /**
+ * Session-scoped: the id of the expired or interrupted request the panel is showing as a notice
+ * until it is dismissed (S13, S14). An id only — the record itself stays in the queue (D6).
+ */
+export const REQUEST_NOTICE_KEY = 'nostr:request-notice' as const;
+/**
  * Session-scoped: client secrets for wallet connections the user is still approving in a wallet's
  * popup. See `src-bex/services/nip47-pending-authorization-store.ts` (#110).
  */

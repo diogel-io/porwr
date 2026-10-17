@@ -154,6 +154,7 @@ export type BridgeAction =
   | 'nostr.requests.respond'
   | 'nostr.requests.content'
   | 'nostr.requests.requeuePresented'
+  | 'nostr.requests.dismiss'
   | 'pages.originForTab'
   | 'sites.list'
   | 'sites.revoke'
@@ -392,6 +393,11 @@ export interface BridgeRequestMap {
     id: string;
     action: 'nostr.requests.requeuePresented';
   };
+  'nostr.requests.dismiss': {
+    id: string;
+    action: 'nostr.requests.dismiss';
+    requestId: string;
+  };
   'relay.browser.list': {
     id: string;
     action: 'relay.browser.list';
@@ -551,6 +557,7 @@ export interface BridgeResponseMap {
   'nostr.requests.respond': DecisionResult;
   'nostr.requests.content': ApprovalRequestContent | null;
   'nostr.requests.requeuePresented': void;
+  'nostr.requests.dismiss': boolean;
   'relay.browser.list': RelayCatalogEntry[];
   'relay.browser.getStatus': RelayDiscoveryState | null;
   'relay.browser.refresh': boolean | { success: false; error: string };

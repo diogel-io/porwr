@@ -12,6 +12,7 @@ import SidebarUnlock from '@/components/sidebar/SidebarUnlock.vue';
 import SiteAccountNotice from '@/components/sidebar/SiteAccountNotice.vue';
 import { useActiveTab } from '@/composables/useActiveTab';
 import { useApprovalQueue } from '@/composables/useApprovalQueue';
+import { isNotice } from '@/services/approval-preview';
 import useVaultStore from '@/stores/vault-store';
 import { switchSiteToActiveAccount } from '@/services/connected-sites-service';
 import type { ApprovalDuration, ApprovalRequestRecord } from '@/../src-bex/types/background';
@@ -23,7 +24,7 @@ const { t } = useI18n();
 const accountStore = useAccountStore();
 const { activeOrigin } = useActiveTab();
 const vaultStore = useVaultStore();
-const { pending, current, content, decide, refresh } = useApprovalQueue();
+const { pending, current, content, decide, dismiss, refresh } = useApprovalQueue();
 
 const busy = ref(false);
 
@@ -80,9 +81,25 @@ async function onRejectAndSwitch(request: ApprovalRequestRecord): Promise<void> 
   }
 }
 
+/** Dismiss an expired or interrupted notice; the panel moves on to whatever is next (S13, S14). */
+async function onDismiss(id: string): Promise<void> {
+  busy.value = true;
+  try {
+    await dismiss(id);
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function onSelect(id: string): Promise<void> {
+  // Choosing another request is moving on from the notice, so it is dismissed first. Otherwise
+  // the background would keep answering with the notice and the choice would not take.
+  if (current.value && isNotice(current.value)) await dismiss(current.value.id);
   await sendPresent(id);
 }
+
+/** A notice cannot be rejected, so the unlock view is never handed one to name. */
+const waitingRequest = computed(() => (isNotice(current.value) ? null : current.value));
 
 async function sendPresent(id: string): Promise<void> {
   const target = pending.value.find((request) => request.id === id);
@@ -124,7 +141,7 @@ onMounted(async () => {
     <!-- Unlock takes precedence over everything else, and names any waiting request (S5, S15). -->
     <SidebarUnlock
       v-else-if="showUnlock"
-      :waiting-request="current"
+      :waiting-request="waitingRequest"
       @reject="(id) => onDecide(id, false, 'once')"
     />
 
@@ -135,6 +152,7 @@ onMounted(async () => {
         :busy="busy"
         @decide="onDecide"
         @reject-and-switch="onRejectAndSwitch"
+        @dismiss="onDismiss"
       />
       <PendingRequestList :requests="pending" :current-id="current.id" @select="onSelect" />
     </template>
