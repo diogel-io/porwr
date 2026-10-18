@@ -4,6 +4,7 @@ import {
   classifyRequest,
   ELEVATED_EVENT_KINDS,
   formatEventFields,
+  formattedContent,
   getAllowedDurations,
   getEventKindLabel,
   getRequestTypeLabel,
@@ -11,6 +12,7 @@ import {
   HTTP_AUTH_KIND,
   httpAuthOtherOrigin,
   httpAuthTarget,
+  REPOST_KIND,
   shouldDefaultToFullEvent,
   truncateForPreview,
   ZAP_REQUEST_KIND,
@@ -135,6 +137,72 @@ describe('approval preview rules', () => {
       expect(labels).toContain('Mentions');
       expect(labels).toContain('References events');
       expect(JSON.stringify(fields)).not.toContain('hello world');
+    });
+  });
+
+  describe('repost (kind 6, #323)', () => {
+    const noteId = 'c'.repeat(64);
+    const author = 'a'.repeat(64);
+    const repost = (
+      content: string,
+      tags: string[][] = [
+        ['e', noteId],
+        ['p', author],
+      ],
+    ) => ({
+      kind: REPOST_KIND,
+      content,
+      tags,
+      created_at: 1_700_000_000,
+    });
+    const embedded = (over: Record<string, unknown> = {}) =>
+      JSON.stringify({ id: noteId, pubkey: author, kind: 1, content: 'hello nostr', ...over });
+    const field = (fields: { label: string; value: string }[], label: string) =>
+      fields.find((f) => f.label === label)?.value;
+
+    it('shows the note id, the author as an npub and a short snippet', () => {
+      const fields = formatEventFields(repost(embedded()));
+
+      expect(field(fields, 'Reposted note')).toBe(noteId);
+      expect(field(fields, 'Reposted author')).toMatch(/^npub1/);
+      expect(field(fields, 'Reposted text')).toBe('hello nostr');
+      expect(field(fields, 'Embedded note')).toBeUndefined();
+    });
+
+    it('ends a long snippet in an ellipsis', () => {
+      const fields = formatEventFields(repost(embedded({ content: 'x'.repeat(500) })));
+
+      const text = field(fields, 'Reposted text') ?? '';
+      expect(text).toBe(`${'x'.repeat(140)}…`);
+    });
+
+    it('says what is missing and shows no problem for empty content', () => {
+      const fields = formatEventFields(repost('', []));
+
+      expect(field(fields, 'Reposted note')).toBe('Missing');
+      expect(field(fields, 'Reposted author')).toBe('Not stated');
+      expect(field(fields, 'Reposted text')).toBeUndefined();
+      expect(field(fields, 'Embedded note')).toBeUndefined();
+    });
+
+    it('flags content that is not JSON', () => {
+      const fields = formatEventFields(repost('not json'));
+
+      expect(field(fields, 'Embedded note')).toBe('Not valid JSON');
+    });
+
+    it('flags an embedded note whose id differs from the e tag', () => {
+      const fields = formatEventFields(repost(embedded({ id: 'd'.repeat(64) })));
+
+      expect(field(fields, 'Reposted note')).toBe(noteId);
+      expect(field(fields, 'Embedded note')).toBe('Does not match the reposted note');
+    });
+
+    it('prints no content in the formatted view for a repost, and the content for other kinds', () => {
+      expect(formattedContent(repost(embedded()))).toBe('');
+      expect(
+        formattedContent({ kind: 1, content: 'hi', tags: [], created_at: 1_700_000_000 }),
+      ).toBe('hi');
     });
   });
 
