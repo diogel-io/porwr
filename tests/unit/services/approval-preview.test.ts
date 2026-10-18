@@ -392,6 +392,24 @@ describe('approval preview rules', () => {
     });
   });
 
+  describe('DM relay list (kind 10050, #322)', () => {
+    it('is recognised, labelled and elevated, so it is never an unrecognised kind', () => {
+      expect(getEventKindLabel(10050)).toBe('DM relay list (10050)');
+      expect(classifyRequest('sign_event', 10050)).toBe('elevated');
+      expect(getRiskWarning('elevated', 10050)).toBe(
+        'Approving this lets the site replace the relays others deliver your private messages to.',
+      );
+      expect(shouldDefaultToFullEvent('elevated')).toBe(false);
+    });
+
+    it('is never offered always, as an elevated kind', () => {
+      expect(getAllowedDurations(classifyRequest('sign_event', 10050), true)).toEqual([
+        'once',
+        '8h',
+      ]);
+    });
+  });
+
   describe('HTTP authentication (kind 27235)', () => {
     const httpAuth = (tags: string[][]) => ({
       kind: HTTP_AUTH_KIND,
