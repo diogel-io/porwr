@@ -47,6 +47,7 @@ export const NOSTR_KIND_LABELS: Readonly<Record<number, string>> = {
   5: 'Event deletion',
   6: 'Repost',
   7: 'Reaction',
+  16: 'Generic repost',
   40: 'Channel creation',
   41: 'Channel metadata',
   42: 'Channel message',
@@ -165,7 +166,7 @@ export const formatEventFields = (event: UnsignedEventPreview): FormattedEventFi
   if (event.kind === ZAP_REQUEST_KIND) fields.push(...zapRequestFields(event));
 
   // A repost's content is the reposted note as JSON, which the rows below summarise (#323, NIP-18).
-  if (event.kind === REPOST_KIND) fields.push(...repostFields(event));
+  if (isRepostKind(event.kind)) fields.push(...repostFields(event));
 
   const mentions = event.tags.filter((tag) => tag[0] === 'p').length;
   if (mentions > 0) fields.push({ label: 'Mentions', value: String(mentions) });
@@ -240,12 +241,22 @@ const zapRequestFields = (event: UnsignedEventPreview): FormattedEventField[] =>
 /** NIP-18 repost of a text note. */
 export const REPOST_KIND = 6;
 
+/** NIP-18 generic repost: any kind of event other than a text note. */
+export const GENERIC_REPOST_KIND = 16;
+
+const isRepostKind = (kind: number): boolean =>
+  kind === REPOST_KIND || kind === GENERIC_REPOST_KIND;
+
 /** Long enough to recognise the note, short enough to keep Approve and Reject on screen. */
 export const REPOST_SNIPPET_CHARACTERS = 140;
+
+/** Kind 4 content is ciphertext, which says nothing to the reader. */
+const ENCRYPTED_DIRECT_MESSAGE_KIND = 4;
 
 interface EmbeddedNote {
   readonly id?: string | undefined;
   readonly pubkey?: string | undefined;
+  readonly kind?: number | undefined;
   readonly content?: string | undefined;
 }
 
@@ -253,10 +264,11 @@ const parseEmbeddedNote = (content: string): EmbeddedNote | undefined => {
   try {
     const parsed: unknown = JSON.parse(content);
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
-    const { id, pubkey, content: text } = parsed as Record<string, unknown>;
+    const { id, pubkey, kind, content: text } = parsed as Record<string, unknown>;
     return {
       id: typeof id === 'string' ? id : undefined,
       pubkey: typeof pubkey === 'string' ? pubkey : undefined,
+      kind: typeof kind === 'number' ? kind : undefined,
       content: typeof text === 'string' ? text : undefined,
     };
   } catch {
@@ -264,22 +276,51 @@ const parseEmbeddedNote = (content: string): EmbeddedNote | undefined => {
   }
 };
 
+/** The author named by an `a` coordinate (`kind:pubkey:d-tag`), when it names one. */
+const coordinateAuthor = (coordinate: string | undefined): string | undefined => {
+  const pubkey = coordinate?.split(':')[1];
+  return pubkey && /^[0-9a-f]{64}$/i.test(pubkey) ? pubkey : undefined;
+};
+
+/** The kind a generic repost says it carries (`k` tag), as a number, or why it cannot be read. */
+const repostedKind = (event: UnsignedEventPreview): number | 'missing' | 'invalid' => {
+  const value = tagValue(event, 'k');
+  if (value === undefined) return 'missing';
+  return /^\d+$/.test(value) ? Number(value) : 'invalid';
+};
+
 /**
- * What a repost signature commits to. The note is named by the `e` tag; the embedded JSON is
+ * What a repost signature commits to. The note is named by the `e` tag (or, for a generic repost
+ * of a replaceable event, the `a` coordinate) and its kind by the `k` tag; the embedded JSON is
  * whatever the site sent and cannot be checked here, so a mismatch is called out, not trusted.
  */
 const repostFields = (event: UnsignedEventPreview): FormattedEventField[] => {
+  const generic = event.kind === GENERIC_REPOST_KIND;
   const fields: FormattedEventField[] = [];
   const noteId = tagValue(event, 'e');
-  fields.push({ label: 'Reposted note', value: noteId ?? 'Missing' });
+  const coordinate = generic ? tagValue(event, 'a') : undefined;
+  fields.push({ label: 'Reposted note', value: noteId ?? coordinate ?? 'Missing' });
+
+  const kind = generic ? repostedKind(event) : undefined;
+  if (kind !== undefined) {
+    fields.push({
+      label: 'Reposted kind',
+      value:
+        kind === 'missing'
+          ? 'Not stated'
+          : kind === 'invalid'
+            ? `Invalid (${tagValue(event, 'k')})`
+            : getEventKindLabel(kind),
+    });
+  }
 
   const body = event.content.trim();
   const note = body ? parseEmbeddedNote(body) : undefined;
 
-  const author = tagValue(event, 'p') ?? note?.pubkey;
+  const author = tagValue(event, 'p') ?? note?.pubkey ?? coordinateAuthor(coordinate);
   fields.push({ label: 'Reposted author', value: author ? formatPubkey(author) : 'Not stated' });
 
-  if (note?.content) {
+  if (note?.content && kind !== ENCRYPTED_DIRECT_MESSAGE_KIND) {
     const text = note.content.replace(/\s+/g, ' ').trim();
     fields.push({
       label: 'Reposted text',
@@ -293,13 +334,15 @@ const repostFields = (event: UnsignedEventPreview): FormattedEventField[] => {
   if (body && !note) fields.push({ label: 'Embedded note', value: 'Not valid JSON' });
   else if (note?.id && noteId && note.id !== noteId) {
     fields.push({ label: 'Embedded note', value: 'Does not match the reposted note' });
+  } else if (typeof kind === 'number' && note?.kind !== undefined && note.kind !== kind) {
+    fields.push({ label: 'Embedded note', value: 'Kind does not match the k tag' });
   }
   return fields;
 };
 
 /** The content the formatted view prints; a repost's is summarised by its rows instead. */
 export const formattedContent = (event: UnsignedEventPreview): string =>
-  event.kind === REPOST_KIND ? '' : event.content;
+  isRepostKind(event.kind) ? '' : event.content;
 
 /** NIP-98 HTTP Auth. */
 export const HTTP_AUTH_KIND = 27235;

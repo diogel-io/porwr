@@ -74,4 +74,28 @@ describe('a repost request (kind 6, #323)', () => {
 
     expect(wrapper.text()).toContain('plain note');
   });
+
+  it('summarises a generic repost (kind 16) the same way', async () => {
+    const wrapper = mountPreview({
+      allowRemember: true,
+      event: {
+        kind: 16,
+        created_at: 1_700_000_000,
+        tags: [
+          ['e', noteId],
+          ['p', author],
+          ['k', '30023'],
+        ],
+        content: JSON.stringify({ id: noteId, pubkey: author, kind: 30023, content: 'An article' }),
+      },
+    });
+
+    expect(wrapper.text()).toContain('Reposted kind');
+    expect(wrapper.text()).toContain('An article');
+    expect(wrapper.text()).not.toContain('{"');
+
+    await wrapper.find('.mode-raw').trigger('click');
+
+    expect(wrapper.find('pre').text()).toContain('{"id"');
+  });
 });
