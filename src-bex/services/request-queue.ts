@@ -329,6 +329,58 @@ export const enqueueRequest = async (
   return { record, decision };
 };
 
+/** The identity a request acts for, as recorded on it for the panel and the grant. */
+export interface RequestAccount {
+  accountAlias: string;
+  accountPubkey: string;
+  activeAccountAlias: string | null;
+  activeAccountPubkey: string | null;
+}
+
+/**
+ * Name the account on waiting requests that were queued without one.
+ *
+ * A request that arrives while the vault is locked cannot resolve the account it acts for, so it
+ * queues with none, and the panel showed "No active account" even after unlocking (porwr#320).
+ * Called once the vault unlocks. `resolve` is the caller's: the queue knows nothing of accounts.
+ * Only requests still waiting are touched, and only those with no account: one that already names
+ * an account keeps it, because that is what the site is connected as (#116).
+ */
+export const assignAccountsToWaitingRequests = async (
+  resolve: (origin: string) => Promise<RequestAccount | null>,
+  now: number = Date.now(),
+): Promise<ApprovalRequestRecord[]> => {
+  const needsAccount = (record: ApprovalRequestRecord): boolean =>
+    !isTerminal(record.state) && record.accountPubkey === null;
+
+  const origins = new Set((await loadQueue(now)).filter(needsAccount).map((r) => r.origin));
+  if (origins.size === 0) return [];
+
+  const accounts = new Map<string, RequestAccount | null>();
+  for (const origin of origins) accounts.set(origin, await resolve(origin));
+
+  // Read again before writing: resolving awaits storage, and a request enqueued or decided in the
+  // meantime must not be overwritten with the earlier snapshot.
+  const updated: ApprovalRequestRecord[] = [];
+  const next = (await loadQueue(now)).map((record) => {
+    const account = needsAccount(record) ? accounts.get(record.origin) : null;
+    if (!account) return record;
+    const named: ApprovalRequestRecord = { ...record, ...account };
+    updated.push(named);
+    return named;
+  });
+
+  if (updated.length > 0) await writeRecords(next.map(toDurableRecord));
+  return updated;
+};
+
+/** One request as it stands now, decided or not, or null once it has been pruned. */
+export const getRequestRecord = async (
+  id: string,
+  now: number = Date.now(),
+): Promise<ApprovalRequestRecord | null> =>
+  (await loadQueue(now)).find((record) => record.id === id) ?? null;
+
 /**
  * Apply a user decision to one request.
  *

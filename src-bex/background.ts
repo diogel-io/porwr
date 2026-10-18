@@ -23,7 +23,11 @@ import {
   reconcilePanelPresence,
 } from './services/panel-presence';
 import { refreshAttention } from './services/attention-badge';
-import { requestApproval, trimApprovalContentDescription } from './services/approval-flow';
+import {
+  identifyWaitingRequests,
+  requestApproval,
+  trimApprovalContentDescription,
+} from './services/approval-flow';
 import type { ApprovalRequestDetails } from './services/approval-flow';
 import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
@@ -217,6 +221,16 @@ void initialize();
 // skips a cache that is still fresh; nothing is refreshed while the vault is locked.
 onVaultUnlocked(() => {
   void refreshActiveAccountContacts();
+});
+
+// A request that arrived while the vault was locked was queued without an account. Name it now, so
+// the panel shows who is signing before the user decides (porwr#320).
+onVaultUnlocked(() => {
+  void identifyWaitingRequests().catch((error: unknown) => {
+    logService.log(LogLevel.ERROR, '[BEX] Failed to name the account on waiting requests', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
 });
 storageService.onChanged((changes, areaName) => {
   if (areaName !== 'local') return;

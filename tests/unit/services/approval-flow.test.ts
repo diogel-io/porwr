@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   checkPermission: vi.fn(),
   grantPermission: vi.fn(),
   enqueueRequest: vi.fn(),
+  getRequestRecord: vi.fn(),
+  assignAccountsToWaitingRequests: vi.fn(),
   resolveSigningAccount: vi.fn(),
   getActiveAccount: vi.fn(),
   log: vi.fn(),
@@ -14,7 +16,11 @@ vi.mock('@/../src-bex/handlers/permission-handler', () => ({
   checkPermission: mocks.checkPermission,
   grantPermission: mocks.grantPermission,
 }));
-vi.mock('@/../src-bex/services/request-queue', () => ({ enqueueRequest: mocks.enqueueRequest }));
+vi.mock('@/../src-bex/services/request-queue', () => ({
+  enqueueRequest: mocks.enqueueRequest,
+  getRequestRecord: mocks.getRequestRecord,
+  assignAccountsToWaitingRequests: mocks.assignAccountsToWaitingRequests,
+}));
 vi.mock('@/../src-bex/services/signing-account', () => ({
   resolveSigningAccount: mocks.resolveSigningAccount,
   getActiveAccount: mocks.getActiveAccount,
@@ -25,6 +31,7 @@ vi.mock('@/services/log-service', () => ({
 }));
 
 import {
+  identifyWaitingRequests,
   requestApproval,
   toPermissionKind,
   trimApprovalContentDescription,
@@ -56,6 +63,9 @@ beforeEach(() => {
   mocks.checkPermission.mockResolvedValue({ granted: false });
   mocks.grantPermission.mockResolvedValue(undefined);
   enqueueResolving({ approved: true, duration: 'once' });
+  // By default the record is unchanged between enqueueing and deciding.
+  mocks.getRequestRecord.mockResolvedValue(null);
+  mocks.assignAccountsToWaitingRequests.mockResolvedValue([]);
 });
 
 describe('deciding a site request', () => {
@@ -195,6 +205,28 @@ describe('deciding a site request', () => {
       expect(mocks.grantPermission).not.toHaveBeenCalled();
     });
 
+    it('writes it against the account named on unlock, for a request queued while locked (porwr#320)', async () => {
+      enqueueResolving({ approved: true, duration: '8h' }, null);
+      mocks.getRequestRecord.mockResolvedValue({
+        id: 'req-1',
+        accountAlias: 'alice',
+        accountPubkey: ALICE.id,
+      });
+
+      await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+      expect(mocks.getRequestRecord).toHaveBeenCalledWith('req-1');
+      expect(mocks.grantPermission).toHaveBeenCalledWith(ORIGIN, ALICE.id, 'sign_event', 1, '8h');
+    });
+
+    it('writes nothing when the request still names no account (porwr#320)', async () => {
+      enqueueResolving({ approved: true, duration: 'always' }, null);
+
+      // Before #320 this wrote a grant against an empty pubkey.
+      await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(true);
+      expect(mocks.grantPermission).not.toHaveBeenCalled();
+    });
+
     it('still approves when the grant cannot be written', async () => {
       enqueueResolving({ approved: true, duration: 'always' });
       mocks.grantPermission.mockRejectedValue(new Error('storage gone'));
@@ -247,6 +279,19 @@ describe('deciding a site request', () => {
       );
     });
 
+    it('names the account given on unlock, not the empty one it queued with (porwr#320)', async () => {
+      enqueueResolving({ approved: true, duration: 'once' }, null);
+      mocks.getRequestRecord.mockResolvedValue({
+        id: 'req-1',
+        accountAlias: 'bob',
+        accountPubkey: BOB.id,
+      });
+
+      await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+      expect(mocks.logApproval).toHaveBeenCalledWith(1, 'example.com', 'bob', 'approved');
+    });
+
     it('names the request type when there is no event kind', async () => {
       await requestApproval(ORIGIN, -1, { requestType: 'get_public_key' });
 
@@ -257,6 +302,36 @@ describe('deciding a site request', () => {
         'approved',
       );
     });
+  });
+});
+
+describe('naming the account on requests that waited out a locked vault (porwr#320)', () => {
+  const resolverPassed = async (): Promise<(origin: string) => Promise<unknown>> => {
+    await identifyWaitingRequests();
+    return mocks.assignAccountsToWaitingRequests.mock.calls[0]![0];
+  };
+
+  it('resolves the account the site acts as, with the active account beside it', async () => {
+    mocks.resolveSigningAccount.mockResolvedValue({ account: ALICE });
+    mocks.getActiveAccount.mockResolvedValue(BOB);
+
+    const resolve = await resolverPassed();
+
+    await expect(resolve(ORIGIN)).resolves.toEqual({
+      accountAlias: 'alice',
+      accountPubkey: ALICE.id,
+      activeAccountAlias: 'bob',
+      activeAccountPubkey: BOB.id,
+    });
+    expect(mocks.resolveSigningAccount).toHaveBeenCalledWith(ORIGIN);
+  });
+
+  it('names nothing when no account can act', async () => {
+    mocks.resolveSigningAccount.mockResolvedValue({ error: 'No active account', code: 'X' });
+
+    const resolve = await resolverPassed();
+
+    await expect(resolve(ORIGIN)).resolves.toBeNull();
   });
 });
 
