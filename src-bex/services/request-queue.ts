@@ -140,7 +140,7 @@ const loadQueue = async (now: number = Date.now()): Promise<ApprovalRequestRecor
     for (const record of expired) {
       const callback = liveCallbacks.get(record.id);
       forgetRequest(record.id);
-      callback?.settle({ approved: false, duration: 'once' });
+      callback?.settle({ approved: false, duration: 'once', ending: 'expired' });
     }
   }
 
@@ -455,7 +455,7 @@ export const interruptRequestsForOrigin = async (
     const callback = liveCallbacks.get(record.id);
     forgetRequest(record.id);
     // Fail closed: the page is gone, so the request is refused rather than left hanging.
-    callback?.settle({ approved: false, duration: 'once' });
+    callback?.settle({ approved: false, duration: 'once', ending: 'interrupted' });
   }
 
   logService.log(LogLevel.WARN, '[Queue] Marked requests interrupted after the page went away', {

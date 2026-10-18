@@ -4,14 +4,18 @@ import {
   normalizeAndDeduplicateRelays,
   parseRelayListEvent,
 } from './relay-discovery';
-import useSettingsStore from '@/stores/settings-store';
-import type { Event } from 'nostr-tools';
 import { isVaultUnlocked } from './vault-service';
-import { useEventService } from '@/composables/useEventService';
+import { logService } from './log-service';
+import type { ApprovalLog, ApprovalOutcome, ExceptionLog } from './database';
 import { countSitesHoldingGrantsFor } from './connected-sites-service';
 import type { DashboardActivityType, DashboardSummary } from '@/types';
 
-export type DashboardActivityStatus = 'approved' | 'exception' | 'rejected' | 'signed';
+export type DashboardActivityStatus =
+  | 'approved'
+  | 'rejected'
+  | 'expired'
+  | 'interrupted'
+  | 'exception';
 
 export interface DashboardActivityItem {
   type: DashboardActivityType;
@@ -137,30 +141,59 @@ export async function getConnectedRelaySummaryForActiveKey(): Promise<{
   return { count, state: 'ready' };
 }
 
-function fromNostrEventToActivityItem(
-  event: Event,
-  accountAlias: string,
-  accountNpub?: string,
-): DashboardActivityItem {
-  return {
-    type: 'event',
-    status: 'signed',
-    dateTime: new Date(event.created_at * 1000).toISOString(),
-    title: 'Signed event',
-    detail: `Event kind ${String(event.kind)}`,
-    eventKind: event.kind,
-    accountAlias,
-    ...(accountNpub ? { accountNpub } : {}),
-  };
-}
+const approvalStatus: Record<
+  Exclude<ApprovalOutcome, 'unknown'>,
+  Exclude<DashboardActivityStatus, 'exception'>
+> = {
+  approved: 'approved',
+  rejected: 'rejected',
+  expired: 'expired',
+  interrupted: 'interrupted',
+};
 
-export async function getRecentEventsFromRelays(limit = 10): Promise<DashboardActivityItem[]> {
+const fromApprovalLog = (
+  approval: ApprovalLog & { outcome: Exclude<ApprovalOutcome, 'unknown'> },
+): DashboardActivityItem => ({
+  type: 'approval',
+  status: approvalStatus[approval.outcome],
+  dateTime: approval.dateTime,
+  title: 'Approval request',
+  eventKind: approval.eventKind,
+  hostname: approval.hostname,
+  ...(approval.account ? { accountAlias: approval.account } : {}),
+});
+
+const fromExceptionLog = (exception: ExceptionLog): DashboardActivityItem => ({
+  type: 'exception',
+  status: 'exception',
+  dateTime: exception.dateTime,
+  title: 'Extension exception',
+  detail: exception.message,
+  hostname: exception.hostname ?? null,
+  ...(exception.account ? { accountAlias: exception.account } : {}),
+});
+
+const hasRecordedOutcome = (
+  approval: ApprovalLog,
+): approval is ApprovalLog & { outcome: Exclude<ApprovalOutcome, 'unknown'> } =>
+  !!approval.outcome && approval.outcome !== 'unknown';
+
+/**
+ * The active account's latest approvals and exceptions, newest first (workspace#37).
+ *
+ * Read from the same local logs as Event History, which is what the card says it shows. This
+ * replaced a relay query for events the account had *published*, so approvals never appeared.
+ *
+ * Approvals without a recorded outcome are left out: they are rows written when a site asked
+ * rather than when the user decided, which an older build logged alongside every outcome, and they
+ * cannot say whether the request was approved. Event History still lists them.
+ */
+export async function getRecentLocalActivity(limit = 10): Promise<DashboardActivityItem[]> {
   if (limit <= 0) {
     return [];
   }
 
-  const state = await getDashboardDataState();
-  if (state !== 'ready') {
+  if ((await getDashboardDataState()) !== 'ready') {
     return [];
   }
 
@@ -169,34 +202,17 @@ export async function getRecentEventsFromRelays(limit = 10): Promise<DashboardAc
     return [];
   }
 
-  const keys = await get();
-  const activeKey = keys[activeAccount];
-  if (!activeKey?.id) {
-    return [];
-  }
+  const [approvals, exceptions] = await Promise.all([
+    logService.getApprovals(activeAccount),
+    logService.getExceptions(activeAccount),
+  ]);
 
-  const settingsStore = useSettingsStore();
-  const relays = await settingsStore.getFallbackRelays();
-
-  if (relays.length === 0) {
-    return [];
-  }
-
-  const filter = {
-    authors: [activeKey.id],
-    limit,
-  };
-
-  const { getEvents, close } = useEventService(relays);
-  try {
-    const events = await getEvents(filter);
-    return events
-      .sort((a, b) => b.created_at - a.created_at)
-      .slice(0, limit)
-      .map((event) => fromNostrEventToActivityItem(event, activeAccount, activeKey.id));
-  } finally {
-    close();
-  }
+  return [
+    ...approvals.filter(hasRecordedOutcome).map(fromApprovalLog),
+    ...exceptions.map(fromExceptionLog),
+  ]
+    .sort((a, b) => b.dateTime.localeCompare(a.dateTime))
+    .slice(0, limit);
 }
 
 export async function getDashboardSummary(activityLimit = 50): Promise<DashboardSummary> {
@@ -217,7 +233,7 @@ export async function getDashboardSummary(activityLimit = 50): Promise<Dashboard
   const [approvedClients, connectedRelaysSummary, recentActivity] = await Promise.all([
     getApprovedClientCountForActiveKey(),
     getConnectedRelaySummaryForActiveKey(),
-    getRecentEventsFromRelays(activityLimit),
+    getRecentLocalActivity(activityLimit),
   ]);
 
   return {

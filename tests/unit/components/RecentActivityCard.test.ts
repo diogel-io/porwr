@@ -26,9 +26,15 @@ vi.mock('vue-i18n', () => ({
         'dashboard.widgets.recentActivity.eventType.named.directMessage': 'Direct Msg',
         'dashboard.widgets.recentActivity.eventType.kindWithName': 'Kind {kind}: {name}',
         'dashboard.widgets.recentActivity.eventType.extensionException': 'Extension exception',
-        'dashboard.widgets.recentActivity.status.success': 'SUCCESS',
-        'dashboard.widgets.recentActivity.status.error': 'ERROR',
+        'dashboard.widgets.recentActivity.status.approved': 'APPROVED',
         'dashboard.widgets.recentActivity.status.rejected': 'REJECTED',
+        'dashboard.widgets.recentActivity.status.expired': 'EXPIRED',
+        'dashboard.widgets.recentActivity.status.interrupted': 'INTERRUPTED',
+        'dashboard.widgets.recentActivity.status.exception': 'ERROR',
+        'dashboard.widgets.recentActivity.eventType.request.publicKey': 'Public key',
+        'dashboard.widgets.recentActivity.eventType.request.relays': 'Relays',
+        'dashboard.widgets.recentActivity.eventType.request.encrypt': 'Encrypt (NIP-{nip})',
+        'dashboard.widgets.recentActivity.eventType.request.decrypt': 'Decrypt (NIP-{nip})',
         'dashboard.widgets.recentActivity.ready': 'Ready',
         'dashboard.widgets.common.error': 'Error',
         'dashboard.widgets.common.locked': 'Locked',
@@ -125,7 +131,7 @@ describe('RecentActivityCard.vue', () => {
     expect(text).toContain('Kind 1: Note');
     expect(text).toMatch(/npub1\.\.\.[a-z0-9]{4}/);
     expect(text).toContain('formatted:2026-01-01T10:00:00.000Z');
-    expect(text).toContain('SUCCESS');
+    expect(text).toContain('APPROVED');
     expect(text).not.toContain('View All');
   });
 
@@ -182,6 +188,79 @@ describe('RecentActivityCard.vue', () => {
     expect(badges.at(0)?.classes()).toContain('dashboard-widget-card__status--success');
     expect(badges.at(1)?.classes()).toContain('dashboard-widget-card__status--error');
     expect(badges.at(2)?.classes()).toContain('dashboard-widget-card__status--rejected');
+  });
+
+  describe('local approval log rows (workspace#37)', () => {
+    const mountRows = (recentActivity: DashboardSummary['recentActivity']) =>
+      mount(RecentActivityCard, {
+        props: { summary: { ...mockSummary, recentActivity } },
+        global: { stubs: globalStubs },
+      });
+    const approval = (
+      status: DashboardSummary['recentActivity'][number]['status'],
+      eventKind: number | string = 1,
+    ): DashboardSummary['recentActivity'][number] => ({
+      type: 'approval',
+      status,
+      dateTime: '2026-10-18T10:00:00.000Z',
+      title: 'Approval request',
+      eventKind,
+      hostname: 'snort.social',
+      accountAlias: 'alpha',
+    });
+
+    it('labels each outcome, and shows expired and interrupted as neutral rather than errors', async () => {
+      const wrapper = mountRows([
+        approval('approved'),
+        approval('rejected'),
+        approval('expired'),
+        approval('interrupted'),
+      ]);
+      await flushComponent();
+
+      const badges = wrapper.findAll('.q-badge-stub');
+      expect(badges.map((badge) => badge.text())).toEqual([
+        'APPROVED',
+        'REJECTED',
+        'EXPIRED',
+        'INTERRUPTED',
+      ]);
+      expect(badges.map((badge) => badge.classes().find((c) => c.includes('--')))).toEqual([
+        'dashboard-widget-card__status--success',
+        'dashboard-widget-card__status--rejected',
+        'dashboard-widget-card__status--neutral',
+        'dashboard-widget-card__status--neutral',
+      ]);
+    });
+
+    it.each([
+      ['get_public_key', 'Public key'],
+      ['get_relays', 'Relays'],
+      ['nip04_encrypt', 'Encrypt (NIP-04)'],
+      ['nip04_decrypt', 'Decrypt (NIP-04)'],
+      ['nip44_encrypt', 'Encrypt (NIP-44)'],
+      ['nip44_decrypt', 'Decrypt (NIP-44)'],
+    ])('names the %s request rather than showing it as a kind', async (kind, label) => {
+      const wrapper = mountRows([approval('approved', kind)]);
+      await flushComponent();
+
+      const event = wrapper.get('.dashboard-widget-card__event-label').text();
+      expect(event).toBe(label);
+    });
+
+    it('shows the site that made the request', async () => {
+      const wrapper = mountRows([approval('approved')]);
+      await flushComponent();
+
+      expect(wrapper.get('.dashboard-widget-card__event-site').text()).toBe('snort.social');
+    });
+
+    it('shows no site line when the row has none', async () => {
+      const wrapper = mountRows([{ ...approval('approved'), hostname: null }]);
+      await flushComponent();
+
+      expect(wrapper.find('.dashboard-widget-card__event-site').exists()).toBe(false);
+    });
   });
 
   it('falls back to Intl formatting when i18n datetime format is unavailable', async () => {

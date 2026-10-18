@@ -12,7 +12,8 @@
  * 2. whether an existing grant already answers, short-circuiting without asking the user
  * 3. otherwise, enqueue for the panel and wait for a terminal outcome
  * 4. on approval with a remembered duration, write the grant against the acting account
- * 5. log the outcome on the terminal transition, so a rejection is never recorded as an approval
+ * 5. log the outcome on the terminal transition, so a rejection is never recorded as an approval,
+ *    and log a request a grant answered as approved
  */
 
 import { LogLevel, logService } from '@/services/log-service';
@@ -46,6 +47,10 @@ export const trimApprovalContentDescription = (content?: string): string | undef
 export const toPermissionKind = (eventKind: number): number | null =>
   eventKind < 0 ? null : eventKind;
 
+/** What the approval log records as the kind: the event kind, or the request type when it has none. */
+const approvalLogKind = (eventKind: number, details: ApprovalRequestDetails): number | string =>
+  eventKind === -1 ? details.requestType : eventKind;
+
 export async function requestApproval(
   origin: string,
   eventKind: number,
@@ -65,7 +70,16 @@ export async function requestApproval(
       details.requestType,
       permissionKind,
     );
-    if (permission.granted) return true;
+    if (permission.granted) {
+      // Answered by a grant the user gave earlier, so still an approval, and logged as one (#37).
+      void logService.logApproval(
+        approvalLogKind(eventKind, details),
+        originHostname(origin),
+        actingAccount.alias,
+        'approved',
+      );
+      return true;
+    }
   }
 
   // The site keeps the account it connected with; the prompt says so when that is not the active
@@ -125,12 +139,12 @@ export async function requestApproval(
   }
 
   // Logged on the terminal transition rather than when the site asked, so a rejection is not
-  // recorded as an approval.
+  // recorded as an approval. This is the only place a prompted request is logged (#37).
   void logService.logApproval(
-    eventKind === -1 ? details.requestType : eventKind,
+    approvalLogKind(eventKind, details),
     originHostname(origin),
     record.accountAlias,
-    approved ? 'approved' : 'rejected',
+    outcome.ending ?? (approved ? 'approved' : 'rejected'),
   );
 
   return approved;

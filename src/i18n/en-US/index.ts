@@ -274,11 +274,19 @@ export default {
             directMessage: 'Direct Msg',
             longForm: 'Long Form',
           },
+          request: {
+            publicKey: 'Public key',
+            relays: 'Relays',
+            encrypt: 'Encrypt (NIP-{nip})',
+            decrypt: 'Decrypt (NIP-{nip})',
+          },
         },
         status: {
-          success: 'SUCCESS',
-          error: 'ERROR',
+          approved: 'APPROVED',
           rejected: 'REJECTED',
+          expired: 'EXPIRED',
+          interrupted: 'INTERRUPTED',
+          exception: 'ERROR',
         },
       },
       quickSign: {

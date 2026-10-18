@@ -93,6 +93,20 @@ vi.mock('@/composables/useEventService', () => ({
   useEventService: vi.fn(),
 }));
 
+const { getApprovalsMock, getExceptionsMock } = vi.hoisted(() => ({
+  getApprovalsMock: vi.fn(),
+  getExceptionsMock: vi.fn(),
+}));
+
+vi.mock('@/services/log-service', () => ({
+  LogLevel: { DEBUG: 'debug', INFO: 'info', WARN: 'warn', ERROR: 'error' },
+  logService: {
+    getApprovals: getApprovalsMock,
+    getExceptions: getExceptionsMock,
+    log: vi.fn(),
+  },
+}));
+
 describe('dashboard-service', () => {
   let dashboardService: typeof DashboardService;
   let dexieStorage: typeof DexieStorage;
@@ -121,6 +135,8 @@ describe('dashboard-service', () => {
       }),
     });
     exceptionsToArrayMock.mockResolvedValue([]);
+    getApprovalsMock.mockReset().mockResolvedValue([]);
+    getExceptionsMock.mockReset().mockResolvedValue([]);
     relayMetadataGetMock.mockReset();
     relayMetadataGetMock.mockResolvedValue(undefined);
     relayMetadataSubscribeManyMock.mockReset();
@@ -353,71 +369,154 @@ describe('dashboard-service', () => {
     });
   });
 
-  it('returns empty recent activity when no active account', async () => {
-    vi.mocked(dexieStorage.getActive).mockResolvedValue(undefined);
+  describe('recent activity from the local logs (workspace#37)', () => {
+    const readyAlpha = () => {
+      vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
+      vi.mocked(dexieStorage.get).mockResolvedValue({
+        alpha: { id: 'pubkey-alpha', alias: 'alpha', createdAt: '2026-01-01' },
+      });
+    };
 
-    await expect(dashboardService.getRecentEventsFromRelays(5)).resolves.toEqual([]);
-  });
+    it('returns nothing when there is no active account', async () => {
+      vi.mocked(dexieStorage.getActive).mockResolvedValue(undefined);
 
-  it('returns empty recent activity when vault is locked', async () => {
-    vi.mocked(vaultService.isVaultUnlocked).mockResolvedValue(false);
-
-    await expect(dashboardService.getRecentEventsFromRelays(5)).resolves.toEqual([]);
-  });
-
-  it('returns sorted recent events for active account with limit', async () => {
-    vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
-    vi.mocked(dexieStorage.get).mockResolvedValue({
-      alpha: { id: 'pubkey-alpha', alias: 'alpha', createdAt: '2026-01-01' },
+      await expect(dashboardService.getRecentLocalActivity(5)).resolves.toEqual([]);
+      expect(getApprovalsMock).not.toHaveBeenCalled();
     });
 
-    getEventsMock.mockResolvedValue([
-      {
-        id: '1',
-        kind: 1,
-        created_at: 1735689600,
-        tags: [],
-        content: 'hello',
-        pubkey: 'pubkey-alpha',
-        sig: 'sig',
-      },
-      {
-        id: '2',
-        kind: 0,
-        created_at: 1735693200,
-        tags: [],
-        content: '{}',
-        pubkey: 'pubkey-alpha',
-        sig: 'sig',
-      },
-    ]);
+    it('returns nothing when the vault is locked', async () => {
+      vi.mocked(vaultService.isVaultUnlocked).mockResolvedValue(false);
 
-    const result = await dashboardService.getRecentEventsFromRelays(2);
-
-    expect(result).toHaveLength(2);
-    const [first, second] = result;
-
-    expect(first).toBeDefined();
-    expect(second).toBeDefined();
-
-    expect(first).toMatchObject({
-      type: 'event',
-      status: 'signed',
-      title: 'Signed event',
-      eventKind: 0,
-      accountAlias: 'alpha',
-      accountNpub: 'pubkey-alpha',
-    });
-    expect(second).toMatchObject({
-      type: 'event',
-      status: 'signed',
-      title: 'Signed event',
-      eventKind: 1,
-      accountAlias: 'alpha',
-      accountNpub: 'pubkey-alpha',
+      await expect(dashboardService.getRecentLocalActivity(5)).resolves.toEqual([]);
+      expect(getApprovalsMock).not.toHaveBeenCalled();
     });
 
-    expect(first?.dateTime).toBe(new Date(1735693200 * 1000).toISOString());
-    expect(second?.dateTime).toBe(new Date(1735689600 * 1000).toISOString());
+    it("reads the active account's approvals and exceptions, never a relay", async () => {
+      readyAlpha();
+
+      await dashboardService.getRecentLocalActivity(5);
+
+      expect(getApprovalsMock).toHaveBeenCalledWith('alpha');
+      expect(getExceptionsMock).toHaveBeenCalledWith('alpha');
+      expect(useEventService).not.toHaveBeenCalled();
+    });
+
+    it('merges approvals and exceptions newest first, with their outcomes, up to the limit', async () => {
+      readyAlpha();
+      getApprovalsMock.mockResolvedValue([
+        {
+          dateTime: '2026-10-18T10:04:00.000Z',
+          eventKind: 1,
+          hostname: 'snort.social',
+          account: 'alpha',
+          outcome: 'approved',
+        },
+        {
+          dateTime: '2026-10-18T10:02:00.000Z',
+          eventKind: 'get_public_key',
+          hostname: 'snort.social',
+          account: 'alpha',
+          outcome: 'rejected',
+        },
+        {
+          dateTime: '2026-10-18T10:00:00.000Z',
+          eventKind: 1,
+          hostname: 'old.example',
+          account: 'alpha',
+          outcome: 'expired',
+        },
+      ]);
+      getExceptionsMock.mockResolvedValue([
+        {
+          dateTime: '2026-10-18T10:03:00.000Z',
+          message: 'Relay timed out',
+          account: 'alpha',
+          hostname: 'snort.social',
+        },
+      ]);
+
+      const result = await dashboardService.getRecentLocalActivity(3);
+
+      expect(result).toEqual([
+        {
+          type: 'approval',
+          status: 'approved',
+          dateTime: '2026-10-18T10:04:00.000Z',
+          title: 'Approval request',
+          eventKind: 1,
+          hostname: 'snort.social',
+          accountAlias: 'alpha',
+        },
+        {
+          type: 'exception',
+          status: 'exception',
+          dateTime: '2026-10-18T10:03:00.000Z',
+          title: 'Extension exception',
+          detail: 'Relay timed out',
+          hostname: 'snort.social',
+          accountAlias: 'alpha',
+        },
+        {
+          type: 'approval',
+          status: 'rejected',
+          dateTime: '2026-10-18T10:02:00.000Z',
+          title: 'Approval request',
+          eventKind: 'get_public_key',
+          hostname: 'snort.social',
+          accountAlias: 'alpha',
+        },
+      ]);
+    });
+
+    it('carries expired and interrupted outcomes through as their own statuses', async () => {
+      readyAlpha();
+      getApprovalsMock.mockResolvedValue([
+        { dateTime: '2026-10-18T10:01:00.000Z', eventKind: 1, hostname: 'a', outcome: 'expired' },
+        {
+          dateTime: '2026-10-18T10:00:00.000Z',
+          eventKind: 1,
+          hostname: 'b',
+          outcome: 'interrupted',
+        },
+      ]);
+
+      const statuses = (await dashboardService.getRecentLocalActivity(5)).map((a) => a.status);
+
+      expect(statuses).toEqual(['expired', 'interrupted']);
+    });
+
+    it('leaves out approvals with no recorded outcome', async () => {
+      readyAlpha();
+      getApprovalsMock.mockResolvedValue([
+        { dateTime: '2026-10-18T10:01:00.000Z', eventKind: 1, hostname: 'a', outcome: 'unknown' },
+        { dateTime: '2026-10-18T10:00:00.000Z', eventKind: 1, hostname: 'b' },
+        { dateTime: '2026-10-18T09:59:00.000Z', eventKind: 1, hostname: 'c', outcome: 'approved' },
+      ]);
+
+      const result = await dashboardService.getRecentLocalActivity(5);
+
+      expect(result.map((activity) => activity.hostname)).toEqual(['c']);
+    });
+
+    it('returns nothing for a limit of zero', async () => {
+      readyAlpha();
+
+      await expect(dashboardService.getRecentLocalActivity(0)).resolves.toEqual([]);
+      expect(getApprovalsMock).not.toHaveBeenCalled();
+    });
+
+    it('fills the dashboard summary from the local logs', async () => {
+      readyAlpha();
+      countSitesHoldingGrantsFor.mockResolvedValue(0);
+      fetchAccountRelayListEventMock.mockResolvedValue(null);
+      getApprovalsMock.mockResolvedValue([
+        { dateTime: '2026-10-18T10:00:00.000Z', eventKind: 1, hostname: 'a', outcome: 'approved' },
+      ]);
+
+      const summary = await dashboardService.getDashboardSummary(5);
+
+      expect(summary.recentActivity).toHaveLength(1);
+      expect(summary.recentActivity[0]).toMatchObject({ type: 'approval', status: 'approved' });
+    });
   });
 });
