@@ -7,6 +7,7 @@
  */
 
 import { nip19 } from 'nostr-tools';
+import { DM_RELAY_LIST_KIND } from '@/types/messaging';
 import type { ApprovalDuration, ApprovalRequestRecord } from '@/../src-bex/types/background';
 
 /**
@@ -57,6 +58,7 @@ export const NOSTR_KIND_LABELS: Readonly<Record<number, string>> = {
   9734: 'Zap request',
   9735: 'Zap receipt',
   10002: 'Relay list metadata',
+  [DM_RELAY_LIST_KIND]: 'DM relay list',
   22242: 'Client authentication',
   27235: 'HTTP authentication',
   30023: 'Long-form content',
@@ -68,7 +70,15 @@ export const NOSTR_KIND_LABELS: Readonly<Record<number, string>> = {
  * These are not the kinds users see most often; they are the ones where a standing grant does
  * the most damage.
  */
-export const ELEVATED_EVENT_KINDS: readonly number[] = [3, 5, 9734, 10002, 22242, 27235];
+export const ELEVATED_EVENT_KINDS: readonly number[] = [
+  3,
+  5,
+  9734,
+  10002,
+  DM_RELAY_LIST_KIND,
+  22242,
+  27235,
+];
 
 const PAYMENT_REQUEST_TYPES: readonly string[] = ['webln_send_payment'];
 
@@ -79,6 +89,7 @@ const ELEVATED_KIND_EFFECTS: Readonly<Record<number, string>> = {
   // Signing a zap request attributes the zap to you; paying it is a separate WebLN approval (#270).
   9734: 'attach your identity to a Lightning zap',
   10002: 'replace the list of relays your identity advertises',
+  [DM_RELAY_LIST_KIND]: 'replace the relays others deliver your private messages to',
   22242: 'prove your identity to this site for a session',
   // NIP-98 (#215): Bancwr signs its users in with one, bound to its login URL.
   27235: "prove your identity to this site's server",
