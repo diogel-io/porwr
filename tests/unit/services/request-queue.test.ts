@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import {
+  assignAccountsToWaitingRequests,
   clearNoticeWhenNoPanel,
   dismissNotice,
   enqueueRequest,
   getCurrentRequest,
   getPendingCount,
+  getRequestRecord,
   listPendingRequests,
   markPresented,
   pruneResolvedRequests,
@@ -425,6 +427,89 @@ describe('request queue', () => {
 
       // Assert the expiry actually happened, so the notification is not credited to some other write.
       expect(readStored().find((item) => item.id === record.id)?.state).toBe('expired');
+      expect(listener).toHaveBeenCalled();
+    });
+  });
+
+  describe('naming the account after unlock (porwr#320)', () => {
+    const locked = { ...baseInput, accountAlias: null, accountPubkey: null };
+    const ALICE = {
+      accountAlias: 'alice',
+      accountPubkey: 'a'.repeat(64),
+      activeAccountAlias: 'alice',
+      activeAccountPubkey: 'a'.repeat(64),
+    };
+
+    it('names the account on a request queued without one', async () => {
+      const { record } = await enqueueRequest(locked);
+
+      const named = await assignAccountsToWaitingRequests(() => Promise.resolve(ALICE));
+
+      expect(named.map((item) => item.id)).toEqual([record.id]);
+      expect(await getRequestRecord(record.id)).toEqual(expect.objectContaining(ALICE));
+      expect(readStored()[0]).toEqual(expect.objectContaining(ALICE));
+    });
+
+    it('leaves a request that already names an account alone', async () => {
+      const bound = { ...baseInput, accountAlias: 'bob', accountPubkey: 'b'.repeat(64) };
+      const { record } = await enqueueRequest(bound);
+      const resolve = vi.fn(() => Promise.resolve(ALICE));
+
+      await assignAccountsToWaitingRequests(resolve);
+
+      expect(resolve).not.toHaveBeenCalled();
+      expect((await getRequestRecord(record.id))?.accountAlias).toBe('bob');
+    });
+
+    it('leaves a decided request alone', async () => {
+      const { record } = await enqueueRequest(locked);
+      await submitDecision(record.id, { approved: false, duration: 'once' });
+
+      await assignAccountsToWaitingRequests(() => Promise.resolve(ALICE));
+
+      expect((await getRequestRecord(record.id))?.accountPubkey).toBeNull();
+    });
+
+    it('leaves the request without an account when none can be resolved', async () => {
+      const { record } = await enqueueRequest(locked);
+
+      const named = await assignAccountsToWaitingRequests(() => Promise.resolve(null));
+
+      expect(named).toEqual([]);
+      expect((await getRequestRecord(record.id))?.accountPubkey).toBeNull();
+    });
+
+    it('resolves each origin once', async () => {
+      await enqueueRequest(locked);
+      await enqueueRequest(locked);
+      const resolve = vi.fn(() => Promise.resolve(ALICE));
+
+      const named = await assignAccountsToWaitingRequests(resolve);
+
+      expect(resolve).toHaveBeenCalledTimes(1);
+      expect(named).toHaveLength(2);
+    });
+
+    it('keeps a request enqueued while the account was being resolved', async () => {
+      await enqueueRequest(locked);
+      let arrived: string | undefined;
+
+      await assignAccountsToWaitingRequests(async () => {
+        arrived = (await enqueueRequest({ ...locked, origin: 'https://late.example' })).record.id;
+        return ALICE;
+      });
+
+      expect(readStored().map((item) => item.id)).toContain(arrived);
+    });
+
+    it('tells the panel to re-read', async () => {
+      await enqueueRequest(locked);
+      const listener = vi.fn();
+      const stop = onQueueChange(listener);
+
+      await assignAccountsToWaitingRequests(() => Promise.resolve(ALICE));
+      stop();
+
       expect(listener).toHaveBeenCalled();
     });
   });

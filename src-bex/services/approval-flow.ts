@@ -18,7 +18,7 @@
 
 import { LogLevel, logService } from '@/services/log-service';
 import { checkPermission, grantPermission } from '../handlers/permission-handler';
-import { enqueueRequest } from './request-queue';
+import { assignAccountsToWaitingRequests, enqueueRequest, getRequestRecord } from './request-queue';
 import { originHostname } from './origin';
 import { getActiveAccount, resolveSigningAccount } from './signing-account';
 import type { ApprovalDuration, UnsignedEvent } from '../types/background';
@@ -117,16 +117,23 @@ export async function requestApproval(
   const approved = outcome.approved;
   const durationLabel: ApprovalDuration = outcome.duration;
 
+  // A request queued while the vault was locked is given its account on unlock, after this
+  // function enqueued it, so the record as it stands now is the one to grant and log against
+  // (porwr#320).
+  const decided = (await getRequestRecord(record.id)) ?? record;
+
   if (
     approved &&
     durationLabel !== 'once' &&
     details.allowRemember !== false &&
-    !details.skipPermissionCheck
+    !details.skipPermissionCheck &&
+    // A grant for no account would answer for no one; the user is asked again next time instead.
+    decided.accountPubkey
   ) {
     try {
       await grantPermission(
         origin,
-        record.accountPubkey ?? '',
+        decided.accountPubkey,
         details.requestType,
         permissionKind,
         durationLabel,
@@ -143,9 +150,30 @@ export async function requestApproval(
   void logService.logApproval(
     approvalLogKind(eventKind, details),
     originHostname(origin),
-    record.accountAlias,
+    decided.accountAlias,
     outcome.ending ?? (approved ? 'approved' : 'rejected'),
   );
 
   return approved;
+}
+
+/**
+ * Name the acting account on requests that waited out a locked vault (porwr#320).
+ *
+ * Resolved exactly as `requestApproval` resolves it for a request made while unlocked, so the panel
+ * shows, and the grant records, the identity the site will actually act as.
+ */
+export async function identifyWaitingRequests(): Promise<void> {
+  await assignAccountsToWaitingRequests(async (origin) => {
+    const resolved = await resolveSigningAccount(origin);
+    if (!('account' in resolved)) return null;
+
+    const active = await getActiveAccount();
+    return {
+      accountAlias: resolved.account.alias,
+      accountPubkey: resolved.account.id,
+      activeAccountAlias: active?.alias ?? null,
+      activeAccountPubkey: active?.id ?? null,
+    };
+  });
 }
