@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -108,6 +108,27 @@ async function sendPresent(id: string): Promise<void> {
   await refresh();
 }
 
+/**
+ * Which view the panel is showing. Views are branches of this page, not routes, so the router's
+ * scroll behaviour never sees them change (#321). A request is its own view, but a refresh of the
+ * same request keeps its key and so keeps the user where they are.
+ */
+const viewKey = computed(() => {
+  if (showSetup.value) return 'setup';
+  if (showUnlock.value) return 'unlock';
+  return current.value ? `request:${current.value.id}` : 'idle';
+});
+
+const page = ref<{ $el: HTMLElement } | null>(null);
+
+// `.sidebar-body` in the sidebar layout is the one scroller, and it outlives every view, so a new
+// view would otherwise open at the previous one's offset and hide its heading.
+watch(viewKey, async () => {
+  await nextTick();
+  const scroller = page.value?.$el.closest('.sidebar-body');
+  if (scroller) scroller.scrollTop = 0;
+});
+
 const activeStoredKey = computed(() => accountStore.activeAccount);
 
 /**
@@ -129,7 +150,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <q-page class="sidebar-home">
+  <q-page ref="page" class="sidebar-home">
     <!-- Nothing else is reachable without a vault, so this precedes even the unlock view (#158). -->
     <!--
       S17. One screen: what Porwr is, and the form that creates the vault. It was briefly two,
