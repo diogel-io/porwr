@@ -151,9 +151,11 @@ onMounted(async () => {
             <div class="connected-sites__identity">
               <template v-if="site.boundPubkey">
                 {{ t('dashboard.connectedSites.signsAs') }}
-                <strong v-if="aliasFor(site.boundPubkey)" data-testid="bound-alias">
-                  {{ aliasFor(site.boundPubkey) }}
-                </strong>
+                <!-- Vue drops the newline between elements, so the space before the key is explicit. -->
+                <template v-if="aliasFor(site.boundPubkey)">
+                  <strong data-testid="bound-alias">{{ aliasFor(site.boundPubkey) }}</strong
+                  >{{ ' ' }}
+                </template>
                 <code>{{ shortPubkey(site.boundPubkey) }}</code>
               </template>
               <span v-else class="text-grey-6">

@@ -218,6 +218,28 @@ describe('which account a site signs as (workspace#23)', () => {
 
     expect(wrapper.find('[data-testid="bound-alias"]').text()).toBe('alice');
   });
+
+  // Vue drops the template newline between the alias and the key, so the space must be explicit.
+  it('separates the alias from the key with a space (#325)', async () => {
+    mocks.listConnectedSites.mockResolvedValue([site()]);
+
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('.connected-sites__identity').text()).toBe(
+      'dashboard.connectedSites.signsAs alice aaaaaaaa…aaaaaaaa',
+    );
+  });
+
+  it('shows the key alone, singly spaced, when no account has that key (#325)', async () => {
+    mocks.listConnectedSites.mockResolvedValue([site({ boundPubkey: 'c'.repeat(64) })]);
+
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="bound-alias"]').exists()).toBe(false);
+    expect(wrapper.find('.connected-sites__identity').text()).toBe(
+      'dashboard.connectedSites.signsAs cccccccc…cccccccc',
+    );
+  });
 });
 
 describe('one account’s sites at a time (#309)', () => {
