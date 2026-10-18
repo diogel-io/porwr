@@ -164,6 +164,9 @@ export const formatEventFields = (event: UnsignedEventPreview): FormattedEventFi
   // signature attaches your identity to: who is zapped, how much, and for what (#270, NIP-57).
   if (event.kind === ZAP_REQUEST_KIND) fields.push(...zapRequestFields(event));
 
+  // A repost's content is the reposted note as JSON, which the rows below summarise (#323, NIP-18).
+  if (event.kind === REPOST_KIND) fields.push(...repostFields(event));
+
   const mentions = event.tags.filter((tag) => tag[0] === 'p').length;
   if (mentions > 0) fields.push({ label: 'Mentions', value: String(mentions) });
 
@@ -233,6 +236,70 @@ const zapRequestFields = (event: UnsignedEventPreview): FormattedEventField[] =>
   if (event.content.trim()) fields.push({ label: 'Zap comment', value: event.content.trim() });
   return fields;
 };
+
+/** NIP-18 repost of a text note. */
+export const REPOST_KIND = 6;
+
+/** Long enough to recognise the note, short enough to keep Approve and Reject on screen. */
+export const REPOST_SNIPPET_CHARACTERS = 140;
+
+interface EmbeddedNote {
+  readonly id?: string | undefined;
+  readonly pubkey?: string | undefined;
+  readonly content?: string | undefined;
+}
+
+const parseEmbeddedNote = (content: string): EmbeddedNote | undefined => {
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+    const { id, pubkey, content: text } = parsed as Record<string, unknown>;
+    return {
+      id: typeof id === 'string' ? id : undefined,
+      pubkey: typeof pubkey === 'string' ? pubkey : undefined,
+      content: typeof text === 'string' ? text : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * What a repost signature commits to. The note is named by the `e` tag; the embedded JSON is
+ * whatever the site sent and cannot be checked here, so a mismatch is called out, not trusted.
+ */
+const repostFields = (event: UnsignedEventPreview): FormattedEventField[] => {
+  const fields: FormattedEventField[] = [];
+  const noteId = tagValue(event, 'e');
+  fields.push({ label: 'Reposted note', value: noteId ?? 'Missing' });
+
+  const body = event.content.trim();
+  const note = body ? parseEmbeddedNote(body) : undefined;
+
+  const author = tagValue(event, 'p') ?? note?.pubkey;
+  fields.push({ label: 'Reposted author', value: author ? formatPubkey(author) : 'Not stated' });
+
+  if (note?.content) {
+    const text = note.content.replace(/\s+/g, ' ').trim();
+    fields.push({
+      label: 'Reposted text',
+      value:
+        text.length > REPOST_SNIPPET_CHARACTERS
+          ? `${text.slice(0, REPOST_SNIPPET_CHARACTERS)}…`
+          : text,
+    });
+  }
+
+  if (body && !note) fields.push({ label: 'Embedded note', value: 'Not valid JSON' });
+  else if (note?.id && noteId && note.id !== noteId) {
+    fields.push({ label: 'Embedded note', value: 'Does not match the reposted note' });
+  }
+  return fields;
+};
+
+/** The content the formatted view prints; a repost's is summarised by its rows instead. */
+export const formattedContent = (event: UnsignedEventPreview): string =>
+  event.kind === REPOST_KIND ? '' : event.content;
 
 /** NIP-98 HTTP Auth. */
 export const HTTP_AUTH_KIND = 27235;

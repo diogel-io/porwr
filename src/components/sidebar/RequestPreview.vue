@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 import {
   formatEventFields,
+  formattedContent,
   shouldDefaultToFullEvent,
   truncateForPreview,
   type RequestRiskClass,
@@ -40,9 +41,14 @@ const event = computed(() => props.content?.event ?? null);
 
 const rawContent = computed(() => event.value?.content ?? props.content?.contentDescription ?? '');
 
-const truncated = computed(() => truncateForPreview(rawContent.value));
+// A repost's formatted view is rows, not its embedded JSON, so there is nothing to expand there.
+const modeContent = computed(() =>
+  mode.value === 'formatted' && event.value ? formattedContent(event.value) : rawContent.value,
+);
 
-const shownContent = computed(() => (expanded.value ? rawContent.value : truncated.value.text));
+const truncated = computed(() => truncateForPreview(modeContent.value));
+
+const shownContent = computed(() => (expanded.value ? modeContent.value : truncated.value.text));
 
 const formattedFields = computed(() => (event.value ? formatEventFields(event.value) : []));
 
