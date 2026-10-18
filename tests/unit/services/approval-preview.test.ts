@@ -5,6 +5,7 @@ import {
   ELEVATED_EVENT_KINDS,
   formatEventFields,
   formattedContent,
+  GENERIC_REPOST_KIND,
   getAllowedDurations,
   getEventKindLabel,
   getRequestTypeLabel,
@@ -203,6 +204,109 @@ describe('approval preview rules', () => {
       expect(
         formattedContent({ kind: 1, content: 'hi', tags: [], created_at: 1_700_000_000 }),
       ).toBe('hi');
+    });
+  });
+
+  describe('generic repost (kind 16, #329)', () => {
+    const noteId = 'c'.repeat(64);
+    const author = 'a'.repeat(64);
+    const repost = (content: string, tags: string[][]) => ({
+      kind: GENERIC_REPOST_KIND,
+      content,
+      tags,
+      created_at: 1_700_000_000,
+    });
+    const embedded = (over: Record<string, unknown> = {}) =>
+      JSON.stringify({ id: noteId, pubkey: author, kind: 30023, content: 'An article', ...over });
+    const standardTags = [
+      ['e', noteId],
+      ['p', author],
+      ['k', '30023'],
+    ];
+    const field = (fields: { label: string; value: string }[], label: string) =>
+      fields.find((f) => f.label === label)?.value;
+
+    it('is a recognised, standard kind that opens on the summary and can be remembered', () => {
+      expect(getEventKindLabel(GENERIC_REPOST_KIND)).toBe('Generic repost (16)');
+      expect(classifyRequest('sign_event', GENERIC_REPOST_KIND)).toBe('standard');
+      expect(getAllowedDurations('standard', true)).toEqual(['once', '8h', 'always']);
+      expect(shouldDefaultToFullEvent('standard')).toBe(false);
+    });
+
+    it('shows the note, its kind, the author as an npub and a snippet', () => {
+      const fields = formatEventFields(repost(embedded(), standardTags));
+
+      expect(field(fields, 'Reposted note')).toBe(noteId);
+      expect(field(fields, 'Reposted kind')).toBe('Long-form content (30023)');
+      expect(field(fields, 'Reposted author')).toMatch(/^npub1/);
+      expect(field(fields, 'Reposted text')).toBe('An article');
+      expect(field(fields, 'Embedded note')).toBeUndefined();
+    });
+
+    it('names a replaceable event by its coordinate and takes the author from it', () => {
+      const coordinate = `30023:${author}:article`;
+      const fields = formatEventFields(
+        repost('', [
+          ['a', coordinate],
+          ['k', '30023'],
+        ]),
+      );
+
+      expect(field(fields, 'Reposted note')).toBe(coordinate);
+      expect(field(fields, 'Reposted author')).toMatch(/^npub1/);
+      expect(field(fields, 'Reposted text')).toBeUndefined();
+      expect(field(fields, 'Embedded note')).toBeUndefined();
+    });
+
+    it('says when the reposted kind is missing or invalid', () => {
+      expect(field(formatEventFields(repost('', [['e', noteId]])), 'Reposted kind')).toBe(
+        'Not stated',
+      );
+      expect(
+        field(
+          formatEventFields(
+            repost('', [
+              ['e', noteId],
+              ['k', 'abc'],
+            ]),
+          ),
+          'Reposted kind',
+        ),
+      ).toBe('Invalid (abc)');
+    });
+
+    it('flags an embedded event of a different kind than the k tag', () => {
+      const fields = formatEventFields(repost(embedded({ kind: 1 }), standardTags));
+
+      expect(field(fields, 'Embedded note')).toBe('Kind does not match the k tag');
+    });
+
+    it('flags an embedded id that differs from the e tag, and content that is not JSON', () => {
+      expect(
+        field(
+          formatEventFields(repost(embedded({ id: 'd'.repeat(64) }), standardTags)),
+          'Embedded note',
+        ),
+      ).toBe('Does not match the reposted note');
+      expect(field(formatEventFields(repost('nope', standardTags)), 'Embedded note')).toBe(
+        'Not valid JSON',
+      );
+    });
+
+    it('shows no snippet for an encrypted direct message', () => {
+      const tags = [
+        ['e', noteId],
+        ['k', '4'],
+      ];
+      const fields = formatEventFields(
+        repost(embedded({ kind: 4, content: 'ciphertext?iv=x' }), tags),
+      );
+
+      expect(field(fields, 'Reposted text')).toBeUndefined();
+    });
+
+    it('prints no content in the formatted view', () => {
+      expect(formattedContent(repost(embedded(), standardTags))).toBe('');
     });
   });
 
