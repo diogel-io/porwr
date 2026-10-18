@@ -25,7 +25,6 @@ import {
 import { refreshAttention } from './services/attention-badge';
 import { requestApproval, trimApprovalContentDescription } from './services/approval-flow';
 import type { ApprovalRequestDetails } from './services/approval-flow';
-import { originHostname } from './services/origin';
 import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
 import { observePageRequests, type PageActionHandlers } from './services/page-channel';
@@ -70,6 +69,13 @@ async function getActiveAlias(): Promise<string | null> {
   return (await storageService.get<string>(NOSTR_ACTIVE)) ?? null;
 }
 
+/**
+ * The active account, choosing the first one as active when none is set yet.
+ *
+ * The page action handlers call it before asking for approval for that side effect alone:
+ * `resolveSigningAccount` has no fallback of its own, so a vault whose active account was never set
+ * would otherwise refuse every request.
+ */
 async function getActiveStoredKey(): Promise<StoredKey | null> {
   const isUnlockedResult = await handleVaultIsUnlocked({}, '');
   if (!isUnlockedResult.success || !isUnlockedResult.data) {
@@ -332,8 +338,7 @@ const pageActionHandlers: PageActionHandlers = {
         result.error,
       );
     }
-    const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('get_public_key', originHostname(origin), activeStoredKey?.alias);
+    await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, { requestType: 'get_public_key' });
     if (!approved) {
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the request');
@@ -342,8 +347,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.signEvent': async ({ event }, origin) => {
-    const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval(event.kind, originHostname(origin), activeStoredKey?.alias);
+    await getActiveStoredKey();
     const contentDescription = trimApprovalContentDescription(event.content);
     const approvalDetails: ApprovalRequestDetails = contentDescription
       ? { requestType: 'sign_event', contentDescription, event }
@@ -374,8 +378,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.getRelays': async (_payload, origin) => {
-    const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('get_relays', originHostname(origin), activeStoredKey?.alias);
+    await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, { requestType: 'get_relays' });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
@@ -393,8 +396,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.nip04.encrypt': async (payload, origin) => {
-    const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('nip04_encrypt', originHostname(origin), activeStoredKey?.alias);
+    await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
       requestType: 'nip04_encrypt',
       counterpartyPubkey: payload.pubkey,
@@ -415,8 +417,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.nip04.decrypt': async (payload, origin) => {
-    const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('nip04_decrypt', originHostname(origin), activeStoredKey?.alias);
+    await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
       requestType: 'nip04_decrypt',
       counterpartyPubkey: payload.pubkey,
@@ -437,8 +438,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.nip44.encrypt': async (payload, origin) => {
-    const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('nip44_encrypt', originHostname(origin), activeStoredKey?.alias);
+    await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
       requestType: 'nip44_encrypt',
       counterpartyPubkey: payload.pubkey,
@@ -459,8 +459,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.nip44.decrypt': async (payload, origin) => {
-    const activeStoredKey = await getActiveStoredKey();
-    void logService.logApproval('nip44_decrypt', originHostname(origin), activeStoredKey?.alias);
+    await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
       requestType: 'nip44_decrypt',
       counterpartyPubkey: payload.pubkey,

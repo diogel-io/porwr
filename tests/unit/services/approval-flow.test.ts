@@ -36,7 +36,11 @@ const ORIGIN = 'https://example.com';
 
 /** Enqueue returns the stored record plus a promise that settles on the user's decision. */
 const enqueueResolving = (
-  outcome: { approved: boolean; duration: 'once' | '8h' | 'always' },
+  outcome: {
+    approved: boolean;
+    duration: 'once' | '8h' | 'always';
+    ending?: 'expired' | 'interrupted';
+  },
   accountPubkey: string | null = ALICE.id,
 ): void => {
   mocks.enqueueRequest.mockResolvedValue({
@@ -208,6 +212,39 @@ describe('deciding a site request', () => {
       await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
 
       expect(mocks.logApproval).toHaveBeenCalledWith(1, 'example.com', 'alice', 'rejected');
+    });
+
+    it('writes exactly one row for a prompted request', async () => {
+      await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+      expect(mocks.logApproval).toHaveBeenCalledTimes(1);
+      expect(mocks.logApproval).toHaveBeenCalledWith(1, 'example.com', 'alice', 'approved');
+    });
+
+    it.each(['expired', 'interrupted'] as const)(
+      'records a request that %s as that, not as a rejection (workspace#37)',
+      async (ending) => {
+        enqueueResolving({ approved: false, duration: 'once', ending });
+
+        await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+        expect(mocks.logApproval).toHaveBeenCalledTimes(1);
+        expect(mocks.logApproval).toHaveBeenCalledWith(1, 'example.com', 'alice', ending);
+      },
+    );
+
+    it('records a request an existing grant answered as approved (workspace#37)', async () => {
+      mocks.checkPermission.mockResolvedValue({ granted: true });
+
+      await requestApproval(ORIGIN, -1, { requestType: 'get_public_key' });
+
+      expect(mocks.logApproval).toHaveBeenCalledTimes(1);
+      expect(mocks.logApproval).toHaveBeenCalledWith(
+        'get_public_key',
+        'example.com',
+        'alice',
+        'approved',
+      );
     });
 
     it('names the request type when there is no event kind', async () => {

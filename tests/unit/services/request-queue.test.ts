@@ -140,6 +140,19 @@ describe('request queue', () => {
   });
 
   describe('expiry', () => {
+    it('settles a waiting request it expires as expired, not as a rejection (workspace#37)', async () => {
+      const now = 1_000_000;
+      const { decision } = await enqueueRequest(baseInput, { allowRemember: true }, now);
+
+      await listPendingRequests(now + 11 * 60 * 1000);
+
+      await expect(decision).resolves.toEqual({
+        approved: false,
+        duration: 'once',
+        ending: 'expired',
+      });
+    });
+
     it('expires from creation, not from presentation', async () => {
       const now = 1_000_000;
       const { record } = await enqueueRequest(baseInput, { allowRemember: true }, now);
@@ -236,8 +249,13 @@ describe('request queue', () => {
 
       await interruptRequestsForOrigin('https://example.com');
 
-      // Fail closed: the page is gone, so the request is refused, not approved.
-      await expect(decision).resolves.toEqual({ approved: false, duration: 'once' });
+      // Fail closed: the page is gone, so the request is refused, not approved. The ending says why,
+      // so the approval log does not record it as the user's rejection (workspace#37).
+      await expect(decision).resolves.toEqual({
+        approved: false,
+        duration: 'once',
+        ending: 'interrupted',
+      });
     });
 
     it('cannot approve a request whose page has gone', async () => {

@@ -28,7 +28,7 @@ const { t, d } = useI18n();
 
 const items = computed(() => props.summary?.recentActivity ?? []);
 
-type ActivityStatusVariant = 'success' | 'error' | 'rejected';
+type ActivityStatusVariant = 'success' | 'error' | 'rejected' | 'neutral';
 
 const statusText = computed(() => {
   if (props.error) {
@@ -100,6 +100,20 @@ function formatActivityEventLabel(activity: DashboardActivityItem): string {
   }
 
   const kind = String(activity.eventKind);
+  // Requests with no event kind are logged by request type (#37).
+  const namedRequests: Record<string, string> = {
+    get_public_key: t('dashboard.widgets.recentActivity.eventType.request.publicKey'),
+    get_relays: t('dashboard.widgets.recentActivity.eventType.request.relays'),
+    nip04_encrypt: t('dashboard.widgets.recentActivity.eventType.request.encrypt', { nip: '04' }),
+    nip04_decrypt: t('dashboard.widgets.recentActivity.eventType.request.decrypt', { nip: '04' }),
+    nip44_encrypt: t('dashboard.widgets.recentActivity.eventType.request.encrypt', { nip: '44' }),
+    nip44_decrypt: t('dashboard.widgets.recentActivity.eventType.request.decrypt', { nip: '44' }),
+  };
+  const requestName = namedRequests[kind];
+  if (requestName) {
+    return requestName;
+  }
+
   const namedKinds: Record<string, string> = {
     '0': t('dashboard.widgets.recentActivity.eventType.named.profile'),
     '1': t('dashboard.widgets.recentActivity.eventType.named.note'),
@@ -159,27 +173,22 @@ function resolveActivityIcon(activity: DashboardActivityItem): { name: string; c
 }
 
 function formatActivityStatus(activity: DashboardActivityItem): string {
-  if (activity.status === 'approved' || activity.status === 'signed') {
-    return t('dashboard.widgets.recentActivity.status.success');
-  }
-
-  if (activity.status === 'rejected') {
-    return t('dashboard.widgets.recentActivity.status.rejected');
-  }
-
-  return t('dashboard.widgets.recentActivity.status.error');
+  return t(`dashboard.widgets.recentActivity.status.${activity.status}`);
 }
 
+/** Expired and interrupted requests were not refused and are not faults, so they are neutral. */
 function formatActivityStatusVariant(activity: DashboardActivityItem): ActivityStatusVariant {
-  if (activity.status === 'approved' || activity.status === 'signed') {
-    return 'success';
+  switch (activity.status) {
+    case 'approved':
+      return 'success';
+    case 'rejected':
+      return 'rejected';
+    case 'expired':
+    case 'interrupted':
+      return 'neutral';
+    default:
+      return 'error';
   }
-
-  if (activity.status === 'rejected') {
-    return 'rejected';
-  }
-
-  return 'error';
 }
 
 const recentActivityRows = computed<DataActivityRow[]>(() =>
@@ -191,6 +200,7 @@ const recentActivityRows = computed<DataActivityRow[]>(() =>
       icon: icon.name,
       iconColor: icon.color,
       eventLabel: formatActivityEventLabel(activity),
+      site: activity.hostname ?? '',
       keyChip: formatActivityKeyChip(activity),
       time: formatActivityTime(activity.dateTime),
       statusLabel: formatActivityStatus(activity),
@@ -233,7 +243,10 @@ const recentActivityRows = computed<DataActivityRow[]>(() =>
         >
           <div class="dashboard-widget-card__event">
             <q-icon :name="row.icon" :color="row.iconColor" size="16px" />
-            <span class="dashboard-widget-card__event-label">{{ row.eventLabel }}</span>
+            <span class="dashboard-widget-card__event-text">
+              <span class="dashboard-widget-card__event-label">{{ row.eventLabel }}</span>
+              <span v-if="row.site" class="dashboard-widget-card__event-site">{{ row.site }}</span>
+            </span>
           </div>
 
           <q-chip square dense class="dashboard-widget-card__chip">{{ row.keyChip }}</q-chip>
@@ -314,6 +327,21 @@ const recentActivityRows = computed<DataActivityRow[]>(() =>
   gap: 6px;
 }
 
+.dashboard-widget-card__event-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-widget-card__event-site {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .dashboard-widget-card__event-label,
 .dashboard-widget-card__time,
 .dashboard-widget-card__table-head > span,
@@ -350,6 +378,11 @@ const recentActivityRows = computed<DataActivityRow[]>(() =>
 .dashboard-widget-card__status--rejected {
   background: rgba(245, 124, 0, 0.16);
   color: #f57c00;
+}
+
+.dashboard-widget-card__status--neutral {
+  background: rgba(117, 117, 117, 0.16);
+  color: var(--text-muted);
 }
 
 .dashboard-widget-card__state {

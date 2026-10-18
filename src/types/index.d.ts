@@ -130,6 +130,8 @@ interface DataActivityRow {
   icon: string;
   iconColor: string;
   eventLabel: string;
+  /** The site that made the request, or empty when there is none. */
+  site: string;
   keyChip: string;
   time: string;
   statusLabel: string;
@@ -144,4 +146,4 @@ export interface DashboardSummary {
   connectedRelaysState: ConnectedRelaysDataState;
   recentActivity: DashboardActivityItem[];
 }
-export type DashboardActivityType = 'approval' | 'exception' | 'event';
+export type DashboardActivityType = 'approval' | 'exception';

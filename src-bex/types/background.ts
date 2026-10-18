@@ -155,6 +155,11 @@ export type ApprovalDuration = 'once' | '8h' | 'always';
 export interface ApprovalDecision {
   approved: boolean;
   duration: ApprovalDuration;
+  /**
+   * How a request ended without the user deciding it. Absent for a user's approve or reject, so
+   * the approval log can tell a refusal from a request that ran out of time or lost its page.
+   */
+  ending?: 'expired' | 'interrupted';
 }
 
 /** Why a decision was refused, when it was not applied. */
