@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
+import enUS from '@/i18n/en-US';
 
 const state = vi.hoisted(() => ({ vaultExists: true, isUnlocked: true }));
 
@@ -149,6 +150,14 @@ describe('SidebarHome body precedence', () => {
       const wrapper = await mountPage();
 
       expect(wrapper.text()).toContain('account.noActiveAccount');
+    });
+
+    // `t` is mocked to echo keys, so the real copy is checked against the button it sits above.
+    it('points to the page its button names (#324)', () => {
+      const description = enUS.account.noActiveAccountDesc;
+
+      expect(description).toContain(`${enUS.sidebar.links.keys} page`);
+      expect(description).not.toContain('Accounts');
     });
   });
 

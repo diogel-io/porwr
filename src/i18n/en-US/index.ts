@@ -28,7 +28,7 @@ export default {
       'Create an account from Key Management before using Porwr as a signer.',
     loading: 'Loading accounts...',
     noActiveAccount: 'No active account',
-    noActiveAccountDesc: 'Please select or create an account in the Accounts tab.',
+    noActiveAccountDesc: 'Select or create an account on the Keys page.',
     profileName: 'Profile Name',
     editAccount: 'Edit Account',
     editDashboardCaption: 'Review account details and export a secure backup when needed.',
