@@ -258,6 +258,15 @@ export const clearNoticeWhenNoPanel = async (now: number = Date.now()): Promise<
   await dismissNotice(id, now);
 };
 
+/**
+ * Make one request the one the panel shows.
+ *
+ * Presenting a request returns any other presented request to the queue, so at most one is
+ * presented at a time. `getCurrentRequest` answers with the first presented request in queue
+ * order, so a second one left presented would win over the user's choice from the pending list
+ * (porwr#334). Only a presented request raises a notice when it expires, and a request the user
+ * has moved away from is no longer being read.
+ */
 export const markPresented = async (
   id: string,
   now: number = Date.now(),
@@ -266,10 +275,10 @@ export const markPresented = async (
   const target = records.find((record) => record.id === id);
   if (!target || isTerminal(target.state)) return null;
 
-  const next = records.map(
-    (record): ApprovalRequestRecord =>
-      record.id === id ? { ...record, state: 'presented' } : record,
-  );
+  const next = records.map((record): ApprovalRequestRecord => {
+    if (record.id === id) return { ...record, state: 'presented' };
+    return record.state === 'presented' ? { ...record, state: 'queued' } : record;
+  });
   await writeRecords(next.map(toDurableRecord));
   return next.find((record) => record.id === id) ?? null;
 };

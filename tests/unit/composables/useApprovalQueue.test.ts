@@ -210,6 +210,36 @@ describe('useApprovalQueue', () => {
     });
   });
 
+  describe('present (porwr#334)', () => {
+    it('tells the background which request was chosen, then shows what it answers', async () => {
+      const first = { id: 'req-1', state: 'presented', expiresAt: Date.now() + 60_000 };
+      const second = { id: 'req-2', state: 'queued', expiresAt: Date.now() + 60_000 };
+      let chosen = first.id;
+      sendBexMessage.mockImplementation((event: string, payload?: { requestId: string }) => {
+        if (event === 'nostr.requests.list') return Promise.resolve([first, second]);
+        if (event === 'nostr.requests.current') {
+          return Promise.resolve(chosen === first.id ? first : { ...second, state: 'presented' });
+        }
+        if (event === 'nostr.requests.present' && payload) chosen = payload.requestId;
+        return Promise.resolve(null);
+      });
+      const wrapper = mount(Consumer);
+      await flush();
+      await vi.waitFor(() => expect(wrapper.vm.current?.id).toBe('req-1'));
+      sendBexMessage.mockClear();
+
+      await wrapper.vm.present('req-2');
+
+      const events = sendBexMessage.mock.calls.map(([event]) => event);
+      expect(events.indexOf('nostr.requests.present')).toBeLessThan(
+        events.indexOf('nostr.requests.current'),
+      );
+      expect(sendBexMessage).toHaveBeenCalledWith('nostr.requests.present', { requestId: 'req-2' });
+      expect(wrapper.vm.current?.id).toBe('req-2');
+      wrapper.unmount();
+    });
+  });
+
   describe('expiry while the panel is open (S13)', () => {
     /** Lets the mounted refresh finish without `vi.waitFor`, which would move the fake clock. */
     const settle = async (): Promise<void> => {
