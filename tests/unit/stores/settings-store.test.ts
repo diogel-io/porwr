@@ -313,6 +313,31 @@ describe('SettingsStore', () => {
     /* eslint-enable @typescript-eslint/unbound-method */
   });
 
+  describe('profile search relays (diogel-io/workspace#142, T19)', () => {
+    it('uses no relay, not the defaults, when every stored one is plaintext', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({});
+      vi.mocked(getStoredProfileSearchRelays).mockResolvedValue(['ws://search.example.com']);
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.profileSearchRelays).toEqual([]);
+    });
+
+    it('keeps the usable ones of a list that also held plaintext relays', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({});
+      vi.mocked(getStoredProfileSearchRelays).mockResolvedValue([
+        'ws://search.example.com',
+        'wss://search.nos.today',
+      ]);
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.profileSearchRelays).toEqual(['wss://search.nos.today']);
+    });
+  });
+
   describe('Blossom server (diogel-io/workspace#142, T21)', () => {
     /* eslint-disable @typescript-eslint/unbound-method */
     it('saves an https:// server', async () => {

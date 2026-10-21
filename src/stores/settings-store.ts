@@ -36,31 +36,41 @@ const DEFAULT_FALLBACK_RELAYS = RELAY_SEEDS;
 const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
 
 /**
- * The fallback relays to use for a stored list: its usable entries, or the seed relays when it has
- * none, unless the list lost them all to the wss:// rule (#142). Then it stays empty, and Porwr
- * reads from no relay rather than from public ones the user did not choose.
+ * The relays to use for a stored list: its usable entries, or `defaults` when it has none, unless
+ * the list lost them all to the wss:// rule (#142). Then it stays empty, and Porwr asks no relay
+ * rather than public ones the user did not choose. Applies to the fallback relays and the profile
+ * search relays alike.
  */
-function resolveFallbackRelays(stored: string[]): string[] {
+function resolveStoredRelays(
+  stored: string[],
+  defaults: readonly string[],
+  listName: string,
+): string[] {
   const normalized = normalizeRelayList(stored);
   if (normalized.length > 0) return normalized;
   if (hasRefusedPlaintextRelay(stored)) {
-    if (loggedEmptyFallback) return [];
-    loggedEmptyFallback = true;
-    logService.log(
-      LogLevel.WARN,
-      '[settings] Every stored fallback relay was plaintext ws://; none are used until wss:// relays are set',
-    );
+    if (!loggedEmptyLists.has(listName)) {
+      loggedEmptyLists.add(listName);
+      logService.log(
+        LogLevel.WARN,
+        `[settings] Every stored ${listName} relay was plaintext ws://; none are used until wss:// relays are set`,
+      );
+    }
     return [];
   }
-  return DEFAULT_FALLBACK_RELAYS;
+  return [...defaults];
 }
+
+const resolveFallbackRelays = (stored: string[]): string[] =>
+  resolveStoredRelays(stored, DEFAULT_FALLBACK_RELAYS, 'fallback');
 
 /**
  * Hosts whose dropped relay has already been logged in this context. Settings load on every
  * dashboard page and before every upload; the drop is worth one line, not one per load.
  */
 const loggedRelayDrops = new Set<string>();
-let loggedEmptyFallback = false;
+/** Lists whose emptying by the wss:// rule has already been logged in this context. */
+const loggedEmptyLists = new Set<string>();
 
 function normalizeRelayList(relays: string[]): string[] {
   const results = relays.map((relay) => normalizeRelayUrl(relay));
@@ -155,9 +165,11 @@ const useSettingsStore = defineStore('settings', {
         storedProfileSearchRelays = undefined;
       }
       if (Array.isArray(storedProfileSearchRelays)) {
-        const normalized = normalizeRelayList(storedProfileSearchRelays);
-        this.profileSearchRelays =
-          normalized.length > 0 ? normalized : DEFAULT_PROFILE_SEARCH_RELAYS;
+        this.profileSearchRelays = resolveStoredRelays(
+          storedProfileSearchRelays,
+          DEFAULT_PROFILE_SEARCH_RELAYS,
+          'profile search',
+        );
       }
     },
 
