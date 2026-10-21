@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
-    "@quasar/extras": "^1.16.4",
+    "@quasar/extras": "^2.1.0",
     "@scure/base": "^2.4.0",
     "dexie": "^4.4.6",
     "nostr-tools": "^2.25.2",
