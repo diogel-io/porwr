@@ -15,6 +15,7 @@ import {
   requeuePresented,
   submitDecision,
   interruptRequest,
+  interruptRequestsForAccount,
   interruptRequestsForOrigin,
   onQueueChange,
   __resetLiveCallbacksForTests,
@@ -197,6 +198,18 @@ describe('request queue', () => {
       const result = await submitDecision(record.id, { approved: false, duration: 'always' });
 
       expect(result.applied).toBe(true);
+    });
+  });
+
+  describe('interrupting the requests of a removed account (#139)', () => {
+    it('interrupts only requests that act for that account', async () => {
+      const alice = await enqueueRequest({ ...baseInput, accountPubkey: 'a'.repeat(64) });
+      const bob = await enqueueRequest({ ...baseInput, accountPubkey: 'b'.repeat(64) });
+
+      await interruptRequestsForAccount('a'.repeat(64));
+
+      expect((await getRequestRecord(alice.record.id))?.state).toBe('interrupted');
+      expect((await getRequestRecord(bob.record.id))?.state).toBe('queued');
     });
   });
 

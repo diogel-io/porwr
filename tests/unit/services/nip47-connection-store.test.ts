@@ -175,6 +175,29 @@ describe('one account’s wallets are not another’s (#304)', () => {
     ]);
   });
 
+  it('keeps the permissions of a connection another account still holds', () => {
+    const shared: VaultData = {
+      accounts: [],
+      nip47Connections: [
+        buildConnection('same-id', true, ALICE),
+        buildConnection('same-id', true, BOB),
+      ],
+      webLnPermissions: [
+        {
+          origin: 'https://one.example',
+          connectionId: 'same-id',
+          methods: ['enable'],
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    };
+
+    const result = removeNip47Connection(shared, ALICE, 'same-id');
+
+    expect(result.webLnPermissions).toEqual(shared.webLnPermissions);
+    expect(removeNip47Connection(result, BOB, 'same-id').webLnPermissions).toEqual([]);
+  });
+
   it('leaves permissions alone when no connection was removed', () => {
     const withPermissions: VaultData = {
       ...vaultData,

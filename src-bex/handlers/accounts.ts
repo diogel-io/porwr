@@ -18,6 +18,8 @@ import { createPubkey } from '@/types/pubkey';
 import type { HandlerResult } from '../types/background';
 import { mutateVault, readVault } from '../services/vault-mutation';
 import { removeAccountWalletData } from '../services/nip47-connection-store';
+import { assignUnownedWalletData } from '../services/nip47-ownership';
+import { interruptRequestsForAccount } from '../services/request-queue';
 import { sweepSiteStateForRemovedAccounts } from '../services/connected-sites';
 
 /**
@@ -150,8 +152,10 @@ export async function handleAccountsRemove(
         findByKey(vault, pubkey) ?? (vault.accounts ?? []).find((account) => account.id === pubkey);
       if (!target) return { vault, result: undefined };
       // Its wallets go with it, in the same write (#304): a connection with no account behind it
-      // would otherwise be migrated to the main account on the next wallet action.
-      const withoutWallets = removeAccountWalletData(vault, target.id);
+      // would otherwise be migrated to the main account on the next wallet action. Pre-#304 data is
+      // given its owner first, so removing the main account removes the wallets it owned instead of
+      // leaving them to be handed to whichever account is main next (#139).
+      const withoutWallets = removeAccountWalletData(assignUnownedWalletData(vault), target.id);
       return {
         vault: {
           ...withoutWallets,
@@ -161,6 +165,9 @@ export async function handleAccountsRemove(
       };
     });
     if (removedId !== undefined) {
+      // A request waiting on a decision for it can no longer be approved: approving would bind a
+      // site to, and grant for, an account that no longer exists (#139).
+      await interruptRequestsForAccount(removedId).catch(() => undefined);
       // Its sites must not sign as it again if the same key is imported later (#139). Best-effort:
       // the account is gone, signing as it already fails closed, and unlock sweeps again.
       await readVault()

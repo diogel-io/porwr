@@ -76,8 +76,11 @@ export async function resolveSigningAccount(origin: string): Promise<SigningAcco
  * Bind a site to the account the user approved it as. A no-op for a site already bound, so an
  * approval can never move a site to another account (only the user can, from Porwr's own UI).
  */
-export async function bindSiteToAccount(origin: string, accountPubkey: string): Promise<void> {
-  await bindOriginIfUnbound(origin, accountPubkey);
+export async function bindSiteToAccount(
+  origin: string,
+  accountPubkey: string,
+): Promise<string | null> {
+  return (await bindOriginIfUnbound(origin, accountPubkey))?.pubkey ?? null;
 }
 
 /**

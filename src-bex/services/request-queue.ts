@@ -544,6 +544,13 @@ export const interruptRequest = async (
   now: number = Date.now(),
 ): Promise<ApprovalRequestRecord[]> => interruptMatching((record) => record.id === id, { id }, now);
 
+/** Interrupt every live request that acts for an account, because the account was removed. */
+export const interruptRequestsForAccount = async (
+  accountPubkey: string,
+  now: number = Date.now(),
+): Promise<ApprovalRequestRecord[]> =>
+  interruptMatching((record) => record.accountPubkey === accountPubkey, { accountPubkey }, now);
+
 const interruptMatching = async (
   matches: (record: ApprovalRequestRecord) => boolean,
   logContext: Record<string, string>,

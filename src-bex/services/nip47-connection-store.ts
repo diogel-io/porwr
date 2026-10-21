@@ -92,17 +92,19 @@ export function removeNip47Connection(
   accountPubkey: string,
   connectionId: string,
 ): VaultData {
-  const removed = listAllNip47Connections(vaultData).some(
-    (item) => item.id === connectionId && item.accountPubkey === accountPubkey,
+  const kept = listAllNip47Connections(vaultData).filter(
+    (item) => !(item.id === connectionId && item.accountPubkey === accountPubkey),
   );
+  // Two accounts may hold the same connection string, keyed `(accountPubkey, id)`. Permissions are
+  // keyed by id alone, so they go only when no remaining connection uses it, as
+  // `removeAccountWalletData` does (#139).
+  const lastUse = !kept.some((item) => item.id === connectionId);
   return {
     ...vaultData,
-    nip47Connections: listAllNip47Connections(vaultData).filter(
-      (item) => !(item.id === connectionId && item.accountPubkey === accountPubkey),
-    ),
+    nip47Connections: kept,
     // A site's permission to use this wallet goes with it, rather than lingering against an id
     // nothing has any more (#139).
-    ...(removed
+    ...(lastUse
       ? {
           webLnPermissions: (vaultData.webLnPermissions ?? []).filter(
             (grant) => grant.connectionId !== connectionId,

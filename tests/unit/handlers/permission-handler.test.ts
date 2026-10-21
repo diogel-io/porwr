@@ -143,7 +143,9 @@ describe('permission grants', () => {
    * side effect: it must be written as a wildcard on a signing request, and no path offers that yet.
    */
   describe('the signing wildcard', () => {
-    it('answers any kind for the same origin when one exists', async () => {
+    // A wildcard would answer every kind, elevated and unknown ones included, so it can meet no
+    // per-kind duration limit. Nothing writes one; a stored one is dropped (#139).
+    it('is never honoured, and a stored one is dropped', async () => {
       seed([
         {
           origin: ORIGIN,
@@ -156,9 +158,10 @@ describe('permission grants', () => {
       ]);
 
       expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 30023)).toEqual({
-        granted: true,
-        always: true,
+        granted: false,
       });
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 9734)).toEqual({ granted: false });
+      expect(stored).toEqual([]);
     });
 
     it('answers only signing, never another request type', async () => {
@@ -257,7 +260,7 @@ describe('permission grants', () => {
       expect(await checkPermission(ORIGIN, BOB, 'sign_event', 1)).toEqual({ granted: false });
     });
 
-    it('keeps a wildcard to the account it was given to', async () => {
+    it('honours no wildcard for any account', async () => {
       seed([
         {
           origin: ORIGIN,
@@ -269,10 +272,7 @@ describe('permission grants', () => {
         },
       ]);
 
-      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 7)).toEqual({
-        granted: true,
-        always: true,
-      });
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 7)).toEqual({ granted: false });
       expect(await checkPermission(ORIGIN, BOB, 'sign_event', 7)).toEqual({ granted: false });
     });
 

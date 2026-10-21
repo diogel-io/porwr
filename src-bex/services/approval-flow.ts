@@ -82,8 +82,9 @@ export async function requestApproval(
     );
     if (permission.granted) {
       // A grant is an earlier approval for this account, so the site is bound to it if it is not
-      // already (#139).
-      await bindSiteToAccount(origin, actingAccount.id);
+      // already (#139). A binding to another account means the grant is for an identity the site
+      // no longer acts as, so it does not answer.
+      if ((await bindSiteToAccount(origin, actingAccount.id)) !== actingAccount.id) return false;
       // Answered by a grant the user gave earlier, so still an approval, and logged as one (#37).
       void logService.logApproval(
         approvalLogKind(eventKind, details),
@@ -147,8 +148,26 @@ export async function requestApproval(
 
   // Bound only now, to the account the user saw and approved. A request that was rejected,
   // expired, or interrupted binds nothing (#139).
+  //
+  // If another approval bound the site to a different account while this one waited (two requests
+  // queued around an account switch), this approval was for an identity the site no longer acts
+  // as. It is refused rather than letting the caller act as the bound account, which the user did
+  // not see on this prompt.
   if (approved && decided.accountPubkey) {
-    await bindSiteToAccount(origin, decided.accountPubkey);
+    const bound = await bindSiteToAccount(origin, decided.accountPubkey);
+    if (bound !== decided.accountPubkey) {
+      logService.log(
+        LogLevel.WARN,
+        '[BEX] Refused an approval for an account the site is not bound to',
+      );
+      void logService.logApproval(
+        approvalLogKind(eventKind, details),
+        originHostname(origin),
+        decided.accountAlias,
+        'rejected',
+      );
+      return false;
+    }
   }
 
   if (

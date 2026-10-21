@@ -47,15 +47,17 @@ const grantDuration = (grant: Pick<PermissionGrant, 'expiry'>): '8h' | 'always' 
 /**
  * Whether the request's risk class allows a standing grant of this duration (D11, D12, #139).
  *
- * A wildcard is a signing grant for no particular kind, so it is classified as one. A grant
- * written before a request type became elevated, such as an `always` decrypt grant, no longer
- * passes and is dropped.
+ * A wildcard is never allowed: it would answer every kind. A grant written before a request type
+ * became elevated, such as an `always` decrypt grant, no longer passes and is dropped.
  */
 const durationAllowed = (
   requestType: string,
   eventKind: PermissionEventKind,
   duration: '8h' | 'always',
 ): boolean =>
+  // A wildcard would answer every kind, elevated and unknown ones included, so it cannot meet any
+  // per-kind limit and is never honoured. Nothing writes one (#136); this drops any left over.
+  eventKind !== 'any' &&
   getAllowedDurations(
     classifyRequest(requestType, typeof eventKind === 'number' ? eventKind : -1),
     true,

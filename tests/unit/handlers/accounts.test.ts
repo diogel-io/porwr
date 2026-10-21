@@ -13,9 +13,13 @@ const state = vi.hoisted(() => ({
   exceptions: vi.fn(),
   clearContactCache: vi.fn(),
   sweepSiteState: vi.fn().mockResolvedValue({ grants: 0, bindings: 0 }),
+  interruptForAccount: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('@/services/contact-cache', () => ({ clearAccount: state.clearContactCache }));
+vi.mock('@/../src-bex/services/request-queue', () => ({
+  interruptRequestsForAccount: state.interruptForAccount,
+}));
 vi.mock('@/../src-bex/services/connected-sites', () => ({
   sweepSiteStateForRemovedAccounts: state.sweepSiteState,
 }));
@@ -236,6 +240,33 @@ describe('accounts.remove', () => {
     await handleAccountsRemove({ accountPubkey: ALICE });
 
     expect(state.sweepSiteState).toHaveBeenCalledWith([bob]);
+  });
+
+  // A request still waiting for the removed account must not be approvable: approving would bind a
+  // site to, and grant for, an account that is gone (#139).
+  it('interrupts requests waiting on a decision for the account it removed', async () => {
+    await handleAccountsRemove({ accountPubkey: ALICE });
+
+    expect(state.interruptForAccount).toHaveBeenCalledWith(ALICE);
+  });
+
+  // Wallet data from before #304 has no owner until a wallet action assigns it to the main account.
+  // Removing that account must remove it, not leave it for the next main account (#139).
+  it('removes the wallets the main account owned before ownership was recorded', async () => {
+    state.vault = {
+      ...state.vault!,
+      nip47Connections: [{ id: 'legacy-wallet', relays: [], isActive: true }],
+      nip47PaymentHistory: [{ id: 'legacy-payment', status: 'paid' }],
+      webLnPermissions: [
+        { origin: 'https://shop.example', connectionId: 'legacy-wallet', methods: ['enable'] },
+      ],
+    } as unknown as VaultData;
+
+    await handleAccountsRemove({ accountPubkey: ALICE });
+
+    expect(state.vault!.nip47Connections).toEqual([]);
+    expect(state.vault!.nip47PaymentHistory).toEqual([]);
+    expect(state.vault!.webLnPermissions).toEqual([]);
   });
 
   it('still reports the removal if the site cleanup fails, since unlock sweeps again', async () => {

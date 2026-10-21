@@ -70,7 +70,10 @@ beforeEach(() => {
   // By default the record is unchanged between enqueueing and deciding.
   mocks.getRequestRecord.mockResolvedValue(null);
   mocks.assignAccountsToWaitingRequests.mockResolvedValue([]);
-  mocks.bindSiteToAccount.mockResolvedValue(undefined);
+  // The site ends up bound to the account it was bound for, unless a test says otherwise.
+  mocks.bindSiteToAccount.mockImplementation((_origin: string, pubkey: string) =>
+    Promise.resolve(pubkey),
+  );
 });
 
 describe('deciding a site request', () => {
@@ -455,5 +458,30 @@ describe('the requesting page going away', () => {
     page.abort();
 
     expect(mocks.interruptRequest).not.toHaveBeenCalled();
+  });
+});
+
+// Two requests from an unbound site, queued around an account switch: the first approval binds the
+// site, and the second, approved for the other account, must not act as the bound one (#139).
+describe('an approval for an account the site is no longer bound to', () => {
+  it('is refused, and writes no grant', async () => {
+    enqueueResolving({ approved: true, duration: 'always' }, BOB.id);
+    mocks.getRequestRecord.mockResolvedValue({
+      id: 'req-1',
+      accountAlias: 'bob',
+      accountPubkey: BOB.id,
+    });
+    mocks.bindSiteToAccount.mockResolvedValue(ALICE.id);
+
+    await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(false);
+    expect(mocks.grantPermission).not.toHaveBeenCalled();
+    expect(mocks.logApproval).toHaveBeenCalledWith(1, 'example.com', 'bob', 'rejected');
+  });
+
+  it('does not let a grant for another account answer', async () => {
+    mocks.checkPermission.mockResolvedValue({ granted: true });
+    mocks.bindSiteToAccount.mockResolvedValue(BOB.id);
+
+    await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(false);
   });
 });
