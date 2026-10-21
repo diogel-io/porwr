@@ -34,6 +34,8 @@ below so you can follow them without access to it.
 4. [tests/e2e/README.md](tests/e2e/README.md): how the end-to-end suite drives both browsers and
    what it cannot cover.
 5. [DEPLOYMENT.md](DEPLOYMENT.md): how releases are cut and published.
+6. [docs/threat-model.md](docs/threat-model.md): the assets, trust boundaries, threats, and
+   controls the security invariants below protect. Read it before a security-sensitive change.
 
 ## Commands
 
@@ -196,9 +198,15 @@ from the request.
 
 ## Security invariants
 
-These rules come from the Porwr ADRs and threat model. Labels such as D1 refer to the decisions in
-the sidebar request lifecycle ADR. Do not change one in code. If a rule stops a change you need,
-raise it on the tracking issue so the decision is revisited first.
+These rules come from the Porwr ADRs and the threat model in
+[docs/threat-model.md](docs/threat-model.md). Labels such as D1 refer to the decisions in the
+sidebar request lifecycle ADR. Do not change one in code. If a rule stops a change you need, raise
+it on the tracking issue so the decision is revisited first.
+
+A change that adds an asset, a trust boundary, or a control, or changes one the threat model lists,
+updates `docs/threat-model.md` in the same pull request. The model is public: describe an open,
+exploitable weakness there only as a one-line summary with its tracking reference, as its
+disclosure rule says.
 
 **Origin**
 
@@ -271,7 +279,8 @@ raise it on the tracking issue so the decision is revisited first.
 ## What belongs in this repository
 
 Code, tests, CI, release automation, and documentation that governs this repository (this file,
-`CODINGSTANDARDS.md`, `DEVELOPING.md`, `DEPLOYMENT.md`, `README.md`, `PRIVACY.md`) live here.
+`CODINGSTANDARDS.md`, `DEVELOPING.md`, `DEPLOYMENT.md`, `README.md`, `PRIVACY.md`, and the threat
+model in `docs/`) live here.
 Product requirements, design, research, ADRs, and release planning live in the Diogel workspace.
 
 ## Keeping this file current
