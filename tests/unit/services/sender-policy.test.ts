@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
+import { normalizeOrigin } from '@/../src-bex/services/origin';
 import { classifySender, originOf, pageOriginOf } from '@/../src-bex/services/sender-policy';
 
 const ID = 'abcdefghijklmnopabcdefghijklmnop';
@@ -121,5 +122,26 @@ describe('pageOriginOf (#246)', () => {
   it('refuses an opaque origin rather than guessing from the url', () => {
     expect(site({ url: 'https://example.com/sandboxed', origin: 'null' })).toBe('');
     expect(site({ url: 'about:blank', origin: 'null' })).toBe('');
+  });
+});
+
+// A look-alike host written in another script must reach the approval as punycode, so `аpple.com`
+// with a Cyrillic "а" reads as `xn--pple-43d.com` and not as `apple.com` (threat model T1, #144).
+describe('internationalised origins', () => {
+  const site = (sender: object): string => pageOriginOf({ id: ID, ...sender }, ID, CHROME);
+
+  it('keeps the punycode origin the browser stamps on the sender (Chromium)', () => {
+    expect(
+      site({ url: 'https://xn--pple-43d.com/login', origin: 'https://xn--pple-43d.com' }),
+    ).toBe('https://xn--pple-43d.com');
+  });
+
+  it('converts a Unicode host to punycode when it falls back to the sender url (Firefox)', () => {
+    expect(site({ url: 'https://\u0430pple.com/login' })).toBe('https://xn--pple-43d.com');
+    expect(site({ url: 'https://b\u00fccher.example/' })).toBe('https://xn--bcher-kva.example');
+  });
+
+  it('normalises a Unicode origin to punycode before it is stored or compared', () => {
+    expect(normalizeOrigin('https://\u0430pple.com')).toBe('https://xn--pple-43d.com');
   });
 });

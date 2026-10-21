@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { QTableColumn } from 'quasar';
+import { useQuasar, type QTableColumn } from 'quasar';
 import { logService } from '@/services/log-service';
 import type { ApprovalLog, ExceptionLog } from '@/services/database';
 import useAccountStore from '@/stores/account-store';
 
 const { t } = useI18n();
+const $q = useQuasar();
 const accountStore = useAccountStore();
 const tab = ref('approvals');
 const approvals = ref<ApprovalLog[]>([]);
@@ -63,6 +64,33 @@ const fetchLogs = async (force = false) => {
       inFlightFetchPromise = null;
       inFlightFetchAlias = undefined;
     }
+  }
+};
+
+/**
+ * History holds the sites each account used, so the user can wipe it. It clears every account:
+ * most exceptions carry no account, so clearing only the active one would keep most of them (#144).
+ */
+const confirmClearHistory = () => {
+  $q.dialog({
+    title: t('logs.clear.title'),
+    message: t('logs.clear.body'),
+    ok: { label: t('logs.clear.confirm'), color: 'negative', noCaps: true },
+    cancel: { label: t('logs.clear.cancel'), flat: true, noCaps: true },
+    persistent: true,
+  }).onOk(() => {
+    void clearHistory();
+  });
+};
+
+const clearHistory = async () => {
+  try {
+    await logService.clearHistory();
+    approvals.value = [];
+    exceptions.value = [];
+    $q.notify({ type: 'positive', message: t('logs.clear.done') });
+  } catch {
+    $q.notify({ type: 'negative', message: t('logs.clear.failed') });
   }
 };
 
@@ -141,12 +169,24 @@ const formatDateTime = (val: string) => {
         <h1 class="dashboard-hero-title">{{ t('logs.title') }}</h1>
         <p class="dashboard-hero-caption">{{ t('logs.dashboardCaption') }}</p>
       </div>
-      <q-btn
-        class="dashboard-hero-action diogel-btn-ghost"
-        round
-        icon="refresh"
-        @click="fetchLogs(true)"
-      />
+      <div class="logs-page__actions">
+        <q-btn
+          class="dashboard-hero-action diogel-btn-ghost"
+          round
+          icon="refresh"
+          :aria-label="t('logs.refresh')"
+          @click="fetchLogs(true)"
+        />
+        <q-btn
+          class="dashboard-hero-action diogel-btn-ghost logs-page__clear"
+          round
+          icon="delete_sweep"
+          :aria-label="t('logs.clear.label')"
+          @click="confirmClearHistory"
+        >
+          <q-tooltip>{{ t('logs.clear.label') }}</q-tooltip>
+        </q-btn>
+      </div>
     </section>
 
     <q-card class="dashboard-card logs-page__card">
@@ -217,6 +257,11 @@ const formatDateTime = (val: string) => {
 <style scoped>
 .logs-page {
   width: 100%;
+}
+
+.logs-page__actions {
+  display: flex;
+  gap: 8px;
 }
 
 .logs-page__card {

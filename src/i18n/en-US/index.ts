@@ -871,6 +871,15 @@ export default {
     },
     refresh: 'Refresh',
     noData: 'No activity found',
+    clear: {
+      label: 'Clear history',
+      title: 'Clear event history?',
+      body: 'This deletes the approval and exception history for every account. It cannot be undone.',
+      confirm: 'Clear history',
+      cancel: 'Cancel',
+      done: 'Event history cleared',
+      failed: 'Could not clear the event history',
+    },
   },
   footer: {
     version: 'V',

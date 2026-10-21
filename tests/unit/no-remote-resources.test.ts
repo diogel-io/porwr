@@ -1,0 +1,61 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
+
+import { describe, it, expect } from 'vitest';
+
+/**
+ * No Porwr stylesheet, and nothing the approval panel renders, loads a remote resource
+ * (D13, threat model T7, #144).
+ *
+ * The e2e spec `approval-network-silence.spec.ts` watches the real panel, but only in Chromium:
+ * Firefox is driven through WebDriver, which cannot observe requests. This reads the source both
+ * builds share, so a remote font, image or fetch added to these surfaces fails in either.
+ */
+
+const ROOT = resolve(__dirname, '../..');
+
+const filesUnder = (dir: string, extensions: readonly string[]): string[] =>
+  readdirSync(resolve(ROOT, dir)).flatMap((name) => {
+    const path = join(resolve(ROOT, dir), name);
+    if (statSync(path).isDirectory()) return filesUnder(relative(ROOT, path), extensions);
+    return extensions.some((extension) => name.endsWith(extension)) ? [path] : [];
+  });
+
+const REMOTE = [
+  /@import\s+url\(\s*['"]?https?:/i,
+  /url\(\s*['"]?https?:/i,
+  /\bsrc\s*=\s*['"]https?:/i,
+  /\bfetch\s*\(/,
+];
+
+const offending = (paths: readonly string[]): string[] =>
+  paths.flatMap((path) => {
+    const source = readFileSync(path, 'utf8');
+    return REMOTE.filter((pattern) => pattern.test(source)).map(
+      (pattern) => `${relative(ROOT, path)} matches ${String(pattern)}`,
+    );
+  });
+
+describe('remote resources', () => {
+  it('are not loaded by any stylesheet', () => {
+    expect(offending(filesUnder('src/css', ['.scss', '.css']))).toEqual([]);
+  });
+
+  it('are not loaded by the approval panel', () => {
+    const panel = [
+      ...filesUnder('src/components/sidebar', ['.vue', '.ts']),
+      ...filesUnder('src/pages/sidebar', ['.vue', '.ts']),
+      ...filesUnder('src/layouts/sidebar', ['.vue', '.ts']),
+    ];
+    expect(panel.length).toBeGreaterThan(0);
+    expect(offending(panel)).toEqual([]);
+  });
+
+  it('ships the bundled font the stylesheet names', () => {
+    const fonts = readdirSync(resolve(ROOT, 'src/css/fonts'));
+    for (const weight of [400, 500, 600, 700]) {
+      expect(fonts).toContain(`inter-latin-${weight}-normal.woff2`);
+    }
+    expect(fonts).toContain('LICENSE-Inter.txt');
+  });
+});

@@ -14,6 +14,43 @@ type PersistedLogAccount = string | null;
 
 type PersistedLogHostname = string | null;
 
+/** The newest approval records kept; older ones are deleted as new ones arrive (threat model T28). */
+export const MAX_APPROVAL_LOG_ENTRIES = 500;
+
+/** The newest exception records kept. */
+export const MAX_EXCEPTION_LOG_ENTRIES = 200;
+
+/** The longest message persisted or written to the console for a failure. */
+export const MAX_LOG_MESSAGE_LENGTH = 300;
+
+/**
+ * Patterns for material that must never reach a log: hex keys, event ids and signatures, bech32 secret keys,
+ * Lightning invoices, and serialised objects such as events. Order matters: JSON first, so a key
+ * inside an event is removed with the event.
+ */
+const REDACTIONS: readonly (readonly [RegExp, string])[] = [
+  [/\{[\s\S]*\}/g, '[object]'],
+  [/\b(?:nsec|ncryptsec)1[02-9ac-hj-np-z]+/gi, '[secret key]'],
+  [/\bln(?:bcrt|bc|tbs|tb)[0-9a-z]+/gi, '[invoice]'],
+  [/\b[0-9a-f]{64,}\b/gi, '[hex]'],
+];
+
+/**
+ * Make an error message safe to persist or print.
+ *
+ * Thrown messages are not under Porwr's control: a library may echo its input, which can be an
+ * event, a key, or an invoice. Every failure that is logged passes through here first (#144, T11).
+ */
+export const sanitizeLogMessage = (message: string): string => {
+  const redacted = REDACTIONS.reduce(
+    (text, [pattern, replacement]) => text.replace(pattern, replacement),
+    message,
+  );
+  return redacted.length > MAX_LOG_MESSAGE_LENGTH
+    ? `${redacted.slice(0, MAX_LOG_MESSAGE_LENGTH)}…`
+    : redacted;
+};
+
 export class LogService {
   private readonly debugMode: boolean;
 
@@ -63,15 +100,17 @@ export class LogService {
   ): Promise<void> {
     const persistedAccount: PersistedLogAccount = this.normalizeNullableString(account);
     const persistedHostname: PersistedLogHostname = this.normalizeNullableString(hostname);
+    const safeMessage = sanitizeLogMessage(message);
 
     try {
       await db.exceptions.add({
         dateTime: new Date().toISOString(),
-        message,
+        message: safeMessage,
         account: persistedAccount,
         hostname: persistedHostname,
       });
-      this.log(LogLevel.ERROR, message, {
+      await this.prune(db.exceptions, MAX_EXCEPTION_LOG_ENTRIES);
+      this.log(LogLevel.ERROR, safeMessage, {
         account: persistedAccount,
         hostname: persistedHostname,
       });
@@ -104,6 +143,7 @@ export class LogService {
         account: persistedAccount,
         outcome,
       });
+      await this.prune(db.approvals, MAX_APPROVAL_LOG_ENTRIES);
       this.log(LogLevel.DEBUG, `Approval ${outcome} for kind ${eventKind} on ${hostname}`, {
         account: persistedAccount,
       });
@@ -112,6 +152,22 @@ export class LogService {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  /** Delete the oldest records beyond `max`, so local history stays bounded. */
+  private async prune(
+    table: typeof db.exceptions | typeof db.approvals,
+    max: number,
+  ): Promise<void> {
+    const excess = (await table.count()) - max;
+    if (excess > 0) {
+      await table.orderBy('dateTime').limit(excess).delete();
+    }
+  }
+
+  /** Delete every approval and exception record, for every account. */
+  async clearHistory(): Promise<void> {
+    await Promise.all([db.approvals.clear(), db.exceptions.clear()]);
   }
 
   log(level: LogLevel, message: string, context?: LogContext): void {
@@ -154,7 +210,7 @@ export class LogService {
         });
         return result;
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = sanitizeLogMessage(error instanceof Error ? error.message : String(error));
         this.log(LogLevel.ERROR, `${serviceName}.${methodName} failed: ${message}`);
         void this.logException(`${serviceName}.${methodName} error: ${message}`);
         throw error;

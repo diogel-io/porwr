@@ -32,6 +32,7 @@ import type { ApprovalRequestDetails } from './services/approval-flow';
 import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
 import { observePageRequests, type PageActionHandlers } from './services/page-channel';
+import { lockDownSessionStorage } from './services/session-storage-lock';
 import { reconcileAbandonedRequests } from './services/page-reconciliation';
 import {
   observePageConnections,
@@ -165,24 +166,8 @@ if (typeof self !== 'undefined') {
 // extension-surface actions are reachable only from Porwr's own pages, through the raw
 // `chrome.runtime.onMessage` listener, which checks the sender.
 
-// chrome.storage.session holds the queue and the `vault:unlocked` marker, which says the vault's
-// key (kept as a non-extractable CryptoKey in IndexedDB, #245) belongs to this browser session.
-// Explicitly restrict that storage area to extension pages/background (never content scripts or
-// web pages), regardless of the browser's default access level.
-async function lockDownSessionStorage(): Promise<void> {
-  try {
-    if (typeof chrome !== 'undefined' && chrome.storage?.session?.setAccessLevel) {
-      await chrome.storage.session.setAccessLevel({
-        accessLevel: 'TRUSTED_CONTEXTS',
-      });
-    }
-  } catch (error: unknown) {
-    logService.log(LogLevel.ERROR, '[BEX] Failed to set session storage access level', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
+// Session storage is locked down first, before anything reads or writes it
+// (`services/session-storage-lock.ts`).
 async function initialize(): Promise<void> {
   try {
     await lockDownSessionStorage();
