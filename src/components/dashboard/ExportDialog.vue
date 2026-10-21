@@ -24,7 +24,9 @@
           v-model="localPassword"
           :rules="[
             (v) => !!v || t('account.passwordRequired'),
-            (v) => v.length >= MIN_PASSWORD_LENGTH || t('account.passwordTooShort'),
+            (v) =>
+              passwordLength(v) >= MIN_PASSWORD_LENGTH ||
+              t('account.passwordTooShort', { min: MIN_PASSWORD_LENGTH }),
           ]"
           :type="showPassword ? 'text' : 'password'"
           dense
@@ -96,6 +98,9 @@ const modelValue = computed({
   set: (v: boolean) => emit('update:modelValue', v),
 });
 
+/** Characters after NFKC normalisation, as NIP-49 and the background measure it (#141). */
+const passwordLength = (value: string): number => Array.from(value.normalize('NFKC')).length;
+
 const localVaultPassword = ref('');
 const localPassword = ref('');
 const localConfirm = ref('');
@@ -113,7 +118,7 @@ function defaultFilename(now: Date = new Date()): string {
 const canConfirm = computed(
   () =>
     localVaultPassword.value.length > 0 &&
-    localPassword.value.length >= MIN_PASSWORD_LENGTH &&
+    passwordLength(localPassword.value) >= MIN_PASSWORD_LENGTH &&
     localConfirm.value === localPassword.value &&
     localFilename.value.length > 0,
 );

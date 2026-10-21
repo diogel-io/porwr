@@ -40,6 +40,11 @@ describe('ExportDialog', () => {
   it.each([
     ['a password under 8 characters', 'short', 'short'],
     ['passwords that do not match', 'long-enough', 'long-enougH'],
+    [
+      'a password that is under 8 characters once normalised',
+      'e\u0301'.repeat(4),
+      'e\u0301'.repeat(4),
+    ],
   ])('will not export with %s', async (_label, password, confirm) => {
     const wrapper = mountDialog();
     await wrapper.get('[data-testid="export-vault-password"]').setValue('vault-password');

@@ -47,7 +47,9 @@ const isValidNsec = computed<boolean>(() => {
  * A NIP-49 `ncryptsec`, such as a Porwr key backup (#141). It is decrypted in the background with
  * its password, so neither the key nor, before import, its public key is known here.
  */
-const isEncrypted = computed<boolean>(() => importNsec.value.trim().startsWith('ncryptsec1'));
+const isEncrypted = computed<boolean>(() =>
+  importNsec.value.trim().toLowerCase().startsWith('ncryptsec1'),
+);
 const encryptedReady = ref(false);
 const encryptedPassword = ref('');
 const isValidKey = computed<boolean>(() => isValidNsec.value || isEncrypted.value);

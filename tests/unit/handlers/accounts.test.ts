@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 import * as nip49 from 'nostr-tools/nip49';
+import { bech32 } from '@scure/base';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 import type { VaultData } from '@/types/bridge';
@@ -80,6 +81,8 @@ import {
   handleAccountsRevealSecret,
   handleAccountsExportEncrypted,
   handleAccountsImportEncrypted,
+  MAX_NCRYPTSEC_LOGN,
+  ncryptsecCost,
   handleVaultGetView,
 } from '@/../src-bex/handlers/accounts';
 
@@ -454,6 +457,18 @@ describe('accounts.exportEncrypted', () => {
     expect(vi.mocked(nip49.encrypt)).not.toHaveBeenCalled();
   });
 
+  // NIP-49 derives the key from the NFKC-normalised password: 'e' plus a combining acute is one
+  // character once normalised, so four of them are four characters, not eight (#141).
+  it('measures the export password as NIP-49 does, after NFKC normalisation', async () => {
+    await expect(
+      handleAccountsExportEncrypted({
+        accountPubkey: BOB,
+        password: 'e\u0301'.repeat(4),
+        vaultPassword: 'vault-password',
+      }),
+    ).resolves.toMatchObject({ success: false, error: expect.stringMatching(/at least 8/) });
+  });
+
   it('refuses an export password under the minimum', async () => {
     await expect(
       handleAccountsExportEncrypted({
@@ -532,6 +547,62 @@ describe('accounts.importEncrypted', () => {
 
     expect(result).toMatchObject({ success: false });
     expect(state.vault!.accounts).toHaveLength(before);
+  });
+
+  // All-uppercase Bech32 is valid; mixed case is not (#141).
+  it('accepts an all-uppercase ncryptsec, and refuses a mixed-case one', async () => {
+    const ncryptsec = nip49.encrypt(newKey, 'backup-password');
+
+    await expect(
+      handleAccountsImportEncrypted({
+        ncryptsec: ncryptsec.slice(0, 14) + ncryptsec.slice(14).toUpperCase(),
+        password: 'backup-password',
+        alias: 'mixed',
+      }),
+    ).resolves.toMatchObject({ success: false });
+    await expect(
+      handleAccountsImportEncrypted({
+        ncryptsec: ncryptsec.toUpperCase(),
+        password: 'backup-password',
+        alias: 'upper',
+      }),
+    ).resolves.toMatchObject({ success: true, data: { id: newPubkey } });
+  });
+
+  // The scrypt cost comes from the key itself; a crafted one could stall the background (#141).
+  describe('the scrypt cost a key asks for', () => {
+    /** A real ncryptsec with its cost byte rewritten, so no slow scrypt runs to make it. */
+    const withCost = (logn: number): string => {
+      const bytes = bech32.fromWords(bech32.decode(nip49.encrypt(newKey, 'pw', 4), 5000).words);
+      bytes[1] = logn;
+      return bech32.encode('ncryptsec', bech32.toWords(bytes), 5000);
+    };
+
+    it('reads the cost from the key', () => {
+      expect(ncryptsecCost(withCost(16))).toBe(16);
+      expect(ncryptsecCost(withCost(16).toUpperCase())).toBe(16);
+      expect(ncryptsecCost('ncryptsec1notbech32')).toBeNull();
+    });
+
+    it.each([MAX_NCRYPTSEC_LOGN + 1, 20, 30])(
+      'refuses a key asking for cost %s before running scrypt',
+      async (logn) => {
+        const decrypt = vi.spyOn(nip49, 'decrypt');
+
+        const result = await handleAccountsImportEncrypted({
+          ncryptsec: withCost(logn),
+          password: 'pw',
+          alias: 'costly',
+        });
+
+        expect(result).toMatchObject({
+          success: false,
+          error: expect.stringMatching(/cost Porwr does not accept/),
+        });
+        expect(decrypt).not.toHaveBeenCalled();
+        decrypt.mockRestore();
+      },
+    );
   });
 
   it('refuses something that is not an ncryptsec', async () => {
