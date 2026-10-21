@@ -4,7 +4,7 @@ import {
   handleRelayBrowserList,
   handleRelayBrowserGetStatus,
 } from '@/../src-bex/handlers/relay-browser-handler';
-import { handleVaultUnlock } from '@/../src-bex/handlers/vault-handler';
+import { handleVaultCreate, handleVaultUnlock } from '@/../src-bex/handlers/vault-handler';
 import { handleBlossomUpload } from '@/../src-bex/handlers/blossom-handler';
 import { handleNip44Encrypt, handleNip44Decrypt } from '@/../src-bex/handlers/nip44';
 import { handleNip04Encrypt, handleNip04Decrypt } from '@/../src-bex/handlers/nip04';
@@ -163,6 +163,34 @@ describe('Dispatcher', () => {
     expect(autoLockMocks.resetAutoLockTimer.mock.invocationCallOrder[0]!).toBeLessThan(
       autoLockMocks.startAutoLockTimer.mock.invocationCallOrder[0]!,
     );
+  });
+
+  // A new vault is left unlocked, so it must start auto-lock as unlocking does (#139).
+  it('starts auto-lock when a vault is created', async () => {
+    autoLockMocks.resetAutoLockTimer.mockResolvedValue(undefined);
+    vi.mocked(handleVaultCreate).mockResolvedValue({ success: true, data: {} } as never);
+
+    await dispatchMessage(
+      'vault.create',
+      createBridgeRequest('vault.create', { password: 'test-password' }),
+    );
+
+    expect(autoLockMocks.resetAutoLockTimer).toHaveBeenCalled();
+    expect(autoLockMocks.startAutoLockTimer).toHaveBeenCalled();
+    expect(autoLockMocks.resetAutoLockTimer.mock.invocationCallOrder[0]!).toBeLessThan(
+      autoLockMocks.startAutoLockTimer.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('starts no auto-lock when creating a vault fails', async () => {
+    vi.mocked(handleVaultCreate).mockResolvedValue({ success: false, error: 'exists' } as never);
+
+    await dispatchMessage(
+      'vault.create',
+      createBridgeRequest('vault.create', { password: 'test-password' }),
+    );
+
+    expect(autoLockMocks.startAutoLockTimer).not.toHaveBeenCalled();
   });
 
   it('should return undefined for unknown message type', async () => {

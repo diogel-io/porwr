@@ -14,6 +14,7 @@ import {
   reconcileInterruptedRequests,
   requeuePresented,
   submitDecision,
+  interruptRequest,
   interruptRequestsForOrigin,
   onQueueChange,
   __resetLiveCallbacksForTests,
@@ -196,6 +197,24 @@ describe('request queue', () => {
       const result = await submitDecision(record.id, { approved: false, duration: 'always' });
 
       expect(result.applied).toBe(true);
+    });
+  });
+
+  describe('interrupting one request (#139)', () => {
+    it('interrupts only the named request, leaving another from the same origin live', async () => {
+      const first = await enqueueRequest(baseInput);
+      const second = await enqueueRequest(baseInput);
+
+      await interruptRequest(first.record.id);
+
+      await expect(first.decision).resolves.toEqual(
+        expect.objectContaining({ approved: false, ending: 'interrupted' }),
+      );
+      expect((await getRequestRecord(first.record.id))?.state).toBe('interrupted');
+      expect((await getRequestRecord(second.record.id))?.state).toBe('queued');
+      await expect(
+        submitDecision(first.record.id, { approved: true, duration: 'once' }),
+      ).resolves.toEqual({ applied: false, reason: 'already-resolved' });
     });
   });
 

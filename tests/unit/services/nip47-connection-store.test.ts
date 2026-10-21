@@ -148,15 +148,30 @@ describe('one account’s wallets are not another’s (#304)', () => {
     const withPermissions: VaultData = {
       ...vaultData,
       webLnPermissions: [
-        { origin: 'https://one.example', connectionId: 'alice-wallet', methods: ['enable'] },
-        { origin: 'https://one.example', connectionId: 'bob-wallet', methods: ['enable'] },
+        {
+          origin: 'https://one.example',
+          connectionId: 'alice-wallet',
+          methods: ['enable'],
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          origin: 'https://one.example',
+          connectionId: 'bob-wallet',
+          methods: ['enable'],
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
       ],
     };
 
     const result = removeNip47Connection(withPermissions, ALICE, 'alice-wallet');
 
     expect(result.webLnPermissions).toEqual([
-      { origin: 'https://one.example', connectionId: 'bob-wallet', methods: ['enable'] },
+      {
+        origin: 'https://one.example',
+        connectionId: 'bob-wallet',
+        methods: ['enable'],
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
     ]);
   });
 
@@ -164,7 +179,12 @@ describe('one account’s wallets are not another’s (#304)', () => {
     const withPermissions: VaultData = {
       ...vaultData,
       webLnPermissions: [
-        { origin: 'https://one.example', connectionId: 'alice-wallet', methods: ['enable'] },
+        {
+          origin: 'https://one.example',
+          connectionId: 'alice-wallet',
+          methods: ['enable'],
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
       ],
     };
 

@@ -55,7 +55,16 @@ async function clearSession() {
   }
 }
 
-export async function restoreVaultState(): Promise<boolean> {
+/**
+ * Restore the unlocked state after a worker restart.
+ *
+ * `isOverdue` is asked before the key is restored: when it says the auto-lock timeout has passed,
+ * the session is discarded instead, so the vault starts locked and no handler ever sees an
+ * overdue key (#139).
+ */
+export async function restoreVaultState(
+  isOverdue: () => Promise<boolean> = () => Promise.resolve(false),
+): Promise<boolean> {
   try {
     const items = await storageService.getMultiple(
       [VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS],
@@ -72,6 +81,15 @@ export async function restoreVaultState(): Promise<boolean> {
 
     if (items[VAULT_UNLOCKED] !== true) {
       // A new browser session: the key outlived it in IndexedDB, but the vault must start locked.
+      await clearSession();
+      return false;
+    }
+
+    if (await isOverdue()) {
+      logService.log(
+        LogLevel.WARN,
+        '[Vault] Started locked: auto-lock was due while the worker slept',
+      );
       await clearSession();
       return false;
     }

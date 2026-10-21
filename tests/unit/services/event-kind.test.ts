@@ -28,7 +28,7 @@ describe('isSignableEventKind', () => {
   // `background.ts` cannot be imported, so this reads its source, as other boundary tests do.
   it('is checked before a signing request does anything else', () => {
     const source = readFileSync(resolve(__dirname, '../../../src-bex/background.ts'), 'utf8');
-    const handler = /'nostr\.signEvent': async \(\{ event \}, origin\) => \{\s*([^\n]+)/.exec(
+    const handler = /'nostr\.signEvent': async \(\{ event \}, origin, page\) => \{\s*([^\n]+)/.exec(
       source,
     );
 

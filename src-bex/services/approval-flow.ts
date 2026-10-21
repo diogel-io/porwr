@@ -18,7 +18,12 @@
 
 import { LogLevel, logService } from '@/services/log-service';
 import { checkPermission, grantPermission } from '../handlers/permission-handler';
-import { assignAccountsToWaitingRequests, enqueueRequest, getRequestRecord } from './request-queue';
+import {
+  assignAccountsToWaitingRequests,
+  enqueueRequest,
+  getRequestRecord,
+  interruptRequest,
+} from './request-queue';
 import { originHostname } from './origin';
 import { bindSiteToAccount, getActiveAccount, resolveSigningAccount } from './signing-account';
 import type { ApprovalDuration, UnsignedEvent } from '../types/background';
@@ -32,6 +37,11 @@ export interface ApprovalRequestDetails {
   event?: UnsignedEvent;
   /** Counterparty for encryption and decryption requests. Never the plaintext. */
   counterpartyPubkey?: string;
+  /**
+   * Aborted when the requesting page's port goes away. The request is then interrupted, so it can
+   * never be approved for a tab that no longer exists (#139). Held in memory only.
+   */
+  signal?: AbortSignal;
 }
 
 export const trimApprovalContentDescription = (content?: string): string | undefined => {
@@ -113,9 +123,19 @@ export async function requestApproval(
     },
   );
 
+  // The page that asked may close while the request waits; it is then interrupted rather than
+  // left approvable for a tab that is gone (#139).
+  const interruptIfGone = (): void => {
+    void interruptRequest(record.id);
+  };
+  if (details.signal?.aborted) interruptIfGone();
+  details.signal?.addEventListener('abort', interruptIfGone, { once: true });
+
   // A locked vault no longer opens its own window: the panel presents the unlock view with the
   // waiting request, and unlocking still requires an explicit decision afterwards (ADR D14).
-  const outcome = await decision;
+  const outcome = await decision.finally(() => {
+    details.signal?.removeEventListener('abort', interruptIfGone);
+  });
 
   const approved = outcome.approved;
   const durationLabel: ApprovalDuration = outcome.duration;

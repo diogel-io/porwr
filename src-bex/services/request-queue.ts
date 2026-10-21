@@ -530,12 +530,30 @@ export const pruneResolvedRequests = async (now: number = Date.now()): Promise<v
 export const interruptRequestsForOrigin = async (
   origin: string,
   now: number = Date.now(),
+): Promise<ApprovalRequestRecord[]> =>
+  interruptMatching((record) => record.origin === origin, { origin }, now);
+
+/**
+ * Interrupt one request, because the page port it arrived on has gone (#139).
+ *
+ * Liveness by origin alone kept a request approvable while any other tab held the same origin;
+ * the page channel calls this when the requesting tab's own port disconnects.
+ */
+export const interruptRequest = async (
+  id: string,
+  now: number = Date.now(),
+): Promise<ApprovalRequestRecord[]> => interruptMatching((record) => record.id === id, { id }, now);
+
+const interruptMatching = async (
+  matches: (record: ApprovalRequestRecord) => boolean,
+  logContext: Record<string, string>,
+  now: number,
 ): Promise<ApprovalRequestRecord[]> => {
   const records = await loadQueue(now);
   const interrupted: ApprovalRequestRecord[] = [];
 
   const next = records.map((record) => {
-    if (record.origin !== origin || isTerminal(record.state)) return record;
+    if (!matches(record) || isTerminal(record.state)) return record;
     const updated: ApprovalRequestRecord = { ...record, state: 'interrupted' };
     interrupted.push(updated);
     return updated;
@@ -553,7 +571,7 @@ export const interruptRequestsForOrigin = async (
   }
 
   logService.log(LogLevel.WARN, '[Queue] Marked requests interrupted after the page went away', {
-    origin,
+    ...logContext,
     count: interrupted.length,
   });
 

@@ -198,6 +198,10 @@ export async function dispatchMessage<K extends BridgeAction>(
       const createPayload = payload as BridgeRequestMap['vault.create'];
       const result = await handleVaultCreate({ password: createPayload.password }, origin);
       if (result.success) {
+        // A new vault is left unlocked, so it needs the same auto-lock an unlock starts. Without
+        // this it stayed unlocked until a worker restart or a manual lock (#139).
+        await resetAutoLockTimer();
+        startAutoLockTimer();
         return {
           success: true,
           ...(result.data.encryptedVault ? { encryptedVault: result.data.encryptedVault } : {}),

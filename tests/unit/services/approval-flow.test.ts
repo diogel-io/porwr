@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   resolveSigningAccount: vi.fn(),
   getActiveAccount: vi.fn(),
   bindSiteToAccount: vi.fn(),
+  interruptRequest: vi.fn(),
   log: vi.fn(),
   logApproval: vi.fn(),
 }));
@@ -21,6 +22,7 @@ vi.mock('@/../src-bex/services/request-queue', () => ({
   enqueueRequest: mocks.enqueueRequest,
   getRequestRecord: mocks.getRequestRecord,
   assignAccountsToWaitingRequests: mocks.assignAccountsToWaitingRequests,
+  interruptRequest: mocks.interruptRequest,
 }));
 vi.mock('@/../src-bex/services/signing-account', () => ({
   resolveSigningAccount: mocks.resolveSigningAccount,
@@ -410,5 +412,48 @@ describe('binding the site to an account', () => {
     await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
 
     expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
+  });
+});
+
+// A request is interrupted when the page that sent it goes, even while another tab holds the same
+// origin (#139).
+describe('the requesting page going away', () => {
+  it('interrupts the request when the page signal aborts while it waits', async () => {
+    const page = new AbortController();
+    let settle: (outcome: unknown) => void = () => undefined;
+    mocks.enqueueRequest.mockResolvedValue({
+      record: { id: 'req-1', accountAlias: 'alice', accountPubkey: ALICE.id },
+      decision: new Promise((resolve) => (settle = resolve)),
+    });
+    mocks.interruptRequest.mockImplementation(() => {
+      settle({ approved: false, duration: 'once', ending: 'interrupted' });
+      return Promise.resolve([]);
+    });
+
+    const pending = requestApproval(ORIGIN, 1, { requestType: 'sign_event', signal: page.signal });
+    await vi.waitFor(() => expect(mocks.enqueueRequest).toHaveBeenCalled());
+    page.abort();
+
+    await expect(pending).resolves.toBe(false);
+    expect(mocks.interruptRequest).toHaveBeenCalledWith('req-1');
+    expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
+  });
+
+  it('interrupts at once a request whose page had already gone', async () => {
+    const page = new AbortController();
+    page.abort();
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event', signal: page.signal });
+
+    expect(mocks.interruptRequest).toHaveBeenCalledWith('req-1');
+  });
+
+  it('leaves a decided request alone when its page goes afterwards', async () => {
+    const page = new AbortController();
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event', signal: page.signal });
+    page.abort();
+
+    expect(mocks.interruptRequest).not.toHaveBeenCalled();
   });
 });

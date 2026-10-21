@@ -61,7 +61,9 @@ describe('the page channel (#246)', () => {
     send({ id: '1', action: 'nostr.getPublicKey', payload: { origin: 'https://other.example' } });
     await settle();
 
-    expect(handlers['nostr.getPublicKey']).toHaveBeenCalledWith({}, 'https://example.com');
+    expect(handlers['nostr.getPublicKey']).toHaveBeenCalledWith({}, 'https://example.com', {
+      signal: expect.any(AbortSignal),
+    });
     expect(replies).toEqual([{ id: '1', result: 'npub' }]);
   });
 
@@ -80,6 +82,7 @@ describe('the page channel (#246)', () => {
     expect(handlers['webln.sendPayment']).toHaveBeenCalledWith(
       { paymentRequest: 'lnbc1' },
       'https://example.com',
+      { signal: expect.any(AbortSignal) },
     );
   });
 
@@ -97,7 +100,9 @@ describe('the page channel (#246)', () => {
     send({ id: '3', action: 'nostr.getRelays', payload: {} });
     await settle();
 
-    expect(handlers['nostr.getRelays']).toHaveBeenCalledWith({}, 'https://widget.example');
+    expect(handlers['nostr.getRelays']).toHaveBeenCalledWith({}, 'https://widget.example', {
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it('refuses every request when the sender names no site, and runs no handler', async () => {
@@ -181,5 +186,52 @@ describe('stripPagePayload', () => {
     expect(stripPagePayload(undefined)).toEqual({});
     expect(stripPagePayload('x')).toEqual({});
     expect(stripPagePayload(['origin'])).toEqual({});
+  });
+});
+
+// A request belongs to the page that sent it, not only its origin: when that tab's port goes, the
+// signal its handlers were given is aborted, so its waiting request is interrupted (#139).
+describe('the requesting page going away', () => {
+  it('aborts the signal handed to that port’s handlers when the port disconnects', async () => {
+    let signal: AbortSignal | undefined;
+    const handlers = handlersWith((_payload, _origin) => new Promise(() => undefined));
+    handlers['nostr.signEvent'] = vi.fn(
+      (_payload: unknown, _origin: string, page: { signal: AbortSignal }) => {
+        signal = page.signal;
+        return new Promise(() => undefined);
+      },
+    ) as never;
+    const { port, send, disconnect } = fakePort(SITE);
+    servePagePort(port, handlers, ID, EXTENSION);
+
+    send({ id: '1', action: 'nostr.signEvent', payload: { event: { kind: 1 } } });
+    await settle();
+    expect(signal?.aborted).toBe(false);
+
+    disconnect();
+
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it('gives each port its own signal, so one tab closing leaves another alone', async () => {
+    const signals: AbortSignal[] = [];
+    const handlers = handlersWith(() => new Promise(() => undefined));
+    handlers['nostr.signEvent'] = vi.fn(
+      (_payload: unknown, _origin: string, page: { signal: AbortSignal }) => {
+        signals.push(page.signal);
+        return new Promise(() => undefined);
+      },
+    ) as never;
+    const first = fakePort(SITE);
+    const second = fakePort({ ...SITE, url: 'https://example.com/other' });
+    servePagePort(first.port, handlers, ID, EXTENSION);
+    servePagePort(second.port, handlers, ID, EXTENSION);
+
+    first.send({ id: '1', action: 'nostr.signEvent', payload: { event: { kind: 1 } } });
+    second.send({ id: '2', action: 'nostr.signEvent', payload: { event: { kind: 1 } } });
+    await settle();
+    first.disconnect();
+
+    expect(signals.map((signal) => signal.aborted)).toEqual([true, false]);
   });
 });

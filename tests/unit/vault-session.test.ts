@@ -140,6 +140,27 @@ describe('keeping the vault unlocked (#245)', () => {
     });
   });
 
+  // A restarted worker used to restore the key and only then check auto-lock, leaving a moment in
+  // which a request could use an overdue key (#139).
+  it('starts locked when auto-lock was due while the worker slept, and deletes the key', async () => {
+    await (await freshWorker()).createNewVault(PASSWORD, DATA);
+
+    const restarted = await freshWorker();
+    await expect(restarted.restoreVaultState(() => Promise.resolve(true))).resolves.toBe(false);
+
+    expect(restarted.isVaultUnlocked()).toBe(false);
+    await expect(restarted.getVaultData()).resolves.toMatchObject({ success: false });
+    expect(state.vaultSession.size).toBe(0);
+  });
+
+  it('restores the key when auto-lock is not yet due', async () => {
+    await (await freshWorker()).createNewVault(PASSWORD, DATA);
+
+    const restarted = await freshWorker();
+    await expect(restarted.restoreVaultState(() => Promise.resolve(false))).resolves.toBe(true);
+    expect(restarted.isVaultUnlocked()).toBe(true);
+  });
+
   it('starts locked after a browser restart, and deletes the key that outlived it', async () => {
     await (await freshWorker()).createNewVault(PASSWORD, DATA);
     state.session.clear(); // What a browser restart does to session storage.

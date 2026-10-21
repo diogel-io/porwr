@@ -10,7 +10,12 @@
 import { createBridge } from '#q-app/bex/background';
 import { describeError, LogLevel, logService } from '@/services/log-service';
 import { FALLBACK_RELAYS, NOSTR_ACTIVE, storageService } from '@/services/storage-service';
-import { startAutoLockTimer, restoreLastActivity, checkAutoLock } from './services/auto-lock';
+import {
+  checkAutoLock,
+  isAutoLockOverdue,
+  restoreLastActivity,
+  startAutoLockTimer,
+} from './services/auto-lock';
 import { initializePanelSurface, resolvePanelSurface } from './services/panel-surface';
 import {
   pruneResolvedRequests,
@@ -178,7 +183,7 @@ async function initialize(): Promise<void> {
       );
     });
     await restoreLastActivity();
-    const restored = await restoreVaultState();
+    const restored = await restoreVaultState(isAutoLockOverdue);
     if (restored) {
       startAutoLockTimer();
       await checkAutoLock();
@@ -345,7 +350,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // requesting site as the browser reports it, from the content script's port, never from anything the
 // page or the content script wrote (#246).
 const pageActionHandlers: PageActionHandlers = {
-  'nostr.getPublicKey': async (_payload, origin) => {
+  'nostr.getPublicKey': async (_payload, origin, page) => {
     const toBridgeError = (error: string): BackgroundBridgeError =>
       new BackgroundBridgeError(error === 'Vault is locked' ? 'VAULT_LOCKED' : 'NOT_FOUND', error);
 
@@ -354,7 +359,10 @@ const pageActionHandlers: PageActionHandlers = {
     if (!available.success) throw toBridgeError(available.error);
 
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, { requestType: 'get_public_key' });
+    const approved = await requestApproval(origin, -1, {
+      requestType: 'get_public_key',
+      signal: page.signal,
+    });
     if (!approved) {
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the request');
     }
@@ -366,7 +374,7 @@ const pageActionHandlers: PageActionHandlers = {
     return result.data;
   },
 
-  'nostr.signEvent': async ({ event }, origin) => {
+  'nostr.signEvent': async ({ event }, origin, page) => {
     if (!isSignableEventKind(event?.kind)) {
       throw new BackgroundBridgeError(
         'INVALID_EVENT',
@@ -378,7 +386,10 @@ const pageActionHandlers: PageActionHandlers = {
     const approvalDetails: ApprovalRequestDetails = contentDescription
       ? { requestType: 'sign_event', contentDescription, event }
       : { requestType: 'sign_event', event };
-    const approved = await requestApproval(origin, event.kind, approvalDetails);
+    const approved = await requestApproval(origin, event.kind, {
+      ...approvalDetails,
+      signal: page.signal,
+    });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data) {
@@ -403,9 +414,12 @@ const pageActionHandlers: PageActionHandlers = {
     return result.data;
   },
 
-  'nostr.getRelays': async (_payload, origin) => {
+  'nostr.getRelays': async (_payload, origin, page) => {
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, { requestType: 'get_relays' });
+    const approved = await requestApproval(origin, -1, {
+      requestType: 'get_relays',
+      signal: page.signal,
+    });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data)
@@ -421,9 +435,10 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'nostr.nip04.encrypt': async (payload, origin) => {
+  'nostr.nip04.encrypt': async (payload, origin, page) => {
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'nip04_encrypt',
       counterpartyPubkey: payload.pubkey,
     });
@@ -442,9 +457,10 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'nostr.nip04.decrypt': async (payload, origin) => {
+  'nostr.nip04.decrypt': async (payload, origin, page) => {
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'nip04_decrypt',
       counterpartyPubkey: payload.pubkey,
     });
@@ -463,9 +479,10 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'nostr.nip44.encrypt': async (payload, origin) => {
+  'nostr.nip44.encrypt': async (payload, origin, page) => {
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'nip44_encrypt',
       counterpartyPubkey: payload.pubkey,
     });
@@ -484,9 +501,10 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'nostr.nip44.decrypt': async (payload, origin) => {
+  'nostr.nip44.decrypt': async (payload, origin, page) => {
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'nip44_decrypt',
       counterpartyPubkey: payload.pubkey,
     });
@@ -505,8 +523,9 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'webln.enable': async (_payload, origin) => {
+  'webln.enable': async (_payload, origin, page) => {
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'webln_enable',
       contentDescription:
         'Allow this site to use Porwr as a WebLN wallet provider. Payments will still require separate approval.',
@@ -526,11 +545,12 @@ const pageActionHandlers: PageActionHandlers = {
   'webln.getInfo': async (_payload, origin) =>
     dispatchMessage('webln.getInfo', createBridgeRequest('webln.getInfo', { origin }), origin),
 
-  'webln.sendPayment': async (payload, origin) => {
+  'webln.sendPayment': async (payload, origin, page) => {
     const amountMsat = parseBolt11AmountMsat(payload.paymentRequest);
     const amountDescription =
       amountMsat !== undefined ? `${amountMsat / 1000} sats` : 'unknown amount';
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'webln_send_payment',
       contentDescription: `Pay Lightning invoice for ${amountDescription}: ${previewInvoice(payload.paymentRequest)}`,
       allowRemember: false,
