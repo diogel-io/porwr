@@ -260,6 +260,22 @@ describe('NIP-47 encryption negotiation before a request (diogel-io/workspace#14
     });
   });
 
+  it('refuses to pay when the info event read for an imported connection lacks pay_invoice', async () => {
+    const { encryption: _unread, ...imported } = buildConnection({ capabilities: [] });
+    void _unread;
+    mockVault(imported);
+    vi.mocked(nip47Client.getInfo).mockResolvedValue({
+      capabilities: ['get_balance'],
+      encryption: ['nip44_v2'],
+      checkedAt: '2026-10-21T00:00:00.000Z',
+    } as never);
+
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow('does not advertise pay_invoice');
+    expect(nip47Client.payInvoice).not.toHaveBeenCalled();
+  });
+
   it('does not read the info event again once the encryption is known', async () => {
     mockVault(buildConnection({ encryption: ['nip04'] }));
     vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });

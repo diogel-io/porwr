@@ -288,7 +288,16 @@ export async function handleNip47PayInvoice(
 ): Promise<HandlerResult<Nip47PayInvoiceResponse>> {
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
-  const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
+  const stored = requireConnection(vaultData, accountPubkey, payload.connectionId);
+
+  const invoice = payload.invoice.trim();
+  if (!invoice) {
+    throw new Error('Lightning invoice is required');
+  }
+
+  // Negotiated first, so the check below sees what the wallet advertises: a connection imported
+  // from a URI has no capabilities until its info event is read (#142).
+  const connection = await withNegotiatedEncryption(accountPubkey, stored);
 
   // Defense-in-depth: the UI only offers payment when the wallet has advertised
   // pay_invoice support, but enforce it here too in case this handler is ever
@@ -297,16 +306,8 @@ export async function handleNip47PayInvoice(
     throw new Error('This wallet connection does not advertise pay_invoice support.');
   }
 
-  const invoice = payload.invoice.trim();
-  if (!invoice) {
-    throw new Error('Lightning invoice is required');
-  }
-
   try {
-    const payment = await nip47Client.payInvoice(
-      await withNegotiatedEncryption(accountPubkey, connection),
-      invoice,
-    );
+    const payment = await nip47Client.payInvoice(connection, invoice);
     await mutateWalletVault((latestVaultData) => ({
       vaultData: appendNip47PaymentHistory(
         latestVaultData,
