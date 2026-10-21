@@ -268,9 +268,20 @@ describe('SettingsStore', () => {
       expect(store.fallbackRelays).toEqual(['wss://relay.damus.io', 'ws://localhost:7777']);
     });
 
-    it('falls back to the seeds when every stored relay is plaintext', async () => {
+    it('uses no relay, not the public seeds, when every stored relay is plaintext', async () => {
       vi.mocked(storageService.getMultiple).mockResolvedValue({
         [FALLBACK_RELAYS]: ['ws://relay.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual([]);
+    });
+
+    it('still uses the seeds when the stored list holds nothing usable for another reason', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['not a relay'],
       });
       const store = useSettingsStore();
 
@@ -307,7 +318,7 @@ describe('SettingsStore', () => {
       expect(storageService.set).not.toHaveBeenCalled();
     });
 
-    it('falls back to the default when the stored server is not https://', async () => {
+    it('keeps a stored server that is not https://, rather than swapping in the default', async () => {
       vi.mocked(storageService.getMultiple).mockResolvedValue({
         [BLOSSOM_SERVER]: 'http://media.example.org/',
       });
@@ -315,7 +326,9 @@ describe('SettingsStore', () => {
 
       await store.getSettings();
 
-      expect(store.blossomServer).toBe('https://blossom.primal.net/');
+      // Shown with its error on the Media page; the background refuses to upload to it.
+      expect(store.blossomServer).toBe('http://media.example.org/');
+      expect(storageService.set).not.toHaveBeenCalled();
     });
     /* eslint-enable @typescript-eslint/unbound-method */
   });

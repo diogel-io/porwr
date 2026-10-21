@@ -16,6 +16,16 @@ export function isAllowedRelayProtocol(url: URL): boolean {
   return url.protocol === 'ws:' && LOOPBACK_HOSTS.has(url.hostname.toLowerCase());
 }
 
+/**
+ * Whether any of `relays` is a plaintext `ws://` relay that `normalizeRelayUrl` now refuses. A
+ * stored list that loses every entry this way was the user's own choice of relays: it is left
+ * empty rather than replaced by the seed relays, so nothing is read from relays the user never
+ * chose (diogel-io/workspace#142).
+ */
+export function hasRefusedPlaintextRelay(relays: readonly string[]): boolean {
+  return relays.some((relay) => normalizeRelayUrl(relay).error === RELAY_PROTOCOL_ERROR);
+}
+
 export interface RelayUrlResult {
   valid: boolean;
   url?: string;

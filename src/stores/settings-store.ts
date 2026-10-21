@@ -19,7 +19,11 @@ import {
   setProtected,
 } from '@/services/protected-settings';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
-import { RELAY_PROTOCOL_ERROR, normalizeRelayUrl } from '@/services/relay-url';
+import {
+  RELAY_PROTOCOL_ERROR,
+  hasRefusedPlaintextRelay,
+  normalizeRelayUrl,
+} from '@/services/relay-url';
 import { LogLevel, logService } from '@/services/log-service';
 import { normalizeBlossomServer } from '@/services/blossom-server';
 import {
@@ -30,6 +34,24 @@ import {
 const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net/';
 const DEFAULT_FALLBACK_RELAYS = RELAY_SEEDS;
 const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
+
+/**
+ * The fallback relays to use for a stored list: its usable entries, or the seed relays when it has
+ * none, unless the list lost them all to the wss:// rule (#142). Then it stays empty, and Porwr
+ * reads from no relay rather than from public ones the user did not choose.
+ */
+function resolveFallbackRelays(stored: string[]): string[] {
+  const normalized = normalizeRelayList(stored);
+  if (normalized.length > 0) return normalized;
+  if (hasRefusedPlaintextRelay(stored)) {
+    logService.log(
+      LogLevel.WARN,
+      '[settings] Every stored fallback relay was plaintext ws://; none are used until wss:// relays are set',
+    );
+    return [];
+  }
+  return DEFAULT_FALLBACK_RELAYS;
+}
 
 function normalizeRelayList(relays: string[]): string[] {
   const results = relays.map((relay) => normalizeRelayUrl(relay));
@@ -91,9 +113,10 @@ const useSettingsStore = defineStore('settings', {
         QUICK_PUBLISH_CLIENT_TAG,
       ]);
       if (result[BLOSSOM_SERVER] && typeof result[BLOSSOM_SERVER] === 'string') {
-        // A server saved before uploads had to be https:// falls back to the default (T21).
-        const stored = normalizeBlossomServer(result[BLOSSOM_SERVER]);
-        this.blossomServer = stored.valid && stored.url ? stored.url : DEFAULT_BLOSSOM_SERVER;
+        // Kept as stored, even when it is not https://: the Media page shows it with the reason, and
+        // the background refuses to upload to it. Swapping in the default would send the user's
+        // images to a server they never chose (T21, #142).
+        this.blossomServer = result[BLOSSOM_SERVER];
       }
       if (Object.prototype.hasOwnProperty.call(result, DARK_MODE)) {
         this.darkMode = Boolean(result[DARK_MODE]);
@@ -111,8 +134,7 @@ const useSettingsStore = defineStore('settings', {
         Array.isArray(result[FALLBACK_RELAYS]) &&
         (result[FALLBACK_RELAYS] as unknown[]).length > 0
       ) {
-        const normalized = normalizeRelayList(result[FALLBACK_RELAYS] as string[]);
-        this.fallbackRelays = normalized.length > 0 ? normalized : DEFAULT_FALLBACK_RELAYS;
+        this.fallbackRelays = resolveFallbackRelays(result[FALLBACK_RELAYS] as string[]);
       }
       this.quickPublishClientTag = result[QUICK_PUBLISH_CLIENT_TAG] !== false;
       let storedProfileSearchRelays: string[] | undefined;
@@ -197,9 +219,8 @@ const useSettingsStore = defineStore('settings', {
         if (areaName === 'local') {
           if (BLOSSOM_SERVER in changes) {
             const newValue = changes[BLOSSOM_SERVER].newValue;
-            const changed = typeof newValue === 'string' ? normalizeBlossomServer(newValue) : null;
-            if (changed?.valid && changed.url) {
-              this.blossomServer = changed.url;
+            if (typeof newValue === 'string' && newValue.length > 0) {
+              this.blossomServer = newValue;
             }
           }
           if (DARK_MODE in changes) {
@@ -211,14 +232,10 @@ const useSettingsStore = defineStore('settings', {
           }
           if (FALLBACK_RELAYS in changes) {
             const newValue = changes[FALLBACK_RELAYS].newValue;
-            const normalized = Array.isArray(newValue)
-              ? normalizeRelayList(newValue as string[])
-              : [];
-            if (normalized.length > 0) {
-              this.fallbackRelays = normalized;
-            } else {
-              this.fallbackRelays = DEFAULT_FALLBACK_RELAYS;
-            }
+            this.fallbackRelays =
+              Array.isArray(newValue) && newValue.length > 0
+                ? resolveFallbackRelays(newValue as string[])
+                : DEFAULT_FALLBACK_RELAYS;
           }
         }
       });

@@ -111,6 +111,15 @@ describe('refreshContacts', () => {
     expect(mocks.fetchContactListSnapshot).not.toHaveBeenCalled();
   });
 
+  it('asks no relay and leaves the cache alone when there is no usable fallback relay (#142)', async () => {
+    mocks.getFallbackRelays.mockResolvedValue([]);
+
+    await refreshContacts(ALICE, { force: true });
+
+    expect(mocks.fetchContactListSnapshot).not.toHaveBeenCalled();
+    expect(mocks.writeContactList).not.toHaveBeenCalled();
+  });
+
   it('refreshes a stale cache', async () => {
     mocks.list = { accountPubkey: ALICE, contacts: [], fetchedAt: 1 };
 
