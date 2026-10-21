@@ -6,9 +6,11 @@
  * - `script-src 'self'`: `quasar dev` for Chrome serves the extension pages' scripts from the Vite
  *   dev server on `localhost`, so the dev manifest has to allow it (#247). A released build must
  *   not: any local process could then serve script into the pages that hold the vault.
- * - `connect-src 'self' https: wss: ws://localhost:* ws://127.0.0.1:*`: relays over `wss:`, and
- *   plaintext `ws:` only to a loopback host, which is the rule `isAllowedRelayProtocol` applies in
- *   code (diogel-io/workspace#142, T19). HTTP requests go over `https:` only. The policy covers the
+ * - `connect-src 'self' https: wss: ws://localhost:* ws://127.0.0.1:* http://localhost:*
+ *   http://127.0.0.1:*`: relays over `wss:`, and plaintext `ws:` only to a loopback host, which is
+ *   the rule `isAllowedRelayProtocol` applies in code (diogel-io/workspace#142, T19). HTTP requests
+ *   go over `https:`, or plain `http:` to the same loopback hosts, which is how NIP-11 reaches a
+ *   loopback relay. Nothing plaintext leaves the device. The policy covers the
  *   Chrome service worker and the Firefox background page as well as the pages, so the browser
  *   enforces the transport rule wherever a connection is opened. CSP cannot name an IPv6 address,
  *   so `[::1]` is not a loopback relay host.

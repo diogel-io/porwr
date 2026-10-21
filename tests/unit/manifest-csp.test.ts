@@ -44,21 +44,23 @@ describe('the source manifest CSP', () => {
     expect(csp.get('object-src')).toEqual(["'self'"]);
   });
 
-  it('names a local source only as a plaintext ws:// relay in connect-src', () => {
+  it('names a local source only in connect-src, for loopback relays and their NIP-11', () => {
     for (const [name, sources] of csp) {
       for (const value of sources.filter((item) => LOCAL_SOURCE.test(item))) {
-        expect([name, value]).toEqual(['connect-src', expect.stringMatching(/^ws:\/\//)]);
+        expect([name, value]).toEqual(['connect-src', expect.stringMatching(/^(ws|http):\/\//)]);
       }
     }
   });
 
-  it('connects over https: and wss:, and over ws: to a loopback host only', () => {
+  it('connects over https: and wss:, and plaintext only to a loopback host', () => {
     expect(csp.get('connect-src')).toEqual([
       "'self'",
       'https:',
       'wss:',
       'ws://localhost:*',
       'ws://127.0.0.1:*',
+      'http://localhost:*',
+      'http://127.0.0.1:*',
     ]);
   });
 
