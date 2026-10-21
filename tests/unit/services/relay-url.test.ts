@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   RELAY_PROTOCOL_ERROR,
+  hasRefusedPlaintextRelay,
   isAllowedRelayProtocol,
   isRestrictedHostname,
   normalizeRelayUrl,
@@ -98,6 +99,15 @@ describe('normalizeRelayUrl', () => {
     it('accepts wss:// to any host', () => {
       expect(normalizeRelayUrl('wss://relay.damus.io').valid).toBe(true);
       expect(normalizeRelayUrl('wss://192.168.1.10').valid).toBe(true);
+    });
+  });
+
+  describe('hasRefusedPlaintextRelay', () => {
+    it('counts a public ws:// relay, and not another unusable scheme', () => {
+      expect(hasRefusedPlaintextRelay(['ws://relay.example.com'])).toBe(true);
+      expect(hasRefusedPlaintextRelay(['https://relay.example.com'])).toBe(false);
+      expect(hasRefusedPlaintextRelay(['ws://localhost:7777'])).toBe(false);
+      expect(hasRefusedPlaintextRelay(['not a relay'])).toBe(false);
     });
   });
 

@@ -311,6 +311,17 @@ describe('SettingsStore', () => {
       expect(store.fallbackRelays).toEqual([]);
     });
 
+    it('uses the seeds for a list of https:// entries, which are unusable but not plaintext', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['https://relay.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual(DEFAULT_FALLBACK_RELAYS);
+    });
+
     it('still uses the seeds when the stored list holds nothing usable for another reason', async () => {
       vi.mocked(storageService.getMultiple).mockResolvedValue({
         [FALLBACK_RELAYS]: ['not a relay'],

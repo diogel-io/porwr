@@ -20,8 +20,8 @@ import {
 } from '@/services/protected-settings';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
 import {
-  RELAY_PROTOCOL_ERROR,
   hasRefusedPlaintextRelay,
+  isRefusedPlaintextRelay,
   normalizeRelayUrl,
 } from '@/services/relay-url';
 import { LogLevel, logService } from '@/services/log-service';
@@ -76,8 +76,8 @@ const loggedEmptyLists = new Set<string>();
 
 function normalizeRelayList(relays: string[]): string[] {
   const results = relays.map((relay) => normalizeRelayUrl(relay));
-  results.forEach((result, index) => {
-    if (result.error !== RELAY_PROTOCOL_ERROR) return;
+  results.forEach((_result, index) => {
+    if (!isRefusedPlaintextRelay(relays[index]!)) return;
     // Saved before relays had to be wss:// (diogel-io/workspace#142). The host only, never the URL.
     let host = 'unparseable';
     try {

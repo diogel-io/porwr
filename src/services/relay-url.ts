@@ -23,7 +23,21 @@ export function isAllowedRelayProtocol(url: URL): boolean {
  * chose (diogel-io/workspace#142).
  */
 export function hasRefusedPlaintextRelay(relays: readonly string[]): boolean {
-  return relays.some((relay) => normalizeRelayUrl(relay).error === RELAY_PROTOCOL_ERROR);
+  return relays.some(isRefusedPlaintextRelay);
+}
+
+/**
+ * Whether `relay` is a `ws://` relay refused only because it is plaintext to a non-loopback host.
+ * An entry with another scheme, such as `https://`, is unusable for a different reason and does not
+ * count (`normalizeRelayUrl` gives both the same error).
+ */
+export function isRefusedPlaintextRelay(relay: string): boolean {
+  if (normalizeRelayUrl(relay).error !== RELAY_PROTOCOL_ERROR) return false;
+  try {
+    return new URL(relay.trim()).protocol === 'ws:';
+  } catch {
+    return false;
+  }
 }
 
 export interface RelayUrlResult {
