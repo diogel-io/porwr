@@ -4,6 +4,7 @@
       <q-card-section>
         <div class="text-h6">{{ t('account.exportAccount') }}</div>
         <div class="text-subtitle2 q-mt-xs">{{ t('account.exportChoosePassword') }}</div>
+        <p class="text-caption q-mt-sm q-mb-none">{{ t('account.exportFormatNote') }}</p>
       </q-card-section>
 
       <q-separator />
@@ -11,10 +12,14 @@
       <q-card-section class="q-gutter-md">
         <q-input
           v-model="localPassword"
-          :rules="[(v) => !!v || t('account.passwordRequired')]"
+          :rules="[
+            (v) => !!v || t('account.passwordRequired'),
+            (v) => v.length >= MIN_PASSWORD_LENGTH || t('account.passwordTooShort'),
+          ]"
           :type="showPassword ? 'text' : 'password'"
           autofocus
           dense
+          data-testid="export-password"
           :label="t('account.password')"
         >
           <template #append>
@@ -27,11 +32,19 @@
         </q-input>
 
         <q-input
+          v-model="localConfirm"
+          :rules="[(v) => v === localPassword || t('account.passwordMismatch')]"
+          :type="showPassword ? 'text' : 'password'"
+          dense
+          data-testid="export-password-confirm"
+          :label="t('account.confirmPassword')"
+        />
+
+        <q-input
           v-model="localFilename"
           :rules="[(v) => !!v || t('account.filenameRequired')]"
           dense
           :label="t('account.filename')"
-          @update:model-value="onFilenameEdited"
         />
       </q-card-section>
 
@@ -39,7 +52,13 @@
 
       <q-card-actions align="right">
         <q-btn class="diogel-btn-ghost" :label="t('account.cancel')" @click="onCancel" />
-        <q-btn class="diogel-btn-primary" :label="t('settings.export')" @click="onConfirm" />
+        <q-btn
+          class="diogel-btn-primary"
+          :label="t('settings.export')"
+          :disable="!canConfirm"
+          data-testid="export-confirm"
+          @click="onConfirm"
+        />
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -48,20 +67,15 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { MIN_PASSWORD_LENGTH } from '@/types/accounts';
 
 defineOptions({ name: 'ExportDialog' });
 
 const { t } = useI18n();
 
-const props = withDefaults(
-  defineProps<{
-    modelValue: boolean;
-    alias: string;
-  }>(),
-  {
-    alias: '',
-  },
-);
+const props = defineProps<{
+  modelValue: boolean;
+}>();
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
@@ -74,44 +88,45 @@ const modelValue = computed({
 });
 
 const localPassword = ref('');
+const localConfirm = ref('');
 const localFilename = ref('');
 const showPassword = ref(false);
-const filenameManuallyEdited = ref(false);
 
-function buildDefaultFilenameFromAlias(alias: string) {
-  const base = (alias ?? '').trim() || 'nostr-account';
-  return base.endsWith('.zip') ? base : `${base}.zip`;
+/**
+ * A neutral name: the file holds an encrypted key, and its name should not say whose (#141). The
+ * user can rename it.
+ */
+function defaultFilename(now: Date = new Date()): string {
+  return `porwr-key-backup-${now.toISOString().slice(0, 10)}.txt`;
 }
-watch(
-  () => props.alias,
-  (alias) => {
-    if (!filenameManuallyEdited.value) {
-      localFilename.value = buildDefaultFilenameFromAlias(alias);
-    }
-  },
-  { immediate: true },
+
+const canConfirm = computed(
+  () =>
+    localPassword.value.length >= MIN_PASSWORD_LENGTH &&
+    localConfirm.value === localPassword.value &&
+    localFilename.value.length > 0,
 );
 
 watch(
   () => props.modelValue,
   (isOpen) => {
-    // When opening the dialog, refresh filename from alias (unless user already edited it)
-    if (isOpen && !filenameManuallyEdited.value) {
-      localFilename.value = buildDefaultFilenameFromAlias(props.alias);
-    }
+    if (!isOpen) return;
+    localPassword.value = '';
+    localConfirm.value = '';
+    localFilename.value = defaultFilename();
   },
+  { immediate: true },
 );
 
-function onFilenameEdited() {
-  filenameManuallyEdited.value = true;
-}
 function onCancel() {
   modelValue.value = false;
 }
 
 function onConfirm() {
-  if (!localPassword.value || !localFilename.value) return;
+  if (!canConfirm.value) return;
   emit('confirm', { password: localPassword.value, filename: localFilename.value });
+  localPassword.value = '';
+  localConfirm.value = '';
 }
 </script>
 

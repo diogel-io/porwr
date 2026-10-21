@@ -254,8 +254,11 @@ public issue or pull request.
 **Secrets**
 
 - Private keys exist in plaintext only inside the unlocked vault in the background, and briefly on
-  Porwr's own pages when the user imports, shows, or exports a key (`accounts.revealSecret`). A
-  website learns only whether an operation succeeded, never vault contents.
+  Porwr's own pages when the user imports an nsec or shows a key. Showing a key
+  (`accounts.revealSecret`) needs the vault password again; an export is a NIP-49 `ncryptsec` made
+  in the background, and an `ncryptsec` import is decrypted there, so neither puts a plaintext key
+  on a page. The vault and export passwords have a minimum (`MIN_PASSWORD_LENGTH`) enforced in the
+  background. A website learns only whether an operation succeeded, never vault contents.
 - State that decides what a site may do (grants, site bindings, the auto-lock timeout and last
   activity) lives in the protected store (`src/services/protected-settings.ts`, the extension's own
   IndexedDB), never in `chrome.storage.local`, which Porwr's content scripts can read and write.

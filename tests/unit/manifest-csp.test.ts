@@ -28,8 +28,8 @@ describe('the source manifest CSP', () => {
   });
 
   it('allows scripts from the extension itself and nothing else, WebAssembly included', () => {
-    // zip.js, the one dependency that ships WebAssembly, exports backups without it; the export e2e
-    // fails on any CSP violation, so a dependency that starts needing it is caught there.
+    // No dependency needs WebAssembly; the key export e2e (NIP-49 scrypt, #141) fails on any CSP
+    // violation, so a dependency that starts needing it is caught there.
     expect(manifest.all.content_security_policy.extension_pages).toBe(
       "script-src 'self'; object-src 'self';",
     );

@@ -5,6 +5,8 @@
 
 import type { HandlerResult } from '../types/background';
 import type { VaultData } from '@/types/bridge';
+import { MIN_PASSWORD_LENGTH } from '@/types/accounts';
+import { ErrorCode } from '@/types/error-codes.d';
 import {
   unlockVault as unlock,
   lockVault as lock,
@@ -79,6 +81,14 @@ export const handleVaultCreate = logWrapper(
     _origin: string,
   ): Promise<HandlerResult<{ encryptedVault?: string }>> => {
     void _origin;
+    // Enforced here, not only in the UI, so nothing but Porwr's own form decides the minimum (#141).
+    if (typeof payload?.password !== 'string' || payload.password.length < MIN_PASSWORD_LENGTH) {
+      return {
+        success: false,
+        error: `The vault password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+        code: ErrorCode.GEN_INVALID_INPUT,
+      };
+    }
     const vaultData: VaultData = { accounts: [], createdAt: new Date().toISOString() };
     const result = await createNewVault(payload.password, vaultData);
 

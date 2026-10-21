@@ -32,9 +32,43 @@ export interface AccountRequest {
   accountPubkey: string;
 }
 
-/** One account's nsec, returned only for the user's explicit reveal or export. */
+/**
+ * The shortest password Porwr accepts for the vault and for a key export. Enforced in the
+ * background as well as offered by the UI (#141).
+ */
+export const MIN_PASSWORD_LENGTH = 8;
+
+/** Showing one account's nsec. The vault password is asked for again first (#141). */
+export interface RevealSecretRequest {
+  accountPubkey: string;
+  password: string;
+}
+
+/** One account's nsec, returned only for the user's explicit "show private key". */
 export interface RevealedSecret {
   nsec: string;
+}
+
+/** Exporting one account's key, encrypted with a password chosen for the export. */
+export interface ExportEncryptedRequest {
+  accountPubkey: string;
+  password: string;
+}
+
+/**
+ * An exported key: a NIP-49 `ncryptsec`, which any NIP-49 client can import with the export
+ * password, and the public key it belongs to. Never the nsec (#141).
+ */
+export interface EncryptedKeyExport {
+  ncryptsec: string;
+  npub: string;
+}
+
+/** Importing a NIP-49 `ncryptsec`, decrypted in the background with its password. */
+export interface ImportEncryptedRequest {
+  ncryptsec: string;
+  password: string;
+  alias: string;
 }
 
 /**

@@ -103,6 +103,8 @@ vi.mock('@/../src-bex/handlers/accounts', () => ({
   handleAccountsRename: vi.fn(),
   handleAccountsRemove: vi.fn(),
   handleAccountsRevealSecret: vi.fn(),
+  handleAccountsExportEncrypted: vi.fn(),
+  handleAccountsImportEncrypted: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/webln', () => ({
   handleWebLnEnable: vi.fn(),
@@ -414,12 +416,30 @@ const cases: Case[] = [
   },
   {
     action: 'accounts.revealSecret',
-    payload: { accountPubkey: 'a' },
+    payload: { accountPubkey: 'a', password: 'pw' },
     handler: vi.mocked(accounts.handleAccountsRevealSecret),
     name: 'handleAccountsRevealSecret',
     resolves: ok({ nsec: 'nsec1x' }),
     expected: { nsec: 'nsec1x' },
-    expectArgs: [expect.objectContaining({ accountPubkey: 'a' })],
+    expectArgs: [expect.objectContaining({ accountPubkey: 'a', password: 'pw' })],
+  },
+  {
+    action: 'accounts.exportEncrypted',
+    payload: { accountPubkey: 'a', password: 'pw' },
+    handler: vi.mocked(accounts.handleAccountsExportEncrypted),
+    name: 'handleAccountsExportEncrypted',
+    resolves: ok({ ncryptsec: 'ncryptsec1x', npub: 'npub1x' }),
+    expected: { ncryptsec: 'ncryptsec1x', npub: 'npub1x' },
+    expectArgs: [expect.objectContaining({ accountPubkey: 'a', password: 'pw' })],
+  },
+  {
+    action: 'accounts.importEncrypted',
+    payload: { ncryptsec: 'ncryptsec1x', password: 'pw', alias: 'restored' },
+    handler: vi.mocked(accounts.handleAccountsImportEncrypted),
+    name: 'handleAccountsImportEncrypted',
+    resolves: ok({ id: 'a', alias: 'restored', createdAt: '' }),
+    expected: { id: 'a', alias: 'restored', createdAt: '' },
+    expectArgs: [expect.objectContaining({ ncryptsec: 'ncryptsec1x', alias: 'restored' })],
   },
   {
     action: 'vault.export',

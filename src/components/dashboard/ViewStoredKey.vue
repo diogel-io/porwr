@@ -32,9 +32,31 @@ const npub = computed(() => {
   }
 });
 
+/**
+ * Asks for the vault password again before a key is shown or copied (#141). Resolves with the
+ * password, or null when the user cancels.
+ */
+function askVaultPassword(): Promise<string | null> {
+  return new Promise((resolve) => {
+    $q.dialog({
+      title: t('account.revealConfirmTitle'),
+      message: t('account.revealConfirmBody'),
+      prompt: { model: '', type: 'password', isValid: (value: string) => value.length > 0 },
+      ok: { label: t('account.revealConfirm'), color: 'primary', noCaps: true },
+      cancel: { label: t('account.revealCancel'), flat: true, noCaps: true },
+      persistent: true,
+    })
+      .onOk((password: string) => resolve(password))
+      .onCancel(() => resolve(null))
+      .onDismiss(() => resolve(null));
+  });
+}
+
 async function fetchNsec(): Promise<string> {
+  const password = await askVaultPassword();
+  if (password === null) return '';
   try {
-    return await revealSecret(props.storedKey.id);
+    return await revealSecret(props.storedKey.id, password);
   } catch {
     $q.notify({ type: 'negative', message: t('account.revealFailed') });
     return '';

@@ -1,4 +1,9 @@
-import type { AccountSummary, AddAccountRequest } from '@/types/accounts';
+import type {
+  AccountSummary,
+  AddAccountRequest,
+  EncryptedKeyExport,
+  ImportEncryptedRequest,
+} from '@/types/accounts';
 import { getVaultView, isVaultUnlocked, sendBexMessage } from './vault-service';
 import { NOSTR_ACTIVE, storageService } from './storage-service';
 
@@ -78,13 +83,42 @@ export async function remove(id: string): Promise<void> {
 }
 
 /**
- * One account's nsec, for the user's explicit "show private key" or backup export. The only path by
- * which a private key reaches a page; callers hold it no longer than they show or write it.
+ * One account's nsec, for the user's explicit "show private key", once the vault password has been
+ * given again (#141). The only path by which a private key reaches a page; callers hold it no
+ * longer than they show it.
  */
-export async function revealSecret(accountPubkey: string): Promise<string> {
-  const response = await sendBexMessage('accounts.revealSecret', { accountPubkey });
+export async function revealSecret(accountPubkey: string, password: string): Promise<string> {
+  const response = await sendBexMessage('accounts.revealSecret', { accountPubkey, password });
   if (!response || typeof response !== 'object' || !('nsec' in response)) {
     return fail(response, 'Failed to reveal the key');
   }
   return response.nsec;
+}
+
+/**
+ * One account's key as a NIP-49 `ncryptsec`, encrypted in the background with `password`. The page
+ * never receives the nsec (#141).
+ */
+export async function exportEncryptedKey(
+  accountPubkey: string,
+  password: string,
+): Promise<EncryptedKeyExport> {
+  const response = await sendBexMessage('accounts.exportEncrypted', { accountPubkey, password });
+  if (!response || typeof response !== 'object' || !('ncryptsec' in response)) {
+    return fail(response, 'Failed to export the key');
+  }
+  return response;
+}
+
+/** Imports a NIP-49 `ncryptsec`, decrypted in the background, and makes it active. */
+export async function importEncryptedKey(request: ImportEncryptedRequest): Promise<AccountSummary> {
+  if (!(await isVaultUnlocked())) {
+    throw new Error('Vault is locked. Cannot import key.');
+  }
+  const response = await sendBexMessage('accounts.importEncrypted', request);
+  if (!response || typeof response !== 'object' || !('id' in response)) {
+    return fail(response, 'Failed to import the key');
+  }
+  await setActive(response.alias);
+  return response;
 }

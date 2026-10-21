@@ -27,8 +27,12 @@ import type {
   AccountRequest,
   AccountSummary,
   AddAccountRequest,
+  EncryptedKeyExport,
+  ExportEncryptedRequest,
+  ImportEncryptedRequest,
   RenameAccountRequest,
   RevealedSecret,
+  RevealSecretRequest,
   VaultView,
 } from './accounts';
 import type { Event as SignedNostrEvent } from 'nostr-tools';
@@ -142,6 +146,8 @@ export type BridgeAction =
   | 'accounts.rename'
   | 'accounts.remove'
   | 'accounts.revealSecret'
+  | 'accounts.exportEncrypted'
+  | 'accounts.importEncrypted'
   | 'vault.setData'
   | 'vault.create'
   | 'vault.export'
@@ -301,7 +307,15 @@ export interface BridgeRequestMap {
   'accounts.revealSecret': {
     id: string;
     action: 'accounts.revealSecret';
-  } & AccountRequest;
+  } & RevealSecretRequest;
+  'accounts.exportEncrypted': {
+    id: string;
+    action: 'accounts.exportEncrypted';
+  } & ExportEncryptedRequest;
+  'accounts.importEncrypted': {
+    id: string;
+    action: 'accounts.importEncrypted';
+  } & ImportEncryptedRequest;
   'vault.setData': {
     id: string;
     action: 'vault.setData';
@@ -540,6 +554,8 @@ export interface BridgeResponseMap {
   'accounts.rename': AccountSummary | { success: false; error: string };
   'accounts.remove': boolean | { success: false; error: string };
   'accounts.revealSecret': RevealedSecret | { success: false; error: string };
+  'accounts.exportEncrypted': EncryptedKeyExport | { success: false; error: string };
+  'accounts.importEncrypted': AccountSummary | { success: false; error: string };
   'vault.setData': { success: boolean; error?: string };
   'vault.create': { success: boolean; encryptedVault?: string; error?: string };
   'vault.export': { success: boolean; encryptedData?: string; error?: string };

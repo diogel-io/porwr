@@ -1,7 +1,14 @@
 import { acceptHMRUpdate, defineStore } from 'pinia';
 import { watch } from 'vue';
-import type { AccountSummary, AddAccountRequest } from '@/types/accounts';
-import { get, getActive, renameAlias, save, setActive } from '../services/dexie-storage';
+import type { AccountSummary, AddAccountRequest, ImportEncryptedRequest } from '@/types/accounts';
+import {
+  get,
+  getActive,
+  importEncryptedKey,
+  renameAlias,
+  save,
+  setActive,
+} from '../services/dexie-storage';
 import { NOSTR_ACTIVE, storageService } from '../services/storage-service';
 import useVaultStore from './vault-store';
 
@@ -88,6 +95,13 @@ const useAccountStore = defineStore('account', {
         console.error('Failed to save key:', error);
         throw error;
       }
+    },
+    /** Imports a NIP-49 `ncryptsec`, decrypted in the background, and makes it active (#141). */
+    async importEncryptedKey(request: ImportEncryptedRequest): Promise<AccountSummary> {
+      const account = await importEncryptedKey(request);
+      this.storedKeys.add(account);
+      this.activeKey = account.alias;
+      return account;
     },
     async getKeys(): Promise<void> {
       // A locked vault answers `{}` to every read, so reading one would record a confident and

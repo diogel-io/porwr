@@ -88,9 +88,9 @@ describe('vault-handler', () => {
     const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
     mockCreateNewVault.mockResolvedValue({ success: true, encryptedVault: 'v2:abc' });
 
-    const result = await handleVaultCreate({ password: 'pw' }, '');
+    const result = await handleVaultCreate({ password: 'long-enough-pw' }, '');
 
-    expect(mockCreateNewVault).toHaveBeenCalledWith('pw', {
+    expect(mockCreateNewVault).toHaveBeenCalledWith('long-enough-pw', {
       accounts: [],
       createdAt: expect.any(String),
     });
@@ -104,7 +104,7 @@ describe('vault-handler', () => {
     const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
     mockCreateNewVault.mockResolvedValue({ success: true });
     const fromOldPage = {
-      password: 'pw',
+      password: 'long-enough-pw',
       vaultData: { ...vaultData, mnemonic: 'Generating...', passphrase: '' },
     };
 
@@ -122,7 +122,7 @@ describe('vault-handler', () => {
       errorCode: 'GEN_UNKNOWN',
     });
 
-    const result = await handleVaultCreate({ password: 'pw' }, '');
+    const result = await handleVaultCreate({ password: 'long-enough-pw' }, '');
 
     expect(result).toEqual({ success: false, error: 'boom', code: 'GEN_UNKNOWN' });
   });
@@ -187,5 +187,15 @@ describe('vault-handler', () => {
     mockRestoreVaultState.mockResolvedValue(true);
 
     await expect(restoreVaultState()).resolves.toBe(true);
+  });
+
+  // Enforced in the background, not only by the form (#141).
+  it('handleVaultCreate refuses a password shorter than the minimum, and creates nothing', async () => {
+    const { handleVaultCreate } = await import('@/../src-bex/handlers/vault-handler');
+
+    const result = await handleVaultCreate({ password: 'short' }, '');
+
+    expect(result).toMatchObject({ success: false, error: expect.stringMatching(/at least 8/) });
+    expect(mockCreateNewVault).not.toHaveBeenCalled();
   });
 });

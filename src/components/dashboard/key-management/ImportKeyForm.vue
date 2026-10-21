@@ -43,9 +43,23 @@ const isValidNsec = computed<boolean>(() => {
   }
 });
 
+/**
+ * A NIP-49 `ncryptsec`, such as a Porwr key backup (#141). It is decrypted in the background with
+ * its password, so neither the key nor, before import, its public key is known here.
+ */
+const isEncrypted = computed<boolean>(() => importNsec.value.trim().startsWith('ncryptsec1'));
+const encryptedReady = ref(false);
+const encryptedPassword = ref('');
+const isValidKey = computed<boolean>(() => isValidNsec.value || isEncrypted.value);
+
 const trimmedAlias = computed(() => storedKey.value.alias.trim());
 
 function onImportClick(): void {
+  if (isEncrypted.value) {
+    encryptedReady.value = true;
+    importedReady.value = false;
+    return;
+  }
   if (!isValidNsec.value) return;
   try {
     const decoded = nip19.decode(importNsec.value.trim());
@@ -106,8 +120,33 @@ async function saveKey() {
   }
 }
 
+async function importEncrypted() {
+  if (!validate()) return;
+  if (!encryptedPassword.value) {
+    $q.notify({ type: 'negative', message: String(t('account.passwordRequired')) });
+    return;
+  }
+
+  try {
+    const account = await accountStore.importEncryptedKey({
+      ncryptsec: importNsec.value.trim(),
+      password: encryptedPassword.value,
+      alias: trimmedAlias.value,
+    });
+    encryptedPassword.value = '';
+    importNsec.value = '';
+    await router.push({ name: 'view-key', params: { alias: account.alias } });
+  } catch (error: unknown) {
+    $q.notify({
+      type: 'negative',
+      message: error instanceof Error ? error.message : String(t('validation.invalidNsec')),
+    });
+  }
+}
+
 onBeforeUnmount(() => {
   importedPrivkey = '';
+  encryptedPassword.value = '';
 });
 </script>
 
@@ -118,16 +157,42 @@ onBeforeUnmount(() => {
         v-model="importNsec"
         :label="t('createAccount.importNsecLabel')"
         :rules="[
-          (v) => (!!String(v ?? '').trim() && isValidNsec) || String(t('validation.invalidNsec')),
+          (v) => (!!String(v ?? '').trim() && isValidKey) || String(t('validation.invalidNsec')),
         ]"
         clearable
         lazy-rules
       />
       <q-btn
-        :disable="!isValidNsec"
+        :disable="!isValidKey"
         :label="t('createAccount.importButton')"
         class="diogel-btn-primary"
         @click="onImportClick"
+      />
+    </div>
+
+    <div v-if="encryptedReady && isEncrypted" class="q-gutter-lg q-mt-xl">
+      <q-input
+        v-model="encryptedPassword"
+        type="password"
+        :label="t('createAccount.ncryptsecPassword')"
+        data-testid="ncryptsec-password"
+        class="text-input"
+      />
+      <q-input
+        ref="aliasInputRef"
+        v-model="storedKey.alias"
+        :label="t('account.profileName')"
+        :rules="[(v) => !!String(v ?? '').trim() || String(t('validation.profileNameRequired'))]"
+        class="text-input"
+        lazy-rules
+      />
+      <q-btn
+        :label="t('createAccount.save')"
+        class="full-width diogel-btn-primary"
+        dense
+        size="lg"
+        data-testid="ncryptsec-import"
+        @click="importEncrypted"
       />
     </div>
 

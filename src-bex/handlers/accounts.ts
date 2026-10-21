@@ -1,4 +1,5 @@
 import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
+import * as nip49 from 'nostr-tools/nip49';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 import { db } from '@/services/database';
@@ -9,11 +10,16 @@ import type {
   AccountRequest,
   AccountSummary,
   AddAccountRequest,
+  EncryptedKeyExport,
+  ExportEncryptedRequest,
+  ImportEncryptedRequest,
   RenameAccountRequest,
   RevealedSecret,
+  RevealSecretRequest,
   VaultView,
 } from '@/types/accounts';
-import { MAIN_ACCOUNT_ALIAS } from '@/types/accounts';
+import { MAIN_ACCOUNT_ALIAS, MIN_PASSWORD_LENGTH } from '@/types/accounts';
+import { verifyVaultPassword } from '../vault';
 import { createPubkey } from '@/types/pubkey';
 import type { HandlerResult } from '../types/background';
 import { mutateVault, readVault } from '../services/vault-mutation';
@@ -183,18 +189,23 @@ export async function handleAccountsRemove(
 }
 
 /**
- * One account's nsec, for the user's explicit "show private key" or backup export.
+ * One account's nsec, for the user's explicit "show private key".
  *
- * The only action that returns a private key to a page. It does not ask for the password again (a
- * decision on #240): the vault must already be unlocked, and only Porwr's own pages can call it.
+ * The only action that returns a private key to a page, and only to Porwr's own. The vault password
+ * is asked for again first, so a moment at an unlocked browser is not enough to read a key (#141;
+ * this replaces the no-re-authentication decision on #240). Export no longer uses it: an export is
+ * encrypted here and the page receives only the `ncryptsec`.
  */
 export async function handleAccountsRevealSecret(
-  payload: AccountRequest,
+  payload: RevealSecretRequest,
 ): Promise<HandlerResult<RevealedSecret>> {
   const pubkey = createPubkey(
     typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '',
   );
   if (!pubkey) return { success: false, error: 'accountPubkey must be a hex public key' };
+  if (!(await verifyVaultPassword(payload?.password))) {
+    return { success: false, error: 'Incorrect vault password' };
+  }
 
   try {
     const account = findByKey(await readVault(), pubkey);
@@ -203,4 +214,63 @@ export async function handleAccountsRevealSecret(
   } catch (error: unknown) {
     return fail(error);
   }
+}
+
+/**
+ * One account's key, encrypted for export as a NIP-49 `ncryptsec` with a password chosen for the
+ * export (#141). The key is encrypted here, so the page never receives the nsec. Any NIP-49 client,
+ * Porwr included, can import the result with the same password.
+ */
+export async function handleAccountsExportEncrypted(
+  payload: ExportEncryptedRequest,
+): Promise<HandlerResult<EncryptedKeyExport>> {
+  const pubkey = createPubkey(
+    typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '',
+  );
+  if (!pubkey) return { success: false, error: 'accountPubkey must be a hex public key' };
+  if (typeof payload?.password !== 'string' || payload.password.length < MIN_PASSWORD_LENGTH) {
+    return {
+      success: false,
+      error: `The export password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+    };
+  }
+
+  try {
+    const account = findByKey(await readVault(), pubkey);
+    if (!account) return { success: false, error: 'Account not found' };
+    return {
+      success: true,
+      data: {
+        ncryptsec: nip49.encrypt(hexToBytes(account.account.privkey), payload.password),
+        npub: nip19.npubEncode(account.id),
+      },
+    };
+  } catch (error: unknown) {
+    return fail(error);
+  }
+}
+
+/**
+ * Import a NIP-49 `ncryptsec`, decrypted here with its password, then added as any key is
+ * (`handleAccountsAdd`). The decrypted key never reaches the page (#141).
+ */
+export async function handleAccountsImportEncrypted(
+  payload: ImportEncryptedRequest,
+): Promise<HandlerResult<AccountSummary>> {
+  const ncryptsec = typeof payload?.ncryptsec === 'string' ? payload.ncryptsec.trim() : '';
+  if (!ncryptsec.startsWith('ncryptsec1')) {
+    return { success: false, error: 'Not an ncryptsec key' };
+  }
+
+  let secretKey: Uint8Array;
+  try {
+    secretKey = nip49.decrypt(
+      ncryptsec,
+      typeof payload?.password === 'string' ? payload.password : '',
+    );
+  } catch {
+    return { success: false, error: 'Incorrect password, or not a valid ncryptsec' };
+  }
+
+  return handleAccountsAdd({ alias: payload?.alias, privkey: bytesToHex(secretKey) });
 }
