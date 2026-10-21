@@ -24,6 +24,7 @@ vi.mock('@/services/storage-service', () => ({
 
 import {
   PENDING_AUTHORIZATION_TTL_MS,
+  clearPendingNip47Authorizations,
   savePendingNip47Authorization,
   takePendingNip47Authorization,
 } from '@/../src-bex/services/nip47-pending-authorization-store';
@@ -96,5 +97,16 @@ describe('nip47 pending authorization store', () => {
     session.value = 'corrupt';
 
     expect(await takePendingNip47Authorization('a', NOW)).toBeNull();
+  });
+
+  it('clears every pending authorization, so none can be completed afterwards (#142)', async () => {
+    await savePendingNip47Authorization(entry('one'), NOW);
+    await savePendingNip47Authorization(entry('two'), NOW);
+
+    await clearPendingNip47Authorizations();
+
+    expect(session.value).toBeUndefined();
+    expect(await takePendingNip47Authorization('one', NOW)).toBeNull();
+    expect(await takePendingNip47Authorization('two', NOW)).toBeNull();
   });
 });

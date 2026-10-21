@@ -24,14 +24,21 @@ import type { Nip47Connection } from '@/types/nip47';
 import type { HandlerResult } from '@/../src-bex/types/background';
 import { ErrorCode } from '@/types/error-codes.d';
 import {
+  clearPendingNip47Authorizations,
   savePendingNip47Authorization,
   takePendingNip47Authorization,
   type PendingNip47Authorization,
 } from '@/../src-bex/services/nip47-pending-authorization-store';
 
+const lockListeners = vi.hoisted(() => [] as (() => void)[]);
+
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(),
   updateVaultData: vi.fn(),
+  onVaultLocked: (listener: () => void) => {
+    lockListeners.push(listener);
+    return () => undefined;
+  },
 }));
 
 vi.mock('@/../src-bex/services/nip47-client', () => ({
@@ -44,6 +51,7 @@ vi.mock('@/../src-bex/services/nip47-client', () => ({
 }));
 
 vi.mock('@/../src-bex/services/nip47-pending-authorization-store', () => ({
+  clearPendingNip47Authorizations: vi.fn(),
   savePendingNip47Authorization: vi.fn(),
   takePendingNip47Authorization: vi.fn(),
 }));
@@ -1003,5 +1011,16 @@ describe('wallets belong to one account (#304)', () => {
     // Migrated on the first read; the second found nothing to change and wrote nothing.
     expect(updateVaultData).toHaveBeenCalledTimes(1);
     expect(vaultData.nip47Connections?.[0]?.accountPubkey).toBe(ACCOUNT);
+  });
+});
+
+describe('vault lock (diogel-io/workspace#142, T22)', () => {
+  it('clears pending wallet authorizations when the vault locks', () => {
+    vi.mocked(clearPendingNip47Authorizations).mockClear();
+    expect(lockListeners.length).toBeGreaterThan(0);
+
+    for (const listener of lockListeners) listener();
+
+    expect(clearPendingNip47Authorizations).toHaveBeenCalledTimes(1);
   });
 });

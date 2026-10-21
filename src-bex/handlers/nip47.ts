@@ -47,10 +47,12 @@ import {
 } from '../services/nip47-payment-history-store';
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import {
+  clearPendingNip47Authorizations,
   savePendingNip47Authorization,
   takePendingNip47Authorization,
   type PendingNip47Authorization,
 } from '../services/nip47-pending-authorization-store';
+import { onVaultLocked } from '../vault';
 
 /**
  * The account a wallet action names, checked against the vault.
@@ -59,6 +61,12 @@ import {
  * error rather than a fallback to the active one: falling back is how one wallet came to serve
  * every account.
  */
+// A wallet approval started while unlocked is abandoned when the vault locks, and its client
+// secret goes with the key rather than waiting out its TTL in session storage (#142, T22).
+onVaultLocked(() => {
+  void clearPendingNip47Authorizations();
+});
+
 export function requireWalletAccount(
   vaultData: VaultData,
   payload: Partial<Nip47AccountRequest> | undefined,
