@@ -564,7 +564,7 @@ describe('quick-sign-service', () => {
   });
 
   it('flags a plaintext ws:// relay to a public host, and accepts one on localhost (T19)', () => {
-    const input = { accountAlias: 'alpha', kind: 1, content: 'hello nostr', tags: [] };
+    const input = { accountAlias: 'alpha', kind: 1 as const, content: 'hello nostr', tags: [] };
     expect(validateQuickSignInput(input, { relayUrls: ['ws://relay.example'] }).errors).toContain(
       'Relay URLs must be valid wss:// URLs (ws:// only for localhost).',
     );
