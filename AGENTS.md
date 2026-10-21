@@ -242,8 +242,9 @@ disclosure rule says.
 
 **Secrets**
 
-- Private keys exist in plaintext only inside the unlocked vault in the background. A page learns
-  only whether an operation succeeded, never vault contents.
+- Private keys exist in plaintext only inside the unlocked vault in the background, and briefly on
+  Porwr's own pages when the user imports, shows, or exports a key (`accounts.revealSecret`). A
+  website learns only whether an operation succeeded, never vault contents.
 - Queue persistence in `chrome.storage.session` is metadata only. Event content, plaintext,
   ciphertext, and invoices stay in service-worker memory (D6).
 - Never write keys, plaintext, or event content to logs, storage, error messages, or anything
