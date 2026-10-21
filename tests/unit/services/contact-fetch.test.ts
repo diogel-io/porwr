@@ -106,6 +106,14 @@ describe('fetchProfilesInBatches', () => {
 });
 
 describe('fetchContactListSnapshot', () => {
+  it('asks nothing and reads no list when there is no relay (#142)', async () => {
+    const get = vi.fn(() => new Promise(() => undefined));
+    const pool = { get, querySync: vi.fn() } as unknown as RelayReader;
+
+    await expect(fetchContactListSnapshot(pool, [], ALICE)).resolves.toEqual({ contacts: [] });
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it('parses the account’s kind 3', async () => {
     const get = vi.fn(() =>
       Promise.resolve({

@@ -42,10 +42,12 @@ vi.mock('quasar', () => ({
 }));
 
 // Mock nostr-tools
+const poolGet = vi.hoisted(() => vi.fn());
+
 vi.mock('nostr-tools', () => {
   return {
     SimplePool: class {
-      get = vi.fn().mockResolvedValue(null);
+      get = poolGet;
       close = vi.fn();
     },
     finalizeEvent: vi.fn(),
@@ -59,6 +61,31 @@ vi.mock('@noble/hashes/utils', () => ({
 describe('RelayEditor.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    poolGet.mockResolvedValue(null);
+  });
+
+  // `pool.get` over no relays never settles; with no usable fallback relay the editor must not wait
+  // on it (diogel-io/workspace#142).
+  it('shows the editor, not a spinner, when there is no usable fallback relay', async () => {
+    poolGet.mockReturnValue(new Promise(() => undefined));
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: {
+        plugins: [
+          createTestingPinia({
+            createSpy: vi.fn,
+            stubActions: false,
+            initialState: { settings: { fallbackRelays: [] } },
+          }),
+        ],
+        stubs: globalStubs,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(poolGet).not.toHaveBeenCalled();
+    expect(wrapper.find('q-spinner-stub').exists()).toBe(false);
+    expect(wrapper.find('button[data-icon="explore"]').exists()).toBe(true);
   });
 
   const props = {

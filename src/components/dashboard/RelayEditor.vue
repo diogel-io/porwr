@@ -33,6 +33,12 @@ const showRelayBrowser = ref(false);
 
 async function fetchRelayList() {
   relays.value = [];
+  // `pool.get` over no relays never settles. With no usable fallback relay (#142) there is nothing
+  // to read, so the editor shows an empty list instead of spinning.
+  if (fallbackRelays.value.length === 0) {
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   const pool = new SimplePool();
   try {
