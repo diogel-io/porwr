@@ -18,6 +18,7 @@ import type {
 } from '@/types/messaging';
 import type { HandlerResult } from '../types/background';
 import { getVaultData, onVaultLocked } from '../vault';
+import { NOSTR_ACTIVE, storageService } from '@/services/storage-service';
 import { mutateVault } from '../services/vault-mutation';
 import { getActiveSecretKey } from './active-key';
 import { messagingRelays, validateDmRelays } from '../services/messaging-relays';
@@ -45,6 +46,21 @@ const CLIENT_MESSAGE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 // Decrypted messages are held in memory only, and go with the key.
 onVaultLocked(() => nip17Messaging.clear());
+
+/**
+ * Drops decrypted messages as soon as the active account changes, rather than at the next
+ * messaging call: one account's conversations are not kept in memory while another is in use
+ * (diogel-io/workspace#142).
+ */
+export function clearMessagesOnAccountChange(
+  changes: Record<string, chrome.storage.StorageChange>,
+  areaName: string,
+): void {
+  if (areaName === 'local' && NOSTR_ACTIVE in changes) {
+    nip17Messaging.clear();
+  }
+}
+storageService.onChanged(clearMessagesOnAccountChange);
 
 export async function handleDmRelaysGet(): Promise<HandlerResult<DmRelayList>> {
   const pubkey = getPublicKey(await getActiveSecretKey());

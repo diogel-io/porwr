@@ -46,6 +46,7 @@ vi.mock('@/../src-bex/services/messaging-relays', async () => {
 });
 
 import {
+  clearMessagesOnAccountChange,
   handleDmRelaysCheck,
   handleDmRelaysGet,
   handleDmRelaysPublish,
@@ -344,5 +345,25 @@ describe('saved peers (#258)', () => {
       messagingSavedPeers: { [ME]: [PEER] },
       messagingReadState: { [ME]: { [PEER]: 10 } },
     });
+  });
+});
+
+describe('account switch (diogel-io/workspace#142)', () => {
+  beforeEach(() => mocks.clear.mockClear());
+
+  it('drops decrypted messages as soon as the active account changes', () => {
+    clearMessagesOnAccountChange(
+      { 'nostr:active': { oldValue: 'alice', newValue: 'bob' } },
+      'local',
+    );
+
+    expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores other settings and other storage areas', () => {
+    clearMessagesOnAccountChange({ 'nostr:fallback-relays': { newValue: [] } }, 'local');
+    clearMessagesOnAccountChange({ 'nostr:active': { newValue: 'bob' } }, 'session');
+
+    expect(mocks.clear).not.toHaveBeenCalled();
   });
 });
