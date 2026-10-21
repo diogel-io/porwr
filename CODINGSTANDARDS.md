@@ -97,7 +97,9 @@ justify one.
 - Tests live under `tests/unit/**` (mirroring the `src`/`src-bex` module structure:
   `services/`, `components/`, `pages/`, `stores/`, `composables/`, `utils/`,
   `handlers/`) or as co-located `*.spec.ts` files under `src/`/`src-bex/`.
-- Mock crypto via `tests/unit/mocks/crypto.ts`; mock network (Axios) at the module boundary.
+- Mock crypto via `tests/unit/mocks/crypto.ts`. Porwr makes HTTP calls with `fetch` (there is no
+  HTTP client library): stub it with `vi.stubGlobal('fetch', vi.fn())`, as
+  `tests/unit/services/nip05-service.test.ts` does, and mock relay pools at the module boundary.
   Keep tests deterministic.
 
 ## Where this document does not go
