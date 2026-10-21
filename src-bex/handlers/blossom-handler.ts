@@ -35,7 +35,7 @@ export async function handleBlossomUpload(
   // The server URL comes from the page's payload, so it is checked here as well as in settings:
   // nothing is signed, and no file is sent, except over https (T21).
   const server = normalizeBlossomServer(blossomServer);
-  if (!server.valid || !server.hostname) {
+  if (!server.valid || !server.hostname || !server.url) {
     return { success: false, error: server.error ?? 'Invalid Blossom server URL' };
   }
 
@@ -64,14 +64,17 @@ export async function handleBlossomUpload(
       .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('');
 
-    const normalizedServer = blossomServer.replace(/\/$/, '');
+    // Built from the validated URL, not the raw payload, so surrounding whitespace or casing in a
+    // saved setting can't break the endpoints.
+    const serverUrl = server.url;
+    const normalizedServer = serverUrl.replace(/\/$/, '');
     const uploadOptions = [
       { url: `${normalizedServer}/upload`, method: 'PUT' },
       { url: `${normalizedServer}/upload`, method: 'POST' },
       { url: `${normalizedServer}/`, method: 'PUT' },
       { url: `${normalizedServer}/`, method: 'POST' },
       { url: `${normalizedServer}/${hashHex}`, method: 'PUT' },
-      { url: blossomServer, method: 'PUT' },
+      { url: serverUrl, method: 'PUT' },
     ];
 
     // One BUD-11 authorisation per upload, reused for every endpoint tried: limited to this blob

@@ -225,6 +225,23 @@ describe('BlossomHandler', () => {
       expect(new Set(headers).size).toBe(1);
     });
 
+    it('builds every endpoint from the validated URL, not the raw setting', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Error',
+        text: () => Promise.resolve('error'),
+      });
+
+      await handleBlossomUpload({ ...payload, blossomServer: '  https://Blossom.Example.COM  ' });
+
+      const urls = mockFetch.mock.calls.map(([url]) => String(url));
+      expect(urls[0]).toBe('https://blossom.example.com/upload');
+      for (const url of urls) {
+        expect(url.startsWith('https://blossom.example.com/')).toBe(true);
+      }
+    });
+
     it('names the server by its lowercase bare hostname', async () => {
       await handleBlossomUpload({ ...payload, blossomServer: 'https://Media.Example.ORG:8443/b/' });
 
