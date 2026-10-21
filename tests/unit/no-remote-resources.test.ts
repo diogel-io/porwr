@@ -51,6 +51,19 @@ describe('remote resources', () => {
     expect(offending(panel)).toEqual([]);
   });
 
+  // The background half of presenting a request: queueing it, deciding it, and the badge. None of
+  // it may look anything up about the site.
+  it('are not fetched by the background on the approval path', () => {
+    const approvalPath = [
+      'src-bex/services/approval-flow.ts',
+      'src-bex/services/request-queue.ts',
+      'src-bex/services/page-channel.ts',
+      'src-bex/services/attention-badge.ts',
+      'src/services/approval-preview.ts',
+    ].map((path) => resolve(ROOT, path));
+    expect(offending(approvalPath)).toEqual([]);
+  });
+
   it('ships the bundled font the stylesheet names', () => {
     const fonts = readdirSync(resolve(ROOT, 'src/css/fonts'));
     for (const weight of [400, 500, 600, 700]) {

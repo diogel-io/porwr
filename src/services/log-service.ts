@@ -1,4 +1,5 @@
 import type { Table } from 'dexie';
+import { ErrorCode } from '@/types/error-codes.d';
 import { db } from './database';
 import type { ApprovalOutcome } from './database';
 
@@ -21,23 +22,69 @@ export const MAX_APPROVAL_LOG_ENTRIES = 500;
 /** The newest exception records kept. */
 export const MAX_EXCEPTION_LOG_ENTRIES = 200;
 
-const SAFE_ERROR_NAME = /^[A-Za-z][A-Za-z0-9_]{0,40}$/;
+/**
+ * Error class names that may be recorded. A name outside this list is recorded as `Error`: a
+ * custom error's `name` is an ordinary writable property and could carry anything.
+ */
+const KNOWN_ERROR_NAMES: ReadonlySet<string> = new Set([
+  // JavaScript
+  'Error',
+  'AggregateError',
+  'EvalError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'TypeError',
+  'URIError',
+  // DOM and IndexedDB
+  'AbortError',
+  'ConstraintError',
+  'DataCloneError',
+  'DataError',
+  'InvalidStateError',
+  'NetworkError',
+  'NotAllowedError',
+  'NotFoundError',
+  'OperationError',
+  'QuotaExceededError',
+  'SecurityError',
+  'TimeoutError',
+  'TransactionInactiveError',
+  'UnknownError',
+  'VersionError',
+  // Dexie
+  'DatabaseClosedError',
+  'MissingAPIError',
+  'ModifyError',
+  'OpenFailedError',
+  'ReadOnlyError',
+  'SchemaError',
+  'UpgradeError',
+  // Porwr
+  'BackgroundBridgeError',
+  'BackgroundTimeoutError',
+]);
 
-const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{1,40}$/;
+/** Error codes that may be recorded: Porwr's own, never one a dependency invented. */
+const KNOWN_ERROR_CODES: ReadonlySet<string> = new Set<string>([
+  ...Object.values(ErrorCode),
+  'VAULT_LOCKED',
+  'NOT_FOUND',
+]);
 
 /**
  * Identify a failure without repeating anything it says.
  *
  * Error text is not under Porwr's control: a library may echo its input, which can be an event, a
- * key, plaintext, or an invoice, in any shape. No pattern list can make such text safe, so it is
- * never kept. What is kept is the error's class name and, when it has one, an upper-case code such
- * as `VAULT_LOCKED` (#144, threat model T11).
+ * key, plaintext, or an invoice, in any shape, and may put it in `name` or `code` as easily as in
+ * `message`. So nothing the error carries is copied: only a class name and a code that appear in
+ * fixed lists are kept (#144, threat model T11).
  */
 export const describeError = (error: unknown): string => {
   if (!(error instanceof Error)) return 'non-Error value';
-  const name = SAFE_ERROR_NAME.test(error.name) ? error.name : 'Error';
+  const name = KNOWN_ERROR_NAMES.has(error.name) ? error.name : 'Error';
   const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' && SAFE_ERROR_CODE.test(code) ? `${name} ${code}` : name;
+  return typeof code === 'string' && KNOWN_ERROR_CODES.has(code) ? `${name} ${code}` : name;
 };
 
 export class LogService {
@@ -175,7 +222,9 @@ export class LogService {
   private async prune<T>(table: Table<T, number>, max: number): Promise<void> {
     const excess = (await table.count()) - max;
     if (excess > 0) {
-      await table.orderBy('dateTime').limit(excess).delete();
+      // By primary key, which is insertion order: `dateTime` follows the system clock, which can move
+      // backwards and would make the newest row look oldest.
+      await table.orderBy(':id').limit(excess).delete();
     }
   }
 

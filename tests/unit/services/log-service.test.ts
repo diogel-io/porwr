@@ -143,17 +143,25 @@ describe('LogService', () => {
 
     it('describes an error by its class name and code, never its message', () => {
       const locked = Object.assign(new Error(`locked while decrypting ${PLAINTEXT}`), {
-        code: 'VAULT_LOCKED',
+        code: 'VLT_LOCKED',
       });
 
       expect(describeError(new TypeError(PLAINTEXT))).toBe('TypeError');
-      expect(describeError(locked)).toBe('Error VAULT_LOCKED');
+      expect(describeError(locked)).toBe('Error VLT_LOCKED');
     });
 
-    it('drops a code or name that could carry content', () => {
-      const odd = Object.assign(new Error('x'), { name: PLAINTEXT, code: NSEC });
+    it('keeps only a name and code from its fixed lists, whatever their shape', () => {
+      // Shaped exactly like a legitimate name and code, which is why shape is not the test.
+      const lookalike = Object.assign(new Error('x'), {
+        name: 'MeetAtEight',
+        code: 'MEET_AT_EIGHT',
+      });
+      const keyFragment = Object.assign(new Error('x'), { code: 'A'.repeat(40) });
+      const content = Object.assign(new Error('x'), { name: PLAINTEXT, code: NSEC });
 
-      expect(describeError(odd)).toBe('Error');
+      expect(describeError(lookalike)).toBe('Error');
+      expect(describeError(keyFragment)).toBe('Error');
+      expect(describeError(content)).toBe('Error');
     });
 
     it('says nothing about a thrown value that is not an Error', () => {
@@ -216,7 +224,7 @@ describe('LogService', () => {
       await logService.logApproval(1, 'example.com', 'main', 'approved');
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(db.approvals.orderBy).toHaveBeenCalledWith('dateTime');
+      expect(db.approvals.orderBy).toHaveBeenCalledWith(':id');
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(db.approvals.limit).toHaveBeenCalledWith(3);
       // eslint-disable-next-line @typescript-eslint/unbound-method
