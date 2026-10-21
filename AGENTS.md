@@ -256,6 +256,9 @@ public issue or pull request.
 - Private keys exist in plaintext only inside the unlocked vault in the background, and briefly on
   Porwr's own pages when the user imports, shows, or exports a key (`accounts.revealSecret`). A
   website learns only whether an operation succeeded, never vault contents.
+- State that decides what a site may do (grants, site bindings, the auto-lock timeout and last
+  activity) lives in the protected store (`src/services/protected-settings.ts`, the extension's own
+  IndexedDB), never in `chrome.storage.local`, which Porwr's content scripts can read and write.
 - Queue persistence in `chrome.storage.session` is metadata only. Event content, plaintext,
   ciphertext, and invoices stay in service-worker memory (D6).
 - Never write keys, plaintext, or event content to logs, storage, error messages, or anything

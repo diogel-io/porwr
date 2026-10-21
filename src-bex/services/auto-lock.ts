@@ -4,22 +4,23 @@
  */
 
 import {
-  storageService,
-  VAULT_AUTO_LOCK_MINUTES,
-  VAULT_LAST_ACTIVITY,
-} from '@/services/storage-service';
+  getProtected,
+  PROTECTED_AUTO_LOCK_MINUTES,
+  PROTECTED_LAST_ACTIVITY,
+  setProtected,
+} from '@/services/protected-settings';
 import { LogLevel, logService } from '@/services/log-service';
+import { clampAutoLockMinutes } from '@/services/auto-lock-minutes';
 import { lockVault } from '../vault';
 
 let autoLockTimer: ReturnType<typeof setInterval> | null = null;
 let lastActivityAt = Date.now();
 
-const AUTO_LOCK_DEFAULT_MINUTES = 15;
 const AUTO_LOCK_CHECK_INTERVAL_MS = 15000;
 
 async function persistLastActivity(timestamp: number): Promise<void> {
   lastActivityAt = timestamp;
-  await storageService.set(VAULT_LAST_ACTIVITY, timestamp);
+  await setProtected(PROTECTED_LAST_ACTIVITY, timestamp);
 }
 
 export async function updateLastActivity(): Promise<void> {
@@ -27,9 +28,7 @@ export async function updateLastActivity(): Promise<void> {
 }
 
 async function autoLockMinutes(): Promise<number> {
-  return Number(
-    (await storageService.get<number>(VAULT_AUTO_LOCK_MINUTES)) ?? AUTO_LOCK_DEFAULT_MINUTES,
-  );
+  return clampAutoLockMinutes(await getProtected<unknown>(PROTECTED_AUTO_LOCK_MINUTES));
 }
 
 /**
@@ -89,8 +88,9 @@ export function isAutoLockEnabled(): boolean {
 }
 
 export async function restoreLastActivity(): Promise<void> {
-  const activity = await storageService.get<number>(VAULT_LAST_ACTIVITY);
-  if (activity) {
-    lastActivityAt = Number(activity);
+  const activity = Number(await getProtected<unknown>(PROTECTED_LAST_ACTIVITY));
+  if (Number.isFinite(activity) && activity > 0) {
+    // A time in the future would postpone locking indefinitely, so it counts as now (#140).
+    lastActivityAt = Math.min(activity, Date.now());
   }
 }

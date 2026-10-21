@@ -18,7 +18,7 @@
  * have survived the user disconnecting that site.
  */
 
-import { PERMISSIONS_KEY, storageService } from '@/services/storage-service';
+import { getProtected, PROTECTED_PERMISSIONS, setProtected } from '@/services/protected-settings';
 import { LogLevel, logService } from '@/services/log-service';
 import { classifyRequest, getAllowedDurations } from '@/services/approval-preview';
 import { normalizeOrigin } from '../services/origin';
@@ -121,9 +121,9 @@ async function loadPermissions(): Promise<PermissionGrant[]> {
     return permissionCache;
   }
 
-  const stored =
-    (await storageService.get<Array<PermissionGrant | LegacyPermissionGrant>>(PERMISSIONS_KEY)) ||
-    [];
+  // Kept out of content-script storage (#140).
+  const raw = await getProtected<unknown>(PROTECTED_PERMISSIONS);
+  const stored = (Array.isArray(raw) ? raw : []) as Array<PermissionGrant | LegacyPermissionGrant>;
   const { grants, discarded } = migrateGrants(stored, Date.now());
 
   const rekeyed = grants.some((grant, index) => grant !== stored[index]);
@@ -134,7 +134,7 @@ async function loadPermissions(): Promise<PermissionGrant[]> {
       rekeyed,
     });
     permissionCache = grants;
-    await storageService.set(PERMISSIONS_KEY, grants);
+    await setProtected(PROTECTED_PERMISSIONS, grants);
     return grants;
   }
 
@@ -144,7 +144,7 @@ async function loadPermissions(): Promise<PermissionGrant[]> {
 
 async function savePermissions(permissions: PermissionGrant[]): Promise<void> {
   permissionCache = permissions;
-  await storageService.set(PERMISSIONS_KEY, permissions);
+  await setProtected(PROTECTED_PERMISSIONS, permissions);
 }
 
 const isLive = (grant: PermissionGrant, now: number): boolean =>

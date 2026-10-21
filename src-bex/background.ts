@@ -40,6 +40,7 @@ import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
 import { observePageRequests, type PageActionHandlers } from './services/page-channel';
 import { lockDownSessionStorage } from './services/session-storage-lock';
+import { migrateProtectedStorage } from './services/protected-storage-migration';
 import { isSignableEventKind, MAX_EVENT_KIND } from './services/event-kind';
 import { reconcileAbandonedRequests } from './services/page-reconciliation';
 import {
@@ -175,6 +176,14 @@ if (typeof self !== 'undefined') {
 async function initialize(): Promise<void> {
   try {
     await lockDownSessionStorage();
+    // Before anything reads grants, bindings or auto-lock state: they now live where content
+    // scripts cannot reach them, and the old copies are deleted (#140).
+    await migrateProtectedStorage().catch((error: unknown) => {
+      logService.log(
+        LogLevel.ERROR,
+        `[BEX] Failed to migrate protected storage: ${describeError(error)}`,
+      );
+    });
     // Bound history kept before the retention caps existed, or by a table that gets no new rows.
     void logService.enforceRetention().catch((error: unknown) => {
       logService.log(

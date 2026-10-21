@@ -14,7 +14,7 @@
  * must not orphan a binding or hand a site to a different identity.
  */
 
-import { SITE_BINDINGS_KEY, storageService } from '@/services/storage-service';
+import { getProtected, PROTECTED_SITE_BINDINGS, setProtected } from '@/services/protected-settings';
 import { LogLevel, logService } from '@/services/log-service';
 import { normalizeOrigin } from './origin';
 
@@ -43,14 +43,15 @@ const isBinding = (value: unknown): value is SiteBinding => {
 const load = async (): Promise<SiteBinding[]> => {
   if (cache) return cache;
 
-  const stored = await storageService.get<unknown>(SITE_BINDINGS_KEY);
+  // Kept out of content-script storage (#140).
+  const stored = await getProtected<unknown>(PROTECTED_SITE_BINDINGS);
   cache = Array.isArray(stored) ? stored.filter(isBinding) : [];
   return cache;
 };
 
 const save = async (bindings: SiteBinding[]): Promise<void> => {
   cache = bindings;
-  await storageService.set(SITE_BINDINGS_KEY, bindings);
+  await setProtected(PROTECTED_SITE_BINDINGS, bindings);
 };
 
 export const getBinding = async (origin: string): Promise<SiteBinding | null> => {

@@ -3,13 +3,12 @@ import { resolve } from 'node:path';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/services/storage-service', () => ({
-  storageService: {
-    get: vi.fn(),
-    set: vi.fn(),
-  },
-  VAULT_AUTO_LOCK_MINUTES: 'vault:auto-lock-minutes',
-  VAULT_LAST_ACTIVITY: 'vault:last-activity',
+// Auto-lock state is kept in the protected store (#140); spies stand in for it.
+vi.mock('@/services/protected-settings', () => ({
+  getProtected: vi.fn(),
+  setProtected: vi.fn(),
+  PROTECTED_AUTO_LOCK_MINUTES: 'protected:auto-lock-minutes',
+  PROTECTED_LAST_ACTIVITY: 'protected:last-activity',
 }));
 
 vi.mock('@/../src-bex/vault', () => ({
@@ -17,7 +16,7 @@ vi.mock('@/../src-bex/vault', () => ({
   lockVault: vi.fn(),
 }));
 
-import { storageService, VAULT_LAST_ACTIVITY } from '@/services/storage-service';
+import { getProtected, PROTECTED_LAST_ACTIVITY, setProtected } from '@/services/protected-settings';
 import { isVaultUnlocked, lockVault } from '@/../src-bex/vault';
 import {
   checkAutoLock,
@@ -39,8 +38,8 @@ describe('auto-lock service', () => {
 
     await updateLastActivity();
 
-    expect(storageService.set).toHaveBeenCalledWith(
-      VAULT_LAST_ACTIVITY,
+    expect(setProtected).toHaveBeenCalledWith(
+      PROTECTED_LAST_ACTIVITY,
       new Date('2026-04-17T12:00:00.000Z').getTime(),
     );
   });
@@ -51,17 +50,17 @@ describe('auto-lock service', () => {
 
     await resetAutoLockTimer();
 
-    expect(storageService.set).toHaveBeenCalledWith(
-      VAULT_LAST_ACTIVITY,
+    expect(setProtected).toHaveBeenCalledWith(
+      PROTECTED_LAST_ACTIVITY,
       new Date('2026-04-17T12:05:00.000Z').getTime(),
     );
   });
 
   describe('isAutoLockOverdue (#139)', () => {
     const stored = (lastActivity: number, minutes: number | undefined) =>
-      vi.mocked(storageService.get).mockImplementation(async (key: string) => {
-        if (key === 'vault:last-activity') return lastActivity;
-        if (key === 'vault:auto-lock-minutes') return minutes;
+      vi.mocked(getProtected).mockImplementation(async (key: string) => {
+        if (key === 'protected:last-activity') return lastActivity;
+        if (key === 'protected:auto-lock-minutes') return minutes;
         return undefined;
       });
     const NOW = new Date('2026-04-17T12:30:00.000Z').getTime();
@@ -95,14 +94,43 @@ describe('auto-lock service', () => {
     });
   });
 
+  // A last-activity time in the future would postpone locking indefinitely (#140).
+  it('treats a last-activity time in the future as now', async () => {
+    vi.useFakeTimers();
+    const now = new Date('2026-04-17T12:30:00.000Z').getTime();
+    vi.setSystemTime(now);
+    vi.mocked(getProtected).mockImplementation(async (key: string) => {
+      if (key === 'protected:last-activity') return now + 365 * 24 * 60 * 60 * 1000;
+      if (key === 'protected:auto-lock-minutes') return 15;
+      return undefined;
+    });
+
+    await restoreLastActivity();
+
+    await expect(isAutoLockOverdue(now + 15 * 60 * 1000)).resolves.toBe(true);
+  });
+
+  it('caps a stored timeout at a day', async () => {
+    const now = Date.now();
+    vi.mocked(getProtected).mockImplementation(async (key: string) => {
+      if (key === 'protected:last-activity') return now - 25 * 60 * 60 * 1000;
+      if (key === 'protected:auto-lock-minutes') return 1_000_000;
+      return undefined;
+    });
+
+    await restoreLastActivity();
+
+    await expect(isAutoLockOverdue(now)).resolves.toBe(true);
+  });
+
   it('restores last activity from storage before checking idle timeout', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-17T12:30:00.000Z'));
-    vi.mocked(storageService.get).mockImplementation(async (key: string) => {
-      if (key === 'vault:last-activity') {
+    vi.mocked(getProtected).mockImplementation(async (key: string) => {
+      if (key === 'protected:last-activity') {
         return new Date('2026-04-17T12:25:00.000Z').getTime();
       }
-      if (key === 'vault:auto-lock-minutes') {
+      if (key === 'protected:auto-lock-minutes') {
         return 15;
       }
       return undefined;
@@ -118,11 +146,11 @@ describe('auto-lock service', () => {
   it('locks the vault when restored inactivity exceeds the limit', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-17T12:30:00.000Z'));
-    vi.mocked(storageService.get).mockImplementation(async (key: string) => {
-      if (key === 'vault:last-activity') {
+    vi.mocked(getProtected).mockImplementation(async (key: string) => {
+      if (key === 'protected:last-activity') {
         return new Date('2026-04-17T12:00:00.000Z').getTime();
       }
-      if (key === 'vault:auto-lock-minutes') {
+      if (key === 'protected:auto-lock-minutes') {
         return 15;
       }
       return undefined;
