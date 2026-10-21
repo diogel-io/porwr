@@ -20,7 +20,7 @@ import { LogLevel, logService } from '@/services/log-service';
 import { checkPermission, grantPermission } from '../handlers/permission-handler';
 import { assignAccountsToWaitingRequests, enqueueRequest, getRequestRecord } from './request-queue';
 import { originHostname } from './origin';
-import { getActiveAccount, resolveSigningAccount } from './signing-account';
+import { bindSiteToAccount, getActiveAccount, resolveSigningAccount } from './signing-account';
 import type { ApprovalDuration, UnsignedEvent } from '../types/background';
 
 export interface ApprovalRequestDetails {
@@ -71,6 +71,9 @@ export async function requestApproval(
       permissionKind,
     );
     if (permission.granted) {
+      // A grant is an earlier approval for this account, so the site is bound to it if it is not
+      // already (#139).
+      await bindSiteToAccount(origin, actingAccount.id);
       // Answered by a grant the user gave earlier, so still an approval, and logged as one (#37).
       void logService.logApproval(
         approvalLogKind(eventKind, details),
@@ -121,6 +124,12 @@ export async function requestApproval(
   // function enqueued it, so the record as it stands now is the one to grant and log against
   // (porwr#320).
   const decided = (await getRequestRecord(record.id)) ?? record;
+
+  // Bound only now, to the account the user saw and approved. A request that was rejected,
+  // expired, or interrupted binds nothing (#139).
+  if (approved && decided.accountPubkey) {
+    await bindSiteToAccount(origin, decided.accountPubkey);
+  }
 
   if (
     approved &&

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   assignAccountsToWaitingRequests: vi.fn(),
   resolveSigningAccount: vi.fn(),
   getActiveAccount: vi.fn(),
+  bindSiteToAccount: vi.fn(),
   log: vi.fn(),
   logApproval: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock('@/../src-bex/services/request-queue', () => ({
 vi.mock('@/../src-bex/services/signing-account', () => ({
   resolveSigningAccount: mocks.resolveSigningAccount,
   getActiveAccount: mocks.getActiveAccount,
+  bindSiteToAccount: mocks.bindSiteToAccount,
 }));
 vi.mock('@/services/log-service', () => ({
   LogLevel: { ERROR: 'error' },
@@ -66,6 +68,7 @@ beforeEach(() => {
   // By default the record is unchanged between enqueueing and deciding.
   mocks.getRequestRecord.mockResolvedValue(null);
   mocks.assignAccountsToWaitingRequests.mockResolvedValue([]);
+  mocks.bindSiteToAccount.mockResolvedValue(undefined);
 });
 
 describe('deciding a site request', () => {
@@ -360,5 +363,52 @@ describe('helpers', () => {
       expect(trimmed).toHaveLength(240);
       expect(trimmed?.endsWith('...')).toBe(true);
     });
+  });
+});
+
+// Asking is not consent: a site is bound to an account only once the user approves one of its
+// requests, or a grant they gave earlier answers it (#139).
+describe('binding the site to an account', () => {
+  it.each([
+    ['rejected', { approved: false, duration: 'once' as const }],
+    ['expired', { approved: false, duration: 'once' as const, ending: 'expired' as const }],
+    ['interrupted', { approved: false, duration: 'once' as const, ending: 'interrupted' as const }],
+  ])('binds nothing for a request that was %s', async (_label, outcome) => {
+    enqueueResolving(outcome);
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
+  });
+
+  it('binds the account the user approved, as recorded on the request', async () => {
+    enqueueResolving({ approved: true, duration: 'once' });
+    // The request was named for bob after it was enqueued (the locked-vault path, porwr#320).
+    mocks.getRequestRecord.mockResolvedValue({
+      id: 'req-1',
+      accountAlias: 'bob',
+      accountPubkey: BOB.id,
+    });
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.bindSiteToAccount).toHaveBeenCalledWith(ORIGIN, BOB.id);
+  });
+
+  it('binds the acting account when an earlier grant answers', async () => {
+    mocks.checkPermission.mockResolvedValue({ granted: true });
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.bindSiteToAccount).toHaveBeenCalledWith(ORIGIN, ALICE.id);
+    expect(mocks.enqueueRequest).not.toHaveBeenCalled();
+  });
+
+  it('binds nothing for an approval that names no account', async () => {
+    enqueueResolving({ approved: true, duration: 'once' }, null);
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
   });
 });

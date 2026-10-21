@@ -6,6 +6,7 @@ import { isVaultUnlocked, getVaultData } from '@/../src-bex/vault';
 import { storageService } from '@/services/storage-service';
 import { checkPermission } from '@/../src-bex/handlers/permission-handler';
 import { clearSiteBindingCache } from '@/../src-bex/services/site-binding-store';
+import { bindSiteToAccount } from '@/../src-bex/services/signing-account';
 import { resetAutoLockTimer } from '@/../src-bex/services/auto-lock';
 import { finalizeEvent } from 'nostr-tools';
 import { ErrorCode } from '@/types/error-codes.d';
@@ -325,7 +326,7 @@ describe('signing identity is bound to the site', () => {
     vi.mocked(checkPermission).mockResolvedValue({ granted: true });
   });
 
-  it('binds a site to the active account on first contact', async () => {
+  it('answers with the active account for an unbound site', async () => {
     setAccounts([alice, bob], 'alice');
 
     const result = await handleGetPublicKey({}, origin);
@@ -335,7 +336,8 @@ describe('signing identity is bound to the site', () => {
 
   it('keeps returning the bound key after the active account changes', async () => {
     setAccounts([alice, bob], 'alice');
-    await handleGetPublicKey({}, origin);
+    // Bound as an approval binds it (#139).
+    await bindSiteToAccount(origin, alice.id);
 
     setAccounts([alice, bob], 'bob');
     const result = await handleGetPublicKey({}, origin);
@@ -345,7 +347,8 @@ describe('signing identity is bound to the site', () => {
 
   it('signs as the bound account after the active account changes', async () => {
     setAccounts([alice, bob], 'alice');
-    await handleGetPublicKey({}, origin);
+    // Bound as an approval binds it (#139).
+    await bindSiteToAccount(origin, alice.id);
 
     setAccounts([alice, bob], 'bob');
     vi.mocked(finalizeEvent).mockReturnValue({ id: 'signed' } as never);
@@ -360,7 +363,7 @@ describe('signing identity is bound to the site', () => {
 
   it('gives different sites their own identities', async () => {
     setAccounts([alice, bob], 'alice');
-    await handleGetPublicKey({}, 'https://one.example');
+    await bindSiteToAccount('https://one.example', alice.id);
 
     setAccounts([alice, bob], 'bob');
     const second = await handleGetPublicKey({}, 'https://two.example');
@@ -370,7 +373,8 @@ describe('signing identity is bound to the site', () => {
 
   it('refuses rather than substituting when the bound account is gone', async () => {
     setAccounts([alice, bob], 'alice');
-    await handleGetPublicKey({}, origin);
+    // Bound as an approval binds it (#139).
+    await bindSiteToAccount(origin, alice.id);
 
     // Alice removed from the vault; bob is active and available.
     setAccounts([bob], 'bob');

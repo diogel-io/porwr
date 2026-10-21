@@ -18,8 +18,9 @@ vi.mock('@/services/log-service', () => ({
 
 import { getVaultData, isVaultUnlocked } from '@/../src-bex/vault';
 import { storageService } from '@/services/storage-service';
-import { clearSiteBindingCache } from '@/../src-bex/services/site-binding-store';
+import { clearSiteBindingCache, getBinding } from '@/../src-bex/services/site-binding-store';
 import {
+  bindSiteToAccount,
   resolveSigningAccount,
   resolveSigningSecretKey,
 } from '@/../src-bex/services/signing-account';
@@ -44,17 +45,28 @@ beforeEach(() => {
 });
 
 describe('resolving the account that acts for a site', () => {
-  it('binds to the active account on first contact', async () => {
+  it('answers with the active account for an unbound site, without binding it (#139)', async () => {
     withAccounts([alice, bob], 'alice');
 
     const resolved = await resolveSigningAccount(ORIGIN);
 
     expect('account' in resolved && resolved.account.id).toBe(alice.id);
+    // Asking is not consent: the site is bound only when the user approves.
+    expect(await getBinding(ORIGIN)).toBeNull();
+  });
+
+  it('binds only when told to, and never moves a bound site', async () => {
+    withAccounts([alice, bob], 'alice');
+
+    await bindSiteToAccount(ORIGIN, alice.id);
+    await bindSiteToAccount(ORIGIN, bob.id);
+
+    expect((await getBinding(ORIGIN))?.pubkey).toBe(alice.id);
   });
 
   it('keeps the bound account after the active one changes', async () => {
     withAccounts([alice, bob], 'alice');
-    await resolveSigningAccount(ORIGIN);
+    await bindSiteToAccount(ORIGIN, alice.id);
 
     withAccounts([alice, bob], 'bob');
     const resolved = await resolveSigningAccount(ORIGIN);
@@ -64,7 +76,7 @@ describe('resolving the account that acts for a site', () => {
 
   it('refuses rather than substituting when the bound account is gone', async () => {
     withAccounts([alice, bob], 'alice');
-    await resolveSigningAccount(ORIGIN);
+    await bindSiteToAccount(ORIGIN, alice.id);
 
     withAccounts([bob], 'bob');
     const resolved = await resolveSigningAccount(ORIGIN);
@@ -95,7 +107,7 @@ describe('resolving the account that acts for a site', () => {
   describe('the secret key for encryption', () => {
     it('is the bound account key, never the active account key', async () => {
       withAccounts([alice, bob], 'alice');
-      await resolveSigningAccount(ORIGIN);
+      await bindSiteToAccount(ORIGIN, alice.id);
 
       withAccounts([alice, bob], 'bob');
       const key = await resolveSigningSecretKey(ORIGIN);

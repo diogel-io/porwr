@@ -33,6 +33,7 @@ import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
 import { observePageRequests, type PageActionHandlers } from './services/page-channel';
 import { lockDownSessionStorage } from './services/session-storage-lock';
+import { isSignableEventKind, MAX_EVENT_KIND } from './services/event-kind';
 import { reconcileAbandonedRequests } from './services/page-reconciliation';
 import {
   observePageConnections,
@@ -333,22 +334,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // page or the content script wrote (#246).
 const pageActionHandlers: PageActionHandlers = {
   'nostr.getPublicKey': async (_payload, origin) => {
-    const result = await handleGetPublicKey({}, origin);
-    if (!result.success) {
-      throw new BackgroundBridgeError(
-        result.error === 'Vault is locked' ? 'VAULT_LOCKED' : 'NOT_FOUND',
-        result.error,
-      );
-    }
+    const toBridgeError = (error: string): BackgroundBridgeError =>
+      new BackgroundBridgeError(error === 'Vault is locked' ? 'VAULT_LOCKED' : 'NOT_FOUND', error);
+
+    // Refuse at once if no account could answer, rather than queueing a request nobody can approve.
+    const available = await handleGetPublicKey({}, origin);
+    if (!available.success) throw toBridgeError(available.error);
+
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, { requestType: 'get_public_key' });
     if (!approved) {
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the request');
     }
+
+    // Read again after approval: that is when the site was bound, and the key it is given must be
+    // the account it is now bound to (#139).
+    const result = await handleGetPublicKey({}, origin);
+    if (!result.success) throw toBridgeError(result.error);
     return result.data;
   },
 
   'nostr.signEvent': async ({ event }, origin) => {
+    if (!isSignableEventKind(event?.kind)) {
+      throw new BackgroundBridgeError(
+        'INVALID_EVENT',
+        `Event kind must be a whole number from 0 to ${MAX_EVENT_KIND}`,
+      );
+    }
     await getActiveStoredKey();
     const contentDescription = trimApprovalContentDescription(event.content);
     const approvalDetails: ApprovalRequestDetails = contentDescription
