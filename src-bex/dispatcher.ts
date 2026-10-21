@@ -55,6 +55,8 @@ import {
   handleAccountsRemove,
   handleAccountsRename,
   handleAccountsRevealSecret,
+  handleAccountsExportEncrypted,
+  handleAccountsImportEncrypted,
   handleVaultGetView,
 } from './handlers/accounts';
 import {
@@ -364,6 +366,40 @@ export async function dispatchMessage<K extends BridgeAction>(
       try {
         const result = await handleAccountsRevealSecret(
           payload as BridgeRequestMap['accounts.revealSecret'],
+        );
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'accounts.exportEncrypted': {
+      try {
+        const result = await handleAccountsExportEncrypted(
+          payload as BridgeRequestMap['accounts.exportEncrypted'],
+        );
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'accounts.importEncrypted': {
+      try {
+        const result = await handleAccountsImportEncrypted(
+          payload as BridgeRequestMap['accounts.importEncrypted'],
         );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;

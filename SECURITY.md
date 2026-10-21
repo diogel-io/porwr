@@ -97,7 +97,8 @@ A change to any of these needs the security review:
 - `src/services/crypto.ts`, `src/services/vault-service.ts`, `src/services/storage-service.ts`,
   `src/services/dexie-storage.ts`, `src/services/database.ts`, `src/services/log-service.ts`,
   `src/services/approval-preview.ts`, `src/services/request-expiry.ts`,
-  `src/services/compressor.ts`
+  `src/services/key-backup.ts`, `src/services/protected-settings.ts`,
+  `src/services/auto-lock-minutes.ts`
 - `src/components/sidebar/*` and `src/composables/useApprovalQueue.ts`, which present and decide
   requests
 - `package.json`, `package-lock.json`, `src-bex/package.json`, `.npmrc`, and `.github/workflows/*`

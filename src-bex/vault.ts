@@ -316,6 +316,24 @@ export async function exportVault() {
   }
 }
 
+/**
+ * Whether `password` opens the stored vault. The vault is decrypted and the result dropped; the
+ * session and the unlocked key are not touched. Used to ask for the password again before a key is
+ * shown (#141).
+ */
+export async function verifyVaultPassword(password: string): Promise<boolean> {
+  if (typeof password !== 'string' || password.length === 0) return false;
+  try {
+    const vault = await db.vaults.get('master');
+    if (!vault?.encryptedData) return false;
+    const { key } = await deriveKeyFromEncryptedVault(password, vault.encryptedData);
+    await decryptWithKey(vault.encryptedData, key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** A decrypted Porwr vault: an object holding an `accounts` array. */
 const isPorwrVault = (vaultData: unknown): boolean =>
   !!vaultData &&

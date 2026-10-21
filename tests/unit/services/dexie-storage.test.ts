@@ -33,6 +33,7 @@ import {
   remove,
   renameAlias,
   revealSecret,
+  exportEncryptedKey,
   save,
   setActive,
 } from '@/services/dexie-storage';
@@ -171,14 +172,40 @@ describe('dexie-storage revealSecret', () => {
   it('returns the one nsec the background revealed', async () => {
     mocks.sendBexMessage.mockResolvedValue({ nsec: 'nsec1abc' });
 
-    await expect(revealSecret(ALICE.id)).resolves.toBe('nsec1abc');
+    await expect(revealSecret(ALICE.id, 'vault-password')).resolves.toBe('nsec1abc');
+    // The vault password goes with the request, for the background to check again (#141).
     expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.revealSecret', {
       accountPubkey: ALICE.id,
+      password: 'vault-password',
     });
   });
 
   it('surfaces a refusal', async () => {
     mocks.sendBexMessage.mockResolvedValue({ success: false, error: 'Account not found' });
-    await expect(revealSecret(ALICE.id)).rejects.toThrow('Account not found');
+    await expect(revealSecret(ALICE.id, 'vault-password')).rejects.toThrow('Account not found');
+  });
+});
+
+// The background encrypts; the page only carries the ncryptsec (#141).
+describe('dexie-storage exportEncryptedKey', () => {
+  it('returns the ncryptsec and npub the background produced', async () => {
+    mocks.sendBexMessage.mockResolvedValue({ ncryptsec: 'ncryptsec1x', npub: 'npub1x' });
+
+    await expect(
+      exportEncryptedKey(ALICE.id, 'export-password', 'vault-password'),
+    ).resolves.toEqual({
+      ncryptsec: 'ncryptsec1x',
+      npub: 'npub1x',
+    });
+    expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.exportEncrypted', {
+      accountPubkey: ALICE.id,
+      password: 'export-password',
+      vaultPassword: 'vault-password',
+    });
+  });
+
+  it('surfaces a refusal', async () => {
+    mocks.sendBexMessage.mockResolvedValue({ success: false, error: 'too short' });
+    await expect(exportEncryptedKey(ALICE.id, 'x', 'vault-password')).rejects.toThrow('too short');
   });
 });
