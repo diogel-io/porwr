@@ -239,11 +239,15 @@ public issue or pull request.
   signed (D7). Expiry is an absolute cap from creation, bounded in settings and clamped by the
   background (D8).
 - Event kinds are risk-classified in `src/services/approval-preview.ts`. Elevated kinds, kind
-  10050 among them, can be granted for `once` or `8h` only; unknown kinds and payments are always
-  `once` (D11, D12).
-- A site signs as the account it first connected with, whichever account is active. Only the user,
-  from Porwr's own UI, moves a site to another account, and moving it revokes its grants. A pending
-  request is never re-targeted to another account.
+  10050 among them, and NIP-04/NIP-44 decrypt requests can be granted for `once` or `8h` only;
+  unknown kinds and payments are always `once` (D11, D12). The background enforces these limits
+  (`submitDecision`, `grantPermission`, `checkPermission`); the panel only offers them. A site's
+  event kind must be a whole number from 0 to 65535.
+- A site signs as the account it was first approved for, whichever account is active. Asking never
+  binds a site: it is bound only when the user approves one of its requests (`bindSiteToAccount`).
+  Only the user, from Porwr's own UI, moves a site to another account, and moving it revokes its
+  grants. A pending request is never re-targeted to another account, and removing an account
+  removes its grants and bindings.
 - Porwr signs a client's zap request (kind 9734) and pays its invoice through WebLN, each only
   after approval. It never builds a zap request or fetches an invoice itself.
 
