@@ -87,12 +87,14 @@ describe('normalizeRelayUrl', () => {
       },
     );
 
-    it.each(['ws://localhost:8080', 'ws://LOCALHOST:8080', 'ws://127.0.0.1:7000', 'ws://[::1]:7000'])(
-      'accepts ws:// to a loopback host: %s',
-      (url) => {
-        expect(normalizeRelayUrl(url).valid).toBe(true);
-      },
-    );
+    it.each([
+      'ws://localhost:8080',
+      'ws://LOCALHOST:8080',
+      'ws://127.0.0.1:7000',
+      'ws://[::1]:7000',
+    ])('accepts ws:// to a loopback host: %s', (url) => {
+      expect(normalizeRelayUrl(url).valid).toBe(true);
+    });
 
     it('accepts wss:// to any host', () => {
       expect(normalizeRelayUrl('wss://relay.damus.io').valid).toBe(true);
