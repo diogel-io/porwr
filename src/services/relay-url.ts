@@ -1,5 +1,9 @@
-/** Hosts a plaintext `ws:` relay may use: traffic to them never leaves the device (T19). */
-const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '[::1]']);
+/**
+ * Hosts a plaintext `ws:` relay may use: traffic to them never leaves the device (T19). The
+ * extension CSP's `connect-src` names the same two (`src-bex/manifest-csp.ts`); CSP cannot name an
+ * IPv6 address, so `[::1]` is not one of them.
+ */
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1']);
 
 export const RELAY_PROTOCOL_ERROR = 'Relays must use wss:// (ws:// is allowed only for localhost)';
 

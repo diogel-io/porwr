@@ -80,21 +80,20 @@ describe('normalizeRelayUrl', () => {
       },
     );
 
-    it.each(['ws://0.0.0.0:8080', 'ws://[::]:8080'])(
+    // The extension CSP cannot name an IPv6 address, so [::1] is refused too (manifest-csp.ts).
+    it.each(['ws://0.0.0.0:8080', 'ws://[::]:8080', 'ws://[::1]:7000'])(
       'rejects ws:// to a wildcard address: %s',
       (url) => {
         expect(normalizeRelayUrl(url).valid).toBe(false);
       },
     );
 
-    it.each([
-      'ws://localhost:8080',
-      'ws://LOCALHOST:8080',
-      'ws://127.0.0.1:7000',
-      'ws://[::1]:7000',
-    ])('accepts ws:// to a loopback host: %s', (url) => {
-      expect(normalizeRelayUrl(url).valid).toBe(true);
-    });
+    it.each(['ws://localhost:8080', 'ws://LOCALHOST:8080', 'ws://127.0.0.1:7000'])(
+      'accepts ws:// to a loopback host: %s',
+      (url) => {
+        expect(normalizeRelayUrl(url).valid).toBe(true);
+      },
+    );
 
     it('accepts wss:// to any host', () => {
       expect(normalizeRelayUrl('wss://relay.damus.io').valid).toBe(true);

@@ -8,7 +8,7 @@
     },
     "permissions": ["downloads", "storage"],
     "content_security_policy": {
-      "extension_pages": "script-src 'self'; object-src 'self';"
+      "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https: wss: ws://localhost:* ws://127.0.0.1:*; img-src 'self' data: blob: https:;"
     },
     "browser_specific_settings": {
       "gecko": {
