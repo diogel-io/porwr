@@ -17,6 +17,7 @@ import {
   getBinding,
   listBindings,
   removeBinding,
+  removeBindingsExcept,
 } from '@/../src-bex/services/site-binding-store';
 
 const ALICE = 'a'.repeat(64);
@@ -128,5 +129,17 @@ describe('site bindings', () => {
       expect(await listBindings()).toEqual([]);
       expect(await getBinding('https://example.com')).toBeNull();
     });
+  });
+});
+
+describe('removing the bindings of removed accounts (#139)', () => {
+  it('keeps only bindings that name an account still present', async () => {
+    await bindOriginIfUnbound('https://one.example', ALICE);
+    await bindOriginIfUnbound('https://two.example', BOB);
+
+    await expect(removeBindingsExcept(new Set([BOB]))).resolves.toBe(1);
+
+    expect(await getBinding('https://one.example')).toBeNull();
+    expect((await getBinding('https://two.example'))?.pubkey).toBe(BOB);
   });
 });

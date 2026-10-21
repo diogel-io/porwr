@@ -98,6 +98,19 @@ export const removeBinding = async (origin: string): Promise<void> => {
   if (remaining.length !== bindings.length) await save(remaining);
 };
 
+/**
+ * Removes every binding that does not name one of `accountPubkeys`: when an account is removed,
+ * its sites must not sign as it again if the same key is imported later (#139).
+ */
+export const removeBindingsExcept = async (
+  accountPubkeys: ReadonlySet<string>,
+): Promise<number> => {
+  const bindings = await load();
+  const remaining = bindings.filter((binding) => accountPubkeys.has(binding.pubkey));
+  if (remaining.length !== bindings.length) await save(remaining);
+  return bindings.length - remaining.length;
+};
+
 export const listBindings = async (): Promise<SiteBinding[]> => [...(await load())];
 
 export const clearSiteBindingCache = (): void => {

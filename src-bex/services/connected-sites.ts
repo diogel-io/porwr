@@ -9,8 +9,22 @@
  * dashboard and any future surface all read the same way.
  */
 
-import { getGrantedPermissions, revokePermission } from '../handlers/permission-handler';
-import { getBinding, listBindings, removeBinding } from './site-binding-store';
+import {
+  getGrantedPermissions,
+  revokeGrantsExcept,
+  revokePermission,
+} from '../handlers/permission-handler';
+import { LogLevel, logService } from '@/services/log-service';
+import { isVaultUnlocked } from '../vault';
+import { listAllNip47Connections } from './nip47-connection-store';
+import { mutateWalletVault } from './wallet-vault';
+import { removeWebLnPermissionsForOrigin } from './webln-permission-store';
+import {
+  getBinding,
+  listBindings,
+  removeBinding,
+  removeBindingsExcept,
+} from './site-binding-store';
 import { normalizeOrigin } from './origin';
 import type { PermissionEventKind } from '../types/background';
 
@@ -117,8 +131,49 @@ export const disconnectSite = async (origin: string): Promise<boolean> => {
   }
 
   await removeBinding(normalized);
+  await removeWebLnPermissions(normalized);
 
   return true;
+};
+
+/**
+ * Remove an origin's WebLN permissions, all of them or only those for one account's wallets.
+ *
+ * They live in the vault, so this needs it unlocked. Locked, they cannot be used either, and the
+ * site is asked again to enable WebLN once its binding is gone; the failure is logged (#139).
+ */
+const removeWebLnPermissions = async (origin: string, accountPubkey?: string): Promise<void> => {
+  if (!isVaultUnlocked()) {
+    logService.log(LogLevel.WARN, '[Sites] Left WebLN permissions while the vault is locked');
+    return;
+  }
+  await mutateWalletVault((vaultData) => {
+    const connectionIds =
+      accountPubkey === undefined
+        ? undefined
+        : new Set(
+            listAllNip47Connections(vaultData)
+              .filter((connection) => connection.accountPubkey === accountPubkey)
+              .map((connection) => connection.id),
+          );
+    return {
+      vaultData: removeWebLnPermissionsForOrigin(vaultData, origin, connectionIds),
+      data: undefined,
+    };
+  });
+};
+
+/**
+ * Remove grants and bindings that belong to accounts no longer in the vault.
+ *
+ * Removing an account does this as it happens; this catches anything left from before that, so a
+ * key imported again later does not quietly bring its old sites back (#139).
+ */
+export const sweepSiteStateForRemovedAccounts = async (
+  accountPubkeys: readonly string[],
+): Promise<{ grants: number; bindings: number }> => {
+  const keep = new Set(accountPubkeys);
+  return { grants: await revokeGrantsExcept(keep), bindings: await removeBindingsExcept(keep) };
 };
 
 /**
@@ -172,6 +227,7 @@ export const disconnectSiteFor = async (
   if ((await getBinding(normalized))?.pubkey === accountPubkey) {
     await removeBinding(normalized);
   }
+  await removeWebLnPermissions(normalized, accountPubkey);
 
   return true;
 };

@@ -18,6 +18,7 @@ import { createPubkey } from '@/types/pubkey';
 import type { HandlerResult } from '../types/background';
 import { mutateVault, readVault } from '../services/vault-mutation';
 import { removeAccountWalletData } from '../services/nip47-connection-store';
+import { sweepSiteStateForRemovedAccounts } from '../services/connected-sites';
 
 /**
  * Accounts, for Porwr's own pages (#240).
@@ -160,6 +161,11 @@ export async function handleAccountsRemove(
       };
     });
     if (removedId !== undefined) {
+      // Its sites must not sign as it again if the same key is imported later (#139). Best-effort:
+      // the account is gone, signing as it already fails closed, and unlock sweeps again.
+      await readVault()
+        .then((vault) => sweepSiteStateForRemovedAccounts((vault.accounts ?? []).map((a) => a.id)))
+        .catch(() => undefined);
       // Its cached contacts would otherwise outlive the account (#257). Best-effort: the account is gone.
       await clearContactCache(removedId).catch(() => undefined);
     }

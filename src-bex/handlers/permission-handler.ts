@@ -279,6 +279,15 @@ export async function getGrantsForOrigin(rawOrigin: string): Promise<PermissionG
   return permissions.filter((grant) => grant.origin === origin);
 }
 
+/** Drops every grant held by an account not in `accountPubkeys`, for accounts that are gone. */
+export async function revokeGrantsExcept(accountPubkeys: ReadonlySet<string>): Promise<number> {
+  const permissions = await loadPermissions();
+  const remaining = permissions.filter((grant) => accountPubkeys.has(grant.accountPubkey));
+
+  if (remaining.length !== permissions.length) await savePermissions(remaining);
+  return permissions.length - remaining.length;
+}
+
 /** Drops every grant an account holds, for when that account is removed or disconnected. */
 export async function revokeGrantsForAccount(accountPubkey: string): Promise<number> {
   const permissions = await loadPermissions();

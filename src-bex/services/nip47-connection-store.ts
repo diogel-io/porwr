@@ -92,11 +92,23 @@ export function removeNip47Connection(
   accountPubkey: string,
   connectionId: string,
 ): VaultData {
+  const removed = listAllNip47Connections(vaultData).some(
+    (item) => item.id === connectionId && item.accountPubkey === accountPubkey,
+  );
   return {
     ...vaultData,
     nip47Connections: listAllNip47Connections(vaultData).filter(
       (item) => !(item.id === connectionId && item.accountPubkey === accountPubkey),
     ),
+    // A site's permission to use this wallet goes with it, rather than lingering against an id
+    // nothing has any more (#139).
+    ...(removed
+      ? {
+          webLnPermissions: (vaultData.webLnPermissions ?? []).filter(
+            (grant) => grant.connectionId !== connectionId,
+          ),
+        }
+      : {}),
   };
 }
 

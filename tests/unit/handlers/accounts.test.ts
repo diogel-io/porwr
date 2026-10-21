@@ -12,9 +12,13 @@ const state = vi.hoisted(() => ({
   approvals: vi.fn(),
   exceptions: vi.fn(),
   clearContactCache: vi.fn(),
+  sweepSiteState: vi.fn().mockResolvedValue({ grants: 0, bindings: 0 }),
 }));
 
 vi.mock('@/services/contact-cache', () => ({ clearAccount: state.clearContactCache }));
+vi.mock('@/../src-bex/services/connected-sites', () => ({
+  sweepSiteStateForRemovedAccounts: state.sweepSiteState,
+}));
 
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(() =>
@@ -223,6 +227,24 @@ describe('accounts.remove', () => {
     await handleAccountsRemove({ accountPubkey: ALICE });
 
     expect(state.clearContactCache).toHaveBeenCalledWith(ALICE);
+  });
+
+  // Its sites must not sign as it again if the same key is imported later (#139).
+  it('removes the grants and bindings of the account it removed, keeping the rest', async () => {
+    const bob = state.vault!.accounts[1]!.id;
+
+    await handleAccountsRemove({ accountPubkey: ALICE });
+
+    expect(state.sweepSiteState).toHaveBeenCalledWith([bob]);
+  });
+
+  it('still reports the removal if the site cleanup fails, since unlock sweeps again', async () => {
+    state.sweepSiteState.mockRejectedValueOnce(new Error('storage unavailable'));
+
+    await expect(handleAccountsRemove({ accountPubkey: ALICE })).resolves.toEqual({
+      success: true,
+      data: true,
+    });
   });
 
   it('still reports the removal if clearing the contact cache fails', async () => {

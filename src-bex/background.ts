@@ -29,6 +29,8 @@ import {
   trimApprovalContentDescription,
 } from './services/approval-flow';
 import type { ApprovalRequestDetails } from './services/approval-flow';
+import { listAccounts } from './services/signing-account';
+import { sweepSiteStateForRemovedAccounts } from './services/connected-sites';
 import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
 import { observePageRequests, type PageActionHandlers } from './services/page-channel';
@@ -210,6 +212,16 @@ void initialize();
 // skips a cache that is still fresh; nothing is refreshed while the vault is locked.
 onVaultUnlocked(() => {
   void refreshActiveAccountContacts();
+});
+
+// Grants and bindings for an account removed before removal cleaned them up are swept once the
+// vault can say which accounts exist (#139).
+onVaultUnlocked(() => {
+  void listAccounts()
+    .then((accounts) => sweepSiteStateForRemovedAccounts(accounts.map((account) => account.id)))
+    .catch((error: unknown) => {
+      logService.log(LogLevel.ERROR, `[BEX] Failed to sweep site state: ${describeError(error)}`);
+    });
 });
 
 // A request that arrived while the vault was locked was queued without an account. Name it now, so

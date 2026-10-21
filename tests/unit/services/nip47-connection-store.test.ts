@@ -143,6 +143,36 @@ describe('one account’s wallets are not another’s (#304)', () => {
     expect(states(result, ALICE)).toEqual([{ id: 'alice-wallet', isActive: true }]);
   });
 
+  // A site's permission to use a wallet goes with the wallet (#139).
+  it('removes the WebLN permissions keyed to a removed connection', () => {
+    const withPermissions: VaultData = {
+      ...vaultData,
+      webLnPermissions: [
+        { origin: 'https://one.example', connectionId: 'alice-wallet', methods: ['enable'] },
+        { origin: 'https://one.example', connectionId: 'bob-wallet', methods: ['enable'] },
+      ],
+    };
+
+    const result = removeNip47Connection(withPermissions, ALICE, 'alice-wallet');
+
+    expect(result.webLnPermissions).toEqual([
+      { origin: 'https://one.example', connectionId: 'bob-wallet', methods: ['enable'] },
+    ]);
+  });
+
+  it('leaves permissions alone when no connection was removed', () => {
+    const withPermissions: VaultData = {
+      ...vaultData,
+      webLnPermissions: [
+        { origin: 'https://one.example', connectionId: 'alice-wallet', methods: ['enable'] },
+      ],
+    };
+
+    expect(removeNip47Connection(withPermissions, BOB, 'alice-wallet').webLnPermissions).toEqual(
+      withPermissions.webLnPermissions,
+    );
+  });
+
   it('keeps each account’s record when two accounts import the same connection string', () => {
     const shared = upsertNip47Connection(
       { accounts: [], nip47Connections: [buildConnection('same-id', true, ALICE)] },

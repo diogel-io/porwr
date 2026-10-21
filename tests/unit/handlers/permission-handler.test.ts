@@ -5,6 +5,7 @@ import {
   clearPermissionCache,
   getGrantedPermissions,
   grantPermission,
+  revokeGrantsExcept,
   revokePermission,
 } from '@/../src-bex/handlers/permission-handler';
 import { storageService } from '@/services/storage-service';
@@ -516,6 +517,18 @@ describe('origin normalisation', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('grants of removed accounts (#139)', () => {
+    it('drops every grant held by an account that is no longer present', async () => {
+      await grantPermission(ORIGIN, ALICE, 'sign_event', 1, 'always');
+      await grantPermission(ORIGIN, BOB, 'sign_event', 1, 'always');
+
+      await expect(revokeGrantsExcept(new Set([BOB]))).resolves.toBe(1);
+
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 1)).toEqual({ granted: false });
+      expect((await checkPermission(ORIGIN, BOB, 'sign_event', 1)).granted).toBe(true);
     });
   });
 });
