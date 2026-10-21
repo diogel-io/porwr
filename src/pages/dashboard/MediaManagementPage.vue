@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import useSettingsStore from '@/stores/settings-store';
 import { normalizeBlossomServer } from '@/services/blossom-server';
@@ -14,6 +14,18 @@ const serverError = computed(() => {
   const result = normalizeBlossomServer(serverInput.value);
   return result.valid ? '' : (result.error ?? '');
 });
+
+// Follows a change made elsewhere, in another tab or through storage. A value this field just saved
+// comes back normalised (a trailing slash added), so it is recognised as its own and not written
+// over what is being typed.
+watch(
+  () => settingsStore.blossomServer,
+  (stored) => {
+    if (normalizeBlossomServer(serverInput.value).url !== stored) {
+      serverInput.value = stored;
+    }
+  },
+);
 
 async function updateServer(value: string | number | null): Promise<void> {
   serverInput.value = String(value ?? '');

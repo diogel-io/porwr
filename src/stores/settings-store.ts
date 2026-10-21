@@ -44,6 +44,8 @@ function resolveFallbackRelays(stored: string[]): string[] {
   const normalized = normalizeRelayList(stored);
   if (normalized.length > 0) return normalized;
   if (hasRefusedPlaintextRelay(stored)) {
+    if (loggedEmptyFallback) return [];
+    loggedEmptyFallback = true;
     logService.log(
       LogLevel.WARN,
       '[settings] Every stored fallback relay was plaintext ws://; none are used until wss:// relays are set',
@@ -52,6 +54,13 @@ function resolveFallbackRelays(stored: string[]): string[] {
   }
   return DEFAULT_FALLBACK_RELAYS;
 }
+
+/**
+ * Hosts whose dropped relay has already been logged in this context. Settings load on every
+ * dashboard page and before every upload; the drop is worth one line, not one per load.
+ */
+const loggedRelayDrops = new Set<string>();
+let loggedEmptyFallback = false;
 
 function normalizeRelayList(relays: string[]): string[] {
   const results = relays.map((relay) => normalizeRelayUrl(relay));
@@ -64,6 +73,8 @@ function normalizeRelayList(relays: string[]): string[] {
     } catch {
       // keep the placeholder
     }
+    if (loggedRelayDrops.has(host)) return;
+    loggedRelayDrops.add(host);
     logService.log(LogLevel.INFO, '[settings] Dropped a stored plaintext ws:// relay', { host });
   });
   const normalized = results

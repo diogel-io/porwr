@@ -13,6 +13,7 @@ import {
   setStoredProfileSearchRelays,
 } from '@/services/profile-search-relay-settings-service';
 import { RELAY_SEEDS } from '@/data/relay-seeds';
+import { logService } from '@/services/log-service';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
 
 // Mock storage service
@@ -266,6 +267,26 @@ describe('SettingsStore', () => {
       await store.getSettings();
 
       expect(store.fallbackRelays).toEqual(['wss://relay.damus.io', 'ws://localhost:7777']);
+    });
+
+    it('logs each dropped relay once, however often settings load', async () => {
+      const log = vi.spyOn(logService, 'log');
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['ws://once.example.com', 'wss://relay.damus.io'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+      await store.getSettings();
+      await useSettingsStore().getSettings();
+
+      const drops = log.mock.calls.filter(
+        ([, message, context]) =>
+          String(message).includes('Dropped a stored plaintext') &&
+          (context as { host?: string })?.host === 'once.example.com',
+      );
+      expect(drops).toHaveLength(1);
+      log.mockRestore();
     });
 
     it('uses no relay, not the public seeds, when every stored relay is plaintext', async () => {
