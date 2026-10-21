@@ -187,8 +187,9 @@ from the request.
   surface directories.
 - Import components by alias — `@/components/<surface>/<Name>.vue` — never by a relative path.
   Tests live in `tests/`, not beside the component.
-- Boot files (`src/boot/i18n`, `src/boot/axios`) are auto-registered by Quasar; don't
-  import them directly elsewhere. Centralize HTTP via `src/boot/axios`.
+- Boot files (`src/boot/i18n`) are auto-registered by Quasar; don't import them directly
+  elsewhere. HTTP uses `fetch`; there is no HTTP client library (the unused axios boot file was
+  removed in diogel-io/workspace#143).
 - i18n messages live under `src/i18n/en-US`; the unplugin only picks up files under
   `src/i18n/`.
 - Read environment values as `import.meta.env.*`, never `process.env`. App values are

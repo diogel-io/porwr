@@ -101,7 +101,7 @@ A change to any of these needs the security review:
   `src/services/auto-lock-minutes.ts`
 - `src/components/sidebar/*` and `src/composables/useApprovalQueue.ts`, which present and decide
   requests
-- `package.json`, `package-lock.json`, `src-bex/package.json`, `.npmrc`, and `.github/workflows/*`
+- `package.json`, `package-lock.json`, `src-bex/package.json`, `.npmrc`, `.github/workflows/*`, `.github/dependabot.yml`, and `.github/CODEOWNERS`
 - anything else that touches cryptography, key material, or persistence
 
 ### Checklist

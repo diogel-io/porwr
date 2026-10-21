@@ -32,10 +32,10 @@ concurrency:
   group: porwr-release
   cancel-in-progress: false
 
+# Least privilege (#143): read only by default. Each job that writes grants itself exactly what it
+# needs, so a compromised step in another job cannot push, tag, or edit releases.
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
 
 jobs:
   # Maintains the release-please PR (version bump + CHANGELOG.md) against master and,
@@ -44,6 +44,11 @@ jobs:
   release-please:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # Opens and updates the release PR, labels it, and creates the tag and draft release.
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -102,16 +107,19 @@ jobs:
     # job is skipped too unless its condition says otherwise. Without it a manual run built nothing.
     if: always() && needs.resolve.result == 'success' && needs.resolve.outputs.run == 'true'
     runs-on: ubuntu-latest
+    # Attaches the archives to the draft release and publishes it (`gh release upload` / `edit`).
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout release commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.resolve.outputs.sha }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
@@ -183,14 +191,14 @@ jobs:
           echo "firefox_zip=$FIREFOX_ZIP" >> "$GITHUB_OUTPUT"
 
       - name: Upload Chrome archive artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: diogel-chrome
           path: ${{ steps.package.outputs.chrome_zip }}
           if-no-files-found: error
 
       - name: Upload Firefox archive artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: diogel-firefox
           path: ${{ steps.package.outputs.firefox_zip }}
@@ -230,15 +238,17 @@ jobs:
       contents: read
     steps:
       # The script comes from this workflow's own commit, not the release tag, so a manual run
-      # for an older tag still publishes with the current script.
+      # for an older tag still publishes with the current script. Accepted risk (#143): anyone who
+      # can dispatch this workflow already controls this file, so taking the script from the tag
+      # would add no protection.
       - name: Checkout the publish script
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: .github/scripts
           path: workflow
 
       - name: Download Chrome archive artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: diogel-chrome
 
@@ -276,7 +286,7 @@ jobs:
       contents: read
     steps:
       - name: Download Firefox archive artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: diogel-firefox
 
@@ -292,4 +302,4 @@ jobs:
           auth-api-issuer: ${{ secrets.AMO_API_ISSUER }}
           auth-api-secret: ${{ secrets.AMO_API_SECRET }}
           channel: listed
-          release-note: "Version ${{ needs.resolve.outputs.tag }}"
+          release-note: 'Version ${{ needs.resolve.outputs.tag }}'
