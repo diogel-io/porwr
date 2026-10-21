@@ -210,13 +210,17 @@ describe('dashboard-service', () => {
     expect(countSitesHoldingGrantsFor).not.toHaveBeenCalled();
   });
 
-  it('does not call relay event service for approved client metric', async () => {
+  // The figure comes from the local grant store; counting approved clients must not reach a relay.
+  it('queries no relay for the approved client metric', async () => {
     vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
     approvalsToArrayMock.mockResolvedValue([
       { id: 1, dateTime: '2026-01-01', eventKind: 1, hostname: 'site.com', account: 'alpha' },
     ]);
 
     await dashboardService.getApprovedClientCountForActiveKey();
+
+    expect(fetchAccountRelayListEventMock).not.toHaveBeenCalled();
+    expect(normalizeAndDeduplicateRelaysMock).not.toHaveBeenCalled();
   });
 
   it('returns 0 approved clients when vault is locked', async () => {
