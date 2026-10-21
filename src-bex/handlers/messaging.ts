@@ -48,19 +48,26 @@ const CLIENT_MESSAGE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 onVaultLocked(() => nip17Messaging.clear());
 
 /**
- * Drops decrypted messages as soon as the active account changes, rather than at the next
- * messaging call: one account's conversations are not kept in memory while another is in use
- * (diogel-io/workspace#142).
+ * Drops other accounts' decrypted messages as soon as the active account changes, rather than at the
+ * next messaging call: one account's conversations are not kept in memory while another is in use
+ * (diogel-io/workspace#142). Messages are kept by public key, so renaming the active account, which
+ * rewrites `nostr:active` to the new alias, keeps its own. If the active account can't be resolved,
+ * everything is dropped.
  */
-export function clearMessagesOnAccountChange(
+export async function retainActiveAccountMessages(
   changes: Record<string, chrome.storage.StorageChange>,
   areaName: string,
-): void {
-  if (areaName === 'local' && NOSTR_ACTIVE in changes) {
+): Promise<void> {
+  if (areaName !== 'local' || !(NOSTR_ACTIVE in changes)) return;
+  try {
+    nip17Messaging.keepOnly(getPublicKey(await getActiveSecretKey()));
+  } catch {
     nip17Messaging.clear();
   }
 }
-storageService.onChanged(clearMessagesOnAccountChange);
+storageService.onChanged((changes, areaName) => {
+  void retainActiveAccountMessages(changes, areaName);
+});
 
 export async function handleDmRelaysGet(): Promise<HandlerResult<DmRelayList>> {
   const pubkey = getPublicKey(await getActiveSecretKey());

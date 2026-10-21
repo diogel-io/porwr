@@ -398,9 +398,10 @@ export class Nip17Messaging {
 
   /**
    * Serves one account at a time. Switching account drops the previous account's decrypted messages
-   * and closes its relay connections, so nothing it authenticated is reused for the new one.
+   * and closes its relay connections, so nothing it authenticated is reused for the new one. Called
+   * on every messaging operation, and as soon as the active account changes (#142).
    */
-  private keepOnly(me: string): void {
+  keepOnly(me: string): void {
     for (const account of [...this.messages.keys()]) {
       if (account !== me) this.messages.delete(account);
     }

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   fetch: vi.fn(),
   clear: vi.fn(),
+  keepOnly: vi.fn(),
   getVaultData: vi.fn(),
   updateVaultData: vi.fn(),
   lockListeners: [] as (() => void)[],
@@ -26,7 +27,12 @@ vi.mock('@/../src-bex/vault', () => ({
 }));
 
 vi.mock('@/../src-bex/services/nip17-messaging', () => ({
-  nip17Messaging: { send: mocks.send, fetch: mocks.fetch, clear: mocks.clear },
+  nip17Messaging: {
+    send: mocks.send,
+    fetch: mocks.fetch,
+    clear: mocks.clear,
+    keepOnly: mocks.keepOnly,
+  },
 }));
 
 vi.mock('@/../src-bex/services/dm-relay-probe', () => ({ dmRelayProbe: { check: mocks.check } }));
@@ -46,7 +52,7 @@ vi.mock('@/../src-bex/services/messaging-relays', async () => {
 });
 
 import {
-  clearMessagesOnAccountChange,
+  retainActiveAccountMessages,
   handleDmRelaysCheck,
   handleDmRelaysGet,
   handleDmRelaysPublish,
@@ -349,21 +355,49 @@ describe('saved peers (#258)', () => {
 });
 
 describe('account switch (diogel-io/workspace#142)', () => {
-  beforeEach(() => mocks.clear.mockClear());
+  beforeEach(() => {
+    mocks.clear.mockClear();
+    mocks.keepOnly.mockClear();
+    mocks.getActiveSecretKey.mockReset();
+  });
 
-  it('drops decrypted messages as soon as the active account changes', () => {
-    clearMessagesOnAccountChange(
+  it("keeps only the newly active account's messages as soon as it changes", async () => {
+    mocks.getActiveSecretKey.mockResolvedValue(SECRET_KEY);
+
+    await retainActiveAccountMessages(
       { 'nostr:active': { oldValue: 'alice', newValue: 'bob' } },
       'local',
     );
 
+    expect(mocks.keepOnly).toHaveBeenCalledWith(getPublicKey(SECRET_KEY));
+    expect(mocks.clear).not.toHaveBeenCalled();
+  });
+
+  it("keeps the account's own messages through a rename, which keeps its public key", async () => {
+    mocks.getActiveSecretKey.mockResolvedValue(SECRET_KEY);
+
+    await retainActiveAccountMessages(
+      { 'nostr:active': { oldValue: 'alice', newValue: 'alice (work)' } },
+      'local',
+    );
+
+    expect(mocks.keepOnly).toHaveBeenCalledWith(getPublicKey(SECRET_KEY));
+    expect(mocks.clear).not.toHaveBeenCalled();
+  });
+
+  it('drops everything when the active account cannot be resolved', async () => {
+    mocks.getActiveSecretKey.mockRejectedValue(new Error('Vault is locked'));
+
+    await retainActiveAccountMessages({ 'nostr:active': { newValue: 'bob' } }, 'local');
+
     expect(mocks.clear).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores other settings and other storage areas', () => {
-    clearMessagesOnAccountChange({ 'nostr:fallback-relays': { newValue: [] } }, 'local');
-    clearMessagesOnAccountChange({ 'nostr:active': { newValue: 'bob' } }, 'session');
+  it('ignores other settings and other storage areas', async () => {
+    await retainActiveAccountMessages({ 'nostr:fallback-relays': { newValue: [] } }, 'local');
+    await retainActiveAccountMessages({ 'nostr:active': { newValue: 'bob' } }, 'session');
 
     expect(mocks.clear).not.toHaveBeenCalled();
+    expect(mocks.keepOnly).not.toHaveBeenCalled();
   });
 });
