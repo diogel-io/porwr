@@ -10,7 +10,12 @@
 import { createBridge } from '#q-app/bex/background';
 import { describeError, LogLevel, logService } from '@/services/log-service';
 import { FALLBACK_RELAYS, NOSTR_ACTIVE, storageService } from '@/services/storage-service';
-import { startAutoLockTimer, restoreLastActivity, checkAutoLock } from './services/auto-lock';
+import {
+  checkAutoLock,
+  isAutoLockOverdue,
+  restoreLastActivity,
+  startAutoLockTimer,
+} from './services/auto-lock';
 import { initializePanelSurface, resolvePanelSurface } from './services/panel-surface';
 import {
   pruneResolvedRequests,
@@ -29,10 +34,13 @@ import {
   trimApprovalContentDescription,
 } from './services/approval-flow';
 import type { ApprovalRequestDetails } from './services/approval-flow';
+import { listAccounts } from './services/signing-account';
+import { sweepSiteStateForRemovedAccounts } from './services/connected-sites';
 import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
 import { observePageRequests, type PageActionHandlers } from './services/page-channel';
 import { lockDownSessionStorage } from './services/session-storage-lock';
+import { isSignableEventKind, MAX_EVENT_KIND } from './services/event-kind';
 import { reconcileAbandonedRequests } from './services/page-reconciliation';
 import {
   observePageConnections,
@@ -175,7 +183,7 @@ async function initialize(): Promise<void> {
       );
     });
     await restoreLastActivity();
-    const restored = await restoreVaultState();
+    const restored = await restoreVaultState(isAutoLockOverdue);
     if (restored) {
       startAutoLockTimer();
       await checkAutoLock();
@@ -209,6 +217,16 @@ void initialize();
 // skips a cache that is still fresh; nothing is refreshed while the vault is locked.
 onVaultUnlocked(() => {
   void refreshActiveAccountContacts();
+});
+
+// Grants and bindings for an account removed before removal cleaned them up are swept once the
+// vault can say which accounts exist (#139).
+onVaultUnlocked(() => {
+  void listAccounts()
+    .then((accounts) => sweepSiteStateForRemovedAccounts(accounts.map((account) => account.id)))
+    .catch((error: unknown) => {
+      logService.log(LogLevel.ERROR, `[BEX] Failed to sweep site state: ${describeError(error)}`);
+    });
 });
 
 // A request that arrived while the vault was locked was queued without an account. Name it now, so
@@ -332,29 +350,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // requesting site as the browser reports it, from the content script's port, never from anything the
 // page or the content script wrote (#246).
 const pageActionHandlers: PageActionHandlers = {
-  'nostr.getPublicKey': async (_payload, origin) => {
-    const result = await handleGetPublicKey({}, origin);
-    if (!result.success) {
-      throw new BackgroundBridgeError(
-        result.error === 'Vault is locked' ? 'VAULT_LOCKED' : 'NOT_FOUND',
-        result.error,
-      );
-    }
+  'nostr.getPublicKey': async (_payload, origin, page) => {
+    const toBridgeError = (error: string): BackgroundBridgeError =>
+      new BackgroundBridgeError(error === 'Vault is locked' ? 'VAULT_LOCKED' : 'NOT_FOUND', error);
+
+    // Refuse at once if no account could answer, rather than queueing a request nobody can approve.
+    const available = await handleGetPublicKey({}, origin);
+    if (!available.success) throw toBridgeError(available.error);
+
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, { requestType: 'get_public_key' });
+    const approved = await requestApproval(origin, -1, {
+      requestType: 'get_public_key',
+      signal: page.signal,
+    });
     if (!approved) {
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the request');
     }
+
+    // Read again after approval: that is when the site was bound, and the key it is given must be
+    // the account it is now bound to (#139).
+    const result = await handleGetPublicKey({}, origin);
+    if (!result.success) throw toBridgeError(result.error);
     return result.data;
   },
 
-  'nostr.signEvent': async ({ event }, origin) => {
+  'nostr.signEvent': async ({ event }, origin, page) => {
+    if (!isSignableEventKind(event?.kind)) {
+      throw new BackgroundBridgeError(
+        'INVALID_EVENT',
+        `Event kind must be a whole number from 0 to ${MAX_EVENT_KIND}`,
+      );
+    }
     await getActiveStoredKey();
     const contentDescription = trimApprovalContentDescription(event.content);
     const approvalDetails: ApprovalRequestDetails = contentDescription
       ? { requestType: 'sign_event', contentDescription, event }
       : { requestType: 'sign_event', event };
-    const approved = await requestApproval(origin, event.kind, approvalDetails);
+    const approved = await requestApproval(origin, event.kind, {
+      ...approvalDetails,
+      signal: page.signal,
+    });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data) {
@@ -379,9 +414,12 @@ const pageActionHandlers: PageActionHandlers = {
     return result.data;
   },
 
-  'nostr.getRelays': async (_payload, origin) => {
+  'nostr.getRelays': async (_payload, origin, page) => {
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, { requestType: 'get_relays' });
+    const approved = await requestApproval(origin, -1, {
+      requestType: 'get_relays',
+      signal: page.signal,
+    });
     if (!approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data)
@@ -397,9 +435,10 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'nostr.nip04.encrypt': async (payload, origin) => {
+  'nostr.nip04.encrypt': async (payload, origin, page) => {
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'nip04_encrypt',
       counterpartyPubkey: payload.pubkey,
     });
@@ -418,9 +457,10 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'nostr.nip04.decrypt': async (payload, origin) => {
+  'nostr.nip04.decrypt': async (payload, origin, page) => {
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'nip04_decrypt',
       counterpartyPubkey: payload.pubkey,
     });
@@ -439,9 +479,10 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'nostr.nip44.encrypt': async (payload, origin) => {
+  'nostr.nip44.encrypt': async (payload, origin, page) => {
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'nip44_encrypt',
       counterpartyPubkey: payload.pubkey,
     });
@@ -460,9 +501,10 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'nostr.nip44.decrypt': async (payload, origin) => {
+  'nostr.nip44.decrypt': async (payload, origin, page) => {
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'nip44_decrypt',
       counterpartyPubkey: payload.pubkey,
     });
@@ -481,8 +523,9 @@ const pageActionHandlers: PageActionHandlers = {
     );
   },
 
-  'webln.enable': async (_payload, origin) => {
+  'webln.enable': async (_payload, origin, page) => {
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'webln_enable',
       contentDescription:
         'Allow this site to use Porwr as a WebLN wallet provider. Payments will still require separate approval.',
@@ -502,11 +545,12 @@ const pageActionHandlers: PageActionHandlers = {
   'webln.getInfo': async (_payload, origin) =>
     dispatchMessage('webln.getInfo', createBridgeRequest('webln.getInfo', { origin }), origin),
 
-  'webln.sendPayment': async (payload, origin) => {
+  'webln.sendPayment': async (payload, origin, page) => {
     const amountMsat = parseBolt11AmountMsat(payload.paymentRequest);
     const amountDescription =
       amountMsat !== undefined ? `${amountMsat / 1000} sats` : 'unknown amount';
     const approved = await requestApproval(origin, -1, {
+      signal: page.signal,
       requestType: 'webln_send_payment',
       contentDescription: `Pay Lightning invoice for ${amountDescription}: ${previewInvoice(payload.paymentRequest)}`,
       allowRemember: false,

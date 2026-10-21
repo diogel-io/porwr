@@ -6,16 +6,38 @@ const mocks = vi.hoisted(() => ({
   listBindings: vi.fn(),
   removeBinding: vi.fn(),
   getBinding: vi.fn(),
+  removeBindingsExcept: vi.fn(),
+  revokeGrantsExcept: vi.fn(),
+  isVaultUnlocked: vi.fn(),
+  vault: { value: {} as Record<string, unknown> },
 }));
 
 vi.mock('@/../src-bex/handlers/permission-handler', () => ({
   getGrantedPermissions: mocks.getGrantedPermissions,
   revokePermission: mocks.revokePermission,
+  revokeGrantsExcept: mocks.revokeGrantsExcept,
+}));
+vi.mock('@/../src-bex/vault', () => ({ isVaultUnlocked: mocks.isVaultUnlocked }));
+// The real WebLN store over an in-memory vault, so what disconnecting leaves is what is asserted.
+vi.mock('@/../src-bex/services/wallet-vault', () => ({
+  mutateWalletVault: vi.fn(
+    async (
+      mutator: (vault: unknown) => Promise<{ vaultData: unknown }> | { vaultData: unknown },
+    ) => {
+      const { vaultData } = await mutator(mocks.vault.value);
+      mocks.vault.value = vaultData as Record<string, unknown>;
+    },
+  ),
+}));
+vi.mock('@/services/log-service', () => ({
+  LogLevel: { WARN: 'WARN' },
+  logService: { log: vi.fn() },
 }));
 vi.mock('@/../src-bex/services/site-binding-store', () => ({
   listBindings: mocks.listBindings,
   removeBinding: mocks.removeBinding,
   getBinding: mocks.getBinding,
+  removeBindingsExcept: mocks.removeBindingsExcept,
 }));
 
 import {
@@ -24,6 +46,7 @@ import {
   disconnectSiteFor,
   listConnectedSites,
   listConnectedSitesFor,
+  sweepSiteStateForRemovedAccounts,
 } from '@/../src-bex/services/connected-sites';
 
 const ALICE = 'a'.repeat(64);
@@ -46,6 +69,8 @@ beforeEach(() => {
   mocks.revokePermission.mockResolvedValue(undefined);
   mocks.removeBinding.mockResolvedValue(undefined);
   mocks.getBinding.mockResolvedValue(null);
+  mocks.isVaultUnlocked.mockReturnValue(true);
+  mocks.vault.value = {};
 });
 
 describe('what a site holds', () => {
@@ -332,5 +357,66 @@ describe('disconnecting for one account (#309)', () => {
 
     expect(mocks.revokePermission).toHaveBeenCalledTimes(2);
     expect(mocks.removeBinding).toHaveBeenCalledWith('https://example.com');
+  });
+});
+
+// A site's WebLN permission is part of its connection: disconnecting removes it too (#139).
+describe('WebLN permissions when a site is disconnected', () => {
+  const SITE = 'https://example.com';
+  const OTHER = 'https://other.example';
+  const permission = (origin: string, connectionId: string) => ({
+    origin,
+    connectionId,
+    methods: ['enable', 'getInfo'],
+  });
+
+  beforeEach(() => {
+    mocks.vault.value = {
+      nip47Connections: [
+        { id: 'alice-wallet', accountPubkey: ALICE },
+        { id: 'bob-wallet', accountPubkey: BOB },
+      ],
+      webLnPermissions: [
+        permission(SITE, 'alice-wallet'),
+        permission(SITE, 'bob-wallet'),
+        permission(OTHER, 'alice-wallet'),
+      ],
+    };
+  });
+
+  it('removes every WebLN permission the site holds when it is disconnected', async () => {
+    await disconnectSite(SITE);
+
+    expect(mocks.vault.value.webLnPermissions).toEqual([permission(OTHER, 'alice-wallet')]);
+  });
+
+  it("removes only that account's wallet permission when disconnected for one account", async () => {
+    await disconnectSiteFor(SITE, ALICE);
+
+    expect(mocks.vault.value.webLnPermissions).toEqual([
+      permission(SITE, 'bob-wallet'),
+      permission(OTHER, 'alice-wallet'),
+    ]);
+  });
+
+  it('leaves them while the vault is locked, rather than failing the disconnect', async () => {
+    mocks.isVaultUnlocked.mockReturnValue(false);
+
+    await expect(disconnectSite(SITE)).resolves.toBe(true);
+    expect(mocks.removeBinding).toHaveBeenCalledWith(SITE);
+  });
+});
+
+describe('sweeping state left by removed accounts (#139)', () => {
+  it('keeps only the grants and bindings of accounts still in the vault', async () => {
+    mocks.revokeGrantsExcept.mockResolvedValue(2);
+    mocks.removeBindingsExcept.mockResolvedValue(1);
+
+    await expect(sweepSiteStateForRemovedAccounts([ALICE])).resolves.toEqual({
+      grants: 2,
+      bindings: 1,
+    });
+    expect(mocks.revokeGrantsExcept).toHaveBeenCalledWith(new Set([ALICE]));
+    expect(mocks.removeBindingsExcept).toHaveBeenCalledWith(new Set([ALICE]));
   });
 });

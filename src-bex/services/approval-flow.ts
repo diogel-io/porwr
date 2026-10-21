@@ -18,9 +18,14 @@
 
 import { LogLevel, logService } from '@/services/log-service';
 import { checkPermission, grantPermission } from '../handlers/permission-handler';
-import { assignAccountsToWaitingRequests, enqueueRequest, getRequestRecord } from './request-queue';
+import {
+  assignAccountsToWaitingRequests,
+  enqueueRequest,
+  getRequestRecord,
+  interruptRequest,
+} from './request-queue';
 import { originHostname } from './origin';
-import { getActiveAccount, resolveSigningAccount } from './signing-account';
+import { bindSiteToAccount, getActiveAccount, resolveSigningAccount } from './signing-account';
 import type { ApprovalDuration, UnsignedEvent } from '../types/background';
 
 export interface ApprovalRequestDetails {
@@ -32,6 +37,11 @@ export interface ApprovalRequestDetails {
   event?: UnsignedEvent;
   /** Counterparty for encryption and decryption requests. Never the plaintext. */
   counterpartyPubkey?: string;
+  /**
+   * Aborted when the requesting page's port goes away. The request is then interrupted, so it can
+   * never be approved for a tab that no longer exists (#139). Held in memory only.
+   */
+  signal?: AbortSignal;
 }
 
 export const trimApprovalContentDescription = (content?: string): string | undefined => {
@@ -71,6 +81,10 @@ export async function requestApproval(
       permissionKind,
     );
     if (permission.granted) {
+      // A grant is an earlier approval for this account, so the site is bound to it if it is not
+      // already (#139). A binding to another account means the grant is for an identity the site
+      // no longer acts as, so it does not answer.
+      if ((await bindSiteToAccount(origin, actingAccount.id)) !== actingAccount.id) return false;
       // Answered by a grant the user gave earlier, so still an approval, and logged as one (#37).
       void logService.logApproval(
         approvalLogKind(eventKind, details),
@@ -110,9 +124,19 @@ export async function requestApproval(
     },
   );
 
+  // The page that asked may close while the request waits; it is then interrupted rather than
+  // left approvable for a tab that is gone (#139).
+  const interruptIfGone = (): void => {
+    void interruptRequest(record.id);
+  };
+  if (details.signal?.aborted) interruptIfGone();
+  details.signal?.addEventListener('abort', interruptIfGone, { once: true });
+
   // A locked vault no longer opens its own window: the panel presents the unlock view with the
   // waiting request, and unlocking still requires an explicit decision afterwards (ADR D14).
-  const outcome = await decision;
+  const outcome = await decision.finally(() => {
+    details.signal?.removeEventListener('abort', interruptIfGone);
+  });
 
   const approved = outcome.approved;
   const durationLabel: ApprovalDuration = outcome.duration;
@@ -121,6 +145,30 @@ export async function requestApproval(
   // function enqueued it, so the record as it stands now is the one to grant and log against
   // (porwr#320).
   const decided = (await getRequestRecord(record.id)) ?? record;
+
+  // Bound only now, to the account the user saw and approved. A request that was rejected,
+  // expired, or interrupted binds nothing (#139).
+  //
+  // If another approval bound the site to a different account while this one waited (two requests
+  // queued around an account switch), this approval was for an identity the site no longer acts
+  // as. It is refused rather than letting the caller act as the bound account, which the user did
+  // not see on this prompt.
+  if (approved && decided.accountPubkey) {
+    const bound = await bindSiteToAccount(origin, decided.accountPubkey);
+    if (bound !== decided.accountPubkey) {
+      logService.log(
+        LogLevel.WARN,
+        '[BEX] Refused an approval for an account the site is not bound to',
+      );
+      void logService.logApproval(
+        approvalLogKind(eventKind, details),
+        originHostname(origin),
+        decided.accountAlias,
+        'rejected',
+      );
+      return false;
+    }
+  }
 
   if (
     approved &&

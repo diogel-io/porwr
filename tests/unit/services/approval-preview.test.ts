@@ -504,3 +504,19 @@ describe('approval preview rules', () => {
     });
   });
 });
+
+// A standing decrypt grant lets a site read every message sent to the account, from anyone (#139).
+describe('decrypt requests', () => {
+  it.each(['nip04_decrypt', 'nip44_decrypt'])('classifies %s as elevated', (requestType) => {
+    expect(classifyRequest(requestType, -1)).toBe('elevated');
+    expect(getAllowedDurations(classifyRequest(requestType, -1), true)).toEqual(['once', '8h']);
+  });
+
+  it('keeps encryption standard', () => {
+    expect(classifyRequest('nip44_encrypt', -1)).toBe('standard');
+  });
+
+  it('warns that approving lets the site read private messages', () => {
+    expect(getRiskWarning('elevated', -1)).toMatch(/read private messages/);
+  });
+});

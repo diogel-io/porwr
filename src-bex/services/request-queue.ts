@@ -14,6 +14,7 @@ import { REQUEST_NOTICE_KEY, REQUEST_QUEUE_KEY, storageService } from '@/service
 import { clampRequestExpiryMinutes } from '@/services/request-expiry';
 import { REQUEST_EXPIRY_MINUTES } from '@/services/storage-service';
 import { LogLevel, logService } from '@/services/log-service';
+import { classifyRequest, getAllowedDurations } from '@/services/approval-preview';
 import {
   TERMINAL_REQUEST_STATES,
   type ApprovalRequestContent,
@@ -55,6 +56,13 @@ const liveCallbacks = new Map<string, PendingCallback>();
  * the panel reads them from the live worker or not at all.
  */
 const requestContent = new Map<string, ApprovalRequestContent>();
+
+/**
+ * Requests a decision is being applied to right now. Claimed before the first `await`, which
+ * JavaScript runs without interruption, so a second decision arriving while the first is still
+ * writing is refused instead of also passing the terminal-state check (#139).
+ */
+const deciding = new Set<string>();
 
 const forgetRequest = (id: string): void => {
   liveCallbacks.delete(id);
@@ -392,6 +400,23 @@ export const submitDecision = async (
   decision: ApprovalDecision,
   now: number = Date.now(),
 ): Promise<DecisionResult> => {
+  if (deciding.has(id)) {
+    logService.log(LogLevel.WARN, '[Queue] Refused concurrent decision', { id });
+    return { applied: false, reason: 'already-resolved' };
+  }
+  deciding.add(id);
+  try {
+    return await applyDecision(id, decision, now);
+  } finally {
+    deciding.delete(id);
+  }
+};
+
+const applyDecision = async (
+  id: string,
+  decision: ApprovalDecision,
+  now: number,
+): Promise<DecisionResult> => {
   const records = await loadQueue(now);
   const target = records.find((record) => record.id === id);
 
@@ -411,6 +436,23 @@ export const submitDecision = async (
       state: target.state,
     });
     return { applied: false, reason: 'already-resolved' };
+  }
+
+  // The panel offers only the durations the risk class allows; the background enforces it, since
+  // the panel is untrusted for lifecycle purposes (D1, D11, D12, #139).
+  if (decision.approved) {
+    const allowRemember = requestContent.get(id)?.allowRemember !== false;
+    const allowed = getAllowedDurations(
+      classifyRequest(target.requestType, target.eventKind),
+      allowRemember,
+    );
+    if (!allowed.includes(decision.duration)) {
+      logService.log(LogLevel.WARN, '[Queue] Refused a duration the request does not allow', {
+        id,
+        duration: decision.duration,
+      });
+      return { applied: false, reason: 'duration-not-allowed' };
+    }
   }
 
   const nextState: ApprovalRequestState = decision.approved ? 'approved' : 'rejected';
@@ -488,12 +530,37 @@ export const pruneResolvedRequests = async (now: number = Date.now()): Promise<v
 export const interruptRequestsForOrigin = async (
   origin: string,
   now: number = Date.now(),
+): Promise<ApprovalRequestRecord[]> =>
+  interruptMatching((record) => record.origin === origin, { origin }, now);
+
+/**
+ * Interrupt one request, because the page port it arrived on has gone (#139).
+ *
+ * Liveness by origin alone kept a request approvable while any other tab held the same origin;
+ * the page channel calls this when the requesting tab's own port disconnects.
+ */
+export const interruptRequest = async (
+  id: string,
+  now: number = Date.now(),
+): Promise<ApprovalRequestRecord[]> => interruptMatching((record) => record.id === id, { id }, now);
+
+/** Interrupt every live request that acts for an account, because the account was removed. */
+export const interruptRequestsForAccount = async (
+  accountPubkey: string,
+  now: number = Date.now(),
+): Promise<ApprovalRequestRecord[]> =>
+  interruptMatching((record) => record.accountPubkey === accountPubkey, { accountPubkey }, now);
+
+const interruptMatching = async (
+  matches: (record: ApprovalRequestRecord) => boolean,
+  logContext: Record<string, string>,
+  now: number,
 ): Promise<ApprovalRequestRecord[]> => {
   const records = await loadQueue(now);
   const interrupted: ApprovalRequestRecord[] = [];
 
   const next = records.map((record) => {
-    if (record.origin !== origin || isTerminal(record.state)) return record;
+    if (!matches(record) || isTerminal(record.state)) return record;
     const updated: ApprovalRequestRecord = { ...record, state: 'interrupted' };
     interrupted.push(updated);
     return updated;
@@ -511,7 +578,7 @@ export const interruptRequestsForOrigin = async (
   }
 
   logService.log(LogLevel.WARN, '[Queue] Marked requests interrupted after the page went away', {
-    origin,
+    ...logContext,
     count: interrupted.length,
   });
 

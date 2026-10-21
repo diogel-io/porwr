@@ -40,10 +40,12 @@ export async function getActiveAccount(): Promise<StoredKey | null> {
 }
 
 /**
- * Resolves the account a site acts as, binding it on first contact.
+ * Resolves the account a site acts as: its bound account, or for an unbound site the active one.
  *
- * An unbound site binds to the active account, because the first request has to establish the
- * binding somehow. Everything after that is fixed: `bindOriginIfUnbound` never overwrites.
+ * It never writes a binding. Asking is not consent, so a site is bound only once the user approves
+ * one of its requests (`bindSiteToAccount`, called from `requestApproval`), and a rejected, expired
+ * or interrupted request leaves no trace (#139). Once bound, the binding is fixed:
+ * `bindOriginIfUnbound` never overwrites.
  */
 export async function resolveSigningAccount(origin: string): Promise<SigningAccountResult> {
   // Checked here rather than inferred from an empty account list: a locked vault and a vault with
@@ -67,8 +69,18 @@ export async function resolveSigningAccount(origin: string): Promise<SigningAcco
   const active = await getActiveAccount();
   if (!active) return { error: 'No active account', code: ErrorCode.SIG_NO_ACTIVE_KEY };
 
-  await bindOriginIfUnbound(origin, active.id);
   return { account: active };
+}
+
+/**
+ * Bind a site to the account the user approved it as. A no-op for a site already bound, so an
+ * approval can never move a site to another account (only the user can, from Porwr's own UI).
+ */
+export async function bindSiteToAccount(
+  origin: string,
+  accountPubkey: string,
+): Promise<string | null> {
+  return (await bindOriginIfUnbound(origin, accountPubkey))?.pubkey ?? null;
 }
 
 /**

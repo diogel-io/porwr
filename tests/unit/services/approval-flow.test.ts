@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   assignAccountsToWaitingRequests: vi.fn(),
   resolveSigningAccount: vi.fn(),
   getActiveAccount: vi.fn(),
+  bindSiteToAccount: vi.fn(),
+  interruptRequest: vi.fn(),
   log: vi.fn(),
   logApproval: vi.fn(),
 }));
@@ -20,10 +22,12 @@ vi.mock('@/../src-bex/services/request-queue', () => ({
   enqueueRequest: mocks.enqueueRequest,
   getRequestRecord: mocks.getRequestRecord,
   assignAccountsToWaitingRequests: mocks.assignAccountsToWaitingRequests,
+  interruptRequest: mocks.interruptRequest,
 }));
 vi.mock('@/../src-bex/services/signing-account', () => ({
   resolveSigningAccount: mocks.resolveSigningAccount,
   getActiveAccount: mocks.getActiveAccount,
+  bindSiteToAccount: mocks.bindSiteToAccount,
 }));
 vi.mock('@/services/log-service', () => ({
   LogLevel: { ERROR: 'error' },
@@ -66,6 +70,10 @@ beforeEach(() => {
   // By default the record is unchanged between enqueueing and deciding.
   mocks.getRequestRecord.mockResolvedValue(null);
   mocks.assignAccountsToWaitingRequests.mockResolvedValue([]);
+  // The site ends up bound to the account it was bound for, unless a test says otherwise.
+  mocks.bindSiteToAccount.mockImplementation((_origin: string, pubkey: string) =>
+    Promise.resolve(pubkey),
+  );
 });
 
 describe('deciding a site request', () => {
@@ -360,5 +368,120 @@ describe('helpers', () => {
       expect(trimmed).toHaveLength(240);
       expect(trimmed?.endsWith('...')).toBe(true);
     });
+  });
+});
+
+// Asking is not consent: a site is bound to an account only once the user approves one of its
+// requests, or a grant they gave earlier answers it (#139).
+describe('binding the site to an account', () => {
+  it.each([
+    ['rejected', { approved: false, duration: 'once' as const }],
+    ['expired', { approved: false, duration: 'once' as const, ending: 'expired' as const }],
+    ['interrupted', { approved: false, duration: 'once' as const, ending: 'interrupted' as const }],
+  ])('binds nothing for a request that was %s', async (_label, outcome) => {
+    enqueueResolving(outcome);
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
+  });
+
+  it('binds the account the user approved, as recorded on the request', async () => {
+    enqueueResolving({ approved: true, duration: 'once' });
+    // The request was named for bob after it was enqueued (the locked-vault path, porwr#320).
+    mocks.getRequestRecord.mockResolvedValue({
+      id: 'req-1',
+      accountAlias: 'bob',
+      accountPubkey: BOB.id,
+    });
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.bindSiteToAccount).toHaveBeenCalledWith(ORIGIN, BOB.id);
+  });
+
+  it('binds the acting account when an earlier grant answers', async () => {
+    mocks.checkPermission.mockResolvedValue({ granted: true });
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.bindSiteToAccount).toHaveBeenCalledWith(ORIGIN, ALICE.id);
+    expect(mocks.enqueueRequest).not.toHaveBeenCalled();
+  });
+
+  it('binds nothing for an approval that names no account', async () => {
+    enqueueResolving({ approved: true, duration: 'once' }, null);
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
+  });
+});
+
+// A request is interrupted when the page that sent it goes, even while another tab holds the same
+// origin (#139).
+describe('the requesting page going away', () => {
+  it('interrupts the request when the page signal aborts while it waits', async () => {
+    const page = new AbortController();
+    let settle: (outcome: unknown) => void = () => undefined;
+    mocks.enqueueRequest.mockResolvedValue({
+      record: { id: 'req-1', accountAlias: 'alice', accountPubkey: ALICE.id },
+      decision: new Promise((resolve) => (settle = resolve)),
+    });
+    mocks.interruptRequest.mockImplementation(() => {
+      settle({ approved: false, duration: 'once', ending: 'interrupted' });
+      return Promise.resolve([]);
+    });
+
+    const pending = requestApproval(ORIGIN, 1, { requestType: 'sign_event', signal: page.signal });
+    await vi.waitFor(() => expect(mocks.enqueueRequest).toHaveBeenCalled());
+    page.abort();
+
+    await expect(pending).resolves.toBe(false);
+    expect(mocks.interruptRequest).toHaveBeenCalledWith('req-1');
+    expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
+  });
+
+  it('interrupts at once a request whose page had already gone', async () => {
+    const page = new AbortController();
+    page.abort();
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event', signal: page.signal });
+
+    expect(mocks.interruptRequest).toHaveBeenCalledWith('req-1');
+  });
+
+  it('leaves a decided request alone when its page goes afterwards', async () => {
+    const page = new AbortController();
+
+    await requestApproval(ORIGIN, 1, { requestType: 'sign_event', signal: page.signal });
+    page.abort();
+
+    expect(mocks.interruptRequest).not.toHaveBeenCalled();
+  });
+});
+
+// Two requests from an unbound site, queued around an account switch: the first approval binds the
+// site, and the second, approved for the other account, must not act as the bound one (#139).
+describe('an approval for an account the site is no longer bound to', () => {
+  it('is refused, and writes no grant', async () => {
+    enqueueResolving({ approved: true, duration: 'always' }, BOB.id);
+    mocks.getRequestRecord.mockResolvedValue({
+      id: 'req-1',
+      accountAlias: 'bob',
+      accountPubkey: BOB.id,
+    });
+    mocks.bindSiteToAccount.mockResolvedValue(ALICE.id);
+
+    await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(false);
+    expect(mocks.grantPermission).not.toHaveBeenCalled();
+    expect(mocks.logApproval).toHaveBeenCalledWith(1, 'example.com', 'bob', 'rejected');
+  });
+
+  it('does not let a grant for another account answer', async () => {
+    mocks.checkPermission.mockResolvedValue({ granted: true });
+    mocks.bindSiteToAccount.mockResolvedValue(BOB.id);
+
+    await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(false);
   });
 });

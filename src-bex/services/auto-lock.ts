@@ -26,6 +26,25 @@ export async function updateLastActivity(): Promise<void> {
   await persistLastActivity(Date.now());
 }
 
+async function autoLockMinutes(): Promise<number> {
+  return Number(
+    (await storageService.get<number>(VAULT_AUTO_LOCK_MINUTES)) ?? AUTO_LOCK_DEFAULT_MINUTES,
+  );
+}
+
+/**
+ * Whether the vault has been idle longer than the auto-lock timeout, measured from the last
+ * activity restored with `restoreLastActivity`. False when auto-lock is turned off.
+ *
+ * Asked before a restarted worker restores the unlocked key, so an overdue key is never handed to
+ * a request in the moment before the first check locks it (#139).
+ */
+export async function isAutoLockOverdue(now: number = Date.now()): Promise<boolean> {
+  const minutes = await autoLockMinutes();
+  if (minutes <= 0) return false;
+  return now - lastActivityAt >= minutes * 60 * 1000;
+}
+
 export async function checkAutoLock(): Promise<void> {
   const { isVaultUnlocked } = await import('../vault');
 
@@ -34,18 +53,8 @@ export async function checkAutoLock(): Promise<void> {
     return;
   }
 
-  const minutes = Number(
-    (await storageService.get<number>(VAULT_AUTO_LOCK_MINUTES)) ?? AUTO_LOCK_DEFAULT_MINUTES,
-  );
-
-  if (minutes <= 0) {
-    return;
-  }
-
-  const idleMs = Date.now() - lastActivityAt;
-  const maxIdleMs = minutes * 60 * 1000;
-
-  if (idleMs >= maxIdleMs) {
+  if (await isAutoLockOverdue()) {
+    const minutes = await autoLockMinutes();
     logService.log(LogLevel.WARN, `[AutoLock] Auto-locking vault after ${minutes} minutes`);
     await lockVault();
     stopAutoLockTimer();

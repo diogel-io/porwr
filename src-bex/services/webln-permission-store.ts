@@ -41,3 +41,23 @@ export function upsertWebLnPermission(
     ],
   };
 }
+
+/**
+ * Removes WebLN permissions an origin holds. With `connectionIds`, only those for the named
+ * connections, so disconnecting a site for one account leaves another account's wallet grant alone
+ * (#139).
+ */
+export function removeWebLnPermissionsForOrigin(
+  vaultData: VaultData,
+  origin: string,
+  connectionIds?: ReadonlySet<string>,
+): VaultData {
+  const remaining = listWebLnPermissions(vaultData).filter(
+    (grant) =>
+      grant.origin !== origin ||
+      (connectionIds !== undefined && !connectionIds.has(grant.connectionId)),
+  );
+  return remaining.length === listWebLnPermissions(vaultData).length
+    ? vaultData
+    : { ...vaultData, webLnPermissions: remaining };
+}

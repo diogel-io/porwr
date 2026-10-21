@@ -20,6 +20,7 @@
 
 import { PERMISSIONS_KEY, storageService } from '@/services/storage-service';
 import { LogLevel, logService } from '@/services/log-service';
+import { classifyRequest, getAllowedDurations } from '@/services/approval-preview';
 import { normalizeOrigin } from '../services/origin';
 import type { PermissionEventKind, PermissionGrant } from '../types/background';
 
@@ -39,6 +40,29 @@ interface LegacyPermissionGrant {
   expiry?: number;
 }
 
+/** The duration a grant was given for, read back from whether it expires. */
+const grantDuration = (grant: Pick<PermissionGrant, 'expiry'>): '8h' | 'always' =>
+  grant.expiry === undefined ? 'always' : '8h';
+
+/**
+ * Whether the request's risk class allows a standing grant of this duration (D11, D12, #139).
+ *
+ * A wildcard is never allowed: it would answer every kind. A grant written before a request type
+ * became elevated, such as an `always` decrypt grant, no longer passes and is dropped.
+ */
+const durationAllowed = (
+  requestType: string,
+  eventKind: PermissionEventKind,
+  duration: '8h' | 'always',
+): boolean =>
+  // A wildcard would answer every kind, elevated and unknown ones included, so it cannot meet any
+  // per-kind limit and is never honoured. Nothing writes one (#136); this drops any left over.
+  eventKind !== 'any' &&
+  getAllowedDurations(
+    classifyRequest(requestType, typeof eventKind === 'number' ? eventKind : -1),
+    true,
+  ).includes(duration);
+
 const isMigrated = (grant: PermissionGrant | LegacyPermissionGrant): grant is PermissionGrant =>
   typeof (grant as PermissionGrant).requestType === 'string' &&
   typeof (grant as PermissionGrant).accountPubkey === 'string';
@@ -56,6 +80,7 @@ const isMigrated = (grant: PermissionGrant | LegacyPermissionGrant): grant is Pe
  */
 const migrateGrants = (
   stored: Array<PermissionGrant | LegacyPermissionGrant>,
+  now: number,
 ): { grants: PermissionGrant[]; discarded: number } => {
   const grants: PermissionGrant[] = [];
   let discarded = 0;
@@ -75,6 +100,16 @@ const migrateGrants = (
       continue;
     }
 
+    // An expired grant answers nothing, and one longer than its risk class allows is no longer
+    // honoured; both are removed rather than kept as dead weight (#139).
+    if (
+      !isLive(grant, now) ||
+      !durationAllowed(grant.requestType, grant.eventKind, grantDuration(grant))
+    ) {
+      discarded += 1;
+      continue;
+    }
+
     grants.push(origin === grant.origin ? grant : { ...grant, origin });
   }
 
@@ -89,7 +124,7 @@ async function loadPermissions(): Promise<PermissionGrant[]> {
   const stored =
     (await storageService.get<Array<PermissionGrant | LegacyPermissionGrant>>(PERMISSIONS_KEY)) ||
     [];
-  const { grants, discarded } = migrateGrants(stored);
+  const { grants, discarded } = migrateGrants(stored, Date.now());
 
   const rekeyed = grants.some((grant, index) => grant !== stored[index]);
 
@@ -127,6 +162,16 @@ const sameScope = (
   grant.requestType === requestType &&
   grant.eventKind === eventKind;
 
+/** Live, and no longer than its risk class allows. */
+const isHonoured = (grant: PermissionGrant, now: number): boolean =>
+  isLive(grant, now) && durationAllowed(grant.requestType, grant.eventKind, grantDuration(grant));
+
+/** Remove one grant that can no longer answer, so expired grants do not accumulate (#139). */
+const dropGrant = async (stale: PermissionGrant): Promise<void> => {
+  const permissions = await loadPermissions();
+  await savePermissions(permissions.filter((grant) => grant !== stale));
+};
+
 export async function checkPermission(
   rawOrigin: string,
   accountPubkey: string,
@@ -148,9 +193,11 @@ export async function checkPermission(
     sameScope(grant, origin, accountPubkey, requestType, eventKind),
   );
   if (exactMatch) {
-    return isLive(exactMatch, now)
-      ? { granted: true, always: exactMatch.expiry === undefined }
-      : { granted: false };
+    if (isHonoured(exactMatch, now)) {
+      return { granted: true, always: exactMatch.expiry === undefined };
+    }
+    await dropGrant(exactMatch);
+    return { granted: false };
   }
 
   // A wildcard only ever answers a signing request, and only one written as a wildcard on purpose.
@@ -160,9 +207,10 @@ export async function checkPermission(
   const wildcard = permissions.find((grant) =>
     sameScope(grant, origin, accountPubkey, SIGN_EVENT, 'any'),
   );
-  if (wildcard && isLive(wildcard, now)) {
+  if (wildcard && isHonoured(wildcard, now)) {
     return { granted: true, always: wildcard.expiry === undefined };
   }
+  if (wildcard) await dropGrant(wildcard);
 
   return { granted: false };
 }
@@ -178,6 +226,10 @@ export async function grantPermission(
 ): Promise<void> {
   if (duration !== '8h' && duration !== 'always') {
     throw new Error(`Unsupported permission duration: ${String(duration)}`);
+  }
+
+  if (!durationAllowed(requestType, eventKind, duration)) {
+    throw new Error(`A ${duration} grant is not allowed for this request (D12)`);
   }
 
   if (!accountPubkey) {
@@ -227,6 +279,15 @@ export async function getGrantsForOrigin(rawOrigin: string): Promise<PermissionG
 
   const permissions = await loadPermissions();
   return permissions.filter((grant) => grant.origin === origin);
+}
+
+/** Drops every grant held by an account not in `accountPubkeys`, for accounts that are gone. */
+export async function revokeGrantsExcept(accountPubkeys: ReadonlySet<string>): Promise<number> {
+  const permissions = await loadPermissions();
+  const remaining = permissions.filter((grant) => accountPubkeys.has(grant.accountPubkey));
+
+  if (remaining.length !== permissions.length) await savePermissions(remaining);
+  return permissions.length - remaining.length;
 }
 
 /** Drops every grant an account holds, for when that account is removed or disconnected. */
