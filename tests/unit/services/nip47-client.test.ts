@@ -10,6 +10,7 @@ const { mockPoolInstance } = vi.hoisted(() => ({
     publish: vi.fn(),
     subscribe: vi.fn(),
     get: vi.fn(),
+    querySync: vi.fn(),
     destroy: vi.fn(),
   },
 }));
@@ -199,7 +200,7 @@ describe('wallet relays (diogel-io/workspace#142, T19)', () => {
   });
 
   it('never asks or publishes to a plaintext relay a stored connection still names', async () => {
-    mockPoolInstance.get.mockResolvedValue(null);
+    mockPoolInstance.querySync.mockResolvedValue([]);
     mockPoolInstance.subscribe.mockReturnValue({ close: vi.fn() });
     mockPoolInstance.publish.mockReturnValue([Promise.reject(new Error('stop'))]);
     const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
@@ -214,8 +215,49 @@ describe('wallet relays (diogel-io/workspace#142, T19)', () => {
       .sendRequest(connection, { method: 'get_balance', params: {} })
       .catch(() => undefined);
 
-    expect(mockPoolInstance.get.mock.calls[0]![0]).toEqual(['wss://relay.example.com/']);
+    expect(mockPoolInstance.querySync.mock.calls[0]![0]).toEqual(['wss://relay.example.com/']);
     expect(mockPoolInstance.publish.mock.calls[0]![0]).toEqual(['wss://relay.example.com/']);
     expect(mockPoolInstance.subscribe.mock.calls[0]![0]).toEqual(['wss://relay.example.com/']);
+  });
+});
+
+describe('Nip47Client.getInfo (diogel-io/workspace#142)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('negotiates from the newest info event any relay holds', async () => {
+    mockPoolInstance.querySync.mockResolvedValue([
+      { pubkey: 'w', created_at: 100, content: 'pay_invoice', tags: [['encryption', 'nip04']] },
+      {
+        pubkey: 'w',
+        created_at: 200,
+        content: 'pay_invoice get_balance',
+        tags: [['encryption', 'nip44_v2 nip04']],
+      },
+      { pubkey: 'w', created_at: 150, content: 'pay_invoice', tags: [] },
+    ]);
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+
+    const info = await new Nip47Client().getInfo({
+      ...buildConnection(),
+      relays: ['wss://a.example/', 'wss://b.example/'],
+    });
+
+    expect(info.encryption).toEqual(['nip44_v2', 'nip04']);
+    expect(info.capabilities).toEqual(['pay_invoice', 'get_balance']);
+    expect(mockPoolInstance.querySync.mock.calls[0]![0]).toEqual([
+      'wss://a.example/',
+      'wss://b.example/',
+    ]);
+  });
+
+  it('reports no info event when no relay holds one', async () => {
+    mockPoolInstance.querySync.mockResolvedValue([]);
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+
+    await expect(new Nip47Client().getInfo(buildConnection())).rejects.toThrow(
+      'No NIP-47 wallet info event',
+    );
   });
 });

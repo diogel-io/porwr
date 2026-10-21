@@ -124,14 +124,20 @@ export class Nip47Client {
 
   async getInfo(stored: Nip47Connection): Promise<Nip47InfoResponse> {
     const connection = { ...stored, relays: allowedWalletRelays(stored) };
-    const event = await this.pool.get(
+    // Every relay is asked and the newest event wins: a replaceable event can be stale on one
+    // relay, and negotiating from an old one could pick NIP-04 for a wallet that now offers NIP-44.
+    const events = await this.pool.querySync(
       connection.relays,
       {
         kinds: [NIP47_WALLET_INFO_KIND],
         authors: [connection.walletServicePubkey],
-        limit: 1,
       },
       { maxWait: 5000 },
+    );
+    const event = events.reduce<Event | null>(
+      (newest, candidate) =>
+        !newest || candidate.created_at > newest.created_at ? candidate : newest,
+      null,
     );
 
     if (!event) {
