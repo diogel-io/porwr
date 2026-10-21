@@ -512,6 +512,26 @@ describe('request queue', () => {
 
       expect(listener).toHaveBeenCalled();
     });
+
+    // Unlocking only fills in who the site acts as. The request still needs an explicit decision
+    // (D14, threat model T8, #144).
+    it('never approves or settles the request it names', async () => {
+      const { record, decision } = await enqueueRequest(locked);
+      let settled = false;
+      void decision.then(() => {
+        settled = true;
+      });
+
+      await assignAccountsToWaitingRequests(() => Promise.resolve(ALICE));
+      await Promise.resolve();
+
+      expect(settled).toBe(false);
+      expect((await getRequestRecord(record.id))?.state).toBe(record.state);
+      expect(await getPendingCount()).toBe(1);
+
+      await submitDecision(record.id, { approved: false, duration: 'once' });
+      await expect(decision).resolves.toEqual(expect.objectContaining({ approved: false }));
+    });
   });
 
   describe('persistence boundary', () => {
