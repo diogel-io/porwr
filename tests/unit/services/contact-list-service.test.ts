@@ -214,7 +214,14 @@ describe('contact-list-service', () => {
       const result = validateContactInput(pubkeyOne, 'https://relay.example.com', '', []);
 
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('protocols');
+      expect(result.error).toContain('wss://');
+    });
+
+    it('rejects a plaintext ws:// relay hint to a public host (T19)', () => {
+      const result = validateContactInput(pubkeyOne, 'ws://relay.example.com', '', []);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('wss://');
     });
   });
 });

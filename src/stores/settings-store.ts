@@ -19,7 +19,8 @@ import {
   setProtected,
 } from '@/services/protected-settings';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
-import { normalizeRelayUrl } from '@/services/relay-url';
+import { RELAY_PROTOCOL_ERROR, normalizeRelayUrl } from '@/services/relay-url';
+import { LogLevel, logService } from '@/services/log-service';
 import {
   getStoredProfileSearchRelays,
   setStoredProfileSearchRelays,
@@ -30,8 +31,19 @@ const DEFAULT_FALLBACK_RELAYS = RELAY_SEEDS;
 const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
 
 function normalizeRelayList(relays: string[]): string[] {
-  const normalized = relays
-    .map((relay) => normalizeRelayUrl(relay))
+  const results = relays.map((relay) => normalizeRelayUrl(relay));
+  results.forEach((result, index) => {
+    if (result.error !== RELAY_PROTOCOL_ERROR) return;
+    // Saved before relays had to be wss:// (diogel-io/workspace#142). The host only, never the URL.
+    let host = 'unparseable';
+    try {
+      host = new URL(relays[index]!.trim()).hostname;
+    } catch {
+      // keep the placeholder
+    }
+    logService.log(LogLevel.INFO, '[settings] Dropped a stored plaintext ws:// relay', { host });
+  });
+  const normalized = results
     .filter(
       (result): result is { valid: true; url: string; hostname?: string } =>
         result.valid && typeof result.url === 'string',
@@ -96,7 +108,8 @@ const useSettingsStore = defineStore('settings', {
         Array.isArray(result[FALLBACK_RELAYS]) &&
         (result[FALLBACK_RELAYS] as unknown[]).length > 0
       ) {
-        this.fallbackRelays = result[FALLBACK_RELAYS] as string[];
+        const normalized = normalizeRelayList(result[FALLBACK_RELAYS] as string[]);
+        this.fallbackRelays = normalized.length > 0 ? normalized : DEFAULT_FALLBACK_RELAYS;
       }
       this.quickPublishClientTag = result[QUICK_PUBLISH_CLIENT_TAG] !== false;
       let storedProfileSearchRelays: string[] | undefined;
@@ -189,8 +202,11 @@ const useSettingsStore = defineStore('settings', {
           }
           if (FALLBACK_RELAYS in changes) {
             const newValue = changes[FALLBACK_RELAYS].newValue;
-            if (Array.isArray(newValue) && newValue.length > 0) {
-              this.fallbackRelays = normalizeRelayList(newValue as string[]);
+            const normalized = Array.isArray(newValue)
+              ? normalizeRelayList(newValue as string[])
+              : [];
+            if (normalized.length > 0) {
+              this.fallbackRelays = normalized;
             } else {
               this.fallbackRelays = DEFAULT_FALLBACK_RELAYS;
             }

@@ -35,6 +35,7 @@ export function getNip11Url(relayUrl: string): string {
   if (parsed.protocol === 'wss:') {
     parsed.protocol = 'https:';
   } else if (parsed.protocol === 'ws:') {
+    // Only a loopback relay can be ws:// (normalizeRelayUrl), so plain http never leaves the device.
     parsed.protocol = 'http:';
   } else {
     throw new Error(`Unsupported relay protocol: ${parsed.protocol}`);

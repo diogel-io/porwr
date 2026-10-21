@@ -1,3 +1,17 @@
+/** Hosts a plaintext `ws:` relay may use: traffic to them never leaves the device (T19). */
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+export const RELAY_PROTOCOL_ERROR = 'Relays must use wss:// (ws:// is allowed only for localhost)';
+
+/**
+ * Whether a relay URL may be connected to: `wss:` anywhere, plaintext `ws:` only to a loopback
+ * host (diogel-io/workspace#142). Every path that opens a relay connection checks this.
+ */
+export function isAllowedRelayProtocol(url: URL): boolean {
+  if (url.protocol === 'wss:') return true;
+  return url.protocol === 'ws:' && LOOPBACK_HOSTS.has(url.hostname.toLowerCase());
+}
+
 export interface RelayUrlResult {
   valid: boolean;
   url?: string;
@@ -11,7 +25,7 @@ export interface RelayUrlResult {
  * Requirements:
  * - trim whitespace
  * - reject empty values
- * - accept only ws:// and wss:// URLs
+ * - accept only wss:// URLs, and ws:// to a loopback host
  * - reject malformed URLs
  * - reject URLs with a fragment (the WebSocket constructor throws on these)
  * - normalize hostname casing where safe
@@ -35,10 +49,10 @@ export function normalizeRelayUrl(input: string | null | undefined): RelayUrlRes
   try {
     const url = new URL(trimmed);
 
-    if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
+    if (!isAllowedRelayProtocol(url)) {
       return {
         valid: false,
-        error: 'Only ws:// and wss:// protocols are supported',
+        error: RELAY_PROTOCOL_ERROR,
       };
     }
 
