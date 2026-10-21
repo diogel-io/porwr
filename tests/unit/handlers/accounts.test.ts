@@ -25,6 +25,19 @@ vi.mock('@/../src-bex/services/connected-sites', () => ({
   sweepSiteStateForRemovedAccounts: state.sweepSiteState,
 }));
 
+// NIP-49 at full strength (scrypt, logn 16) takes seconds per call, and many times that under
+// coverage. Tests run the handlers' calls at a low cost instead; the test "encrypts at full NIP-49
+// strength" checks the handler asks for no cost of its own, so production uses the default.
+vi.mock('nostr-tools/nip49', async () => {
+  const actual = await vi.importActual<typeof import('nostr-tools/nip49')>('nostr-tools/nip49');
+  return {
+    ...actual,
+    encrypt: vi.fn((secret: Uint8Array, password: string, logn?: number) =>
+      actual.encrypt(secret, password, logn ?? 4),
+    ),
+  };
+});
+
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(() =>
     Promise.resolve(
@@ -414,6 +427,12 @@ describe('accounts.exportEncrypted', () => {
     expect(JSON.stringify(result)).not.toContain(bytesToHex(bobKey));
   });
 
+  it('encrypts at full NIP-49 strength, setting no cost of its own', async () => {
+    await handleAccountsExportEncrypted({ accountPubkey: BOB, password: 'export-password' });
+
+    expect(vi.mocked(nip49.encrypt)).toHaveBeenCalledWith(bobKey, 'export-password');
+  });
+
   it('refuses an export password under the minimum', async () => {
     await expect(
       handleAccountsExportEncrypted({ accountPubkey: BOB, password: 'short' }),
@@ -497,8 +516,9 @@ describe('accounts.importEncrypted', () => {
     ).resolves.toMatchObject({ success: false });
   });
 
-  // The NIP-49 specification's own test vector, so the format is the standard one.
-  it('decrypts the NIP-49 specification test vector', async () => {
+  // The NIP-49 specification's own test vector, so the format is the standard one. It is fixed at
+  // logn 16, which is slow under coverage.
+  it('decrypts the NIP-49 specification test vector', { timeout: 120_000 }, async () => {
     const vector =
       'ncryptsec1qgg9947rlpvqu76pj5ecreduf9jxhselq2nae2kghhvd5g7dgjtcxfqtd67p9m0w57lspw8gsq6yphnm8623nsl8xn9j4jdzz84zm3frztj3z7s35vpzmqf6ksu8r89qk5z2zxfmu5gv8th8wclt0h4p';
 
