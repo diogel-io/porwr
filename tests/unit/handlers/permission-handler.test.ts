@@ -111,12 +111,12 @@ describe('permission grants', () => {
     });
 
     it('keeps each kindless request type separate from the others', async () => {
-      await grantPermission(ORIGIN, ALICE, 'nip04_decrypt', null, 'always');
+      await grantPermission(ORIGIN, ALICE, 'nip04_encrypt', null, 'always');
 
-      expect(await checkPermission(ORIGIN, ALICE, 'nip44_decrypt', null)).toEqual({
+      expect(await checkPermission(ORIGIN, ALICE, 'nip44_encrypt', null)).toEqual({
         granted: false,
       });
-      expect(await checkPermission(ORIGIN, ALICE, 'nip04_decrypt', null)).toEqual({
+      expect(await checkPermission(ORIGIN, ALICE, 'nip04_encrypt', null)).toEqual({
         granted: true,
         always: true,
       });
@@ -218,7 +218,7 @@ describe('permission grants', () => {
           origin: ORIGIN,
           accountPubkey: ALICE,
           requestType: 'sign_event',
-          eventKind: 5,
+          eventKind: 7,
           granted: true,
           timestamp: 1,
         },
@@ -228,7 +228,7 @@ describe('permission grants', () => {
 
       expect(vi.mocked(storageService).set).toHaveBeenCalled();
       expect(stored).toHaveLength(1);
-      expect(stored[0]).toMatchObject({ accountPubkey: ALICE, eventKind: 5 });
+      expect(stored[0]).toMatchObject({ accountPubkey: ALICE, eventKind: 7 });
     });
 
     it('leaves fully-keyed records alone', async () => {
@@ -448,5 +448,74 @@ describe('origin normalisation', () => {
     expect((await checkPermission('http://example.com', ALICE, 'sign_event', 1)).granted).toBe(
       false,
     );
+  });
+
+  // The risk class limits how long a grant may stand (D11, D12). The background enforces it on
+  // write and on read, so a grant from before a request type became elevated stops answering (#139).
+  describe('durations the risk class allows', () => {
+    const fullyKeyed = (overrides: Record<string, unknown>) => ({
+      origin: ORIGIN,
+      accountPubkey: ALICE,
+      requestType: 'sign_event',
+      eventKind: 1,
+      granted: true,
+      timestamp: 1,
+      ...overrides,
+    });
+
+    it('refuses to write an always grant for an elevated kind or a decrypt request', async () => {
+      await expect(grantPermission(ORIGIN, ALICE, 'sign_event', 9734, 'always')).rejects.toThrow(
+        /not allowed/,
+      );
+      await expect(grantPermission(ORIGIN, ALICE, 'nip44_decrypt', null, 'always')).rejects.toThrow(
+        /not allowed/,
+      );
+    });
+
+    it('refuses to write any standing grant for an unknown kind', async () => {
+      await expect(grantPermission(ORIGIN, ALICE, 'sign_event', 31_999, '8h')).rejects.toThrow(
+        /not allowed/,
+      );
+    });
+
+    it('still writes an 8h decrypt grant', async () => {
+      await grantPermission(ORIGIN, ALICE, 'nip44_decrypt', null, '8h');
+
+      expect(await checkPermission(ORIGIN, ALICE, 'nip44_decrypt', null)).toEqual({
+        granted: true,
+        always: false,
+      });
+    });
+
+    it('no longer honours an always decrypt grant written before decrypt became elevated', async () => {
+      seed([fullyKeyed({ requestType: 'nip04_decrypt', eventKind: null })]);
+
+      expect(await checkPermission(ORIGIN, ALICE, 'nip04_decrypt', null)).toEqual({
+        granted: false,
+      });
+      expect(stored).toEqual([]);
+    });
+
+    it('drops an expired grant from storage rather than keeping it', async () => {
+      seed([fullyKeyed({ expiry: Date.now() - 1_000 }), fullyKeyed({ eventKind: 7 })]);
+
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 1)).toEqual({ granted: false });
+      expect(stored).toHaveLength(1);
+      expect(stored[0]).toMatchObject({ eventKind: 7 });
+    });
+
+    it('drops a grant that expires after it was loaded, when it is next checked', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(1_000_000);
+        await grantPermission(ORIGIN, ALICE, 'sign_event', 1, '8h');
+        vi.setSystemTime(1_000_000 + 9 * 60 * 60 * 1000);
+
+        expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 1)).toEqual({ granted: false });
+        expect(stored).toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

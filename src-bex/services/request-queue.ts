@@ -14,6 +14,7 @@ import { REQUEST_NOTICE_KEY, REQUEST_QUEUE_KEY, storageService } from '@/service
 import { clampRequestExpiryMinutes } from '@/services/request-expiry';
 import { REQUEST_EXPIRY_MINUTES } from '@/services/storage-service';
 import { LogLevel, logService } from '@/services/log-service';
+import { classifyRequest, getAllowedDurations } from '@/services/approval-preview';
 import {
   TERMINAL_REQUEST_STATES,
   type ApprovalRequestContent,
@@ -55,6 +56,13 @@ const liveCallbacks = new Map<string, PendingCallback>();
  * the panel reads them from the live worker or not at all.
  */
 const requestContent = new Map<string, ApprovalRequestContent>();
+
+/**
+ * Requests a decision is being applied to right now. Claimed before the first `await`, which
+ * JavaScript runs without interruption, so a second decision arriving while the first is still
+ * writing is refused instead of also passing the terminal-state check (#139).
+ */
+const deciding = new Set<string>();
 
 const forgetRequest = (id: string): void => {
   liveCallbacks.delete(id);
@@ -392,6 +400,23 @@ export const submitDecision = async (
   decision: ApprovalDecision,
   now: number = Date.now(),
 ): Promise<DecisionResult> => {
+  if (deciding.has(id)) {
+    logService.log(LogLevel.WARN, '[Queue] Refused concurrent decision', { id });
+    return { applied: false, reason: 'already-resolved' };
+  }
+  deciding.add(id);
+  try {
+    return await applyDecision(id, decision, now);
+  } finally {
+    deciding.delete(id);
+  }
+};
+
+const applyDecision = async (
+  id: string,
+  decision: ApprovalDecision,
+  now: number,
+): Promise<DecisionResult> => {
   const records = await loadQueue(now);
   const target = records.find((record) => record.id === id);
 
@@ -411,6 +436,23 @@ export const submitDecision = async (
       state: target.state,
     });
     return { applied: false, reason: 'already-resolved' };
+  }
+
+  // The panel offers only the durations the risk class allows; the background enforces it, since
+  // the panel is untrusted for lifecycle purposes (D1, D11, D12, #139).
+  if (decision.approved) {
+    const allowRemember = requestContent.get(id)?.allowRemember !== false;
+    const allowed = getAllowedDurations(
+      classifyRequest(target.requestType, target.eventKind),
+      allowRemember,
+    );
+    if (!allowed.includes(decision.duration)) {
+      logService.log(LogLevel.WARN, '[Queue] Refused a duration the request does not allow', {
+        id,
+        duration: decision.duration,
+      });
+      return { applied: false, reason: 'duration-not-allowed' };
+    }
   }
 
   const nextState: ApprovalRequestState = decision.approved ? 'approved' : 'rejected';

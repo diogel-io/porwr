@@ -82,6 +82,12 @@ export const ELEVATED_EVENT_KINDS: readonly number[] = [
 
 const PAYMENT_REQUEST_TYPES: readonly string[] = ['webln_send_payment'];
 
+/**
+ * Request types without an event kind that are elevated anyway (#139). A standing decrypt grant
+ * lets a site read every message sent to the account from anyone, so it is never `always`.
+ */
+const ELEVATED_REQUEST_TYPES: readonly string[] = ['nip04_decrypt', 'nip44_decrypt'];
+
 /** Effects named in the warning, so the user is told what the kind actually does. */
 const ELEVATED_KIND_EFFECTS: Readonly<Record<number, string>> = {
   3: 'replace the list of accounts you follow',
@@ -109,6 +115,7 @@ export const getEventKindLabel = (kind: number): string => {
 
 export const classifyRequest = (requestType: string, eventKind: number): RequestRiskClass => {
   if (PAYMENT_REQUEST_TYPES.includes(requestType)) return 'payment';
+  if (ELEVATED_REQUEST_TYPES.includes(requestType)) return 'elevated';
   // -1 means the request carries no event kind, not "any kind".
   if (eventKind < 0) return 'standard';
   if (ELEVATED_EVENT_KINDS.includes(eventKind)) return 'elevated';
@@ -121,6 +128,7 @@ export const getRiskWarning = (
   eventKind: number,
 ): string | undefined => {
   if (riskClass === 'elevated') {
+    if (eventKind < 0) return 'Approving this lets the site read private messages sent to you.';
     const effect = ELEVATED_KIND_EFFECTS[eventKind];
     return effect
       ? `Approving this lets the site ${effect}.`

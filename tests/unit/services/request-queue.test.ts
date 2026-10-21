@@ -141,6 +141,91 @@ describe('request queue', () => {
     });
   });
 
+  // The panel offers only the durations a request's risk class allows. The background enforces it
+  // too, since the panel is untrusted for lifecycle purposes (D1, D11, D12, #139).
+  describe('durations the risk class does not allow', () => {
+    const decide = async (
+      input: Partial<typeof baseInput>,
+      duration: 'once' | '8h' | 'always',
+      allowRemember = true,
+    ) => {
+      const { record, decision } = await enqueueRequest(
+        { ...baseInput, ...input },
+        { allowRemember },
+      );
+      const result = await submitDecision(record.id, { approved: true, duration });
+      return { record, decision, result };
+    };
+
+    it.each([
+      ['an elevated kind', { eventKind: 9734 }, 'always'],
+      ['an unknown kind', { eventKind: 31_999 }, '8h'],
+      ['a payment', { requestType: 'webln_send_payment', eventKind: -1 }, '8h'],
+      ['a decrypt request', { requestType: 'nip44_decrypt', eventKind: -1 }, 'always'],
+    ] as const)('refuses %s granted %s', async (_label, input, duration) => {
+      const { record, result } = await decide(input, duration);
+
+      expect(result).toEqual({ applied: false, reason: 'duration-not-allowed' });
+      expect((await getRequestRecord(record.id))?.state).toBe('queued');
+    });
+
+    it('refuses any remembered duration when the request may not be remembered', async () => {
+      const { result } = await decide({}, 'always', false);
+
+      expect(result).toEqual({ applied: false, reason: 'duration-not-allowed' });
+    });
+
+    it('leaves the request open, so the user can still decide it properly', async () => {
+      const { record, decision } = await decide({ eventKind: 9734 }, 'always');
+
+      const retry = await submitDecision(record.id, { approved: true, duration: '8h' });
+
+      expect(retry.applied).toBe(true);
+      await expect(decision).resolves.toEqual({ approved: true, duration: '8h' });
+    });
+
+    it('accepts every duration a standard kind allows', async () => {
+      const { result } = await decide({ eventKind: 1 }, 'always');
+
+      expect(result.applied).toBe(true);
+    });
+
+    it('lets a rejection through whatever duration it names', async () => {
+      const { record } = await enqueueRequest({ ...baseInput, eventKind: 9734 });
+
+      const result = await submitDecision(record.id, { approved: false, duration: 'always' });
+
+      expect(result.applied).toBe(true);
+    });
+  });
+
+  // Two panels deciding at once both used to pass the terminal-state check before either wrote
+  // (#139). Only the first may apply, and the stored state must match the outcome.
+  describe('concurrent decisions', () => {
+    it('applies exactly one of two opposite decisions started together', async () => {
+      const { record, decision } = await enqueueRequest(baseInput);
+
+      const [approve, reject] = await Promise.all([
+        submitDecision(record.id, { approved: true, duration: 'once' }),
+        submitDecision(record.id, { approved: false, duration: 'once' }),
+      ]);
+
+      expect([approve.applied, reject.applied]).toEqual([true, false]);
+      expect(reject).toEqual({ applied: false, reason: 'already-resolved' });
+      await expect(decision).resolves.toEqual(expect.objectContaining({ approved: true }));
+      expect((await getRequestRecord(record.id))?.state).toBe('approved');
+    });
+
+    it('frees the request once a refused decision returns', async () => {
+      const { record } = await enqueueRequest({ ...baseInput, eventKind: 9734 });
+
+      await submitDecision(record.id, { approved: true, duration: 'always' });
+      const next = await submitDecision(record.id, { approved: false, duration: 'once' });
+
+      expect(next.applied).toBe(true);
+    });
+  });
+
   describe('expiry', () => {
     it('settles a waiting request it expires as expired, not as a rejection (workspace#37)', async () => {
       const now = 1_000_000;
