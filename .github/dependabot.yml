@@ -1,0 +1,25 @@
+# Dependency updates (#143). Every runtime dependency ships to users with access to their keys, so
+# updates arrive as reviewed pull requests; nothing merges automatically.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Minor and patch releases together, to keep the review load to one PR a week.
+      minor-and-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # Keeps the SHA-pinned workflow actions current; Dependabot updates the pin and its version
+  # comment together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci

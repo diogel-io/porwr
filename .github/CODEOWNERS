@@ -1,4 +1,4 @@
 # https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
-*       @threenine
-*       @garywoodfine
+# One line: GitHub applies the last matching pattern, so two `*` lines made only the second an owner.
+*       @threenine @garywoodfine
