@@ -385,6 +385,22 @@ describe('account switch (diogel-io/workspace#142)', () => {
     expect(mocks.clear).not.toHaveBeenCalled();
   });
 
+  it('lets only the latest of two quick switches act, whichever resolves last', async () => {
+    const OTHER_KEY = new Uint8Array(32).fill(2);
+    let finishFirst: (key: Uint8Array) => void = () => undefined;
+    mocks.getActiveSecretKey
+      .mockImplementationOnce(() => new Promise<Uint8Array>((resolve) => (finishFirst = resolve)))
+      .mockResolvedValueOnce(OTHER_KEY);
+
+    const first = retainActiveAccountMessages({ 'nostr:active': { newValue: 'bob' } }, 'local');
+    await retainActiveAccountMessages({ 'nostr:active': { newValue: 'carol' } }, 'local');
+    finishFirst(SECRET_KEY);
+    await first;
+
+    expect(mocks.keepOnly).toHaveBeenCalledTimes(1);
+    expect(mocks.keepOnly).toHaveBeenCalledWith(getPublicKey(OTHER_KEY));
+  });
+
   it('drops everything when the active account cannot be resolved', async () => {
     mocks.getActiveSecretKey.mockRejectedValue(new Error('Vault is locked'));
 

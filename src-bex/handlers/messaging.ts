@@ -54,16 +54,24 @@ onVaultLocked(() => nip17Messaging.clear());
  * rewrites `nostr:active` to the new alias, keeps its own. If the active account can't be resolved,
  * everything is dropped.
  */
+let accountChanges = 0;
+
 export async function retainActiveAccountMessages(
   changes: Record<string, chrome.storage.StorageChange>,
   areaName: string,
 ): Promise<void> {
   if (areaName !== 'local' || !(NOSTR_ACTIVE in changes)) return;
+  // Two quick switches can resolve out of order; only the latest change may act.
+  const change = ++accountChanges;
+  let me: string | null;
   try {
-    nip17Messaging.keepOnly(getPublicKey(await getActiveSecretKey()));
+    me = getPublicKey(await getActiveSecretKey());
   } catch {
-    nip17Messaging.clear();
+    me = null;
   }
+  if (change !== accountChanges) return;
+  if (me) nip17Messaging.keepOnly(me);
+  else nip17Messaging.clear();
 }
 storageService.onChanged((changes, areaName) => {
   void retainActiveAccountMessages(changes, areaName);
