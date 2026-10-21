@@ -1,8 +1,8 @@
 # Coding Standards
 
 This is the canonical source for coding standards and practices in this repository — for
-human contributors and coding agents alike. `AGENTS.md`, `CLAUDE.md`, and
-`.junie/guidelines.md` point here rather than restating these rules.
+human contributors and coding agents alike. `AGENTS.md` points here rather than restating these
+rules, and `CLAUDE.md` points to `AGENTS.md`.
 
 This document does not require any existing code to be rewritten. It governs new code and
 code you touch going forward. Bringing the existing codebase in line with these standards is
