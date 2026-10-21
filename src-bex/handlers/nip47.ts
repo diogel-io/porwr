@@ -40,7 +40,7 @@ import {
   summarizeNip47Connection,
   upsertNip47Connection,
 } from '../services/nip47-connection-store';
-import { nip47Client } from '../services/nip47-client';
+import { allowedWalletRelays, nip47Client } from '../services/nip47-client';
 import {
   appendNip47PaymentHistory,
   listNip47PaymentHistory,
@@ -93,6 +93,21 @@ function requireConnection(
   if (!connection) {
     throw new Error('NIP-47 connection not found');
   }
+  return connection;
+}
+
+/**
+ * A stored connection Porwr may contact. One saved before relays had to be `wss:` (#142) may name
+ * only plaintext relays; it fails here, before any lookup or request, with a message that says how
+ * to fix it. Removing such a connection still works, through `requireConnection`.
+ */
+function requireUsableConnection(
+  vaultData: VaultData,
+  accountPubkey: string,
+  connectionId: string,
+): Nip47Connection {
+  const connection = requireConnection(vaultData, accountPubkey, connectionId);
+  allowedWalletRelays(connection);
   return connection;
 }
 
@@ -207,7 +222,7 @@ export async function handleNip47GetInfo(
 ): Promise<HandlerResult<Nip47InfoResponse>> {
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
-  const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
+  const connection = requireUsableConnection(vaultData, accountPubkey, payload.connectionId);
 
   const info = await nip47Client.getInfo(connection);
   await recordWalletInfo(accountPubkey, payload.connectionId, info);
@@ -275,7 +290,7 @@ export async function handleNip47GetBalance(
 ): Promise<HandlerResult<Nip47BalanceResponse>> {
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
-  const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
+  const connection = requireUsableConnection(vaultData, accountPubkey, payload.connectionId);
 
   const balance = await nip47Client.getBalance(
     await withNegotiatedEncryption(accountPubkey, connection),
@@ -288,7 +303,7 @@ export async function handleNip47PayInvoice(
 ): Promise<HandlerResult<Nip47PayInvoiceResponse>> {
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
-  const stored = requireConnection(vaultData, accountPubkey, payload.connectionId);
+  const stored = requireUsableConnection(vaultData, accountPubkey, payload.connectionId);
 
   const invoice = payload.invoice.trim();
   if (!invoice) {

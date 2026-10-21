@@ -17,7 +17,7 @@ import {
   handleNip47PaymentHistoryList,
 } from '@/../src-bex/handlers/nip47';
 import { getVaultData, updateVaultData } from '@/../src-bex/vault';
-import { nip47Client } from '@/../src-bex/services/nip47-client';
+import { NIP47_NO_ALLOWED_RELAYS, nip47Client } from '@/../src-bex/services/nip47-client';
 import { parseNwcUri, buildNip47ConnectionId } from '@/services/nip47-uri';
 import { listNip47PaymentHistory } from '@/../src-bex/services/nip47-payment-history-store';
 import type { StoredKey, VaultData } from '@/types/bridge';
@@ -42,7 +42,8 @@ vi.mock('@/../src-bex/vault', () => ({
   },
 }));
 
-vi.mock('@/../src-bex/services/nip47-client', () => ({
+vi.mock('@/../src-bex/services/nip47-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/../src-bex/services/nip47-client')>()),
   nip47Client: {
     payInvoice: vi.fn(),
     getInfo: vi.fn(),
@@ -273,6 +274,24 @@ describe('NIP-47 encryption negotiation before a request (diogel-io/workspace#14
     await expect(
       handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
     ).rejects.toThrow('does not advertise pay_invoice');
+    expect(nip47Client.payInvoice).not.toHaveBeenCalled();
+  });
+
+  it('refuses a connection saved with only plaintext ws:// relays, before contacting anything', async () => {
+    mockVault(buildConnection({ relays: ['ws://relay.example.com/'] }));
+
+    await expect(
+      handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' }),
+    ).rejects.toThrow(NIP47_NO_ALLOWED_RELAYS);
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow(NIP47_NO_ALLOWED_RELAYS);
+    await expect(
+      handleNip47GetInfo({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' }),
+    ).rejects.toThrow(NIP47_NO_ALLOWED_RELAYS);
+
+    expect(nip47Client.getInfo).not.toHaveBeenCalled();
+    expect(nip47Client.getBalance).not.toHaveBeenCalled();
     expect(nip47Client.payInvoice).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,7 @@
 import { finalizeEvent, getPublicKey, SimplePool, nip04, nip44 } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import type { Event } from 'nostr-tools';
+import { isAllowedRelayProtocol } from '@/services/relay-url';
 import {
   NIP47_REQUEST_KIND,
   NIP47_RESPONSE_KIND,
@@ -27,6 +28,28 @@ function parseCommands(content: string): Nip47Command[] {
     .split(/\s+/)
     .map((item) => item.trim())
     .filter((item): item is Nip47Command => item.length > 0);
+}
+
+export const NIP47_NO_ALLOWED_RELAYS =
+  'This wallet connection only uses plaintext ws:// relays, which Porwr no longer connects to. ' +
+  'Nothing was sent. Remove it and connect the wallet again with a wss:// relay.';
+
+/**
+ * The connection's relays that Porwr may connect to (`wss:`, or `ws:` to a loopback host). A
+ * connection saved before that rule (#142) may hold others; they are never contacted.
+ *
+ * @throws When none are left, so no wallet call is made over a refused relay.
+ */
+export function allowedWalletRelays(connection: Pick<Nip47Connection, 'relays'>): string[] {
+  const relays = connection.relays.filter((relay) => {
+    try {
+      return isAllowedRelayProtocol(new URL(relay));
+    } catch {
+      return false;
+    }
+  });
+  if (relays.length === 0) throw new Error(NIP47_NO_ALLOWED_RELAYS);
+  return relays;
 }
 
 export type Nip47Encryption = 'nip44_v2' | 'nip04';
@@ -99,7 +122,8 @@ function parseRpcResponse(content: string): Nip47RpcResponse {
 export class Nip47Client {
   private readonly pool = new SimplePool();
 
-  async getInfo(connection: Nip47Connection): Promise<Nip47InfoResponse> {
+  async getInfo(stored: Nip47Connection): Promise<Nip47InfoResponse> {
+    const connection = { ...stored, relays: allowedWalletRelays(stored) };
     const event = await this.pool.get(
       connection.relays,
       {
@@ -173,10 +197,8 @@ export class Nip47Client {
     };
   }
 
-  async sendRequest(
-    connection: Nip47Connection,
-    request: Nip47RpcRequest,
-  ): Promise<Nip47RpcResponse> {
+  async sendRequest(stored: Nip47Connection, request: Nip47RpcRequest): Promise<Nip47RpcResponse> {
+    const connection = { ...stored, relays: allowedWalletRelays(stored) };
     const clientSecretBytes = hexToBytes(connection.clientSecret);
     const clientPubkey = getPublicKey(clientSecretBytes);
     const requestPayload = JSON.stringify({

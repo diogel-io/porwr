@@ -75,8 +75,7 @@ describe('Nip47Client.sendRequest', () => {
 
   it('resolves with the wallet response once a matching relay event is published successfully', async () => {
     let onEvent:
-      | ((event: { pubkey: string; tags: string[][]; content: string }) => void)
-      | undefined;
+      ((event: { pubkey: string; tags: string[][]; content: string }) => void) | undefined;
     mockPoolInstance.subscribe.mockImplementation(
       (
         _relays: string[],
@@ -177,5 +176,46 @@ describe('NIP-47 encryption negotiation (diogel-io/workspace#142, T22)', () => {
     expect(selectNip47Encryption(['nip04'])).toBe('nip04');
     expect(selectNip47Encryption([])).toBe('nip04');
     expect(selectNip47Encryption(undefined)).toBe('nip04');
+  });
+});
+
+describe('wallet relays (diogel-io/workspace#142, T19)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps wss:// and loopback ws:// relays, and refuses a list with neither', async () => {
+    const { allowedWalletRelays, NIP47_NO_ALLOWED_RELAYS } =
+      await import('@/../src-bex/services/nip47-client');
+
+    expect(
+      allowedWalletRelays({
+        relays: ['ws://relay.example.com/', 'wss://relay.example.com/', 'ws://localhost:7777/'],
+      }),
+    ).toEqual(['wss://relay.example.com/', 'ws://localhost:7777/']);
+    expect(() => allowedWalletRelays({ relays: ['ws://relay.example.com/', 'nonsense'] })).toThrow(
+      NIP47_NO_ALLOWED_RELAYS,
+    );
+  });
+
+  it('never asks or publishes to a plaintext relay a stored connection still names', async () => {
+    mockPoolInstance.get.mockResolvedValue(null);
+    mockPoolInstance.subscribe.mockReturnValue({ close: vi.fn() });
+    mockPoolInstance.publish.mockReturnValue([Promise.reject(new Error('stop'))]);
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    const client = new Nip47Client();
+    const connection = {
+      ...buildConnection(),
+      relays: ['ws://relay.example.com/', 'wss://relay.example.com/'],
+    };
+
+    await client.getInfo(connection).catch(() => undefined);
+    await client
+      .sendRequest(connection, { method: 'get_balance', params: {} })
+      .catch(() => undefined);
+
+    expect(mockPoolInstance.get.mock.calls[0]![0]).toEqual(['wss://relay.example.com/']);
+    expect(mockPoolInstance.publish.mock.calls[0]![0]).toEqual(['wss://relay.example.com/']);
+    expect(mockPoolInstance.subscribe.mock.calls[0]![0]).toEqual(['wss://relay.example.com/']);
   });
 });
