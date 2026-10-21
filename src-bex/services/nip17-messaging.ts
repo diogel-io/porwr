@@ -133,6 +133,9 @@ function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** What a fetch overtaken by an account switch or a lock returns: nothing for the old account. */
+const supersededFetch = (): FetchMessagesResult => ({ inbox: 'ready', messages: [], dropped: 0 });
+
 export class Nip17Messaging {
   /** Decrypted messages per account. Memory only: dropped when the vault locks or the account changes. */
   private readonly messages = new Map<string, Map<string, DirectMessage>>();
@@ -142,6 +145,13 @@ export class Nip17Messaging {
    * connection opened for one account must never carry another account's requests.
    */
   private readonly pools = new Map<string, SimplePool>();
+  /**
+   * The account messaging serves, and a count that moves whenever that changes or the vault locks.
+   * An operation that resumes from a relay after either has happened belongs to the past: it must
+   * not put the old account's messages, or its authenticated pool, back (#142).
+   */
+  private active: string | null = null;
+  private generation = 0;
 
   constructor(
     private readonly createPool: () => SimplePool = () => new SimplePool(),
@@ -151,6 +161,8 @@ export class Nip17Messaging {
 
   /** Drops every decrypted message and closes every relay connection, as when the vault locks. */
   clear(): void {
+    this.active = null;
+    this.generation += 1;
     this.messages.clear();
     this.sends.clear();
     for (const pool of this.pools.values()) pool.destroy();
@@ -171,7 +183,7 @@ export class Nip17Messaging {
     const previous = this.sends.get(key);
     if (previous) return previous.result;
 
-    const result = this.deliver(secretKey, me, request);
+    const result = this.deliver(secretKey, me, request, this.generation);
     this.sends.set(key, { result, at: this.now() });
     result.catch(() => this.sends.delete(key));
     return result;
@@ -180,14 +192,20 @@ export class Nip17Messaging {
   async fetch(secretKey: Uint8Array, request: FetchMessagesRequest): Promise<FetchMessagesResult> {
     const me = getPublicKey(secretKey);
     this.keepOnly(me);
+    const generation = this.generation;
 
     const inbox = await this.relays.lookupDmRelays(me);
+    if (!this.isCurrent(me, generation)) return supersededFetch();
     if (inbox.relays.length === 0) {
       return { inbox: 'none', messages: [], dropped: 0 };
     }
 
     const since = typeof request.since === 'number' ? request.since : undefined;
     const wraps = await this.queryWraps(secretKey, me, inbox.relays, since);
+    if (!this.isCurrent(me, generation)) {
+      this.discardSuperseded(me);
+      return supersededFetch();
+    }
 
     const known = this.messagesFor(me);
     let dropped = 0;
@@ -212,6 +230,7 @@ export class Nip17Messaging {
     secretKey: Uint8Array,
     me: string,
     request: SendMessageRequest,
+    generation: number,
   ): Promise<SendMessageResult> {
     const deadlineAt = this.now() + SEND_DEADLINE_MS;
     const [ownInbox, recipientInbox] = await Promise.all([
@@ -267,7 +286,9 @@ export class Nip17Messaging {
       created_at: createdAt,
       content: request.content,
     };
-    this.messagesFor(me).set(message.id, message);
+    // Sent either way; remembered only if the account is still the one messaging serves.
+    if (this.isCurrent(me, generation)) this.messagesFor(me).set(message.id, message);
+    else this.discardSuperseded(me);
 
     return {
       status: 'sent',
@@ -387,6 +408,21 @@ export class Nip17Messaging {
     return pool;
   }
 
+  private isCurrent(me: string, generation: number): boolean {
+    return this.active === me && this.generation === generation;
+  }
+
+  /** Drops what a superseded operation left for an account messaging no longer serves. */
+  private discardSuperseded(me: string): void {
+    if (this.active === me) return;
+    this.messages.delete(me);
+    const pool = this.pools.get(me);
+    if (pool) {
+      pool.destroy();
+      this.pools.delete(me);
+    }
+  }
+
   private messagesFor(me: string): Map<string, DirectMessage> {
     let known = this.messages.get(me);
     if (!known) {
@@ -402,6 +438,10 @@ export class Nip17Messaging {
    * on every messaging operation, and as soon as the active account changes (#142).
    */
   keepOnly(me: string): void {
+    if (this.active !== me) {
+      this.active = me;
+      this.generation += 1;
+    }
     for (const account of [...this.messages.keys()]) {
       if (account !== me) this.messages.delete(account);
     }

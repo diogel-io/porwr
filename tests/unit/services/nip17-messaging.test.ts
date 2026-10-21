@@ -561,6 +561,43 @@ describe('Nip17Messaging', () => {
     expect(relays.clearCache).toHaveBeenCalled();
   });
 
+  it('discards a fetch overtaken by an account switch while it looked up the inbox (#142)', async () => {
+    const messaging = service();
+    stored.push(...wrapMessage(alice, BOB, 'for bob'));
+    let finishLookup: (list: DmRelayList) => void = () => undefined;
+    vi.mocked(relays.lookupDmRelays).mockImplementationOnce(
+      () => new Promise<DmRelayList>((resolve) => (finishLookup = resolve)),
+    );
+
+    const pending = messaging.fetch(bob, {});
+    messaging.keepOnly(ALICE);
+    finishLookup(INBOX[BOB]!);
+
+    await expect(pending).resolves.toEqual({ inbox: 'ready', messages: [], dropped: 0 });
+    expect(pools).toHaveLength(0);
+  });
+
+  it('keeps nothing from a fetch whose relays answer after the vault locked (#142)', async () => {
+    const messaging = service();
+    stored.push(...wrapMessage(alice, BOB, 'secret'));
+    const read = subscribeEose.getMockImplementation() as (...args: unknown[]) => unknown;
+    let release: () => void = () => undefined;
+    subscribeEose.mockImplementationOnce((...args: unknown[]) => {
+      release = () => void read(...args);
+      return { close: vi.fn() };
+    });
+
+    const pending = messaging.fetch(bob, {});
+    await vi.waitFor(() => expect(subscribeEose).toHaveBeenCalled());
+    messaging.clear();
+    release();
+
+    await expect(pending).resolves.toMatchObject({ messages: [] });
+    expect(pools.every((pool) => pool.destroy.mock.calls.length > 0)).toBe(true);
+    stored.length = 0;
+    await expect(messaging.fetch(bob, {})).resolves.toMatchObject({ messages: [] });
+  });
+
   it("keeps one account's messages at a time", async () => {
     const messaging = service();
     stored.push(...wrapMessage(alice, BOB, 'for bob'));
