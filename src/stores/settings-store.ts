@@ -42,10 +42,12 @@ const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
  * search relays alike.
  */
 function resolveStoredRelays(
-  stored: string[],
+  storedValue: readonly unknown[],
   defaults: readonly string[],
   listName: string,
 ): string[] {
+  // Storage can hold anything; a non-string entry is skipped rather than failing the load.
+  const stored = storedValue.filter((relay): relay is string => typeof relay === 'string');
   const normalized = normalizeRelayList(stored);
   if (normalized.length > 0) return normalized;
   if (hasRefusedPlaintextRelay(stored)) {
@@ -61,7 +63,7 @@ function resolveStoredRelays(
   return [...defaults];
 }
 
-const resolveFallbackRelays = (stored: string[]): string[] =>
+const resolveFallbackRelays = (stored: readonly unknown[]): string[] =>
   resolveStoredRelays(stored, DEFAULT_FALLBACK_RELAYS, 'fallback');
 
 /**
@@ -155,7 +157,7 @@ const useSettingsStore = defineStore('settings', {
         Array.isArray(result[FALLBACK_RELAYS]) &&
         (result[FALLBACK_RELAYS] as unknown[]).length > 0
       ) {
-        this.fallbackRelays = resolveFallbackRelays(result[FALLBACK_RELAYS] as string[]);
+        this.fallbackRelays = resolveFallbackRelays(result[FALLBACK_RELAYS] as unknown[]);
       }
       this.quickPublishClientTag = result[QUICK_PUBLISH_CLIENT_TAG] !== false;
       let storedProfileSearchRelays: string[] | undefined;
@@ -257,7 +259,7 @@ const useSettingsStore = defineStore('settings', {
             const newValue = changes[FALLBACK_RELAYS].newValue;
             this.fallbackRelays =
               Array.isArray(newValue) && newValue.length > 0
-                ? resolveFallbackRelays(newValue as string[])
+                ? resolveFallbackRelays(newValue as unknown[])
                 : DEFAULT_FALLBACK_RELAYS;
           }
         }

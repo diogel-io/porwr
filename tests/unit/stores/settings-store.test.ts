@@ -289,6 +289,17 @@ describe('SettingsStore', () => {
       log.mockRestore();
     });
 
+    it('skips malformed stored entries instead of failing to load', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: [42, null, 'wss://relay.damus.io'],
+      });
+      const store = useSettingsStore();
+
+      await expect(store.getSettings()).resolves.toBeUndefined();
+
+      expect(store.fallbackRelays).toEqual(['wss://relay.damus.io']);
+    });
+
     it('uses no relay, not the public seeds, when every stored relay is plaintext', async () => {
       vi.mocked(storageService.getMultiple).mockResolvedValue({
         [FALLBACK_RELAYS]: ['ws://relay.example.com'],
