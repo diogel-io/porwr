@@ -231,7 +231,12 @@ export async function handleAccountsExportEncrypted(
     typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '',
   );
   if (!pubkey) return { success: false, error: 'accountPubkey must be a hex public key' };
-  if (typeof payload?.password !== 'string' || payload.password.length < MIN_PASSWORD_LENGTH) {
+  // NIP-49 derives the key from the NFKC-normalised password, so that is what is measured, in
+  // characters rather than UTF-16 units: `'e\u0301'` four times is eight units but four characters.
+  if (
+    typeof payload?.password !== 'string' ||
+    Array.from(payload.password.normalize('NFKC')).length < MIN_PASSWORD_LENGTH
+  ) {
     return {
       success: false,
       error: `The export password must be at least ${MIN_PASSWORD_LENGTH} characters`,
@@ -264,7 +269,9 @@ export async function handleAccountsImportEncrypted(
   payload: ImportEncryptedRequest,
 ): Promise<HandlerResult<AccountSummary>> {
   const ncryptsec = typeof payload?.ncryptsec === 'string' ? payload.ncryptsec.trim() : '';
-  if (!ncryptsec.startsWith('ncryptsec1')) {
+  // All-uppercase Bech32 is valid too. The original string goes to the decoder, which still
+  // refuses mixed case.
+  if (!ncryptsec.toLowerCase().startsWith('ncryptsec1')) {
     return { success: false, error: 'Not an ncryptsec key' };
   }
 

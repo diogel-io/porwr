@@ -454,6 +454,18 @@ describe('accounts.exportEncrypted', () => {
     expect(vi.mocked(nip49.encrypt)).not.toHaveBeenCalled();
   });
 
+  // NIP-49 derives the key from the NFKC-normalised password: 'e' plus a combining acute is one
+  // character once normalised, so four of them are four characters, not eight (#141).
+  it('measures the export password as NIP-49 does, after NFKC normalisation', async () => {
+    await expect(
+      handleAccountsExportEncrypted({
+        accountPubkey: BOB,
+        password: 'e\u0301'.repeat(4),
+        vaultPassword: 'vault-password',
+      }),
+    ).resolves.toMatchObject({ success: false, error: expect.stringMatching(/at least 8/) });
+  });
+
   it('refuses an export password under the minimum', async () => {
     await expect(
       handleAccountsExportEncrypted({
@@ -532,6 +544,26 @@ describe('accounts.importEncrypted', () => {
 
     expect(result).toMatchObject({ success: false });
     expect(state.vault!.accounts).toHaveLength(before);
+  });
+
+  // All-uppercase Bech32 is valid; mixed case is not (#141).
+  it('accepts an all-uppercase ncryptsec, and refuses a mixed-case one', async () => {
+    const ncryptsec = nip49.encrypt(newKey, 'backup-password');
+
+    await expect(
+      handleAccountsImportEncrypted({
+        ncryptsec: ncryptsec.slice(0, 14) + ncryptsec.slice(14).toUpperCase(),
+        password: 'backup-password',
+        alias: 'mixed',
+      }),
+    ).resolves.toMatchObject({ success: false });
+    await expect(
+      handleAccountsImportEncrypted({
+        ncryptsec: ncryptsec.toUpperCase(),
+        password: 'backup-password',
+        alias: 'upper',
+      }),
+    ).resolves.toMatchObject({ success: true, data: { id: newPubkey } });
   });
 
   it('refuses something that is not an ncryptsec', async () => {
