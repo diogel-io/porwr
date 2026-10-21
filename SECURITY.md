@@ -98,7 +98,9 @@ A change to any of these needs the security review:
   `src/services/dexie-storage.ts`, `src/services/database.ts`, `src/services/log-service.ts`,
   `src/services/approval-preview.ts`, `src/services/request-expiry.ts`,
   `src/services/key-backup.ts`, `src/services/protected-settings.ts`,
-  `src/services/auto-lock-minutes.ts`
+  `src/services/auto-lock-minutes.ts`, and the transport rules in `src/services/relay-url.ts`
+  (which relays may be contacted) and `src/services/blossom-server.ts` (where uploads and their
+  signed authorisation may go)
 - `src/components/sidebar/*` and `src/composables/useApprovalQueue.ts`, which present and decide
   requests
 - `package.json`, `package-lock.json`, `src-bex/package.json`, `.npmrc`, `.github/workflows/*`, `.github/dependabot.yml`, and `.github/CODEOWNERS`

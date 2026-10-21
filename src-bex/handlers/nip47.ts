@@ -53,7 +53,7 @@ import {
   type PendingNip47Authorization,
 } from '../services/nip47-pending-authorization-store';
 import { onVaultLocked } from '../vault';
-import { LogLevel, logService } from '@/services/log-service';
+import { describeError, LogLevel, logService } from '@/services/log-service';
 
 /**
  * The account a wallet action names, checked against the vault.
@@ -276,8 +276,9 @@ async function withNegotiatedEncryption(
   try {
     info = await nip47Client.getInfo(connection);
   } catch (error: unknown) {
+    // Class and code only: a relay library's message can echo the relay URL it was given.
     logService.log(LogLevel.WARN, '[NIP-47] Could not read the wallet info event', {
-      error: error instanceof Error ? error.message : String(error),
+      error: describeError(error),
     });
     throw new Error(WALLET_INFO_UNAVAILABLE);
   }
