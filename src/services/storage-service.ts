@@ -1,6 +1,7 @@
 export const NOSTR_ACTIVE = 'nostr:active' as const;
 export const BLOSSOM_SERVER = 'nostr:blossom-server' as const;
 export const DARK_MODE = 'nostr:dark-mode' as const;
+/** Migration only: moved to the protected store (#140). */
 export const VAULT_AUTO_LOCK_MINUTES = 'vault:auto-lock-minutes' as const;
 export const REQUEST_EXPIRY_MINUTES = 'nostr:request-expiry-minutes' as const;
 // Session-scoped: the queue starts empty on every browser restart by design (ADR D6, D7).
@@ -15,10 +16,13 @@ export const REQUEST_NOTICE_KEY = 'nostr:request-notice' as const;
  * popup. See `src-bex/services/nip47-pending-authorization-store.ts` (#110).
  */
 export const NIP47_PENDING_AUTHORIZATIONS_KEY = 'nip47:pending-authorizations' as const;
+/** Migration only: moved to the protected store (#140). */
 export const VAULT_LAST_ACTIVITY = 'vault:last-activity' as const;
 export const BLOSSOM_UPLOAD_STATUS = 'blossom:upload-status' as const;
+/** Migration only: moved to the protected store (#140). */
 export const PERMISSIONS_KEY = 'nostr:permissions' as const;
 /** Which account each origin signs as. See `src-bex/services/site-binding-store.ts` (#116). */
+/** Migration only: moved to the protected store (#140). */
 export const SITE_BINDINGS_KEY = 'nostr:site-bindings' as const;
 export const VAULT_UNLOCKED = 'vault:unlocked' as const;
 export const FALLBACK_RELAYS = 'nostr:fallback-relays' as const;

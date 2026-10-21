@@ -6,13 +6,18 @@ import {
   QUICK_PUBLISH_CLIENT_TAG,
   REQUEST_EXPIRY_MINUTES,
   storageService,
-  VAULT_AUTO_LOCK_MINUTES,
 } from '@/services/storage-service';
 import {
   clampRequestExpiryMinutes,
   REQUEST_EXPIRY_DEFAULT_MINUTES,
 } from '@/services/request-expiry';
 import { RELAY_SEEDS } from '@/data/relay-seeds';
+import { AUTO_LOCK_DEFAULT_MINUTES, clampAutoLockMinutes } from '@/services/auto-lock-minutes';
+import {
+  getProtected,
+  PROTECTED_AUTO_LOCK_MINUTES,
+  setProtected,
+} from '@/services/protected-settings';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
 import { normalizeRelayUrl } from '@/services/relay-url';
 import {
@@ -21,7 +26,6 @@ import {
 } from '@/services/profile-search-relay-settings-service';
 
 const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net/';
-const DEFAULT_VAULT_AUTO_LOCK_MINUTES = 15;
 const DEFAULT_FALLBACK_RELAYS = RELAY_SEEDS;
 const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
 
@@ -41,7 +45,7 @@ const useSettingsStore = defineStore('settings', {
   state: () => ({
     blossomServer: DEFAULT_BLOSSOM_SERVER,
     darkMode: true, // Default to dark mode as per current observed behavior
-    vaultAutoLockMinutes: DEFAULT_VAULT_AUTO_LOCK_MINUTES,
+    vaultAutoLockMinutes: AUTO_LOCK_DEFAULT_MINUTES,
     requestExpiryMinutes: REQUEST_EXPIRY_DEFAULT_MINUTES,
     fallbackRelays: DEFAULT_FALLBACK_RELAYS,
     profileSearchRelays: DEFAULT_PROFILE_SEARCH_RELAYS,
@@ -69,7 +73,6 @@ const useSettingsStore = defineStore('settings', {
       const result = await storageService.getMultiple([
         BLOSSOM_SERVER,
         DARK_MODE,
-        VAULT_AUTO_LOCK_MINUTES,
         REQUEST_EXPIRY_MINUTES,
         FALLBACK_RELAYS,
         QUICK_PUBLISH_CLIENT_TAG,
@@ -80,12 +83,10 @@ const useSettingsStore = defineStore('settings', {
       if (Object.prototype.hasOwnProperty.call(result, DARK_MODE)) {
         this.darkMode = Boolean(result[DARK_MODE]);
       }
-      if (Object.prototype.hasOwnProperty.call(result, VAULT_AUTO_LOCK_MINUTES)) {
-        const value = Number(result[VAULT_AUTO_LOCK_MINUTES]);
-        this.vaultAutoLockMinutes = Number.isFinite(value)
-          ? Math.max(0, Math.floor(value))
-          : DEFAULT_VAULT_AUTO_LOCK_MINUTES;
-      }
+      // Kept out of content-script storage, and clamped as the background clamps it (#140).
+      this.vaultAutoLockMinutes = clampAutoLockMinutes(
+        await getProtected<unknown>(PROTECTED_AUTO_LOCK_MINUTES),
+      );
       if (Object.prototype.hasOwnProperty.call(result, REQUEST_EXPIRY_MINUTES)) {
         // Clamped on read as well as on write: the background applies the same clamp, and the
         // UI must never present a value the background would refuse (ADR D8).
@@ -127,9 +128,9 @@ const useSettingsStore = defineStore('settings', {
     },
 
     async setVaultAutoLockMinutes(minutes: number): Promise<void> {
-      const normalized = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0;
+      const normalized = clampAutoLockMinutes(minutes);
       this.vaultAutoLockMinutes = normalized;
-      await storageService.set(VAULT_AUTO_LOCK_MINUTES, normalized);
+      await setProtected(PROTECTED_AUTO_LOCK_MINUTES, normalized);
     },
 
     async setRequestExpiryMinutes(minutes: number): Promise<void> {
@@ -182,12 +183,6 @@ const useSettingsStore = defineStore('settings', {
           if (DARK_MODE in changes) {
             const newValue = changes[DARK_MODE].newValue;
             this.darkMode = typeof newValue === 'boolean' ? newValue : Boolean(newValue);
-          }
-          if (VAULT_AUTO_LOCK_MINUTES in changes) {
-            const newValue = Number(changes[VAULT_AUTO_LOCK_MINUTES].newValue);
-            this.vaultAutoLockMinutes = Number.isFinite(newValue)
-              ? Math.max(0, Math.floor(newValue))
-              : DEFAULT_VAULT_AUTO_LOCK_MINUTES;
           }
           if (QUICK_PUBLISH_CLIENT_TAG in changes) {
             this.quickPublishClientTag = changes[QUICK_PUBLISH_CLIENT_TAG].newValue !== false;

@@ -8,12 +8,14 @@ import {
   revokeGrantsExcept,
   revokePermission,
 } from '@/../src-bex/handlers/permission-handler';
-import { storageService } from '@/services/storage-service';
+import { getProtected, setProtected } from '@/services/protected-settings';
 import type { PermissionGrant } from '@/../src-bex/types/background';
 
-vi.mock('@/services/storage-service', () => ({
-  storageService: { get: vi.fn(), set: vi.fn() },
-  PERMISSIONS_KEY: 'permissions',
+// Grants are kept in the protected store (#140); spies stand in for it so reads and writes show.
+vi.mock('@/services/protected-settings', () => ({
+  getProtected: vi.fn(),
+  setProtected: vi.fn(),
+  PROTECTED_PERMISSIONS: 'protected:permissions',
 }));
 
 vi.mock('@/services/log-service', () => ({
@@ -45,8 +47,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   clearPermissionCache();
   stored = [];
-  vi.mocked(storageService).get.mockImplementation(() => Promise.resolve(stored));
-  vi.mocked(storageService).set.mockImplementation((_key, value) => {
+  vi.mocked(getProtected).mockImplementation(() => Promise.resolve(stored as never));
+  vi.mocked(setProtected).mockImplementation((_key, value) => {
     stored = value as PermissionGrant[];
     return Promise.resolve();
   });
@@ -230,7 +232,7 @@ describe('permission grants', () => {
 
       await getGrantedPermissions();
 
-      expect(vi.mocked(storageService).set).toHaveBeenCalled();
+      expect(vi.mocked(setProtected)).toHaveBeenCalled();
       expect(stored).toHaveLength(1);
       expect(stored[0]).toMatchObject({ accountPubkey: ALICE, eventKind: 7 });
     });
@@ -249,7 +251,7 @@ describe('permission grants', () => {
 
       await getGrantedPermissions();
 
-      expect(vi.mocked(storageService).set).not.toHaveBeenCalled();
+      expect(vi.mocked(setProtected)).not.toHaveBeenCalled();
     });
   });
 
@@ -347,11 +349,11 @@ describe('permission grants', () => {
 
       await getGrantedPermissions();
       await getGrantedPermissions();
-      expect(vi.mocked(storageService).get).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(getProtected)).toHaveBeenCalledTimes(1);
 
       clearPermissionCache();
       await getGrantedPermissions();
-      expect(vi.mocked(storageService).get).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(getProtected)).toHaveBeenCalledTimes(2);
     });
   });
 });

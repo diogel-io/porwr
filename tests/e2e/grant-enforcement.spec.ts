@@ -12,6 +12,8 @@ import { createVault, requestSignatureFromPage, seedAccount } from './fixtures/v
 const QUEUE_KEY = 'nostr:request-queue';
 
 test('a newly created vault locks when auto-lock comes due', async ({ openPage }) => {
+  // The shortest timeout is a whole minute (#140), checked every 15 seconds.
+  test.setTimeout(180_000);
   const page = await openPage('/login');
   await createVault(page);
 
@@ -19,11 +21,30 @@ test('a newly created vault locks when auto-lock comes due', async ({ openPage }
     page.evaluate(() => chrome.runtime.sendMessage({ type: 'vault.isUnlocked' }));
   expect(await isUnlocked()).toBe(true);
 
-  // A timeout of a fraction of a minute, so the next 15-second check finds the vault overdue. The
-  // setting is read on every check; the timer itself is what creating the vault must have started.
-  await page.evaluate(() => chrome.storage.local.set({ 'vault:auto-lock-minutes': 0.001 }));
+  // The timeout lives in the extension's own IndexedDB now (#140); written there as the settings
+  // page writes it. It is read on every check; the timer is what creating the vault must start.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('DiogelDatabase');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const tx = open.result.transaction('appSettings', 'readwrite');
+          tx.objectStore('appSettings').put({
+            key: 'protected:auto-lock-minutes',
+            value: 1,
+            updatedAt: new Date().toISOString(),
+          });
+          tx.oncomplete = () => {
+            open.result.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
 
-  await expect.poll(isUnlocked, { timeout: 45_000, intervals: [2_000] }).toBe(false);
+  await expect.poll(isUnlocked, { timeout: 120_000, intervals: [5_000] }).toBe(false);
 });
 
 test('closing the tab that asked interrupts its request, though the site is open elsewhere', async ({
