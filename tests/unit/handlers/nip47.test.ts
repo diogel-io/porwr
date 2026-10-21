@@ -84,6 +84,8 @@ function buildConnection(overrides: Partial<Nip47Connection> = {}): Nip47Connect
     createdAt: '2026-06-14T00:00:00.000Z',
     updatedAt: '2026-06-14T00:00:00.000Z',
     isActive: true,
+    // Already read from the wallet's info event, unless a test says otherwise (#142).
+    encryption: [],
     ...overrides,
   };
 }
@@ -189,6 +191,96 @@ describe('handleNip47PayInvoice', () => {
         invoice: INVOICE,
       }),
     ).rejects.toThrow('NIP-47 connection not found');
+  });
+});
+
+describe('NIP-47 encryption negotiation before a request (diogel-io/workspace#142, T22)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    globalThis.crypto.randomUUID = vi.fn(
+      () => 'history-entry-id',
+    ) as () => `${string}-${string}-${string}-${string}-${string}`;
+    vi.mocked(updateVaultData).mockResolvedValue({ success: true });
+  });
+
+  function mockVault(connection: Nip47Connection): void {
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [MAIN_ACCOUNT], nip47Connections: [connection] },
+    });
+  }
+
+  const INFO = {
+    capabilities: ['pay_invoice', 'get_balance'],
+    encryption: ['nip44_v2', 'nip04'],
+    checkedAt: '2026-10-21T00:00:00.000Z',
+  } as never;
+
+  it('reads and stores the wallet encryption before paying from an imported connection', async () => {
+    const { encryption: _unread, ...imported } = buildConnection();
+    void _unread;
+    mockVault(imported);
+    vi.mocked(nip47Client.getInfo).mockResolvedValue(INFO);
+    vi.mocked(nip47Client.payInvoice).mockResolvedValue({ preimage: 'preimage', raw: {} });
+
+    await handleNip47PayInvoice({
+      accountPubkey: ACCOUNT,
+      connectionId: 'wallet-a',
+      invoice: INVOICE,
+    });
+
+    expect(nip47Client.getInfo).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(nip47Client.payInvoice).mock.calls[0]![0]).toMatchObject({
+      encryption: ['nip44_v2', 'nip04'],
+    });
+    const stored = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
+    expect(stored.nip47Connections?.[0]).toMatchObject({ encryption: ['nip44_v2', 'nip04'] });
+  });
+
+  it('does the same before reading the balance', async () => {
+    const { encryption: _unread, ...imported } = buildConnection();
+    void _unread;
+    mockVault(imported);
+    vi.mocked(nip47Client.getInfo).mockResolvedValue(INFO);
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(vi.mocked(nip47Client.getBalance).mock.calls[0]![0]).toMatchObject({
+      encryption: ['nip44_v2', 'nip04'],
+    });
+  });
+
+  it('does not read the info event again once the encryption is known', async () => {
+    mockVault(buildConnection({ encryption: ['nip04'] }));
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(nip47Client.getInfo).not.toHaveBeenCalled();
+  });
+
+  it('falls back to NIP-04 without storing anything when the wallet has no info event', async () => {
+    const { encryption: _unread, ...imported } = buildConnection();
+    void _unread;
+    mockVault(imported);
+    vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('No NIP-47 wallet info event'));
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(vi.mocked(nip47Client.getBalance).mock.calls[0]![0].encryption).toBeUndefined();
+    expect(updateVaultData).not.toHaveBeenCalled();
+  });
+
+  it('stores the advertised encryption when wallet info is refreshed', async () => {
+    mockVault(buildConnection());
+    vi.mocked(nip47Client.getInfo).mockResolvedValue(INFO);
+
+    await handleNip47GetInfo({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    const stored = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
+    expect(stored.nip47Connections?.[0]).toMatchObject({ encryption: ['nip44_v2', 'nip04'] });
   });
 });
 

@@ -58,6 +58,12 @@ export interface Nip47Connection {
   isActive: boolean;
   lastInfoCheckedAt?: string;
   lastError?: string;
+  /**
+   * The encryption schemes the wallet's info event advertises (NIP-47 §Encryption), such as
+   * `['nip44_v2', 'nip04']`. An empty list means the event had no `encryption` tag, so NIP-04.
+   * Undefined until Porwr has read the info event (diogel-io/workspace#142).
+   */
+  encryption?: string[];
 }
 
 export type Nip47ConnectionSummary = Omit<Nip47Connection, 'clientSecret'> & {

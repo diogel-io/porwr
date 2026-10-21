@@ -201,18 +201,24 @@ export async function handleNip47GetInfo(
   const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
 
   const info = await nip47Client.getInfo(connection);
+  await recordWalletInfo(accountPubkey, payload.connectionId, info);
+  return { success: true, data: info };
+}
 
+/** Stores what the wallet's info event advertises against its connection. */
+async function recordWalletInfo(
+  accountPubkey: string,
+  connectionId: string,
+  info: Nip47InfoResponse,
+): Promise<void> {
   await mutateWalletVault((latestVaultData) => {
     // Removed while the wallet was answering: nothing to record against.
-    const latestConnection = findNip47Connection(
-      latestVaultData,
-      accountPubkey,
-      payload.connectionId,
-    );
+    const latestConnection = findNip47Connection(latestVaultData, accountPubkey, connectionId);
     if (!latestConnection) return { vaultData: latestVaultData, data: true };
     const updatedConnection: Nip47Connection = {
       ...latestConnection,
       capabilities: info.capabilities,
+      encryption: info.encryption,
       lastInfoCheckedAt: info.checkedAt,
       updatedAt: new Date().toISOString(),
     };
@@ -222,7 +228,27 @@ export async function handleNip47GetInfo(
       data: true,
     };
   });
-  return { success: true, data: info };
+}
+
+/**
+ * The connection with the encryption schemes its wallet advertises, read from the wallet's info
+ * event the first time they are needed (diogel-io/workspace#142, T22). A connection imported from
+ * a URI has never fetched it. If the wallet publishes no info event, the request goes as NIP-04,
+ * the protocol's default, and the info event is looked for again next time.
+ */
+async function withNegotiatedEncryption(
+  accountPubkey: string,
+  connection: Nip47Connection,
+): Promise<Nip47Connection> {
+  if (connection.encryption !== undefined) return connection;
+  let info: Nip47InfoResponse;
+  try {
+    info = await nip47Client.getInfo(connection);
+  } catch {
+    return connection;
+  }
+  await recordWalletInfo(accountPubkey, connection.id, info);
+  return { ...connection, capabilities: info.capabilities, encryption: info.encryption };
 }
 
 export async function handleNip47GetBalance(
@@ -232,7 +258,9 @@ export async function handleNip47GetBalance(
   const accountPubkey = requireWalletAccount(vaultData, payload);
   const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
 
-  const balance = await nip47Client.getBalance(connection);
+  const balance = await nip47Client.getBalance(
+    await withNegotiatedEncryption(accountPubkey, connection),
+  );
   return { success: true, data: balance };
 }
 
@@ -256,7 +284,10 @@ export async function handleNip47PayInvoice(
   }
 
   try {
-    const payment = await nip47Client.payInvoice(connection, invoice);
+    const payment = await nip47Client.payInvoice(
+      await withNegotiatedEncryption(accountPubkey, connection),
+      invoice,
+    );
     await mutateWalletVault((latestVaultData) => ({
       vaultData: appendNip47PaymentHistory(
         latestVaultData,
@@ -419,7 +450,11 @@ export async function handleNip47AuthorizationComplete(
   const info = await nip47Client.getInfo(connection);
   return {
     success: true,
-    data: await saveAuthorizedConnection(connection, info.capabilities, info.checkedAt),
+    data: await saveAuthorizedConnection(
+      { ...connection, encryption: info.encryption },
+      info.capabilities,
+      info.checkedAt,
+    ),
   };
 }
 

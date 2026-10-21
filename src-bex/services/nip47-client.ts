@@ -1,4 +1,4 @@
-import { finalizeEvent, getPublicKey, SimplePool, nip04 } from 'nostr-tools';
+import { finalizeEvent, getPublicKey, SimplePool, nip04, nip44 } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import type { Event } from 'nostr-tools';
 import {
@@ -27,6 +27,38 @@ function parseCommands(content: string): Nip47Command[] {
     .split(/\s+/)
     .map((item) => item.trim())
     .filter((item): item is Nip47Command => item.length > 0);
+}
+
+export type Nip47Encryption = 'nip44_v2' | 'nip04';
+
+/**
+ * The scheme a request uses, per NIP-47 §Encryption: NIP-44 whenever the wallet advertises it,
+ * otherwise NIP-04, which is what an absent `encryption` tag means (diogel-io/workspace#142, T22).
+ */
+export function selectNip47Encryption(advertised: readonly string[] | undefined): Nip47Encryption {
+  return advertised?.includes('nip44_v2') ? 'nip44_v2' : 'nip04';
+}
+
+function encryptFor(
+  scheme: Nip47Encryption,
+  clientSecretBytes: Uint8Array,
+  walletPubkey: string,
+  plaintext: string,
+): string {
+  return scheme === 'nip44_v2'
+    ? nip44.encrypt(plaintext, nip44.getConversationKey(clientSecretBytes, walletPubkey))
+    : nip04.encrypt(clientSecretBytes, walletPubkey, plaintext);
+}
+
+function decryptFrom(
+  scheme: Nip47Encryption,
+  clientSecretBytes: Uint8Array,
+  walletPubkey: string,
+  ciphertext: string,
+): string {
+  return scheme === 'nip44_v2'
+    ? nip44.decrypt(ciphertext, nip44.getConversationKey(clientSecretBytes, walletPubkey))
+    : nip04.decrypt(clientSecretBytes, walletPubkey, ciphertext);
 }
 
 function tagValues(event: Event, tagName: string): string[] {
@@ -151,7 +183,9 @@ export class Nip47Client {
       method: request.method,
       params: request.params,
     });
-    const encryptedContent = nip04.encrypt(
+    const scheme = selectNip47Encryption(connection.encryption);
+    const encryptedContent = encryptFor(
+      scheme,
       clientSecretBytes,
       connection.walletServicePubkey,
       requestPayload,
@@ -162,7 +196,11 @@ export class Nip47Client {
       {
         kind: NIP47_REQUEST_KIND,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [['p', connection.walletServicePubkey]],
+        // A NIP-04 request carries no `encryption` tag, which is how the spec says to mark it.
+        tags: [
+          ['p', connection.walletServicePubkey],
+          ...(scheme === 'nip44_v2' ? [['encryption', 'nip44_v2']] : []),
+        ],
         content: encryptedContent,
       },
       clientSecretBytes,
@@ -173,6 +211,7 @@ export class Nip47Client {
       event.id,
       since,
       clientSecretBytes,
+      scheme,
     );
 
     try {
@@ -201,6 +240,7 @@ export class Nip47Client {
     requestEventId: string,
     since: number,
     clientSecretBytes: Uint8Array,
+    scheme: Nip47Encryption,
   ): { promise: Promise<Nip47RpcResponse>; cancel: () => void } {
     let timeout: ReturnType<typeof setTimeout>;
     let closer: { close: (reason?: string) => void };
@@ -230,7 +270,8 @@ export class Nip47Client {
               if (!hasMatchingRequestTag) {
                 return;
               }
-              const decrypted = nip04.decrypt(clientSecretBytes, event.pubkey, event.content);
+              // The wallet answers in the scheme the request used.
+              const decrypted = decryptFrom(scheme, clientSecretBytes, event.pubkey, event.content);
               clearTimeout(timeout);
               closer.close('nip47 response received');
               resolve(parseRpcResponse(decrypted));

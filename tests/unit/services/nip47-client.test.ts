@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { nip04 } from 'nostr-tools';
+import { finalizeEvent, nip04, nip44 } from 'nostr-tools';
 
 /* eslint-disable @typescript-eslint/unbound-method */
 
@@ -22,6 +22,11 @@ vi.mock('nostr-tools', () => ({
   getPublicKey: vi.fn(() => 'client-pubkey'),
   nip04: {
     encrypt: vi.fn(() => 'encrypted-request'),
+    decrypt: vi.fn(),
+  },
+  nip44: {
+    getConversationKey: vi.fn(() => new Uint8Array(32).fill(7)),
+    encrypt: vi.fn(() => 'nip44-request'),
     decrypt: vi.fn(),
   },
 }));
@@ -101,5 +106,76 @@ describe('Nip47Client.sendRequest', () => {
 
     const response = await requestPromise;
     expect(response.result).toEqual({ balance: 1000 });
+  });
+});
+
+describe('NIP-47 encryption negotiation (diogel-io/workspace#142, T22)', () => {
+  type RelayEvent = { pubkey: string; tags: string[][]; content: string };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function roundTrip(encryption: string[] | undefined) {
+    let onEvent: ((event: RelayEvent) => void) | undefined;
+    mockPoolInstance.subscribe.mockImplementation(
+      (_relays: string[], _filter: unknown, opts: { onevent: (event: RelayEvent) => void }) => {
+        onEvent = opts.onevent;
+        return { close: vi.fn() };
+      },
+    );
+    mockPoolInstance.publish.mockReturnValue([Promise.resolve('ok')]);
+    const reply = JSON.stringify({ result: { balance: 42 } });
+    vi.mocked(nip04.decrypt).mockReturnValue(reply);
+    vi.mocked(nip44.decrypt).mockReturnValue(reply);
+
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    const pending = new Nip47Client().sendRequest(
+      { ...buildConnection(), ...(encryption ? { encryption } : {}) },
+      { method: 'get_balance', params: {} },
+    );
+    onEvent?.({ pubkey: 'wallet-service-pubkey', tags: [['e', 'event-id']], content: 'reply' });
+    const response = await pending;
+    const template = vi.mocked(finalizeEvent).mock.calls[0]![0] as {
+      tags: string[][];
+      content: string;
+    };
+    return { response, template };
+  }
+
+  it('uses NIP-44 and tags the request when the wallet advertises nip44_v2', async () => {
+    const { response, template } = await roundTrip(['nip44_v2', 'nip04']);
+
+    expect(nip44.encrypt).toHaveBeenCalledTimes(1);
+    expect(nip04.encrypt).not.toHaveBeenCalled();
+    expect(template.content).toBe('nip44-request');
+    expect(template.tags).toContainEqual(['encryption', 'nip44_v2']);
+    expect(nip44.decrypt).toHaveBeenCalledWith('reply', expect.any(Uint8Array));
+    expect(nip04.decrypt).not.toHaveBeenCalled();
+    expect(response.result).toEqual({ balance: 42 });
+  });
+
+  it.each([
+    ['the info event had no encryption tag', []],
+    ['the wallet lists nip04 only', ['nip04']],
+    ['the info event has not been read', undefined],
+  ])('uses NIP-04 with no encryption tag when %s', async (_case, encryption) => {
+    const { response, template } = await roundTrip(encryption);
+
+    expect(nip04.encrypt).toHaveBeenCalledTimes(1);
+    expect(nip44.encrypt).not.toHaveBeenCalled();
+    expect(template.tags.map(([name]) => name)).not.toContain('encryption');
+    expect(nip04.decrypt).toHaveBeenCalled();
+    expect(nip44.decrypt).not.toHaveBeenCalled();
+    expect(response.result).toEqual({ balance: 42 });
+  });
+
+  it('selects the scheme as NIP-47 says', async () => {
+    const { selectNip47Encryption } = await import('@/../src-bex/services/nip47-client');
+
+    expect(selectNip47Encryption(['nip04', 'nip44_v2'])).toBe('nip44_v2');
+    expect(selectNip47Encryption(['nip04'])).toBe('nip04');
+    expect(selectNip47Encryption([])).toBe('nip04');
+    expect(selectNip47Encryption(undefined)).toBe('nip04');
   });
 });
