@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { useVault } from '@/composables/useVault';
+import { MIN_PASSWORD_LENGTH } from '@/types/accounts';
 
 defineOptions({ name: 'SidebarSetup' });
 
@@ -22,12 +23,17 @@ const { password, confirmPassword, loading, loginError, handleCreate } = useVaul
  * add a key. Key creation and import stay full-tab: they involve seed phrases and their backup,
  * which a 320px ephemeral column is the wrong place to display.
  */
-const tooShort = computed(() => password.value.length > 0 && password.value.length < 8);
+const tooShort = computed(
+  () => password.value.length > 0 && password.value.length < MIN_PASSWORD_LENGTH,
+);
 const mismatched = computed(
   () => confirmPassword.value.length > 0 && confirmPassword.value !== password.value,
 );
 const submittable = computed(
-  () => password.value.length >= 8 && confirmPassword.value === password.value && !loading.value,
+  () =>
+    password.value.length >= MIN_PASSWORD_LENGTH &&
+    confirmPassword.value === password.value &&
+    !loading.value,
 );
 </script>
 
@@ -44,7 +50,7 @@ const submittable = computed(
       dense
       filled
       :error="tooShort"
-      :error-message="t('sidebar.createVault.minimum')"
+      :error-message="t('sidebar.createVault.minimum', { min: MIN_PASSWORD_LENGTH })"
       :label="t('sidebar.createVault.password')"
       type="password"
     />

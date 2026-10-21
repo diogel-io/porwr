@@ -1,5 +1,6 @@
 import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 import * as nip49 from 'nostr-tools/nip49';
+import { bech32 } from '@scure/base';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 import { db } from '@/services/database';
@@ -262,6 +263,32 @@ export async function handleAccountsExportEncrypted(
 }
 
 /**
+ * The highest scrypt cost (`logn`) accepted for an imported `ncryptsec`: four times NIP-49's usual
+ * 16, which Porwr's own exports use, at about 256 MiB. The cost is read from the key itself, so
+ * without a cap a crafted key could make the background allocate 1 GiB and run scrypt for tens of
+ * seconds, stalling every signing request while it does (#141).
+ */
+export const MAX_NCRYPTSEC_LOGN = 18;
+
+/** NIP-49's limit on the Bech32 string, as `nostr-tools` uses it. */
+const NCRYPTSEC_MAX_LENGTH = 5000;
+
+/** The scrypt cost an `ncryptsec` asks for, or null when it is not a version 2 ncryptsec. */
+export function ncryptsecCost(ncryptsec: string): number | null {
+  try {
+    const { prefix, words } = bech32.decode(
+      ncryptsec as `${string}1${string}`,
+      NCRYPTSEC_MAX_LENGTH,
+    );
+    if (prefix !== 'ncryptsec') return null;
+    const bytes = bech32.fromWords(words);
+    return bytes[0] === 0x02 && typeof bytes[1] === 'number' ? bytes[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Import a NIP-49 `ncryptsec`, decrypted here with its password, then added as any key is
  * (`handleAccountsAdd`). The decrypted key never reaches the page (#141).
  */
@@ -273,6 +300,18 @@ export async function handleAccountsImportEncrypted(
   // refuses mixed case.
   if (!ncryptsec.toLowerCase().startsWith('ncryptsec1')) {
     return { success: false, error: 'Not an ncryptsec key' };
+  }
+
+  // Read before any scrypt runs, so a key asking for an excessive cost is refused at once.
+  const cost = ncryptsecCost(ncryptsec);
+  if (cost === null) {
+    return { success: false, error: 'Incorrect password, or not a valid ncryptsec' };
+  }
+  if (cost > MAX_NCRYPTSEC_LOGN) {
+    return {
+      success: false,
+      error: `This key is encrypted at a cost Porwr does not accept (${cost}, maximum ${MAX_NCRYPTSEC_LOGN})`,
+    };
   }
 
   let secretKey: Uint8Array;

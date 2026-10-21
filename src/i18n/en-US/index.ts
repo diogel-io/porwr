@@ -45,7 +45,7 @@ export default {
     revealCancel: 'Cancel',
     exportFormatNote:
       'The key is saved encrypted with this password, as a NIP-49 ncryptsec that Porwr and other Nostr clients can import. Keep the password: without it the backup cannot be opened.',
-    passwordTooShort: 'Use at least 8 characters',
+    passwordTooShort: 'Use at least {min} characters',
     passwordMismatch: 'The passwords do not match',
     confirmPassword: 'Confirm password',
     vaultPassword: 'Vault password',
@@ -840,7 +840,7 @@ export default {
       warning: 'This password encrypts your keys. Porwr cannot recover it for you.',
       password: 'Password',
       confirmPassword: 'Confirm password',
-      minimum: 'Minimum 8 characters',
+      minimum: 'Minimum {min} characters',
       mismatch: 'Passwords must match',
     },
     accountSwitcher: {

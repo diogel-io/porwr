@@ -24,7 +24,9 @@
           v-model="localPassword"
           :rules="[
             (v) => !!v || t('account.passwordRequired'),
-            (v) => passwordLength(v) >= MIN_PASSWORD_LENGTH || t('account.passwordTooShort'),
+            (v) =>
+              passwordLength(v) >= MIN_PASSWORD_LENGTH ||
+              t('account.passwordTooShort', { min: MIN_PASSWORD_LENGTH }),
           ]"
           :type="showPassword ? 'text' : 'password'"
           dense

@@ -257,7 +257,8 @@ Closed in diogel-io/workspace#141. A per-key export was a zip encrypted with leg
 falls to known-plaintext attacks, around a file with a fixed header and the plaintext nsec; its
 entry name was the account alias; and its password, and the vault password, had a minimum only in
 the UI. An export is now a NIP-49 `ncryptsec` made in the background with an export password of at
-least 8 characters, in a file without the alias; Porwr imports `ncryptsec`; the vault password
+least 8 characters, in a file without the alias; Porwr imports `ncryptsec`, refusing a key that asks
+for a scrypt cost above `MAX_NCRYPTSEC_LOGN` (18) before any scrypt runs; the vault password
 minimum is enforced in the background; and showing or exporting a key needs the vault password
 again. Tests:
 `tests/unit/handlers/accounts.test.ts` (including the NIP-49 specification vector),
