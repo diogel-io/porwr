@@ -153,6 +153,25 @@ describe('keeping the vault unlocked (#245)', () => {
     expect(state.vaultSession.size).toBe(0);
   });
 
+  // Pending wallet authorisations and decrypted messages listen for the lock; a worker that comes
+  // back locked has to tell them too, or they outlive it (diogel-io/workspace#142).
+  it('tells the lock listeners when it starts locked, but not when it restores the key', async () => {
+    await (await freshWorker()).createNewVault(PASSWORD, DATA);
+
+    const overdue = await freshWorker();
+    const onOverdue = vi.fn();
+    overdue.onVaultLocked(onOverdue);
+    await overdue.restoreVaultState(() => Promise.resolve(true));
+    expect(onOverdue).toHaveBeenCalledTimes(1);
+
+    await (await freshWorker()).createNewVault(PASSWORD, DATA);
+    const restored = await freshWorker();
+    const onRestored = vi.fn();
+    restored.onVaultLocked(onRestored);
+    await restored.restoreVaultState(() => Promise.resolve(false));
+    expect(onRestored).not.toHaveBeenCalled();
+  });
+
   it('restores the key when auto-lock is not yet due', async () => {
     await (await freshWorker()).createNewVault(PASSWORD, DATA);
 

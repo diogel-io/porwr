@@ -72,7 +72,7 @@ export async function restoreVaultState(
     );
     if (LEGACY_SESSION_KEYS.some((key) => items[key] !== undefined)) {
       // An unlock from before #245 left raw key bytes behind. Never use them: lock instead.
-      await clearSession();
+      await startLocked();
       return false;
     }
 
@@ -81,7 +81,7 @@ export async function restoreVaultState(
 
     if (items[VAULT_UNLOCKED] !== true) {
       // A new browser session: the key outlived it in IndexedDB, but the vault must start locked.
-      await clearSession();
+      await startLocked();
       return false;
     }
 
@@ -90,7 +90,7 @@ export async function restoreVaultState(
         LogLevel.WARN,
         '[Vault] Started locked: auto-lock was due while the worker slept',
       );
-      await clearSession();
+      await startLocked();
       return false;
     }
 
@@ -175,12 +175,26 @@ export function onVaultLocked(listener: () => void): () => void {
   return () => lockListeners.delete(listener);
 }
 
-export async function lockVault() {
-  clearVaultKey();
-  await clearSession();
+function notifyLocked(): void {
   for (const listener of lockListeners) {
     listener();
   }
+}
+
+export async function lockVault() {
+  clearVaultKey();
+  await clearSession();
+  notifyLocked();
+}
+
+/**
+ * Discards the session and tells the lock listeners, as `lockVault` does, for a worker that
+ * restores into a locked vault. Whatever was waiting on the unlocked vault in session storage, such
+ * as a pending wallet authorisation, goes now rather than at its own expiry (#142).
+ */
+async function startLocked(): Promise<void> {
+  await clearSession();
+  notifyLocked();
 }
 
 export async function createNewVault(password: string, vaultData: unknown) {
