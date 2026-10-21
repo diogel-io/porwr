@@ -44,9 +44,23 @@ test.describe('the built extension', () => {
           ?.extension_pages ?? '',
     );
 
-    // The local sources are for `quasar dev` only; a built extension that kept them would run script
-    // served by any process on the user's machine in the pages that hold the vault.
-    expect(csp).toMatch(/script-src 'self'/);
-    expect(csp).not.toMatch(/localhost|127\.0\.0\.1/);
+    const directives = new Map(
+      csp
+        .split(';')
+        .map((directive) => directive.trim().split(/\s+/))
+        .filter(([name]) => name)
+        .map(([name, ...sources]) => [name!, sources]),
+    );
+
+    // The local script sources are for `quasar dev` only; a built extension that kept them would run
+    // script served by any process on the user's machine in the pages that hold the vault.
+    expect(directives.get('script-src')).toEqual(["'self'"]);
+    // A local host appears only as a plaintext relay in connect-src, which loopback ws:// relays need
+    // (diogel-io/workspace#142); never as a source of script or anything else.
+    for (const [name, sources] of directives) {
+      for (const source of sources.filter((item) => /localhost|127\.0\.0\.1/.test(item))) {
+        expect([name, source]).toEqual(['connect-src', expect.stringMatching(/^ws:\/\//)]);
+      }
+    }
   });
 });
