@@ -1,13 +1,30 @@
 <script lang="ts" setup>
-import { onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import useSettingsStore from '@/stores/settings-store';
+import { normalizeBlossomServer } from '@/services/blossom-server';
 
 const { t } = useI18n();
 const settingsStore = useSettingsStore();
 
+// Edited locally and saved only once it is a valid https:// URL, so a half-typed or http:// value
+// never becomes the upload target (T21).
+const serverInput = ref(settingsStore.blossomServer);
+const serverError = computed(() => {
+  const result = normalizeBlossomServer(serverInput.value);
+  return result.valid ? '' : (result.error ?? '');
+});
+
+async function updateServer(value: string | number | null): Promise<void> {
+  serverInput.value = String(value ?? '');
+  if (serverError.value === '') {
+    await settingsStore.setBlossomServer(serverInput.value);
+  }
+}
+
 onMounted(async () => {
   await settingsStore.getSettings();
+  serverInput.value = settingsStore.blossomServer;
 });
 </script>
 
@@ -27,12 +44,14 @@ onMounted(async () => {
               <q-item-label>{{ t('profile.blossomServer') }}</q-item-label>
               <q-item-label caption>{{ t('profile.blossomServerCaption') }}</q-item-label>
               <q-input
-                v-model="settingsStore.blossomServer"
+                :model-value="serverInput"
                 class="q-mt-sm"
                 dense
                 outlined
                 :aria-label="t('profile.blossomServer')"
-                @update:model-value="(val) => settingsStore.setBlossomServer(String(val))"
+                :error="serverError !== ''"
+                :error-message="serverError"
+                @update:model-value="updateServer"
               />
             </q-item-section>
           </q-item>

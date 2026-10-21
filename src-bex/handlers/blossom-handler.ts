@@ -1,11 +1,15 @@
-import { finalizeEvent, getPublicKey } from 'nostr-tools';
+import { finalizeEvent } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { storageService, NOSTR_ACTIVE, BLOSSOM_UPLOAD_STATUS } from '@/services/storage-service';
 import { LogLevel, logService } from '@/services/log-service';
+import { normalizeBlossomServer } from '@/services/blossom-server';
 import type { VaultData, StoredKey } from '@/types/bridge';
 import type { HandlerResult } from '../types/background';
 import { handleVaultGetData, handleVaultIsUnlocked } from './vault-handler';
+
+/** How long an upload authorisation is valid for (BUD-11 `expiration`). */
+export const BLOSSOM_AUTH_TTL_SECONDS = 300;
 
 export async function handleBlossomUpload(
   payload: {
@@ -28,6 +32,13 @@ export async function handleBlossomUpload(
     };
   }
 
+  // The server URL comes from the page's payload, so it is checked here as well as in settings:
+  // nothing is signed, and no file is sent, except over https (T21).
+  const server = normalizeBlossomServer(blossomServer);
+  if (!server.valid || !server.hostname) {
+    return { success: false, error: server.error ?? 'Invalid Blossom server URL' };
+  }
+
   await storageService.set(uploadStatusKey, {
     uploading: true,
     error: null,
@@ -41,7 +52,6 @@ export async function handleBlossomUpload(
     }
 
     const sk = hexToBytes(storedKey.account.privkey);
-    const pk = getPublicKey(sk);
 
     const binaryString = atob(base64Data);
     const bytes = new Uint8Array(binaryString.length);
@@ -64,6 +74,26 @@ export async function handleBlossomUpload(
       { url: blossomServer, method: 'PUT' },
     ];
 
+    // One BUD-11 authorisation per upload, reused for every endpoint tried: limited to this blob
+    // (`x`), this server (`server`) and a short window (`expiration`).
+    const now = Math.floor(Date.now() / 1000);
+    const signedEvent = finalizeEvent(
+      {
+        kind: 24242,
+        created_at: now,
+        tags: [
+          ['t', 'upload'],
+          ['x', hashHex],
+          ['size', bytes.length.toString()],
+          ['server', server.hostname],
+          ['expiration', String(now + BLOSSOM_AUTH_TTL_SECONDS)],
+        ],
+        content: 'Upload file',
+      },
+      sk,
+    );
+    const authHeader = `Nostr ${btoa(JSON.stringify(signedEvent))}`;
+
     let uploadResultUrl = '';
     let lastError: Error | null = null;
 
@@ -72,24 +102,6 @@ export async function handleBlossomUpload(
         logService.log(LogLevel.DEBUG, `[BEX] Attempting ${option.method} upload`, {
           url: option.url,
         });
-
-        const eventTemplate = {
-          kind: 24242,
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [
-            ['t', 'upload'],
-            ['x', hashHex],
-            ['u', option.url],
-            ['method', option.method],
-            ['size', bytes.length.toString()],
-          ],
-          content: 'Upload file',
-          pubkey: pk,
-        };
-
-        const signedEvent = finalizeEvent(eventTemplate, sk);
-        const signedEventJson = JSON.stringify(signedEvent);
-        const authHeader = `Nostr ${btoa(signedEventJson)}`;
 
         const response = await fetch(option.url, {
           method: option.method,

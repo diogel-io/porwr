@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { isProxy } from 'vue';
 import useSettingsStore from '@/stores/settings-store';
 import {
+  BLOSSOM_SERVER,
   FALLBACK_RELAYS,
   QUICK_PUBLISH_CLIENT_TAG,
   storageService,
@@ -246,6 +247,75 @@ describe('SettingsStore', () => {
 
       listener({ [QUICK_PUBLISH_CLIENT_TAG]: { newValue: true } }, 'local');
       expect(store.quickPublishClientTag).toBe(true);
+    });
+    /* eslint-enable @typescript-eslint/unbound-method */
+  });
+
+  describe('fallback relays (diogel-io/workspace#142, T19)', () => {
+    /* eslint-disable @typescript-eslint/unbound-method */
+    it('drops stored plaintext ws:// relays to public hosts when it loads', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: [
+          'ws://relay.example.com',
+          'wss://relay.damus.io',
+          'ws://localhost:7777',
+        ],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual(['wss://relay.damus.io', 'ws://localhost:7777']);
+    });
+
+    it('falls back to the seeds when every stored relay is plaintext', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['ws://relay.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual(DEFAULT_FALLBACK_RELAYS);
+    });
+    /* eslint-enable @typescript-eslint/unbound-method */
+  });
+
+  describe('Blossom server (diogel-io/workspace#142, T21)', () => {
+    /* eslint-disable @typescript-eslint/unbound-method */
+    it('saves an https:// server', async () => {
+      const store = useSettingsStore();
+
+      await store.setBlossomServer('https://media.example.org');
+
+      expect(store.blossomServer).toBe('https://media.example.org/');
+      expect(storageService.set).toHaveBeenCalledWith(BLOSSOM_SERVER, 'https://media.example.org/');
+    });
+
+    it.each([
+      'http://media.example.org',
+      'ftp://media.example.org',
+      'https://user:pass@media.example.org',
+      '',
+    ])('refuses %j and leaves the setting unchanged', async (url) => {
+      const store = useSettingsStore();
+      const before = store.blossomServer;
+
+      await expect(store.setBlossomServer(url)).rejects.toThrow();
+
+      expect(store.blossomServer).toBe(before);
+      expect(storageService.set).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the default when the stored server is not https://', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [BLOSSOM_SERVER]: 'http://media.example.org/',
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.blossomServer).toBe('https://blossom.primal.net/');
     });
     /* eslint-enable @typescript-eslint/unbound-method */
   });

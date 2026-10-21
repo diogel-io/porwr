@@ -21,6 +21,7 @@ import {
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
 import { RELAY_PROTOCOL_ERROR, normalizeRelayUrl } from '@/services/relay-url';
 import { LogLevel, logService } from '@/services/log-service';
+import { normalizeBlossomServer } from '@/services/blossom-server';
 import {
   getStoredProfileSearchRelays,
   setStoredProfileSearchRelays,
@@ -90,7 +91,9 @@ const useSettingsStore = defineStore('settings', {
         QUICK_PUBLISH_CLIENT_TAG,
       ]);
       if (result[BLOSSOM_SERVER] && typeof result[BLOSSOM_SERVER] === 'string') {
-        this.blossomServer = result[BLOSSOM_SERVER];
+        // A server saved before uploads had to be https:// falls back to the default (T21).
+        const stored = normalizeBlossomServer(result[BLOSSOM_SERVER]);
+        this.blossomServer = stored.valid && stored.url ? stored.url : DEFAULT_BLOSSOM_SERVER;
       }
       if (Object.prototype.hasOwnProperty.call(result, DARK_MODE)) {
         this.darkMode = Boolean(result[DARK_MODE]);
@@ -125,9 +128,14 @@ const useSettingsStore = defineStore('settings', {
       }
     },
 
+    /** Saves an https:// Blossom server. Throws for anything else, and leaves the setting unchanged. */
     async setBlossomServer(url: string): Promise<void> {
-      this.blossomServer = url;
-      await storageService.set(BLOSSOM_SERVER, url);
+      const result = normalizeBlossomServer(url);
+      if (!result.valid || !result.url) {
+        throw new Error(result.error ?? 'Enter a valid Blossom server URL');
+      }
+      this.blossomServer = result.url;
+      await storageService.set(BLOSSOM_SERVER, result.url);
     },
 
     async setDarkMode(dark: boolean): Promise<void> {
@@ -189,8 +197,9 @@ const useSettingsStore = defineStore('settings', {
         if (areaName === 'local') {
           if (BLOSSOM_SERVER in changes) {
             const newValue = changes[BLOSSOM_SERVER].newValue;
-            if (typeof newValue === 'string' && newValue.length > 0) {
-              this.blossomServer = newValue;
+            const changed = typeof newValue === 'string' ? normalizeBlossomServer(newValue) : null;
+            if (changed?.valid && changed.url) {
+              this.blossomServer = changed.url;
             }
           }
           if (DARK_MODE in changes) {

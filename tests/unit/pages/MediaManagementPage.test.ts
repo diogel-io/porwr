@@ -68,4 +68,12 @@ describe('MediaManagementPage', () => {
 
     expect(store.setBlossomServer).toHaveBeenCalledWith('https://media.example.org/');
   });
+
+  it('does not save an http:// URL, and shows why (diogel-io/workspace#142, T21)', async () => {
+    const wrapper = await mountPage();
+
+    await wrapper.find('input').setValue('http://media.example.org/');
+
+    expect(store.setBlossomServer).not.toHaveBeenCalled();
+  });
 });
