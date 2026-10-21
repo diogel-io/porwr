@@ -42,6 +42,7 @@ describe('ExportDialog', () => {
     ['passwords that do not match', 'long-enough', 'long-enougH'],
   ])('will not export with %s', async (_label, password, confirm) => {
     const wrapper = mountDialog();
+    await wrapper.get('[data-testid="export-vault-password"]').setValue('vault-password');
     await wrapper.get('[data-testid="export-password"]').setValue(password);
     await wrapper.get('[data-testid="export-password-confirm"]').setValue(confirm);
 
@@ -50,13 +51,27 @@ describe('ExportDialog', () => {
     expect(wrapper.emitted('confirm')).toBeUndefined();
   });
 
-  it('exports with a long enough password typed the same twice', async () => {
+  it('will not export without the vault password', async () => {
     const wrapper = mountDialog();
     await wrapper.get('[data-testid="export-password"]').setValue('long-enough');
     await wrapper.get('[data-testid="export-password-confirm"]').setValue('long-enough');
 
     await wrapper.get('[data-testid="export-confirm"]').trigger('click');
 
-    expect(wrapper.emitted('confirm')?.[0]?.[0]).toMatchObject({ password: 'long-enough' });
+    expect(wrapper.emitted('confirm')).toBeUndefined();
+  });
+
+  it('exports with the vault password and a long enough password typed the same twice', async () => {
+    const wrapper = mountDialog();
+    await wrapper.get('[data-testid="export-vault-password"]').setValue('vault-password');
+    await wrapper.get('[data-testid="export-password"]').setValue('long-enough');
+    await wrapper.get('[data-testid="export-password-confirm"]').setValue('long-enough');
+
+    await wrapper.get('[data-testid="export-confirm"]').trigger('click');
+
+    expect(wrapper.emitted('confirm')?.[0]?.[0]).toMatchObject({
+      password: 'long-enough',
+      vaultPassword: 'vault-password',
+    });
   });
 });

@@ -103,6 +103,7 @@ test.describe('accounts', () => {
 
     await page.getByRole('button', { name: 'Export', exact: true }).first().click();
     const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Vault password', { exact: true }).fill(VAULT_PASSWORD);
     await dialog.getByLabel('Password', { exact: true }).fill('backup-password');
     await dialog.getByLabel('Confirm password', { exact: true }).fill('backup-password');
     const [download] = await Promise.all([

@@ -102,8 +102,13 @@ export async function revealSecret(accountPubkey: string, password: string): Pro
 export async function exportEncryptedKey(
   accountPubkey: string,
   password: string,
+  vaultPassword: string,
 ): Promise<EncryptedKeyExport> {
-  const response = await sendBexMessage('accounts.exportEncrypted', { accountPubkey, password });
+  const response = await sendBexMessage('accounts.exportEncrypted', {
+    accountPubkey,
+    password,
+    vaultPassword,
+  });
   if (!response || typeof response !== 'object' || !('ncryptsec' in response)) {
     return fail(response, 'Failed to export the key');
   }

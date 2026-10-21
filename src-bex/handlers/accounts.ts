@@ -220,6 +220,9 @@ export async function handleAccountsRevealSecret(
  * One account's key, encrypted for export as a NIP-49 `ncryptsec` with a password chosen for the
  * export (#141). The key is encrypted here, so the page never receives the nsec. Any NIP-49 client,
  * Porwr included, can import the result with the same password.
+ *
+ * The vault password is checked first, as for showing a key: whoever chooses the export password
+ * can decrypt the export, so exporting is as sensitive as showing.
  */
 export async function handleAccountsExportEncrypted(
   payload: ExportEncryptedRequest,
@@ -233,6 +236,9 @@ export async function handleAccountsExportEncrypted(
       success: false,
       error: `The export password must be at least ${MIN_PASSWORD_LENGTH} characters`,
     };
+  }
+  if (!(await verifyVaultPassword(payload?.vaultPassword))) {
+    return { success: false, error: 'Incorrect vault password' };
   }
 
   try {

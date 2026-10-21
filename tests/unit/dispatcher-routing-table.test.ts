@@ -425,7 +425,7 @@ const cases: Case[] = [
   },
   {
     action: 'accounts.exportEncrypted',
-    payload: { accountPubkey: 'a', password: 'pw' },
+    payload: { accountPubkey: 'a', password: 'pw', vaultPassword: 'vpw' },
     handler: vi.mocked(accounts.handleAccountsExportEncrypted),
     name: 'handleAccountsExportEncrypted',
     resolves: ok({ ncryptsec: 'ncryptsec1x', npub: 'npub1x' }),

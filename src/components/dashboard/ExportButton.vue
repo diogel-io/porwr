@@ -18,7 +18,7 @@ const { t } = useI18n();
 const showExportDialog = ref(false);
 const exporting = ref(false);
 
-type ExportPayload = { password: string; filename: string };
+type ExportPayload = { password: string; vaultPassword: string; filename: string };
 
 function onExportClick() {
   showExportDialog.value = true;
@@ -34,7 +34,11 @@ async function onExportConfirm(payload: ExportPayload) {
 
   let text: string;
   try {
-    const exported = await exportEncryptedKey(props.storedKey.id, payload.password);
+    const exported = await exportEncryptedKey(
+      props.storedKey.id,
+      payload.password,
+      payload.vaultPassword,
+    );
     text = formatEncryptedKeyBackup(exported);
   } catch {
     $q.notify({ type: 'negative', message: t('account.exportFailed') });

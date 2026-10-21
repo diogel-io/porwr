@@ -49,10 +49,15 @@ export interface RevealedSecret {
   nsec: string;
 }
 
-/** Exporting one account's key, encrypted with a password chosen for the export. */
+/**
+ * Exporting one account's key, encrypted with a password chosen for the export. The vault password
+ * is asked for again as well: otherwise anyone at an unlocked browser could export with a password
+ * of their own and decrypt the result, which would get round the check on showing a key (#141).
+ */
 export interface ExportEncryptedRequest {
   accountPubkey: string;
   password: string;
+  vaultPassword: string;
 }
 
 /**

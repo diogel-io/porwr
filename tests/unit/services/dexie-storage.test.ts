@@ -191,18 +191,21 @@ describe('dexie-storage exportEncryptedKey', () => {
   it('returns the ncryptsec and npub the background produced', async () => {
     mocks.sendBexMessage.mockResolvedValue({ ncryptsec: 'ncryptsec1x', npub: 'npub1x' });
 
-    await expect(exportEncryptedKey(ALICE.id, 'export-password')).resolves.toEqual({
+    await expect(
+      exportEncryptedKey(ALICE.id, 'export-password', 'vault-password'),
+    ).resolves.toEqual({
       ncryptsec: 'ncryptsec1x',
       npub: 'npub1x',
     });
     expect(mocks.sendBexMessage).toHaveBeenCalledWith('accounts.exportEncrypted', {
       accountPubkey: ALICE.id,
       password: 'export-password',
+      vaultPassword: 'vault-password',
     });
   });
 
   it('surfaces a refusal', async () => {
     mocks.sendBexMessage.mockResolvedValue({ success: false, error: 'too short' });
-    await expect(exportEncryptedKey(ALICE.id, 'x')).rejects.toThrow('too short');
+    await expect(exportEncryptedKey(ALICE.id, 'x', 'vault-password')).rejects.toThrow('too short');
   });
 });

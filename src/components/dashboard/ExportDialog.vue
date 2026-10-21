@@ -11,13 +11,22 @@
 
       <q-card-section class="q-gutter-md">
         <q-input
+          v-model="localVaultPassword"
+          :rules="[(v) => !!v || t('account.passwordRequired')]"
+          type="password"
+          autofocus
+          dense
+          data-testid="export-vault-password"
+          :label="t('account.vaultPassword')"
+        />
+
+        <q-input
           v-model="localPassword"
           :rules="[
             (v) => !!v || t('account.passwordRequired'),
             (v) => v.length >= MIN_PASSWORD_LENGTH || t('account.passwordTooShort'),
           ]"
           :type="showPassword ? 'text' : 'password'"
-          autofocus
           dense
           data-testid="export-password"
           :label="t('account.password')"
@@ -79,7 +88,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
-  (e: 'confirm', payload: { password: string; filename: string }): void;
+  (e: 'confirm', payload: { password: string; vaultPassword: string; filename: string }): void;
 }>();
 
 const modelValue = computed({
@@ -87,6 +96,7 @@ const modelValue = computed({
   set: (v: boolean) => emit('update:modelValue', v),
 });
 
+const localVaultPassword = ref('');
 const localPassword = ref('');
 const localConfirm = ref('');
 const localFilename = ref('');
@@ -102,6 +112,7 @@ function defaultFilename(now: Date = new Date()): string {
 
 const canConfirm = computed(
   () =>
+    localVaultPassword.value.length > 0 &&
     localPassword.value.length >= MIN_PASSWORD_LENGTH &&
     localConfirm.value === localPassword.value &&
     localFilename.value.length > 0,
@@ -111,6 +122,7 @@ watch(
   () => props.modelValue,
   (isOpen) => {
     if (!isOpen) return;
+    localVaultPassword.value = '';
     localPassword.value = '';
     localConfirm.value = '';
     localFilename.value = defaultFilename();
@@ -124,7 +136,12 @@ function onCancel() {
 
 function onConfirm() {
   if (!canConfirm.value) return;
-  emit('confirm', { password: localPassword.value, filename: localFilename.value });
+  emit('confirm', {
+    password: localPassword.value,
+    vaultPassword: localVaultPassword.value,
+    filename: localFilename.value,
+  });
+  localVaultPassword.value = '';
   localPassword.value = '';
   localConfirm.value = '';
 }

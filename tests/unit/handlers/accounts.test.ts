@@ -417,6 +417,7 @@ describe('accounts.exportEncrypted', () => {
     const result = await handleAccountsExportEncrypted({
       accountPubkey: BOB,
       password: 'export-password',
+      vaultPassword: 'vault-password',
     });
 
     if (!result.success) throw new Error(result.error);
@@ -428,24 +429,56 @@ describe('accounts.exportEncrypted', () => {
   });
 
   it('encrypts at full NIP-49 strength, setting no cost of its own', async () => {
-    await handleAccountsExportEncrypted({ accountPubkey: BOB, password: 'export-password' });
+    await handleAccountsExportEncrypted({
+      accountPubkey: BOB,
+      password: 'export-password',
+      vaultPassword: 'vault-password',
+    });
 
     expect(vi.mocked(nip49.encrypt)).toHaveBeenCalledWith(bobKey, 'export-password');
   });
 
+  // Whoever chooses the export password can decrypt the export, so exporting asks for the vault
+  // password just as showing a key does (#141).
+  it.each([
+    ['no vault password', ''],
+    ['a wrong vault password', 'not-the-vault-password'],
+  ])('refuses %s, and returns no ncryptsec', async (_label, vaultPassword) => {
+    const result = await handleAccountsExportEncrypted({
+      accountPubkey: BOB,
+      password: 'export-password',
+      vaultPassword,
+    });
+
+    expect(result).toEqual({ success: false, error: 'Incorrect vault password' });
+    expect(vi.mocked(nip49.encrypt)).not.toHaveBeenCalled();
+  });
+
   it('refuses an export password under the minimum', async () => {
     await expect(
-      handleAccountsExportEncrypted({ accountPubkey: BOB, password: 'short' }),
+      handleAccountsExportEncrypted({
+        accountPubkey: BOB,
+        password: 'short',
+        vaultPassword: 'vault-password',
+      }),
     ).resolves.toMatchObject({ success: false, error: expect.stringMatching(/at least 8/) });
   });
 
   it('refuses an unknown account and a locked vault', async () => {
     await expect(
-      handleAccountsExportEncrypted({ accountPubkey: 'c'.repeat(64), password: 'export-password' }),
+      handleAccountsExportEncrypted({
+        accountPubkey: 'c'.repeat(64),
+        password: 'export-password',
+        vaultPassword: 'vault-password',
+      }),
     ).resolves.toEqual({ success: false, error: 'Account not found' });
     state.vault = null;
     await expect(
-      handleAccountsExportEncrypted({ accountPubkey: BOB, password: 'export-password' }),
+      handleAccountsExportEncrypted({
+        accountPubkey: BOB,
+        password: 'export-password',
+        vaultPassword: 'vault-password',
+      }),
     ).resolves.toMatchObject({ success: false });
   });
 });
@@ -474,6 +507,7 @@ describe('accounts.importEncrypted', () => {
     const exported = await handleAccountsExportEncrypted({
       accountPubkey: BOB,
       password: 'export-password',
+      vaultPassword: 'vault-password',
     });
     if (!exported.success) throw new Error(exported.error);
     state.vault = { ...state.vault!, accounts: state.vault!.accounts.filter((a) => a.id !== BOB) };
