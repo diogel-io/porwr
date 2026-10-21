@@ -36,6 +36,8 @@ below so you can follow them without access to it.
 5. [DEPLOYMENT.md](DEPLOYMENT.md): how releases are cut and published.
 6. [docs/threat-model.md](docs/threat-model.md): the assets, trust boundaries, threats, and
    controls the security invariants below protect. Read it before a security-sensitive change.
+7. [SECURITY.md](SECURITY.md): how vulnerabilities are reported, the list of security-sensitive
+   paths, and the review checklist a change to one of them must pass.
 
 ## Commands
 
@@ -208,6 +210,11 @@ updates `docs/threat-model.md` in the same pull request. The model is public: de
 exploitable weakness there only as a one-line summary with its tracking reference, as its
 disclosure rule says.
 
+A change to any path listed under "Sensitive paths" in [SECURITY.md](SECURITY.md) must pass its
+security review checklist before it merges. Work through the checklist, record it in the pull
+request template's "Security review" section, and never describe an unfixed vulnerability in a
+public issue or pull request.
+
 **Origin**
 
 - The requesting site comes only from the browser-supplied `sender` of the `porwr:page` port
@@ -280,11 +287,12 @@ disclosure rule says.
 ## What belongs in this repository
 
 Code, tests, CI, release automation, and documentation that governs this repository (this file,
-`CODINGSTANDARDS.md`, `DEVELOPING.md`, `DEPLOYMENT.md`, `README.md`, `PRIVACY.md`, and the threat
-model in `docs/`) live here.
+`CODINGSTANDARDS.md`, `DEVELOPING.md`, `DEPLOYMENT.md`, `README.md`, `PRIVACY.md`, `SECURITY.md`,
+and the threat model in `docs/`) live here.
 Product requirements, design, research, ADRs, and release planning live in the Diogel workspace.
 
 ## Keeping this file current
 
 A pull request that changes a path, command, flow, or rule described here updates this file in
-the same pull request. Stale guidance here is a defect.
+the same pull request, and one that adds, moves, or removes a security-sensitive path updates the
+list in `SECURITY.md`. Stale guidance here is a defect.

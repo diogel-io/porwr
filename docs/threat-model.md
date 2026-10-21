@@ -7,7 +7,7 @@ Baseline: `diogel-io/porwr` `master` at `8ad26d5`
 Tracking issue: diogel-io/workspace#135
 
 This is the threat model for the whole Porwr extension. It supersedes the workspace approval threat
-model (`10-products/porwr/architecture/approval-threat-model.md` in `diogel-io/workspace`, written
+model (`80-archive/10-products/porwr/architecture/approval-threat-model.md` in `diogel-io/workspace`, written
 at `867eaa6` under #111) as the description of current behaviour. That document is kept as the
 historical record of the approval path before the sidebar, request queue, and site binding work;
 where the two differ, this document wins. Threat IDs T1-T13 and findings F1-F4 keep their original
@@ -20,7 +20,7 @@ restated under "Security invariants" in [AGENTS.md](../AGENTS.md).
 
 - A pull request that adds an asset, a trust boundary, or a control, or that changes one listed
   here, updates this document in the same pull request. The security review checklist in
-  `SECURITY.md` (being added under diogel-io/workspace#136) applies to every change touching a
+  [SECURITY.md](../SECURITY.md) applies to every change touching a
   security-sensitive path.
 - Paths are cited as they exist at the baseline commit. When the baseline moves, re-verify the rows
   you touch and update the baseline line above.
@@ -28,8 +28,8 @@ restated under "Security invariants" in [AGENTS.md](../AGENTS.md).
   finding that could be exploited is given a one-line summary and a tracking reference only; its
   details are held in a private GitHub security advisory on `diogel-io/porwr` and in the private
   workspace issue, and are published here once a fixed version is released. Report suspected
-  vulnerabilities privately, never in a public issue: as described in `SECURITY.md` once it lands,
-  and until then by email to support@threenine.co.uk.
+  vulnerabilities privately, never in a public issue: as described in
+  [SECURITY.md](../SECURITY.md).
 
 ## Scope and method
 
@@ -289,8 +289,8 @@ Each control below must be covered by an automated test, not by review alone.
 ## References
 
 - [AGENTS.md](../AGENTS.md), "Security invariants": the binding rules, with ADR labels.
-- `SECURITY.md`: vulnerability reporting and the security review checklist (diogel-io/workspace#136).
-- Workspace `10-products/porwr/architecture/approval-threat-model.md`: the historical approval-path
+- [SECURITY.md](../SECURITY.md): vulnerability reporting and the security review checklist.
+- Workspace `80-archive/10-products/porwr/architecture/approval-threat-model.md`: the historical approval-path
   model at `867eaa6`.
 - Workspace `10-products/porwr/architecture/sidebar-request-lifecycle-adr.md`: decisions D1-D17.
 - [NIP-07](https://github.com/nostr-protocol/nips/blob/master/07.md),

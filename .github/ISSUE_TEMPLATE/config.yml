@@ -1,0 +1,4 @@
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/diogel-io/porwr/security/advisories/new
+    about: Report vulnerabilities privately. Never open a public issue for one; see SECURITY.md.
