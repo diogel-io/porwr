@@ -129,6 +129,25 @@ describe('bridge client', () => {
       expect(send).toHaveBeenCalledTimes(1);
     });
 
+    // A wallet call waits on the wallet: reporting a payment as failed while the background goes on
+    // to make it would invite a second payment (diogel-io/workspace#142).
+    it('waits longer for a wallet call before calling it timed out', async () => {
+      let answer: (value: unknown) => void = () => undefined;
+      const send = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+      setBridge({ send });
+
+      const result = sendBexMessage('nip47.payInvoice', {
+        accountPubkey: 'a'.repeat(64),
+        connectionId: 'wallet-a',
+        invoice: 'lnbc1',
+      });
+      await vi.advanceTimersByTimeAsync(20_000);
+      answer({ preimage: 'p', raw: {} });
+
+      await expect(result).resolves.toEqual({ preimage: 'p', raw: {} });
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
     it('is not sent again through runtime messaging', async () => {
       const send = vi.fn(() => new Promise(() => {}));
       const sendMessage = vi.fn();

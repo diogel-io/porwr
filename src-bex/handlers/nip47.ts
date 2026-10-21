@@ -53,6 +53,7 @@ import {
   type PendingNip47Authorization,
 } from '../services/nip47-pending-authorization-store';
 import { onVaultLocked } from '../vault';
+import { LogLevel, logService } from '@/services/log-service';
 
 /**
  * The account a wallet action names, checked against the vault.
@@ -238,11 +239,18 @@ async function recordWalletInfo(
   });
 }
 
+export const WALLET_INFO_UNAVAILABLE =
+  "Porwr couldn't read this wallet's info event, so it can't tell which encryption the wallet " +
+  'accepts. Nothing was sent. Check that the wallet is online and try again.';
+
 /**
  * The connection with the encryption schemes its wallet advertises, read from the wallet's info
  * event the first time they are needed (diogel-io/workspace#142, T22). A connection imported from
- * a URI has never fetched it. If the wallet publishes no info event, the request goes as NIP-04,
- * the protocol's default, and the info event is looked for again next time.
+ * a URI has never fetched it.
+ *
+ * Fails closed: when the info event can't be read, nothing is sent. NIP-47 has the client read it
+ * before using a connection, and guessing NIP-04 would send a NIP-44 wallet a request it can't
+ * decrypt. The result is stored, so the lookup happens once per connection.
  */
 async function withNegotiatedEncryption(
   accountPubkey: string,
@@ -252,8 +260,11 @@ async function withNegotiatedEncryption(
   let info: Nip47InfoResponse;
   try {
     info = await nip47Client.getInfo(connection);
-  } catch {
-    return connection;
+  } catch (error: unknown) {
+    logService.log(LogLevel.WARN, '[NIP-47] Could not read the wallet info event', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new Error(WALLET_INFO_UNAVAILABLE);
   }
   await recordWalletInfo(accountPubkey, connection.id, info);
   return { ...connection, capabilities: info.capabilities, encryption: info.encryption };
@@ -498,8 +509,15 @@ export async function handleNip47AuthorizationProbe(
   });
 
   let methods: Nip47Command[];
+  let encryption: string[];
   try {
-    const response = await nip47Client.sendRequest(connection, { method: 'get_info', params: {} });
+    // The probe uses the wallet's advertised encryption like any other request (#142); a wallet
+    // whose info event can't be read is treated as not having answered.
+    encryption = (await nip47Client.getInfo(connection)).encryption;
+    const response = await nip47Client.sendRequest(
+      { ...connection, encryption },
+      { method: 'get_info', params: {} },
+    );
     if (response.error?.code === 'UNAUTHORIZED') {
       return { success: true, data: null };
     }
@@ -510,6 +528,10 @@ export async function handleNip47AuthorizationProbe(
 
   return {
     success: true,
-    data: await saveAuthorizedConnection(connection, methods, new Date().toISOString()),
+    data: await saveAuthorizedConnection(
+      { ...connection, encryption },
+      methods,
+      new Date().toISOString(),
+    ),
   };
 }

@@ -29,8 +29,27 @@ const SLOW_CALLS: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
   'accounts.importEncrypted',
 ]);
 
+/**
+ * Calls that wait on a wallet (#142). A wallet request publishes for up to 5 s and waits up to 15 s
+ * for the answer, and a connection that has not yet read its info event first waits up to 5 s for
+ * that. Under the default deadline the page would report a payment as failed while the background
+ * went on to make it.
+ */
+const WALLET_CALL_TIMEOUT_MS = 30_000;
+const WALLET_CALLS: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
+  'nip47.getInfo',
+  'nip47.getBalance',
+  'nip47.payInvoice',
+  'nip47.authorization.complete',
+  'nip47.authorization.probe',
+]);
+
 const timeoutFor = (type: BridgeAction): number =>
-  SLOW_CALLS.has(type) ? SLOW_CALL_TIMEOUT_MS : CALL_TIMEOUT_MS;
+  SLOW_CALLS.has(type)
+    ? SLOW_CALL_TIMEOUT_MS
+    : WALLET_CALLS.has(type)
+      ? WALLET_CALL_TIMEOUT_MS
+      : CALL_TIMEOUT_MS;
 const RETRY_DELAYS_MS = [100, 400];
 
 /**

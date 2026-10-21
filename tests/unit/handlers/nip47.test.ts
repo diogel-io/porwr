@@ -13,6 +13,7 @@ import {
   handleNip47GetBalance,
   handleNip47GetInfo,
   handleNip47PayInvoice,
+  WALLET_INFO_UNAVAILABLE,
   handleNip47PaymentHistoryList,
 } from '@/../src-bex/handlers/nip47';
 import { getVaultData, updateVaultData } from '@/../src-bex/vault';
@@ -268,17 +269,21 @@ describe('NIP-47 encryption negotiation before a request (diogel-io/workspace#14
     expect(nip47Client.getInfo).not.toHaveBeenCalled();
   });
 
-  it('falls back to NIP-04 without storing anything when the wallet has no info event', async () => {
+  it('sends nothing, rather than guessing NIP-04, when the info event cannot be read', async () => {
     const { encryption: _unread, ...imported } = buildConnection();
     void _unread;
     mockVault(imported);
     vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('No NIP-47 wallet info event'));
-    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
 
-    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+    await expect(
+      handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' }),
+    ).rejects.toThrow(WALLET_INFO_UNAVAILABLE);
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow(WALLET_INFO_UNAVAILABLE);
 
-    expect(vi.mocked(nip47Client.getBalance).mock.calls[0]![0].encryption).toBeUndefined();
-    expect(updateVaultData).not.toHaveBeenCalled();
+    expect(nip47Client.getBalance).not.toHaveBeenCalled();
+    expect(nip47Client.payInvoice).not.toHaveBeenCalled();
   });
 
   it('stores the advertised encryption when wallet info is refreshed', async () => {
@@ -732,6 +737,44 @@ describe('wallet authorization (#110)', () => {
   });
 
   describe('handleNip47AuthorizationProbe', () => {
+    beforeEach(() => {
+      vi.mocked(nip47Client.getInfo).mockResolvedValue({
+        capabilities: ['pay_invoice'],
+        encryption: ['nip44_v2', 'nip04'],
+        checkedAt: '2026-10-21T00:00:00.000Z',
+      } as never);
+    });
+
+    it('probes in the encryption the wallet advertises, and stores it (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.sendRequest).mockResolvedValue({
+        result_type: 'get_info',
+        result: { methods: ['pay_invoice'] },
+      });
+
+      await handleNip47AuthorizationProbe({ pendingId: 'pending-1' });
+
+      expect(vi.mocked(nip47Client.sendRequest).mock.calls[0]![0]).toMatchObject({
+        encryption: ['nip44_v2', 'nip04'],
+      });
+      const saved = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
+      expect(
+        saved.nip47Connections?.find((item) => item.walletServicePubkey === COINOS_WALLET),
+      ).toMatchObject({ encryption: ['nip44_v2', 'nip04'] });
+    });
+
+    it('saves nothing and sends no probe when the info event cannot be read (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('No NIP-47 wallet info event'));
+
+      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({
+        success: true,
+        data: null,
+      });
+      expect(nip47Client.sendRequest).not.toHaveBeenCalled();
+      expect(updateVaultData).not.toHaveBeenCalled();
+    });
+
     it('saves a Coinos connection the wallet answers for', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
       vi.mocked(nip47Client.sendRequest).mockResolvedValue({
