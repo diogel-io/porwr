@@ -1,3 +1,4 @@
+import type { Table } from 'dexie';
 import { db } from './database';
 import type { ApprovalOutcome } from './database';
 
@@ -20,35 +21,23 @@ export const MAX_APPROVAL_LOG_ENTRIES = 500;
 /** The newest exception records kept. */
 export const MAX_EXCEPTION_LOG_ENTRIES = 200;
 
-/** The longest message persisted or written to the console for a failure. */
-export const MAX_LOG_MESSAGE_LENGTH = 300;
+const SAFE_ERROR_NAME = /^[A-Za-z][A-Za-z0-9_]{0,40}$/;
+
+const SAFE_ERROR_CODE = /^[A-Z][A-Z0-9_]{1,40}$/;
 
 /**
- * Patterns for material that must never reach a log: hex keys, event ids and signatures, bech32 secret keys,
- * Lightning invoices, and serialised objects such as events. Order matters: JSON first, so a key
- * inside an event is removed with the event.
- */
-const REDACTIONS: readonly (readonly [RegExp, string])[] = [
-  [/\{[\s\S]*\}/g, '[object]'],
-  [/\b(?:nsec|ncryptsec)1[02-9ac-hj-np-z]+/gi, '[secret key]'],
-  [/\bln(?:bcrt|bc|tbs|tb)[0-9a-z]+/gi, '[invoice]'],
-  [/\b[0-9a-f]{64,}\b/gi, '[hex]'],
-];
-
-/**
- * Make an error message safe to persist or print.
+ * Identify a failure without repeating anything it says.
  *
- * Thrown messages are not under Porwr's control: a library may echo its input, which can be an
- * event, a key, or an invoice. Every failure that is logged passes through here first (#144, T11).
+ * Error text is not under Porwr's control: a library may echo its input, which can be an event, a
+ * key, plaintext, or an invoice, in any shape. No pattern list can make such text safe, so it is
+ * never kept. What is kept is the error's class name and, when it has one, an upper-case code such
+ * as `VAULT_LOCKED` (#144, threat model T11).
  */
-export const sanitizeLogMessage = (message: string): string => {
-  const redacted = REDACTIONS.reduce(
-    (text, [pattern, replacement]) => text.replace(pattern, replacement),
-    message,
-  );
-  return redacted.length > MAX_LOG_MESSAGE_LENGTH
-    ? `${redacted.slice(0, MAX_LOG_MESSAGE_LENGTH)}…`
-    : redacted;
+export const describeError = (error: unknown): string => {
+  if (!(error instanceof Error)) return 'non-Error value';
+  const name = SAFE_ERROR_NAME.test(error.name) ? error.name : 'Error';
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && SAFE_ERROR_CODE.test(code) ? `${name} ${code}` : name;
 };
 
 export class LogService {
@@ -93,23 +82,31 @@ export class LogService {
     }
   }
 
+  /**
+   * Record a failure. `context` is a fixed description written by the caller, such as
+   * `blossom.upload failed`; `error` contributes only its class name and code (`describeError`).
+   */
   async logException(
-    message: string,
+    context: string,
+    error?: unknown,
     account?: string | null,
     hostname?: string | null,
   ): Promise<void> {
     const persistedAccount: PersistedLogAccount = this.normalizeNullableString(account);
     const persistedHostname: PersistedLogHostname = this.normalizeNullableString(hostname);
-    const safeMessage = sanitizeLogMessage(message);
+    const safeMessage = error === undefined ? context : `${context}: ${describeError(error)}`;
 
     try {
-      await db.exceptions.add({
-        dateTime: new Date().toISOString(),
-        message: safeMessage,
-        account: persistedAccount,
-        hostname: persistedHostname,
-      });
-      await this.prune(db.exceptions, MAX_EXCEPTION_LOG_ENTRIES);
+      await this.addBounded(
+        db.exceptions,
+        {
+          dateTime: new Date().toISOString(),
+          message: safeMessage,
+          account: persistedAccount,
+          hostname: persistedHostname,
+        },
+        MAX_EXCEPTION_LOG_ENTRIES,
+      );
       this.log(LogLevel.ERROR, safeMessage, {
         account: persistedAccount,
         hostname: persistedHostname,
@@ -136,14 +133,17 @@ export class LogService {
     const persistedAccount: PersistedLogAccount = this.normalizeNullableString(account);
 
     try {
-      await db.approvals.add({
-        dateTime: new Date().toISOString(),
-        eventKind,
-        hostname,
-        account: persistedAccount,
-        outcome,
-      });
-      await this.prune(db.approvals, MAX_APPROVAL_LOG_ENTRIES);
+      await this.addBounded(
+        db.approvals,
+        {
+          dateTime: new Date().toISOString(),
+          eventKind,
+          hostname,
+          account: persistedAccount,
+          outcome,
+        },
+        MAX_APPROVAL_LOG_ENTRIES,
+      );
       this.log(LogLevel.DEBUG, `Approval ${outcome} for kind ${eventKind} on ${hostname}`, {
         account: persistedAccount,
       });
@@ -154,15 +154,40 @@ export class LogService {
     }
   }
 
-  /** Delete the oldest records beyond `max`, so local history stays bounded. */
-  private async prune(
-    table: typeof db.exceptions | typeof db.approvals,
+  /**
+   * Add a record and delete the oldest beyond `max`, in one read-write transaction.
+   *
+   * Dexie serialises read-write transactions on a table, so concurrent callers each see the count
+   * their own insert produced and none deletes rows another already removed.
+   */
+  private async addBounded<T>(
+    table: Table<T, number>,
+    record: Omit<T, 'id'>,
     max: number,
   ): Promise<void> {
+    await db.transaction('rw', table, async () => {
+      await table.add(record as T);
+      await this.prune(table, max);
+    });
+  }
+
+  /** Delete the oldest records beyond `max`. */
+  private async prune<T>(table: Table<T, number>, max: number): Promise<void> {
     const excess = (await table.count()) - max;
     if (excess > 0) {
       await table.orderBy('dateTime').limit(excess).delete();
     }
+  }
+
+  /**
+   * Bring both tables within their caps. Run at background startup, so history kept before the caps
+   * existed, or by a table that receives no new record, is bounded too.
+   */
+  async enforceRetention(): Promise<void> {
+    await db.transaction('rw', db.approvals, db.exceptions, async () => {
+      await this.prune(db.approvals, MAX_APPROVAL_LOG_ENTRIES);
+      await this.prune(db.exceptions, MAX_EXCEPTION_LOG_ENTRIES);
+    });
   }
 
   /** Delete every approval and exception record, for every account. */
@@ -210,9 +235,8 @@ export class LogService {
         });
         return result;
       } catch (error: unknown) {
-        const message = sanitizeLogMessage(error instanceof Error ? error.message : String(error));
-        this.log(LogLevel.ERROR, `${serviceName}.${methodName} failed: ${message}`);
-        void this.logException(`${serviceName}.${methodName} error: ${message}`);
+        this.log(LogLevel.ERROR, `${serviceName}.${methodName} failed: ${describeError(error)}`);
+        void this.logException(`${serviceName}.${methodName} failed`, error);
         throw error;
       }
     };

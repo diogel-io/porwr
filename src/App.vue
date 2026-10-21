@@ -119,12 +119,22 @@ onMounted(async () => {
         ? String(event.error.message)
         : event.message;
     addLog(`Global Error: ${message}`);
-    void logService.logException(message, accountStore.activeKey, window.location.hostname);
+    void logService.logException(
+      'Unhandled error',
+      event.error,
+      accountStore.activeKey,
+      window.location.hostname,
+    );
   });
   window.addEventListener('unhandledrejection', (event) => {
     const message = String(event.reason);
     addLog(`Unhandled Rejection: ${message}`);
-    void logService.logException(message, accountStore.activeKey, window.location.hostname);
+    void logService.logException(
+      'Unhandled rejection',
+      event.reason,
+      accountStore.activeKey,
+      window.location.hostname,
+    );
   });
   try {
     accountStore.listenToStorageChanges();

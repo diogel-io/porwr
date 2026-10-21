@@ -161,7 +161,8 @@ export async function handleBlossomUpload(
 
     const activeAlias = await storageService.get<string>(NOSTR_ACTIVE);
     void logService.logException(
-      `Error in blossom.upload: ${finalError.message}`,
+      'blossom.upload failed',
+      finalError,
       activeAlias || 'unknown',
       'background',
     );

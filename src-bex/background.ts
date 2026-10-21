@@ -8,7 +8,7 @@
  * 3. Import it in your background service worker (if available for your target browser).
  */
 import { createBridge } from '#q-app/bex/background';
-import { LogLevel, logService } from '@/services/log-service';
+import { describeError, LogLevel, logService } from '@/services/log-service';
 import { FALLBACK_RELAYS, NOSTR_ACTIVE, storageService } from '@/services/storage-service';
 import { startAutoLockTimer, restoreLastActivity, checkAutoLock } from './services/auto-lock';
 import { initializePanelSurface, resolvePanelSurface } from './services/panel-surface';
@@ -143,18 +143,14 @@ if (typeof self !== 'undefined') {
   self.addEventListener('error', (event: ErrorEvent) => {
     void (async () => {
       const activeAlias = await getActiveAlias();
-      await logService.logException(event.message || 'Unknown error', activeAlias, 'background');
+      await logService.logException('Unhandled error', event.error, activeAlias, 'background');
     })();
   });
 
   self.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
     void (async () => {
       const activeAlias = await getActiveAlias();
-      await logService.logException(
-        event.reason instanceof Error ? event.reason.message : String(event.reason),
-        activeAlias,
-        'background',
-      );
+      await logService.logException('Unhandled rejection', event.reason, activeAlias, 'background');
     })();
   });
 }
@@ -171,6 +167,13 @@ if (typeof self !== 'undefined') {
 async function initialize(): Promise<void> {
   try {
     await lockDownSessionStorage();
+    // Bound history kept before the retention caps existed, or by a table that gets no new rows.
+    void logService.enforceRetention().catch((error: unknown) => {
+      logService.log(
+        LogLevel.ERROR,
+        `[BEX] Failed to enforce log retention: ${describeError(error)}`,
+      );
+    });
     await restoreLastActivity();
     const restored = await restoreVaultState();
     if (restored) {

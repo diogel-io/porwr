@@ -1,11 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   logService,
   LogLevel,
-  sanitizeLogMessage,
+  describeError,
   MAX_APPROVAL_LOG_ENTRIES,
   MAX_EXCEPTION_LOG_ENTRIES,
-  MAX_LOG_MESSAGE_LENGTH,
 } from '@/services/log-service';
 import { db } from '@/services/database';
 
@@ -24,7 +26,14 @@ vi.mock('@/services/database', () => {
     count: vi.fn().mockResolvedValue(0),
     clear: vi.fn().mockResolvedValue(undefined),
   });
-  return { db: { exceptions: table(), approvals: table() } };
+  return {
+    db: {
+      exceptions: table(),
+      approvals: table(),
+      // Runs the body at once; Dexie's serialisation of read-write transactions is its own concern.
+      transaction: vi.fn((...args: unknown[]) => (args.at(-1) as () => Promise<unknown>)()),
+    },
+  };
 });
 
 describe('LogService', () => {
@@ -37,7 +46,7 @@ describe('LogService', () => {
   });
 
   it('should log an exception to the database and console', async () => {
-    await logService.logException('test error', 'acc1', 'host1');
+    await logService.logException('test error', undefined, 'acc1', 'host1');
 
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(db.exceptions.add).toHaveBeenCalledWith(
@@ -108,7 +117,7 @@ describe('LogService', () => {
     await expect(wrappedFn('arg1')).rejects.toThrow('fail');
 
     expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('TestService.testMethod failed: fail'),
+      expect.stringContaining('TestService.testMethod failed: Error'),
       undefined,
     );
     // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -116,12 +125,10 @@ describe('LogService', () => {
   });
 
   describe('keeps secrets out of logs (#144, T11)', () => {
-    const HEX_KEY = 'a'.repeat(64);
-    const SIGNATURE = 'b'.repeat(128);
     const NSEC = 'nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5';
-    const INVOICE = 'lnbc2500u1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygs';
-    const EVENT = '{"kind":4,"content":"meet at the usual place","pubkey":"x"}';
-    const SECRETS = [HEX_KEY, SIGNATURE, NSEC, INVOICE, 'meet at the usual place'];
+    // Free-form plaintext no pattern could recognise: why the message itself is never kept.
+    const PLAINTEXT = 'meet at the usual place at eight';
+    const SECRETS = [NSEC, PLAINTEXT, 'a'.repeat(64)];
 
     const allLoggedText = (): string =>
       [
@@ -134,32 +141,31 @@ describe('LogService', () => {
         .map((call) => JSON.stringify(call))
         .join('\n');
 
-    it('redacts keys, signatures, invoices and serialised events from a message', () => {
-      const safe = sanitizeLogMessage(
-        `bad ${HEX_KEY} sig ${SIGNATURE} key ${NSEC} pay ${INVOICE} event ${EVENT}`,
-      );
-      for (const secret of SECRETS) expect(safe).not.toContain(secret);
-      expect(safe).toContain('[hex]');
-      expect(safe).toContain('[secret key]');
-      expect(safe).toContain('[invoice]');
-      expect(safe).toContain('[object]');
+    it('describes an error by its class name and code, never its message', () => {
+      const locked = Object.assign(new Error(`locked while decrypting ${PLAINTEXT}`), {
+        code: 'VAULT_LOCKED',
+      });
+
+      expect(describeError(new TypeError(PLAINTEXT))).toBe('TypeError');
+      expect(describeError(locked)).toBe('Error VAULT_LOCKED');
     });
 
-    it('bounds a long message', () => {
-      const safe = sanitizeLogMessage('x'.repeat(MAX_LOG_MESSAGE_LENGTH * 3));
-      expect(safe.length).toBe(MAX_LOG_MESSAGE_LENGTH + 1);
-      expect(safe.endsWith('…')).toBe(true);
+    it('drops a code or name that could carry content', () => {
+      const odd = Object.assign(new Error('x'), { name: PLAINTEXT, code: NSEC });
+
+      expect(describeError(odd)).toBe('Error');
     });
 
-    it('leaves an ordinary message alone', () => {
-      expect(sanitizeLogMessage('Vault is locked')).toBe('Vault is locked');
+    it('says nothing about a thrown value that is not an Error', () => {
+      expect(describeError(PLAINTEXT)).toBe('non-Error value');
+      expect(describeError({ content: PLAINTEXT })).toBe('non-Error value');
     });
 
     it('never persists or prints what a failing handler threw', async () => {
       const wrapped = logService.wrapWithLogging(
-        () => Promise.reject(new Error(`signing failed for ${EVENT} with ${NSEC} ${HEX_KEY}`)),
+        () => Promise.reject(new Error(`decrypt failed for ${PLAINTEXT} with ${NSEC}`)),
         'TestService',
-        'sign',
+        'decrypt',
       );
 
       await expect(wrapped()).rejects.toThrow();
@@ -170,27 +176,35 @@ describe('LogService', () => {
 
       const logged = allLoggedText();
       for (const secret of SECRETS) expect(logged).not.toContain(secret);
-      expect(logged).toContain('TestService.sign');
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(db.exceptions.add).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'TestService.decrypt failed: Error' }),
+      );
     });
 
-    it('sanitises a message logged directly as an exception', async () => {
-      await logService.logException(`unhandled: ${INVOICE}`);
+    it('keeps only the caller context and error class for an unhandled error', async () => {
+      await logService.logException('Unhandled rejection', new Error(`${PLAINTEXT} ${NSEC}`));
 
-      expect(allLoggedText()).not.toContain(INVOICE);
+      const logged = allLoggedText();
+      for (const secret of SECRETS) expect(logged).not.toContain(secret);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(db.exceptions.add).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Unhandled rejection: Error' }),
+      );
     });
 
     it('never logs the arguments a wrapped function was called with', async () => {
       const wrapped = logService.wrapWithLogging(
-        (_password: string, _event: string) => Promise.resolve(true),
+        (_password: string, _content: string) => Promise.resolve(true),
         'TestService',
         'unlock',
       );
 
-      await wrapped('correct horse battery staple', EVENT);
+      await wrapped('correct horse battery staple', PLAINTEXT);
 
       const logged = allLoggedText();
       expect(logged).not.toContain('correct horse battery staple');
-      expect(logged).not.toContain('meet at the usual place');
+      expect(logged).not.toContain(PLAINTEXT);
     });
   });
 
@@ -216,6 +230,9 @@ describe('LogService', () => {
       await logService.logException('boom');
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(db.transaction).toHaveBeenCalledWith('rw', db.exceptions, expect.any(Function));
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(db.exceptions.limit).toHaveBeenCalledWith(1);
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(db.exceptions.delete).toHaveBeenCalled();
@@ -229,6 +246,44 @@ describe('LogService', () => {
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(db.approvals.delete).not.toHaveBeenCalled();
+    });
+
+    it('adds and prunes in one read-write transaction, so concurrent writes cannot over-delete', async () => {
+      await logService.logApproval(1, 'example.com', 'main', 'approved');
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(db.transaction).toHaveBeenCalledWith('rw', db.approvals, expect.any(Function));
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const [transactionOrder] = vi.mocked(db.transaction).mock.invocationCallOrder;
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const [addOrder] = vi.mocked(db.approvals.add).mock.invocationCallOrder;
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const [countOrder] = vi.mocked(db.approvals.count).mock.invocationCallOrder;
+      expect(transactionOrder).toBeLessThan(addOrder!);
+      expect(addOrder).toBeLessThan(countOrder!);
+    });
+
+    it('bounds existing history on request, with no new record needed', async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      vi.mocked(db.approvals.count).mockResolvedValueOnce(MAX_APPROVAL_LOG_ENTRIES + 40);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      vi.mocked(db.exceptions.count).mockResolvedValueOnce(MAX_EXCEPTION_LOG_ENTRIES + 7);
+
+      await logService.enforceRetention();
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(db.approvals.limit).toHaveBeenCalledWith(40);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(db.exceptions.limit).toHaveBeenCalledWith(7);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(db.approvals.add).not.toHaveBeenCalled();
+    });
+
+    it('enforces retention when the background starts', () => {
+      const source = readFileSync(resolve(__dirname, '../../../src-bex/background.ts'), 'utf8');
+      const initialize = /async function initialize\(\)[\s\S]*?\n\}/.exec(source)?.[0] ?? '';
+
+      expect(initialize).toContain('logService.enforceRetention()');
     });
 
     it('clears both tables for every account', async () => {
