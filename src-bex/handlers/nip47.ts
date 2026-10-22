@@ -64,8 +64,11 @@ import { describeError, LogLevel, logService } from '@/services/log-service';
  */
 // A wallet approval started while unlocked is abandoned when the vault locks, and its client
 // secret goes with the key rather than waiting out its TTL in session storage (#142, T22).
-// Counted so a wallet approval that was starting when the lock came can be undone (#142).
+// Counted so a wallet approval in progress when the lock came, whether starting or finishing, is
+// abandoned rather than saved (#142).
 let vaultLocks = 0;
+const LOCKED_DURING_AUTHORIZATION =
+  'The vault locked while the wallet connection was being set up. Unlock and try again.';
 onVaultLocked(() => {
   vaultLocks += 1;
   void clearPendingNip47Authorizations();
@@ -429,9 +432,7 @@ export async function handleNip47AuthorizationBegin(
   // entry is removed here, and no popup opens for an approval the lock abandoned.
   if (vaultLocks !== locksBefore) {
     await takePendingNip47Authorization(pending.pendingId);
-    throw new Error(
-      'The vault locked while the wallet connection was starting. Unlock and try again.',
-    );
+    throw new Error(LOCKED_DURING_AUTHORIZATION);
   }
 
   return {
@@ -504,6 +505,7 @@ async function saveAuthorizedConnection(
 export async function handleNip47AuthorizationComplete(
   payload: CompleteNip47AuthorizationRequest,
 ): Promise<HandlerResult<Nip47ConnectionSummary>> {
+  const locksBefore = vaultLocks;
   await readWalletVault();
   const pending = await requirePendingAuthorization(payload.pendingId);
 
@@ -514,6 +516,8 @@ export async function handleNip47AuthorizationComplete(
 
   const connection = buildAuthorizedConnection(pending, service);
   const info = await nip47Client.getInfo(connection);
+  // A lock while the wallet answered abandoned this approval, even if the vault is unlocked again.
+  if (vaultLocks !== locksBefore) throw new Error(LOCKED_DURING_AUTHORIZATION);
   return {
     success: true,
     data: await saveAuthorizedConnection(
@@ -542,6 +546,7 @@ function parseMethods(value: unknown): Nip47Command[] {
 export async function handleNip47AuthorizationProbe(
   payload: ProbeNip47AuthorizationRequest,
 ): Promise<HandlerResult<Nip47ConnectionSummary | null>> {
+  const locksBefore = vaultLocks;
   await readWalletVault();
   const pending = await requirePendingAuthorization(payload.pendingId);
 
@@ -572,6 +577,8 @@ export async function handleNip47AuthorizationProbe(
   } catch {
     return { success: true, data: null };
   }
+  // Locked while the wallet answered: the approval was abandoned, so nothing is saved.
+  if (vaultLocks !== locksBefore) return { success: true, data: null };
 
   return {
     success: true,

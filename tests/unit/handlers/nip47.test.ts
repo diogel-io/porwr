@@ -751,6 +751,21 @@ describe('wallet authorization (#110)', () => {
       lud16: 'alice@coinos.io',
     };
 
+    it('saves nothing when the vault locked while the wallet answered (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.getInfo).mockImplementation(() => {
+        for (const listener of lockListeners) listener();
+        return Promise.resolve({
+          capabilities: ['pay_invoice'],
+          encryption: ['nip44_v2'],
+          checkedAt: '2026-10-22T00:00:00.000Z',
+        } as never);
+      });
+
+      await expect(handleNip47AuthorizationComplete(request)).rejects.toThrow('vault locked');
+      expect(updateVaultData).not.toHaveBeenCalled();
+    });
+
     it('saves a checked connection as the active wallet and returns no secret', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
       vi.mocked(nip47Client.getInfo).mockResolvedValue({
@@ -853,6 +868,20 @@ describe('wallet authorization (#110)', () => {
         data: null,
       });
       expect(nip47Client.sendRequest).not.toHaveBeenCalled();
+      expect(updateVaultData).not.toHaveBeenCalled();
+    });
+
+    it('saves nothing when the vault locked while the probe waited (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.sendRequest).mockImplementation(() => {
+        for (const listener of lockListeners) listener();
+        return Promise.resolve({ result_type: 'get_info', result: { methods: ['pay_invoice'] } });
+      });
+
+      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({
+        success: true,
+        data: null,
+      });
       expect(updateVaultData).not.toHaveBeenCalled();
     });
 
