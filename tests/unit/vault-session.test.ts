@@ -225,6 +225,44 @@ describe('keeping the vault unlocked (#245)', () => {
     expect(state.session.get('vault:unlocked')).toBe(true);
   });
 
+  it('makes an unlock during start-up wait for the restore, so its session survives', async () => {
+    await (await freshWorker()).createNewVault(PASSWORD, DATA);
+    const restarted = await freshWorker();
+    const onLocked = vi.fn();
+    restarted.onVaultLocked(onLocked);
+    let decideOverdue: ((overdue: boolean) => void) | undefined;
+
+    const restore = restarted.restoreVaultState(
+      () => new Promise<boolean>((resolve) => (decideOverdue = resolve)),
+    );
+    // The restore is now waiting on the auto-lock question, part-way through.
+    await vi.waitFor(() => expect(decideOverdue).toBeDefined());
+    const unlock = restarted.unlockVault(PASSWORD);
+    decideOverdue!(true);
+    await restore;
+    await unlock;
+
+    // The restore's locked start ran first; the unlock then wrote a fresh session it never touched.
+    expect(onLocked).toHaveBeenCalledTimes(1);
+    expect(restarted.isVaultUnlocked()).toBe(true);
+    expect(state.session.get('vault:unlocked')).toBe(true);
+    expect(state.vaultSession.size).toBe(1);
+  });
+
+  it('starts locked through the lock listeners when restoring throws', async () => {
+    await (await freshWorker()).createNewVault(PASSWORD, DATA);
+    const restarted = await freshWorker();
+    const onLocked = vi.fn();
+    restarted.onVaultLocked(onLocked);
+
+    await expect(
+      restarted.restoreVaultState(() => Promise.reject(new Error('timer state unreadable'))),
+    ).resolves.toBe(false);
+
+    expect(onLocked).toHaveBeenCalledTimes(1);
+    expect(restarted.isVaultUnlocked()).toBe(false);
+  });
+
   it('restores the key when auto-lock is not yet due', async () => {
     await (await freshWorker()).createNewVault(PASSWORD, DATA);
 

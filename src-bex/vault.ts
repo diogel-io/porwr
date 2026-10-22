@@ -67,9 +67,21 @@ async function clearSession() {
  * the session is discarded instead, so the vault starts locked and no handler ever sees an
  * overdue key (#139).
  */
-export async function restoreVaultState(
+/**
+ * The restoration in progress, if any. Unlocking, creating and importing wait for it, so a restore
+ * that decides to start locked can never clear the session an unlock is writing (#142).
+ */
+let restoring: Promise<unknown> = Promise.resolve();
+
+export function restoreVaultState(
   isOverdue: () => Promise<boolean> = () => Promise.resolve(false),
 ): Promise<boolean> {
+  const run = restoreVaultStateNow(isOverdue);
+  restoring = run.catch(() => undefined);
+  return run;
+}
+
+async function restoreVaultStateNow(isOverdue: () => Promise<boolean>): Promise<boolean> {
   try {
     const items = await storageService.getMultiple(
       [VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS],
@@ -109,9 +121,12 @@ export async function restoreVaultState(
     return true;
   } catch (error: unknown) {
     logService.log(LogLevel.ERROR, '[Vault] Failed to restore unlock session', {
-      error: error instanceof Error ? error.message : String(error),
+      error: describeError(error),
     });
   }
+  // Could not restore, so the vault starts locked like any other locked start: what outlived the
+  // last session is cleared and the lock listeners are told (#142).
+  await startLocked().catch(() => undefined);
   return false;
 }
 
@@ -137,6 +152,8 @@ export function onVaultUnlocked(listener: () => void): () => void {
 }
 
 export async function unlockVault(password: string) {
+  // A restore still running at worker start-up finishes first (see `restoring`).
+  await restoring;
   try {
     const vault = await db.vaults.get('master');
 
@@ -208,8 +225,8 @@ export async function lockVault() {
  * as a pending wallet authorisation, goes now rather than at its own expiry (#142).
  */
 async function startLocked(): Promise<void> {
-  // An unlock finished while this worker was still starting up: the vault is not locked after all,
-  // and its fresh session must not be cleared (#142).
+  // Unlocks wait for restoration (`restoring`), so none can start while this runs; one that had
+  // already finished before restoration began leaves the vault unlocked, and nothing is cleared.
   if (vaultKey) return;
   try {
     await clearSession();
@@ -219,6 +236,8 @@ async function startLocked(): Promise<void> {
 }
 
 export async function createNewVault(password: string, vaultData: unknown) {
+  // A restore still running at worker start-up finishes first (see `restoring`).
+  await restoring;
   try {
     const { key, salt } = await deriveNewKey(password);
     const encryptedVault = await encryptWithKey(vaultData, key, salt);
@@ -390,6 +409,8 @@ const isPorwrVault = (vaultData: unknown): boolean =>
  * old vault's material drops it too.
  */
 export async function importVault(encryptedData: string, password: string) {
+  // A restore still running at worker start-up finishes first (see `restoring`).
+  await restoring;
   try {
     if (!encryptedData || !encryptedData.startsWith('v2:')) {
       return {
