@@ -4,6 +4,7 @@
     <q-page-container>
       <div class="page-center-container">
         <div class="page-content-wrapper">
+          <remote-images-notice />
           <router-view />
         </div>
       </div>
@@ -13,6 +14,7 @@
 
 <script lang="ts" setup>
 import ExtensionWindowHeader from '@/components/extension/ExtensionWindowHeader.vue';
+import RemoteImagesNotice from '@/components/shared/RemoteImagesNotice.vue';
 
 defineOptions({ name: 'ExtensionLayout' });
 </script>

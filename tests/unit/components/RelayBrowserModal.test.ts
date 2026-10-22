@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useLoadedSettings } from '../mocks/remote-images';
 import { mount, flushPromises } from '@vue/test-utils';
 import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
 import {
@@ -105,6 +106,7 @@ const directives = {
 
 describe('RelayBrowserModal.vue', () => {
   beforeEach(() => {
+    useLoadedSettings();
     vi.clearAllMocks();
   });
 
@@ -277,6 +279,7 @@ describe('RelayBrowserModal.vue', () => {
 
 describe('RelayBrowserModal.vue filtering and sorting', () => {
   beforeEach(() => {
+    useLoadedSettings();
     vi.clearAllMocks();
   });
 

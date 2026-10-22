@@ -6,6 +6,7 @@ import useAccountStore from '@/stores/account-store';
 import type { ContactProfile, ContactSearchResult, Nip02Contact } from '@/types/contact-list';
 import type { AccountSummary } from '@/types/accounts';
 import { useContactCache } from '@/composables/useContactCache';
+import RemoteImage from '@/components/shared/RemoteImage.vue';
 import { upsertProfiles, writeContactList } from '@/services/contact-cache';
 import {
   formatContactNpub,
@@ -355,7 +356,7 @@ onMounted(async () => {
             >
               <q-item-section avatar>
                 <q-avatar v-if="result.profile?.picture">
-                  <img :src="result.profile.picture" alt="" />
+                  <RemoteImage :src="result.profile.picture" />
                 </q-avatar>
                 <q-avatar v-else color="primary" text-color="white" icon="person" />
               </q-item-section>
@@ -389,7 +390,7 @@ onMounted(async () => {
         >
           <q-item-section avatar>
             <q-avatar v-if="getProfile(contact)?.picture">
-              <img :src="getProfile(contact)?.picture" alt="" />
+              <RemoteImage :src="getProfile(contact)?.picture ?? ''" />
               <q-tooltip v-if="getContactBio(contact)" class="contacts-page__bio-tooltip">
                 {{ getContactBio(contact) }}
               </q-tooltip>

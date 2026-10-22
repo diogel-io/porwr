@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 
 import useAccountStore from '@/stores/account-store';
 import ProfileView from '@/components/shared/ProfileView.vue';
+import RemoteImagesNotice from '@/components/shared/RemoteImagesNotice.vue';
 import CurrentRequest from '@/components/sidebar/CurrentRequest.vue';
 import PendingRequestList from '@/components/sidebar/PendingRequestList.vue';
 import SidebarSetup from '@/components/sidebar/SidebarSetup.vue';
@@ -12,6 +13,7 @@ import SidebarUnlock from '@/components/sidebar/SidebarUnlock.vue';
 import SiteAccountNotice from '@/components/sidebar/SiteAccountNotice.vue';
 import { useActiveTab } from '@/composables/useActiveTab';
 import { useApprovalQueue } from '@/composables/useApprovalQueue';
+import { resetRemoteImageReveals } from '@/composables/useRemoteImages';
 import { isNotice } from '@/services/approval-preview';
 import useVaultStore from '@/stores/vault-store';
 import { switchSiteToActiveAccount } from '@/services/connected-sites-service';
@@ -132,6 +134,13 @@ watch(viewKey, async () => {
 const activeStoredKey = computed(() => accountStore.activeAccount);
 
 /**
+ * The panel never changes route, so the router's reset never runs here. Images the user loaded
+ * stay with the idle view of one account: switching account, or a request taking the panel,
+ * holds them back again (T32, diogel-io/workspace#148).
+ */
+watch([() => activeStoredKey.value?.id, () => current.value?.id], () => resetRemoteImageReveals());
+
+/**
  * S16 is a vault that was read and holds no accounts. Until the vault has been read there is
  * nothing to say, and saying S16 anyway is what #211 reported: the panel mounts while the vault is
  * locked, so it hydrated from a locked vault and announced "no active account" to users who had
@@ -192,6 +201,7 @@ onMounted(async () => {
 
       <!-- The lock action lives in the header, so it stays reachable once a request is presented. -->
       <div v-if="activeStoredKey" class="sidebar-home__account">
+        <RemoteImagesNotice />
         <ProfileView :stored-key="activeStoredKey" />
       </div>
 

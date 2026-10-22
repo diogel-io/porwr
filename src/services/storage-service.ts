@@ -39,6 +39,16 @@ export const QUICK_PUBLISH_CLIENT_TAG = 'nostr:quick-publish-client-tag' as cons
  */
 export const PROFILE_UPDATED_KEY = 'profile:updated' as const;
 
+/**
+ * Bumped whenever "Load remote images" is saved, so every open surface re-reads it (T32,
+ * diogel-io/workspace#148). The setting lives in the protected store, which has no change event, and
+ * the panel, the index page and each dashboard tab are separate documents.
+ *
+ * It carries a time, never the setting: each surface reads the value from the protected store. A
+ * content script that writes it can only cause a re-read, not change the answer.
+ */
+export const REMOTE_IMAGES_CHANGED_KEY = 'settings:remote-images-changed' as const;
+
 export type StorageArea = 'local' | 'session' | 'sync';
 
 export interface StorageService {

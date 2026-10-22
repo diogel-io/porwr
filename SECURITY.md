@@ -103,6 +103,8 @@ A change to any of these needs the security review:
   signed authorisation may go)
 - `src/components/sidebar/*` and `src/composables/useApprovalQueue.ts`, which present and decide
   requests
+- `src/components/shared/RemoteImage.vue` and `src/composables/useRemoteImages.ts`, which decide
+  when Porwr's pages fetch an image a profile or relay names (T32)
 - `package.json`, `package-lock.json`, `src-bex/package.json`, `.npmrc`, `.github/workflows/*`, `.github/dependabot.yml`, and `.github/CODEOWNERS`
 - anything else that touches cryptography, key material, or persistence
 

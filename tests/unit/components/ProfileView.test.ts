@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useLoadedSettings } from '../mocks/remote-images';
 import { mount, flushPromises } from '@vue/test-utils';
 
 /**
@@ -75,6 +76,7 @@ const mountView = async (storedKey = STORED_KEY) => {
 };
 
 beforeEach(() => {
+  useLoadedSettings();
   vi.clearAllMocks();
   state.storageHandlers = [];
   // Read at call time, not at mock-setup time: each test assigns `state.profile` after this runs.
@@ -173,6 +175,7 @@ describe('the account npub (#303)', () => {
   const writeText = vi.fn();
 
   beforeEach(() => {
+    useLoadedSettings();
     writeText.mockReset().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,

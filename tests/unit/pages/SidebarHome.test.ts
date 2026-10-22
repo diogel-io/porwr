@@ -72,6 +72,7 @@ const mountPage = async () => {
         'q-icon': true,
         'q-btn': { template: '<button>{{ label }}</button>', props: ['label'] },
         ProfileView: true,
+        RemoteImagesNotice: true,
         CurrentRequest: true,
         PendingRequestList: true,
         SidebarUnlock: { template: '<div class="sidebar-unlock" />' },

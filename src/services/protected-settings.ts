@@ -16,6 +16,7 @@ import { db } from './database';
 export {
   PROTECTED_AUTO_LOCK_MINUTES,
   PROTECTED_LAST_ACTIVITY,
+  PROTECTED_LOAD_REMOTE_IMAGES,
   PROTECTED_PERMISSIONS,
   PROTECTED_SITE_BINDINGS,
 } from './protected-settings-keys';

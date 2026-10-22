@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useLoadedSettings } from '../mocks/remote-images';
 import { mount, flushPromises } from '@vue/test-utils';
 import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
 import {
@@ -76,6 +77,7 @@ const directives = {
 
 describe('RelayBrowserModal.vue - Clean Profile Validation', () => {
   beforeEach(() => {
+    useLoadedSettings();
     vi.clearAllMocks();
     vi.useFakeTimers();
   });
