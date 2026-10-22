@@ -172,6 +172,20 @@ describe('keeping the vault unlocked (#245)', () => {
     expect(onRestored).not.toHaveBeenCalled();
   });
 
+  it('tells the lock listeners even when clearing session storage fails', async () => {
+    const vault = await freshWorker();
+    await vault.createNewVault(PASSWORD, DATA);
+    const onLocked = vi.fn();
+    vault.onVaultLocked(onLocked);
+    const remove = vi.spyOn(sessionArea, 'remove').mockRejectedValueOnce(new Error('storage down'));
+
+    await vault.lockVault().catch(() => undefined);
+
+    expect(vault.isVaultUnlocked()).toBe(false);
+    expect(onLocked).toHaveBeenCalledTimes(1);
+    remove.mockRestore();
+  });
+
   it('restores the key when auto-lock is not yet due', async () => {
     await (await freshWorker()).createNewVault(PASSWORD, DATA);
 

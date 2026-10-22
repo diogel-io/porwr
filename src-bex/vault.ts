@@ -183,8 +183,13 @@ function notifyLocked(): void {
 
 export async function lockVault() {
   clearVaultKey();
-  await clearSession();
-  notifyLocked();
+  try {
+    await clearSession();
+  } finally {
+    // The key is gone either way, so whatever waits on the lock is told even if storage cleanup
+    // failed (#142).
+    notifyLocked();
+  }
 }
 
 /**
@@ -193,8 +198,11 @@ export async function lockVault() {
  * as a pending wallet authorisation, goes now rather than at its own expiry (#142).
  */
 async function startLocked(): Promise<void> {
-  await clearSession();
-  notifyLocked();
+  try {
+    await clearSession();
+  } finally {
+    notifyLocked();
+  }
 }
 
 export async function createNewVault(password: string, vaultData: unknown) {
