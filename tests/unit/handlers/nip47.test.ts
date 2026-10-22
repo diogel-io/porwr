@@ -751,6 +751,25 @@ describe('wallet authorization (#110)', () => {
       lud16: 'alice@coinos.io',
     };
 
+    it('saves nothing when the vault locked as the connection was being saved (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.getInfo).mockResolvedValue({
+        capabilities: ['pay_invoice'],
+        encryption: ['nip44_v2'],
+        checkedAt: '2026-10-22T00:00:00.000Z',
+      } as never);
+      const vault = vi.mocked(getVaultData).getMockImplementation();
+      let reads = 0;
+      vi.mocked(getVaultData).mockImplementation(async () => {
+        // The second read is the save's own: lock just before the mutation decides.
+        if (++reads === 2) for (const listener of lockListeners) listener();
+        return vault ? vault() : { success: true, vaultData: { accounts: [MAIN_ACCOUNT] } };
+      });
+
+      await expect(handleNip47AuthorizationComplete(request)).rejects.toThrow('vault locked');
+      expect(updateVaultData).not.toHaveBeenCalled();
+    });
+
     it('saves nothing when the vault locked while the wallet answered (#142)', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
       vi.mocked(nip47Client.getInfo).mockImplementation(() => {

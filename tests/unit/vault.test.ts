@@ -258,6 +258,17 @@ describe('Vault', () => {
       expect(getRes.vaultData).toEqual(newData);
     });
 
+    it('refuses a write the vault locked during, so the lock is never undone by it (#142)', async () => {
+      await createNewVault(TEST_PASSWORD, TEST_DATA);
+
+      const writing = updateVaultData({ accounts: [], late: true });
+      await lockVault();
+
+      await expect(writing).resolves.toMatchObject({ success: false, error: 'Vault is locked' });
+      await unlockVault(TEST_PASSWORD);
+      await expect(getVaultData()).resolves.toMatchObject({ vaultData: TEST_DATA });
+    });
+
     it('drops the retired mnemonic and passphrase on the next write, and keeps everything else (#244)', async () => {
       const oldVault = {
         ...TEST_DATA,

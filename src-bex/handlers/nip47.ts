@@ -481,8 +481,12 @@ async function saveAuthorizedConnection(
   connection: Nip47Connection,
   capabilities: Nip47Command[],
   checkedAt: string,
+  locksBefore: number,
 ): Promise<Nip47ConnectionSummary> {
   const saved = await mutateWalletVault((vaultData) => {
+    // Checked inside the vault mutation, so the decision and the write go together: a lock after
+    // this point makes the write itself fail (`updateVaultData`), and one before it is seen here.
+    if (vaultLocks !== locksBefore) throw new Error(LOCKED_DURING_AUTHORIZATION);
     // Removed while the user was in the wallet's popup: saving would recreate wallet data for an
     // account that no longer exists.
     requireWalletAccount(vaultData, connection);
@@ -524,6 +528,7 @@ export async function handleNip47AuthorizationComplete(
       { ...connection, encryption: info.encryption },
       info.capabilities,
       info.checkedAt,
+      locksBefore,
     ),
   };
 }
@@ -580,12 +585,24 @@ export async function handleNip47AuthorizationProbe(
   // Locked while the wallet answered: the approval was abandoned, so nothing is saved.
   if (vaultLocks !== locksBefore) return { success: true, data: null };
 
-  return {
-    success: true,
-    data: await saveAuthorizedConnection(
-      { ...connection, encryption },
-      methods,
-      new Date().toISOString(),
-    ),
-  };
+  try {
+    return {
+      success: true,
+      data: await saveAuthorizedConnection(
+        { ...connection, encryption },
+        methods,
+        new Date().toISOString(),
+        locksBefore,
+      ),
+    };
+  } catch (error: unknown) {
+    // A lock while saving abandons the approval, which for a probe means nothing was saved.
+    if (
+      error instanceof Error &&
+      (error.message === LOCKED_DURING_AUTHORIZATION || error.message === 'Vault is locked')
+    ) {
+      return { success: true, data: null };
+    }
+    throw error;
+  }
 }

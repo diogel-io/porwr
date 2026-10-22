@@ -267,11 +267,16 @@ export async function updateVaultData(vaultData: unknown) {
   }
 
   try {
-    const encryptedVault = await encryptWithKey(
-      withoutRetiredFields(vaultData),
-      vaultKey,
-      vaultSalt,
-    );
+    const key = vaultKey;
+    const encryptedVault = await encryptWithKey(withoutRetiredFields(vaultData), key, vaultSalt);
+    // Locked while encrypting: the lock wins, and nothing it was meant to stop is written (#142).
+    if (vaultKey !== key) {
+      return {
+        success: false,
+        error: 'Vault is locked',
+        errorCode: ErrorCode.VLT_LOCKED,
+      };
+    }
 
     await db.vaults.put({
       id: 'master',
