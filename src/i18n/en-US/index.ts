@@ -689,9 +689,11 @@ export default {
     browse: 'Browse',
     save: 'Save',
     fetchError: 'Failed to fetch relay list from relays',
+    loadError:
+      'Could not load your relay list, so the list below may not be your current one. Saving will replace your published relay list with the list shown here.',
     saveSuccess: 'Relay list updated successfully',
     saveError: 'Failed to update relay list',
-    invalidUrl: 'Invalid relay URL (must start with ws:// or wss://)',
+    invalidUrl: 'Invalid relay URL (must start with wss://, or ws:// for localhost)',
     noRelays: 'No relays in the list',
     recommendedSize: 'NIP-65 recommends keeping the list small (2-4 relays per category).',
     dmRelays: {

@@ -3,7 +3,7 @@ import type { Event, EventTemplate, Filter } from 'nostr-tools';
 import type { SubCloser } from 'nostr-tools/abstract-pool';
 
 import { FALLBACK_RELAYS, storageService } from '@/services/storage-service';
-import { normalizeRelayUrl } from '@/services/relay-url';
+import { hasRefusedPlaintextRelay, normalizeRelayUrl } from '@/services/relay-url';
 import { RELAY_SEEDS } from '@/data/relay-seeds';
 import { DM_RELAY_LIST_KIND } from '@/types/messaging';
 import { authSigner } from './relay-auth';
@@ -63,10 +63,14 @@ function normalizeAll(urls: readonly string[]): string[] {
  */
 export async function getFallbackRelays(): Promise<string[]> {
   const stored = await storageService.get<unknown>(FALLBACK_RELAYS);
-  const relays = Array.isArray(stored)
-    ? normalizeAll(stored.filter((url): url is string => typeof url === 'string'))
+  const urls = Array.isArray(stored)
+    ? stored.filter((url): url is string => typeof url === 'string')
     : [];
-  return relays.length > 0 ? relays : normalizeAll(RELAY_SEEDS);
+  const relays = normalizeAll(urls);
+  if (relays.length > 0) return relays;
+  // A list that lost every relay to the wss:// rule stays empty rather than becoming the public
+  // seeds the user never chose (#142), as the settings store does.
+  return hasRefusedPlaintextRelay(urls) ? [] : normalizeAll(RELAY_SEEDS);
 }
 
 /** The `relay` tags of a kind 10050, normalised, in the order the user published them. */

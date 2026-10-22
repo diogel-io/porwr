@@ -5,12 +5,7 @@ export interface Nip05WellKnownResponse {
 }
 
 export type Nip05VerificationStatus =
-  | 'verified'
-  | 'malformed'
-  | 'network-error'
-  | 'invalid-response'
-  | 'not-found'
-  | 'pubkey-mismatch';
+  'verified' | 'malformed' | 'network-error' | 'invalid-response' | 'not-found' | 'pubkey-mismatch';
 
 export interface Nip05VerificationResult {
   status: Nip05VerificationStatus;
@@ -92,7 +87,10 @@ export const nip05Service = {
 
     let json: unknown;
     try {
+      // NIP-05: fetchers MUST ignore redirects. Following one could also reach a loopback address the
+      // extension CSP allows (#142).
       const response = await fetch(url.toString(), {
+        redirect: 'error',
         method: 'GET',
         headers: {
           Accept: 'application/json',

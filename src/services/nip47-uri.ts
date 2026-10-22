@@ -1,6 +1,7 @@
 import { getPublicKey } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import type { ParsedNwcUri } from '@/types/nip47';
+import { RELAY_PROTOCOL_ERROR, isAllowedRelayProtocol } from '@/services/relay-url';
 
 const HEX_64 = /^[0-9a-fA-F]{64}$/;
 
@@ -19,8 +20,8 @@ function normalizeRelay(relay: string): string {
   }
 
   const url = new URL(trimmed);
-  if (url.protocol !== 'wss:' && url.protocol !== 'ws:') {
-    throw new Error(`Relay URL must use ws:// or wss://: ${trimmed}`);
+  if (!isAllowedRelayProtocol(url)) {
+    throw new Error(`${RELAY_PROTOCOL_ERROR}: ${trimmed}`);
   }
   url.hash = '';
   return url.toString();

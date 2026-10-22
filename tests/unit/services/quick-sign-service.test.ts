@@ -558,7 +558,17 @@ describe('quick-sign-service', () => {
     );
 
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Relay URLs must be valid ws:// or wss:// URLs.');
+    expect(result.errors).toContain(
+      'Relay URLs must be valid wss:// URLs (ws:// only for localhost).',
+    );
+  });
+
+  it('flags a plaintext ws:// relay to a public host, and accepts one on localhost (T19)', () => {
+    const input = { accountAlias: 'alpha', kind: 1 as const, content: 'hello nostr', tags: [] };
+    expect(validateQuickSignInput(input, { relayUrls: ['ws://relay.example'] }).errors).toContain(
+      'Relay URLs must be valid wss:// URLs (ws:// only for localhost).',
+    );
+    expect(validateQuickSignInput(input, { relayUrls: ['ws://localhost:7777'] }).valid).toBe(true);
   });
 
   it('lists selected account relay meta list relays and prefers write-capable markers', async () => {

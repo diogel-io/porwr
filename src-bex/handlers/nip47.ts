@@ -40,17 +40,31 @@ import {
   summarizeNip47Connection,
   upsertNip47Connection,
 } from '../services/nip47-connection-store';
-import { nip47Client } from '../services/nip47-client';
+import { allowedWalletRelays, nip47Client } from '../services/nip47-client';
 import {
   appendNip47PaymentHistory,
   listNip47PaymentHistory,
 } from '../services/nip47-payment-history-store';
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import {
+  clearPendingNip47Authorizations,
   savePendingNip47Authorization,
   takePendingNip47Authorization,
   type PendingNip47Authorization,
 } from '../services/nip47-pending-authorization-store';
+import { onVaultLocked } from '../vault';
+import { describeError, LogLevel, logService } from '@/services/log-service';
+
+// A wallet approval in progress when the vault locks, whether starting or finishing, is abandoned:
+// pending client secrets go with the key rather than waiting out their TTL in session storage, and
+// the counter lets an approval already under way see that a lock came (#142, T22).
+let vaultLocks = 0;
+const LOCKED_DURING_AUTHORIZATION =
+  'The vault locked while the wallet connection was being set up. Unlock and try again.';
+onVaultLocked(() => {
+  vaultLocks += 1;
+  void clearPendingNip47Authorizations();
+});
 
 /**
  * The account a wallet action names, checked against the vault.
@@ -84,6 +98,21 @@ function requireConnection(
   if (!connection) {
     throw new Error('NIP-47 connection not found');
   }
+  return connection;
+}
+
+/**
+ * A stored connection Porwr may contact. One saved before relays had to be `wss:` (#142) may name
+ * only plaintext relays; it fails here, before any lookup or request, with a message that says how
+ * to fix it. Removing such a connection still works, through `requireConnection`.
+ */
+function requireUsableConnection(
+  vaultData: VaultData,
+  accountPubkey: string,
+  connectionId: string,
+): Nip47Connection {
+  const connection = requireConnection(vaultData, accountPubkey, connectionId);
+  allowedWalletRelays(connection);
   return connection;
 }
 
@@ -198,21 +227,27 @@ export async function handleNip47GetInfo(
 ): Promise<HandlerResult<Nip47InfoResponse>> {
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
-  const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
+  const connection = requireUsableConnection(vaultData, accountPubkey, payload.connectionId);
 
   const info = await nip47Client.getInfo(connection);
+  await recordWalletInfo(accountPubkey, payload.connectionId, info);
+  return { success: true, data: info };
+}
 
+/** Stores what the wallet's info event advertises against its connection. */
+async function recordWalletInfo(
+  accountPubkey: string,
+  connectionId: string,
+  info: Nip47InfoResponse,
+): Promise<void> {
   await mutateWalletVault((latestVaultData) => {
     // Removed while the wallet was answering: nothing to record against.
-    const latestConnection = findNip47Connection(
-      latestVaultData,
-      accountPubkey,
-      payload.connectionId,
-    );
+    const latestConnection = findNip47Connection(latestVaultData, accountPubkey, connectionId);
     if (!latestConnection) return { vaultData: latestVaultData, data: true };
     const updatedConnection: Nip47Connection = {
       ...latestConnection,
       capabilities: info.capabilities,
+      encryption: info.encryption,
       lastInfoCheckedAt: info.checkedAt,
       updatedAt: new Date().toISOString(),
     };
@@ -222,7 +257,73 @@ export async function handleNip47GetInfo(
       data: true,
     };
   });
-  return { success: true, data: info };
+}
+
+/**
+ * How long a wallet's advertised encryption is trusted before the info event is read again, so a
+ * wallet that starts offering NIP-44 is not held to NIP-04 indefinitely (#142).
+ */
+export const WALLET_INFO_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * After a failed refresh, how long a connection that has a recorded encryption waits before trying
+ * again, so an unreachable info relay doesn't add its full lookup time to every request (#142).
+ */
+export const WALLET_INFO_RETRY_MS = 10 * 60 * 1000;
+const failedRefreshAt = new Map<string, number>();
+
+function isRecent(checkedAt: string | undefined, now: number = Date.now()): boolean {
+  const at = checkedAt ? Date.parse(checkedAt) : NaN;
+  return Number.isFinite(at) && now - at < WALLET_INFO_MAX_AGE_MS && at <= now;
+}
+
+export const WALLET_INFO_UNAVAILABLE =
+  "Porwr couldn't read this wallet's info event, so it can't tell which encryption the wallet " +
+  'accepts. Nothing was sent. Check that the wallet is online and try again.';
+
+/**
+ * The connection with the encryption schemes its wallet advertises, read from the wallet's info
+ * event the first time they are needed (diogel-io/workspace#142, T22). A connection imported from
+ * a URI has never fetched it.
+ *
+ * Fails closed: when the info event can't be read, nothing is sent. NIP-47 has the client read it
+ * before using a connection, and guessing NIP-04 would send a NIP-44 wallet a request it can't
+ * decrypt. The result is stored, and read again once it is a day old.
+ */
+async function withNegotiatedEncryption(
+  accountPubkey: string,
+  connection: Nip47Connection,
+): Promise<Nip47Connection> {
+  if (connection.encryption !== undefined && isRecent(connection.lastInfoCheckedAt)) {
+    return connection;
+  }
+  const lastFailure = failedRefreshAt.get(connection.id);
+  if (
+    connection.encryption !== undefined &&
+    lastFailure !== undefined &&
+    Date.now() - lastFailure < WALLET_INFO_RETRY_MS
+  ) {
+    return connection;
+  }
+  let info: Nip47InfoResponse;
+  try {
+    info = await nip47Client.getInfo(connection);
+  } catch (error: unknown) {
+    // A scheme the wallet once advertised is still a real advertisement: keep using it until the
+    // info event can be read again, rather than refusing a connection that worked.
+    if (connection.encryption !== undefined) {
+      failedRefreshAt.set(connection.id, Date.now());
+      return connection;
+    }
+    // Class and code only: a relay library's message can echo the relay URL it was given.
+    logService.log(LogLevel.WARN, '[NIP-47] Could not read the wallet info event', {
+      error: describeError(error),
+    });
+    throw new Error(WALLET_INFO_UNAVAILABLE);
+  }
+  failedRefreshAt.delete(connection.id);
+  await recordWalletInfo(accountPubkey, connection.id, info);
+  return { ...connection, capabilities: info.capabilities, encryption: info.encryption };
 }
 
 export async function handleNip47GetBalance(
@@ -230,9 +331,11 @@ export async function handleNip47GetBalance(
 ): Promise<HandlerResult<Nip47BalanceResponse>> {
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
-  const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
+  const connection = requireUsableConnection(vaultData, accountPubkey, payload.connectionId);
 
-  const balance = await nip47Client.getBalance(connection);
+  const balance = await nip47Client.getBalance(
+    await withNegotiatedEncryption(accountPubkey, connection),
+  );
   return { success: true, data: balance };
 }
 
@@ -241,18 +344,24 @@ export async function handleNip47PayInvoice(
 ): Promise<HandlerResult<Nip47PayInvoiceResponse>> {
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
-  const connection = requireConnection(vaultData, accountPubkey, payload.connectionId);
-
-  // Defense-in-depth: the UI only offers payment when the wallet has advertised
-  // pay_invoice support, but enforce it here too in case this handler is ever
-  // invoked directly.
-  if (connection.capabilities.length > 0 && !connection.capabilities.includes('pay_invoice')) {
-    throw new Error('This wallet connection does not advertise pay_invoice support.');
-  }
+  const stored = requireUsableConnection(vaultData, accountPubkey, payload.connectionId);
 
   const invoice = payload.invoice.trim();
   if (!invoice) {
     throw new Error('Lightning invoice is required');
+  }
+
+  // Negotiated first, so the check below sees what the wallet advertises: a connection imported
+  // from a URI has no capabilities until its info event is read (#142).
+  const connection = await withNegotiatedEncryption(accountPubkey, stored);
+
+  // Defense-in-depth: the UI only offers payment when the wallet has advertised
+  // pay_invoice support, but enforce it here too in case this handler is ever
+  // invoked directly.
+  // Negotiation has read the info event by now, so an empty list means the wallet advertises no
+  // methods, not that they are unknown (#142).
+  if (!connection.capabilities.includes('pay_invoice')) {
+    throw new Error('This wallet connection does not advertise pay_invoice support.');
   }
 
   try {
@@ -326,6 +435,7 @@ export async function handleNip47AuthorizationBegin(
     throw new Error(`Enter the https:// address of your ${provider.name}`);
   }
 
+  const locksBefore = vaultLocks;
   const clientSecret = bytesToHex(generateSecretKey());
   const clientPubkey = getPublicKey(hexToBytes(clientSecret));
   const pending = await savePendingNip47Authorization({
@@ -336,6 +446,12 @@ export async function handleNip47AuthorizationBegin(
     clientSecret,
     clientPubkey,
   });
+  // The vault locked while this was being saved: the lock's clear-out may have run first, so this
+  // entry is removed here, and no popup opens for an approval the lock abandoned.
+  if (vaultLocks !== locksBefore) {
+    await takePendingNip47Authorization(pending.pendingId);
+    throw new Error(LOCKED_DURING_AUTHORIZATION);
+  }
 
   return {
     success: true,
@@ -383,8 +499,12 @@ async function saveAuthorizedConnection(
   connection: Nip47Connection,
   capabilities: Nip47Command[],
   checkedAt: string,
+  locksBefore: number,
 ): Promise<Nip47ConnectionSummary> {
   const saved = await mutateWalletVault((vaultData) => {
+    // Checked inside the vault mutation, so the decision and the write go together: a lock after
+    // this point makes the write itself fail (`updateVaultData`), and one before it is seen here.
+    if (vaultLocks !== locksBefore) throw new Error(LOCKED_DURING_AUTHORIZATION);
     // Removed while the user was in the wallet's popup: saving would recreate wallet data for an
     // account that no longer exists.
     requireWalletAccount(vaultData, connection);
@@ -407,6 +527,7 @@ async function saveAuthorizedConnection(
 export async function handleNip47AuthorizationComplete(
   payload: CompleteNip47AuthorizationRequest,
 ): Promise<HandlerResult<Nip47ConnectionSummary>> {
+  const locksBefore = vaultLocks;
   await readWalletVault();
   const pending = await requirePendingAuthorization(payload.pendingId);
 
@@ -417,9 +538,16 @@ export async function handleNip47AuthorizationComplete(
 
   const connection = buildAuthorizedConnection(pending, service);
   const info = await nip47Client.getInfo(connection);
+  // A lock while the wallet answered abandoned this approval, even if the vault is unlocked again.
+  if (vaultLocks !== locksBefore) throw new Error(LOCKED_DURING_AUTHORIZATION);
   return {
     success: true,
-    data: await saveAuthorizedConnection(connection, info.capabilities, info.checkedAt),
+    data: await saveAuthorizedConnection(
+      { ...connection, encryption: info.encryption },
+      info.capabilities,
+      info.checkedAt,
+      locksBefore,
+    ),
   };
 }
 
@@ -441,6 +569,7 @@ function parseMethods(value: unknown): Nip47Command[] {
 export async function handleNip47AuthorizationProbe(
   payload: ProbeNip47AuthorizationRequest,
 ): Promise<HandlerResult<Nip47ConnectionSummary | null>> {
+  const locksBefore = vaultLocks;
   await readWalletVault();
   const pending = await requirePendingAuthorization(payload.pendingId);
 
@@ -455,8 +584,21 @@ export async function handleNip47AuthorizationProbe(
   });
 
   let methods: Nip47Command[];
+  // The probe uses the wallet's advertised encryption when its info event can be read (#142). When
+  // it can't, the probe goes as NIP-04, which is what NIP-47 says no info event means, rather than
+  // dropping an approval the user has just given in the wallet. The saved connection then records
+  // no encryption, so its first request reads the info event again.
+  let encryption: string[] | undefined;
   try {
-    const response = await nip47Client.sendRequest(connection, { method: 'get_info', params: {} });
+    encryption = (await nip47Client.getInfo(connection)).encryption;
+  } catch {
+    encryption = undefined;
+  }
+  try {
+    const response = await nip47Client.sendRequest(
+      encryption === undefined ? connection : { ...connection, encryption },
+      { method: 'get_info', params: {} },
+    );
     if (response.error?.code === 'UNAUTHORIZED') {
       return { success: true, data: null };
     }
@@ -464,9 +606,27 @@ export async function handleNip47AuthorizationProbe(
   } catch {
     return { success: true, data: null };
   }
+  // Locked while the wallet answered: the approval was abandoned, so nothing is saved.
+  if (vaultLocks !== locksBefore) return { success: true, data: null };
 
-  return {
-    success: true,
-    data: await saveAuthorizedConnection(connection, methods, new Date().toISOString()),
-  };
+  try {
+    return {
+      success: true,
+      data: await saveAuthorizedConnection(
+        encryption === undefined ? connection : { ...connection, encryption },
+        methods,
+        new Date().toISOString(),
+        locksBefore,
+      ),
+    };
+  } catch (error: unknown) {
+    // A lock while saving abandons the approval, which for a probe means nothing was saved.
+    if (
+      error instanceof Error &&
+      (error.message === LOCKED_DURING_AUTHORIZATION || error.message === 'Vault is locked')
+    ) {
+      return { success: true, data: null };
+    }
+    throw error;
+  }
 }

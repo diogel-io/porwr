@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleBlossomUpload } from '@/../src-bex/handlers/blossom-handler';
+import {
+  BLOSSOM_AUTH_TTL_SECONDS,
+  handleBlossomUpload,
+} from '@/../src-bex/handlers/blossom-handler';
 import { handleVaultGetData, handleVaultIsUnlocked } from '@/../src-bex/handlers/vault-handler';
 import { storageService, NOSTR_ACTIVE, BLOSSOM_UPLOAD_STATUS } from '@/services/storage-service';
 import { finalizeEvent, getPublicKey } from 'nostr-tools';
@@ -174,6 +177,117 @@ describe('BlossomHandler', () => {
         uploading: false,
         error: expect.stringContaining('HTTP Error 500'),
       }),
+    );
+  });
+
+  describe('BUD-11 authorisation (diogel-io/workspace#142, T21)', () => {
+    const tagsOf = (call: number) =>
+      (vi.mocked(finalizeEvent).mock.calls[call]![0] as { tags: string[][] }).tags;
+
+    it('signs one kind 24242 token with t, x, size, server and a short expiration', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
+
+      await handleBlossomUpload(payload);
+
+      expect(finalizeEvent).toHaveBeenCalledTimes(1);
+      const template = vi.mocked(finalizeEvent).mock.calls[0]![0] as {
+        kind: number;
+        content: string;
+      };
+      expect(template.kind).toBe(24242);
+      expect(template.content).toBe('Upload file');
+      const tags = tagsOf(0);
+      expect(tags).toContainEqual(['t', 'upload']);
+      expect(tags).toContainEqual(['x', '0'.repeat(64)]);
+      expect(tags).toContainEqual(['size', '5']);
+      expect(tags).toContainEqual(['server', 'blossom.example.com']);
+      expect(tags).toContainEqual(['expiration', String(1_800_000_000 + BLOSSOM_AUTH_TTL_SECONDS)]);
+      expect(tags.map(([name]) => name)).not.toContain('u');
+      expect(tags.map(([name]) => name)).not.toContain('method');
+      now.mockRestore();
+    });
+
+    it('reuses the one token for every endpoint it tries', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Error',
+        text: () => Promise.resolve('error'),
+      });
+
+      await handleBlossomUpload(payload);
+
+      expect(mockFetch.mock.calls.length).toBeGreaterThan(1);
+      expect(finalizeEvent).toHaveBeenCalledTimes(1);
+      const headers = mockFetch.mock.calls.map(
+        ([, init]) => (init as { headers: Record<string, string> }).headers.Authorization,
+      );
+      expect(new Set(headers).size).toBe(1);
+    });
+
+    it('builds every endpoint from the validated URL, not the raw setting', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Error',
+        text: () => Promise.resolve('error'),
+      });
+
+      await handleBlossomUpload({ ...payload, blossomServer: '  https://Blossom.Example.COM  ' });
+
+      const urls = mockFetch.mock.calls.map(([url]) => String(url));
+      expect(urls[0]).toBe('https://blossom.example.com/upload');
+      for (const url of urls) {
+        expect(url.startsWith('https://blossom.example.com/')).toBe(true);
+      }
+    });
+
+    it('fails an upload whose server answers with a non-https media URL', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ url: 'http://blossom.example.com/file.txt' })),
+      });
+
+      const result = await handleBlossomUpload(payload);
+
+      expect(result.success).toBe(false);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(storageService.set).toHaveBeenLastCalledWith(
+        BLOSSOM_UPLOAD_STATUS,
+        expect.objectContaining({
+          uploading: false,
+          url: null,
+          error: expect.stringContaining('https'),
+        }),
+      );
+    });
+
+    it('never follows a redirect, which would resend the file elsewhere', async () => {
+      await handleBlossomUpload(payload);
+
+      for (const [, init] of mockFetch.mock.calls) {
+        expect((init as RequestInit).redirect).toBe('error');
+      }
+    });
+
+    it('names the server by its lowercase bare hostname', async () => {
+      await handleBlossomUpload({ ...payload, blossomServer: 'https://Media.Example.ORG:8443/b/' });
+
+      expect(tagsOf(0)).toContainEqual(['server', 'media.example.org']);
+    });
+
+    it.each(['http://blossom.example.com', 'ftp://blossom.example.com', 'not a url'])(
+      'refuses %s before signing or sending anything',
+      async (blossomServer) => {
+        const result = await handleBlossomUpload({ ...payload, blossomServer });
+
+        expect(result.success).toBe(false);
+        expect(finalizeEvent).not.toHaveBeenCalled();
+        expect(mockFetch).not.toHaveBeenCalled();
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        expect(storageService.set).not.toHaveBeenCalled();
+      },
     );
   });
 });

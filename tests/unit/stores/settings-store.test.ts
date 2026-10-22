@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { isProxy } from 'vue';
 import useSettingsStore from '@/stores/settings-store';
 import {
+  BLOSSOM_SERVER,
   FALLBACK_RELAYS,
   QUICK_PUBLISH_CLIENT_TAG,
   storageService,
@@ -12,6 +13,7 @@ import {
   setStoredProfileSearchRelays,
 } from '@/services/profile-search-relay-settings-service';
 import { RELAY_SEEDS } from '@/data/relay-seeds';
+import { logService } from '@/services/log-service';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
 
 // Mock storage service
@@ -246,6 +248,171 @@ describe('SettingsStore', () => {
 
       listener({ [QUICK_PUBLISH_CLIENT_TAG]: { newValue: true } }, 'local');
       expect(store.quickPublishClientTag).toBe(true);
+    });
+    /* eslint-enable @typescript-eslint/unbound-method */
+  });
+
+  describe('fallback relays (diogel-io/workspace#142, T19)', () => {
+    /* eslint-disable @typescript-eslint/unbound-method */
+    it('drops stored plaintext ws:// relays to public hosts when it loads', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: [
+          'ws://relay.example.com',
+          'wss://relay.damus.io',
+          'ws://localhost:7777',
+        ],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual(['wss://relay.damus.io', 'ws://localhost:7777']);
+    });
+
+    it('logs each dropped relay once, however often settings load', async () => {
+      const log = vi.spyOn(logService, 'log');
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['ws://once.example.com', 'wss://relay.damus.io'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+      await store.getSettings();
+      await useSettingsStore().getSettings();
+
+      const drops = log.mock.calls.filter(
+        ([, message, context]) =>
+          String(message).includes('Dropped a stored plaintext') &&
+          (context as { host?: string })?.host === 'once.example.com',
+      );
+      expect(drops).toHaveLength(1);
+      log.mockRestore();
+    });
+
+    it('skips malformed stored entries instead of failing to load', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: [42, null, 'wss://relay.damus.io'],
+      });
+      const store = useSettingsStore();
+
+      await expect(store.getSettings()).resolves.toBeUndefined();
+
+      expect(store.fallbackRelays).toEqual(['wss://relay.damus.io']);
+    });
+
+    it('uses no relay, not the public seeds, when every stored relay is plaintext', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['ws://relay.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual([]);
+    });
+
+    it('uses the seeds for a list of https:// entries, which are unusable but not plaintext', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['https://relay.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual(DEFAULT_FALLBACK_RELAYS);
+    });
+
+    it('still uses the seeds when the stored list holds nothing usable for another reason', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['not a relay'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual(DEFAULT_FALLBACK_RELAYS);
+    });
+    /* eslint-enable @typescript-eslint/unbound-method */
+  });
+
+  describe('loading once (diogel-io/workspace#142)', () => {
+    it('does not reload settings for every read of a list the wss:// rule emptied', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['ws://only.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await expect(store.getFallbackRelays()).resolves.toEqual([]);
+      await store.getFallbackRelays();
+      await store.getProfileSearchRelays();
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(storageService.getMultiple).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('profile search relays (diogel-io/workspace#142, T19)', () => {
+    it('uses no relay, not the defaults, when every stored one is plaintext', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({});
+      vi.mocked(getStoredProfileSearchRelays).mockResolvedValue(['ws://search.example.com']);
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.profileSearchRelays).toEqual([]);
+    });
+
+    it('keeps the usable ones of a list that also held plaintext relays', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({});
+      vi.mocked(getStoredProfileSearchRelays).mockResolvedValue([
+        'ws://search.example.com',
+        'wss://search.nos.today',
+      ]);
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.profileSearchRelays).toEqual(['wss://search.nos.today']);
+    });
+  });
+
+  describe('Blossom server (diogel-io/workspace#142, T21)', () => {
+    /* eslint-disable @typescript-eslint/unbound-method */
+    it('saves an https:// server', async () => {
+      const store = useSettingsStore();
+
+      await store.setBlossomServer('https://media.example.org');
+
+      expect(store.blossomServer).toBe('https://media.example.org/');
+      expect(storageService.set).toHaveBeenCalledWith(BLOSSOM_SERVER, 'https://media.example.org/');
+    });
+
+    it.each([
+      'http://media.example.org',
+      'ftp://media.example.org',
+      'https://user:pass@media.example.org',
+      '',
+    ])('refuses %j and leaves the setting unchanged', async (url) => {
+      const store = useSettingsStore();
+      const before = store.blossomServer;
+
+      await expect(store.setBlossomServer(url)).rejects.toThrow();
+
+      expect(store.blossomServer).toBe(before);
+      expect(storageService.set).not.toHaveBeenCalled();
+    });
+
+    it('keeps a stored server that is not https://, rather than swapping in the default', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [BLOSSOM_SERVER]: 'http://media.example.org/',
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      // Shown with its error on the Media page; the background refuses to upload to it.
+      expect(store.blossomServer).toBe('http://media.example.org/');
+      expect(storageService.set).not.toHaveBeenCalled();
     });
     /* eslint-enable @typescript-eslint/unbound-method */
   });

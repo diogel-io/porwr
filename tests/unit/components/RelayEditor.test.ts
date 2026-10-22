@@ -42,10 +42,18 @@ vi.mock('quasar', () => ({
 }));
 
 // Mock nostr-tools
+const poolGet = vi.hoisted(() => vi.fn());
+const poolPublish = vi.hoisted(() => vi.fn());
+
+vi.mock('@/services/account-signing-client', () => ({
+  signAsAccount: vi.fn(() => Promise.resolve({ id: 'signed', kind: 10002 })),
+}));
+
 vi.mock('nostr-tools', () => {
   return {
     SimplePool: class {
-      get = vi.fn().mockResolvedValue(null);
+      get = poolGet;
+      publish = poolPublish;
       close = vi.fn();
     },
     finalizeEvent: vi.fn(),
@@ -59,6 +67,61 @@ vi.mock('@noble/hashes/utils', () => ({
 describe('RelayEditor.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    poolGet.mockResolvedValue(null);
+  });
+
+  // `pool.get` over no relays never settles; with no usable fallback relay the editor must not wait
+  // on it (diogel-io/workspace#142).
+  it('shows the editor, not a spinner, when there is no usable fallback relay', async () => {
+    poolGet.mockReturnValue(new Promise(() => undefined));
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: {
+        plugins: [
+          createTestingPinia({
+            createSpy: vi.fn,
+            stubActions: false,
+            initialState: { settings: { fallbackRelays: [] } },
+          }),
+        ],
+        stubs: globalStubs,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(poolGet).not.toHaveBeenCalled();
+    expect(wrapper.find('q-spinner-stub').exists()).toBe(false);
+    expect(wrapper.find('button[data-icon="explore"]').exists()).toBe(true);
+    // An empty list here is not the account's: the editor says so before anything is saved.
+    expect(wrapper.text()).toContain('relays.loadError');
+  });
+
+  it('warns that the list shown may not be current when reading it fails', async () => {
+    poolGet.mockRejectedValue(new Error('relays down'));
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: {
+        plugins: [createTestingPinia({ createSpy: vi.fn, stubActions: false })],
+        stubs: globalStubs,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(wrapper.text()).toContain('relays.loadError');
+  });
+
+  it('shows no warning when the list loads', async () => {
+    poolGet.mockResolvedValue({ tags: [['r', 'wss://relay.example']] });
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: {
+        plugins: [createTestingPinia({ createSpy: vi.fn, stubActions: false })],
+        stubs: globalStubs,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(wrapper.text()).not.toContain('relays.loadError');
   });
 
   const props = {
@@ -113,6 +176,47 @@ describe('RelayEditor.vue', () => {
       emits: ['select'],
     },
   };
+
+  // With no usable fallback relay the list can still be saved: it goes to the write relays it names
+  // (NIP-65), and only to ones Porwr may connect to (diogel-io/workspace#142).
+  it("saves to the list's own write relays when there is no usable fallback relay", async () => {
+    poolGet.mockResolvedValue({
+      tags: [
+        ['r', 'wss://write.example'],
+        ['r', 'wss://read.example', 'read'],
+        ['r', 'ws://plain.example', 'write'],
+      ],
+    });
+    poolPublish.mockReturnValue([Promise.resolve('ok')]);
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: {
+        plugins: [
+          createTestingPinia({
+            createSpy: vi.fn,
+            stubActions: false,
+            initialState: { settings: { fallbackRelays: ['wss://fallback.example'] } },
+          }),
+        ],
+        stubs: globalStubs,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    useSettingsStore().fallbackRelays = [];
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const save = wrapper
+      .findAll('button[data-testid="q-btn"]')
+      .filter((b) => !b.attributes('data-icon'));
+    await save[save.length - 1]!.trigger('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // The button stub reports a click twice (emitted and native); each save publishes the same way.
+    expect(poolPublish).toHaveBeenCalled();
+    for (const [targets] of poolPublish.mock.calls) {
+      expect(targets).toEqual(['wss://write.example']);
+    }
+  });
 
   it('renders Browse button', () => {
     const wrapper = mount(RelayEditor, {

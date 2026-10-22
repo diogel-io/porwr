@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeRelayUrl, isRestrictedHostname } from '@/services/relay-url';
+import {
+  RELAY_PROTOCOL_ERROR,
+  hasRefusedPlaintextRelay,
+  isAllowedRelayProtocol,
+  isRestrictedHostname,
+  normalizeRelayUrl,
+} from '@/services/relay-url';
 
 describe('normalizeRelayUrl', () => {
   it('should validate a valid wss:// URL', () => {
@@ -62,7 +68,56 @@ describe('normalizeRelayUrl', () => {
   it('should reject non-websocket schemes', () => {
     const result = normalizeRelayUrl('https://relay.damus.io');
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Only ws:// and wss:// protocols are supported');
+    expect(result.error).toBe(RELAY_PROTOCOL_ERROR);
+  });
+
+  describe('plaintext ws:// (diogel-io/workspace#142, T19)', () => {
+    it.each(['ws://relay.damus.io', 'ws://relay.example.com:7777/path', 'ws://192.168.1.10:8080'])(
+      'rejects ws:// to a non-loopback host: %s',
+      (url) => {
+        const result = normalizeRelayUrl(url);
+        expect(result.valid).toBe(false);
+        expect(result.error).toBe(RELAY_PROTOCOL_ERROR);
+      },
+    );
+
+    // The extension CSP cannot name an IPv6 address, so [::1] is refused too (manifest-csp.ts).
+    it.each(['ws://0.0.0.0:8080', 'ws://[::]:8080', 'ws://[::1]:7000'])(
+      'rejects ws:// to a wildcard address: %s',
+      (url) => {
+        expect(normalizeRelayUrl(url).valid).toBe(false);
+      },
+    );
+
+    it.each(['ws://localhost:8080', 'ws://LOCALHOST:8080', 'ws://127.0.0.1:7000'])(
+      'accepts ws:// to a loopback host: %s',
+      (url) => {
+        expect(normalizeRelayUrl(url).valid).toBe(true);
+      },
+    );
+
+    it('accepts wss:// to any host', () => {
+      expect(normalizeRelayUrl('wss://relay.damus.io').valid).toBe(true);
+      expect(normalizeRelayUrl('wss://192.168.1.10').valid).toBe(true);
+    });
+  });
+
+  describe('hasRefusedPlaintextRelay', () => {
+    it('counts a public ws:// relay, and not another unusable scheme', () => {
+      expect(hasRefusedPlaintextRelay(['ws://relay.example.com'])).toBe(true);
+      expect(hasRefusedPlaintextRelay(['https://relay.example.com'])).toBe(false);
+      expect(hasRefusedPlaintextRelay(['ws://localhost:7777'])).toBe(false);
+      expect(hasRefusedPlaintextRelay(['not a relay'])).toBe(false);
+    });
+  });
+
+  describe('isAllowedRelayProtocol', () => {
+    it('allows wss: and loopback ws: only', () => {
+      expect(isAllowedRelayProtocol(new URL('wss://relay.example'))).toBe(true);
+      expect(isAllowedRelayProtocol(new URL('ws://localhost'))).toBe(true);
+      expect(isAllowedRelayProtocol(new URL('ws://relay.example'))).toBe(false);
+      expect(isAllowedRelayProtocol(new URL('https://relay.example'))).toBe(false);
+    });
   });
 
   it('should reject malformed URLs', () => {

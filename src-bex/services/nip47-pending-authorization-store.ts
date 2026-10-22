@@ -77,3 +77,12 @@ export async function takePendingNip47Authorization(
   await writePending(unexpired(entries, now).filter((entry) => entry.pendingId !== pendingId));
   return match && match.expiresAt > now ? match : null;
 }
+
+/**
+ * Discards every pending authorization. Runs when the vault locks: a wallet approval the user
+ * started while unlocked is not finished on a locked vault, and its client secret should not wait
+ * out its TTL in session storage (diogel-io/workspace#142, T22).
+ */
+export async function clearPendingNip47Authorizations(): Promise<void> {
+  await writePending([]);
+}

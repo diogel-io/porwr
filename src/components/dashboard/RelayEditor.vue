@@ -30,9 +30,22 @@ const fallbackRelays = computed(() => settingsStore.fallbackRelays);
 const newRelayUrl = ref('');
 const newRelayWrite = ref(false);
 const showRelayBrowser = ref(false);
+/**
+ * The account's relay list could not be read, so the list shown is not known to be its current one,
+ * and saving would replace whatever is published (#142).
+ */
+const loadFailed = ref(false);
 
 async function fetchRelayList() {
   relays.value = [];
+  loadFailed.value = false;
+  // `pool.get` over no relays never settles. With no usable fallback relay (#142) there is nothing
+  // to read: the editor stays usable, but says the list shown may not be the account's.
+  if (fallbackRelays.value.length === 0) {
+    loadFailed.value = true;
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   const pool = new SimplePool();
   try {
@@ -55,6 +68,7 @@ async function fetchRelayList() {
         });
     }
   } catch (error) {
+    loadFailed.value = true;
     console.error('Error fetching relay list:', error);
     $q.notify({
       type: 'negative',
@@ -103,9 +117,18 @@ function handleRelaySelected(relay: RelayCatalogEntry) {
   newRelayWrite.value = false;
 }
 
+function publishTargets(): string[] {
+  const writeRelays = relays.value
+    .filter((relay) => relay.write)
+    .map((relay) => normalizeRelayUrl(relay.url))
+    .flatMap((result) => (result.valid && result.url ? [result.url] : []));
+  return [...new Set([...fallbackRelays.value, ...writeRelays])];
+}
+
 async function saveRelayList() {
   saving.value = true;
   const pool = new SimplePool();
+  let targets: string[] = [];
   try {
     const tags = relays.value.map((r) => {
       const tag = ['r', r.url];
@@ -122,7 +145,10 @@ async function saveRelayList() {
       content: '',
     });
 
-    await Promise.any(pool.publish(fallbackRelays.value, event));
+    // NIP-65: the list also goes to the write relays it names, so it can be saved even when no
+    // fallback relay is usable (#142). Only relays Porwr may connect to are used.
+    targets = publishTargets();
+    await Promise.any(pool.publish(targets, event));
 
     $q.notify({
       type: 'positive',
@@ -135,7 +161,7 @@ async function saveRelayList() {
       message: String($t('relays.saveError')),
     });
   } finally {
-    pool.close(fallbackRelays.value);
+    pool.close(targets);
     saving.value = false;
   }
 }
@@ -162,6 +188,9 @@ watch(
     </div>
 
     <template v-else>
+      <q-banner v-if="loadFailed" class="q-mb-md" dense rounded data-testid="relay-list-load-error">
+        {{ $t('relays.loadError') }}
+      </q-banner>
       <div class="q-mb-md">
         <div class="row q-col-gutter-sm items-center">
           <div class="col-grow">

@@ -45,8 +45,17 @@ async function resolveWebLnWallet(
   return { vaultData, connection };
 }
 
-function assertPayInvoiceSupport(connection: { capabilities: string[] }): void {
-  if (connection.capabilities.length > 0 && !connection.capabilities.includes('pay_invoice')) {
+/**
+ * Refuses a wallet that has advertised its methods without `pay_invoice`. Until its info event has
+ * been read (`lastInfoCheckedAt`), an empty list means unknown, as for a connection just imported
+ * from a URI; after that it means the wallet advertises nothing, the rule payments apply (#142).
+ */
+function assertPayInvoiceSupport(connection: {
+  capabilities: string[];
+  lastInfoCheckedAt?: string;
+}): void {
+  const known = connection.capabilities.length > 0 || connection.lastInfoCheckedAt !== undefined;
+  if (known && !connection.capabilities.includes('pay_invoice')) {
     throw new Error('The active wallet connection does not advertise pay_invoice support.');
   }
 }

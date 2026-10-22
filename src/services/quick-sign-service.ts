@@ -4,6 +4,7 @@ import { get, getActive } from './dexie-storage';
 import { LogLevel, logService } from './log-service';
 import { isVaultUnlocked } from './vault-service';
 import { extractWritePreferredRelayUrls, fetchAccountRelayList } from './relay-discovery';
+import { isAllowedRelayProtocol } from './relay-url';
 import { ErrorCode } from '@/types/error-codes.d';
 import type {
   QuickSignAccountOption,
@@ -92,8 +93,7 @@ export function validateQuickSignContent(
 
 function isValidRelayUrl(url: string): boolean {
   try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'ws:' || parsed.protocol === 'wss:';
+    return isAllowedRelayProtocol(new URL(url));
   } catch {
     return false;
   }
@@ -254,7 +254,7 @@ export function validateQuickSignInput(
     if (
       publishInput.relayUrls.some((url) => url.trim().length === 0 || !isValidRelayUrl(url.trim()))
     ) {
-      errors.push('Relay URLs must be valid ws:// or wss:// URLs.');
+      errors.push('Relay URLs must be valid wss:// URLs (ws:// only for localhost).');
     }
   }
 

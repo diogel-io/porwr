@@ -215,6 +215,33 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
       expect(result.errors).toEqual([]);
     });
 
+    const poolQuerySync = async () => {
+      const { SimplePool } = await import('nostr-tools');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (SimplePool as any).mock.results[0].value.querySync as ReturnType<typeof vi.fn>;
+    };
+
+    it('asks only the seeds Porwr may connect to (diogel-io/workspace#142)', async () => {
+      const querySyncMock = await poolQuerySync();
+      querySyncMock.mockClear();
+
+      await relayDiscoveryService.discoverFromRelays(['ws://public.example', 'wss://seed1.com']);
+
+      expect(querySyncMock).toHaveBeenCalledTimes(1);
+      expect(querySyncMock.mock.calls[0]![0]).toEqual(['wss://seed1.com']);
+    });
+
+    it('queries nothing when no seed is usable', async () => {
+      const querySyncMock = await poolQuerySync();
+      querySyncMock.mockClear();
+
+      const result = await relayDiscoveryService.discoverFromRelays(['ws://public.example']);
+
+      expect(querySyncMock).not.toHaveBeenCalled();
+      expect(result.discoveredUrls).toEqual([]);
+      expect(result.errors).toEqual(['No usable seed relay to discover from']);
+    });
+
     it('should handle query failures gracefully', async () => {
       // Access the mock pool instance and make it throw
       const { SimplePool } = await import('nostr-tools');

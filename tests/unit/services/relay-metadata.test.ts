@@ -63,6 +63,14 @@ describe('Relay Metadata Service', () => {
       expect(result.timestamp).toBeGreaterThan(0);
     });
 
+    it('never follows a redirect, which could reach a loopback service (#142)', async () => {
+      (vi.mocked(fetch) as any).mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+      await fetchRelayMetadata('wss://relay.damus.io');
+
+      expect((vi.mocked(fetch).mock.calls[0]![1] as RequestInit).redirect).toBe('error');
+    });
+
     it('should handle timeout correctly', async () => {
       (vi.mocked(fetch) as any).mockImplementationOnce(() => {
         return new Promise((resolve, reject) => {
