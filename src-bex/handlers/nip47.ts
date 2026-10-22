@@ -337,7 +337,9 @@ export async function handleNip47PayInvoice(
   // Defense-in-depth: the UI only offers payment when the wallet has advertised
   // pay_invoice support, but enforce it here too in case this handler is ever
   // invoked directly.
-  if (connection.capabilities.length > 0 && !connection.capabilities.includes('pay_invoice')) {
+  // Negotiation has read the info event by now, so an empty list means the wallet advertises no
+  // methods, not that they are unknown (#142).
+  if (!connection.capabilities.includes('pay_invoice')) {
     throw new Error('This wallet connection does not advertise pay_invoice support.');
   }
 

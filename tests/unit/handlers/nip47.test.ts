@@ -179,18 +179,15 @@ describe('handleNip47PayInvoice', () => {
     expect(updateVaultData).not.toHaveBeenCalled();
   });
 
-  it('allows payment when capabilities are unknown (empty)', async () => {
+  // By the time of this check the info event has been read, so an empty list is the wallet
+  // advertising no methods (#142).
+  it('refuses payment when the wallet advertises no methods', async () => {
     mockVault(buildConnection({ capabilities: [] }));
-    vi.mocked(nip47Client.payInvoice).mockResolvedValue({ preimage: 'preimage', raw: {} });
 
-    const result = await handleNip47PayInvoice({
-      accountPubkey: ACCOUNT,
-      connectionId: 'wallet-a',
-      invoice: INVOICE,
-    });
-
-    expect(result.success).toBe(true);
-    expect(nip47Client.payInvoice).toHaveBeenCalled();
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow('does not advertise pay_invoice');
+    expect(nip47Client.payInvoice).not.toHaveBeenCalled();
   });
 
   it('throws when the connection cannot be found', async () => {
