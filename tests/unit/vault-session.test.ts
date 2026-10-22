@@ -186,6 +186,29 @@ describe('keeping the vault unlocked (#245)', () => {
     remove.mockRestore();
   });
 
+  it('deletes the persisted key even when removing the session marker fails', async () => {
+    const vault = await freshWorker();
+    await vault.createNewVault(PASSWORD, DATA);
+    const remove = vi.spyOn(sessionArea, 'remove').mockRejectedValueOnce(new Error('storage down'));
+
+    await vault.lockVault().catch(() => undefined);
+
+    expect(state.vaultSession.size).toBe(0);
+    remove.mockRestore();
+  });
+
+  it('tells the lock listeners when there is no session to restore', async () => {
+    await (await freshWorker()).createNewVault(PASSWORD, DATA);
+    state.vaultSession.clear();
+
+    const restarted = await freshWorker();
+    const onLocked = vi.fn();
+    restarted.onVaultLocked(onLocked);
+    await expect(restarted.restoreVaultState()).resolves.toBe(false);
+
+    expect(onLocked).toHaveBeenCalledTimes(1);
+  });
+
   it('restores the key when auto-lock is not yet due', async () => {
     await (await freshWorker()).createNewVault(PASSWORD, DATA);
 

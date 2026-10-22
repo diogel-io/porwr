@@ -5,7 +5,7 @@ import {
   encryptWithKey,
 } from '@/services/crypto';
 import { db } from '@/services/database';
-import { LogLevel, logService } from '@/services/log-service';
+import { describeError, LogLevel, logService } from '@/services/log-service';
 import { storageService, VAULT_UNLOCKED } from '@/services/storage-service';
 import { ErrorCode } from '@/types/error-codes.d';
 
@@ -45,13 +45,18 @@ async function saveKeyToSession(): Promise<void> {
 }
 
 async function clearSession() {
-  await storageService.remove([VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS], 'session');
   try {
-    await db.vaultSession.delete(VAULT_SESSION_ID);
-  } catch (error: unknown) {
-    logService.log(LogLevel.ERROR, '[Vault] Failed to clear unlock session', {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    await storageService.remove([VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS], 'session');
+  } finally {
+    // The persisted key goes even if the marker could not be removed: with both left behind, a
+    // restarted worker would restore an unlocked vault without the password (#142).
+    try {
+      await db.vaultSession.delete(VAULT_SESSION_ID);
+    } catch (error: unknown) {
+      logService.log(LogLevel.ERROR, '[Vault] Failed to clear unlock session', {
+        error: describeError(error),
+      });
+    }
   }
 }
 
@@ -77,7 +82,12 @@ export async function restoreVaultState(
     }
 
     const session = await db.vaultSession.get(VAULT_SESSION_ID);
-    if (!session) return false;
+    if (!session) {
+      // No key to restore, so the vault starts locked: whatever outlived the last session, such as
+      // a pending wallet authorisation, is told so (#142).
+      await startLocked();
+      return false;
+    }
 
     if (items[VAULT_UNLOCKED] !== true) {
       // A new browser session: the key outlived it in IndexedDB, but the vault must start locked.
