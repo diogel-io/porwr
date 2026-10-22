@@ -64,7 +64,10 @@ import { describeError, LogLevel, logService } from '@/services/log-service';
  */
 // A wallet approval started while unlocked is abandoned when the vault locks, and its client
 // secret goes with the key rather than waiting out its TTL in session storage (#142, T22).
+// Counted so a wallet approval that was starting when the lock came can be undone (#142).
+let vaultLocks = 0;
 onVaultLocked(() => {
+  vaultLocks += 1;
   void clearPendingNip47Authorizations();
 });
 
@@ -254,6 +257,17 @@ async function recordWalletInfo(
   });
 }
 
+/**
+ * How long a wallet's advertised encryption is trusted before the info event is read again, so a
+ * wallet that starts offering NIP-44 is not held to NIP-04 indefinitely (#142).
+ */
+export const WALLET_INFO_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function isRecent(checkedAt: string | undefined, now: number = Date.now()): boolean {
+  const at = checkedAt ? Date.parse(checkedAt) : NaN;
+  return Number.isFinite(at) && now - at < WALLET_INFO_MAX_AGE_MS && at <= now;
+}
+
 export const WALLET_INFO_UNAVAILABLE =
   "Porwr couldn't read this wallet's info event, so it can't tell which encryption the wallet " +
   'accepts. Nothing was sent. Check that the wallet is online and try again.';
@@ -265,17 +279,22 @@ export const WALLET_INFO_UNAVAILABLE =
  *
  * Fails closed: when the info event can't be read, nothing is sent. NIP-47 has the client read it
  * before using a connection, and guessing NIP-04 would send a NIP-44 wallet a request it can't
- * decrypt. The result is stored, so the lookup happens once per connection.
+ * decrypt. The result is stored, and read again once it is a day old.
  */
 async function withNegotiatedEncryption(
   accountPubkey: string,
   connection: Nip47Connection,
 ): Promise<Nip47Connection> {
-  if (connection.encryption !== undefined) return connection;
+  if (connection.encryption !== undefined && isRecent(connection.lastInfoCheckedAt)) {
+    return connection;
+  }
   let info: Nip47InfoResponse;
   try {
     info = await nip47Client.getInfo(connection);
   } catch (error: unknown) {
+    // A scheme the wallet once advertised is still a real advertisement: keep using it until the
+    // info event can be read again, rather than refusing a connection that worked.
+    if (connection.encryption !== undefined) return connection;
     // Class and code only: a relay library's message can echo the relay URL it was given.
     logService.log(LogLevel.WARN, '[NIP-47] Could not read the wallet info event', {
       error: describeError(error),
@@ -393,6 +412,7 @@ export async function handleNip47AuthorizationBegin(
     throw new Error(`Enter the https:// address of your ${provider.name}`);
   }
 
+  const locksBefore = vaultLocks;
   const clientSecret = bytesToHex(generateSecretKey());
   const clientPubkey = getPublicKey(hexToBytes(clientSecret));
   const pending = await savePendingNip47Authorization({
@@ -403,6 +423,14 @@ export async function handleNip47AuthorizationBegin(
     clientSecret,
     clientPubkey,
   });
+  // The vault locked while this was being saved: the lock's clear-out may have run first, so this
+  // entry is removed here, and no popup opens for an approval the lock abandoned.
+  if (vaultLocks !== locksBefore) {
+    await takePendingNip47Authorization(pending.pendingId);
+    throw new Error(
+      'The vault locked while the wallet connection was starting. Unlock and try again.',
+    );
+  }
 
   return {
     success: true,

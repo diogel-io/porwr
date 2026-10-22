@@ -13,6 +13,7 @@ import {
   handleNip47GetBalance,
   handleNip47GetInfo,
   handleNip47PayInvoice,
+  WALLET_INFO_MAX_AGE_MS,
   WALLET_INFO_UNAVAILABLE,
   handleNip47PaymentHistoryList,
 } from '@/../src-bex/handlers/nip47';
@@ -94,8 +95,9 @@ function buildConnection(overrides: Partial<Nip47Connection> = {}): Nip47Connect
     createdAt: '2026-06-14T00:00:00.000Z',
     updatedAt: '2026-06-14T00:00:00.000Z',
     isActive: true,
-    // Already read from the wallet's info event, unless a test says otherwise (#142).
+    // Already read from the wallet's info event, recently, unless a test says otherwise (#142).
     encryption: [],
+    lastInfoCheckedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -293,6 +295,41 @@ describe('NIP-47 encryption negotiation before a request (diogel-io/workspace#14
     expect(nip47Client.getInfo).not.toHaveBeenCalled();
     expect(nip47Client.getBalance).not.toHaveBeenCalled();
     expect(nip47Client.payInvoice).not.toHaveBeenCalled();
+  });
+
+  it('reads the info event again once the recorded encryption is a day old', async () => {
+    mockVault(
+      buildConnection({
+        encryption: [],
+        lastInfoCheckedAt: new Date(Date.now() - WALLET_INFO_MAX_AGE_MS - 1000).toISOString(),
+      }),
+    );
+    vi.mocked(nip47Client.getInfo).mockResolvedValue(INFO);
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(nip47Client.getInfo).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(nip47Client.getBalance).mock.calls[0]![0]).toMatchObject({
+      encryption: ['nip44_v2', 'nip04'],
+    });
+  });
+
+  it('keeps a known encryption when the refresh cannot read the info event', async () => {
+    mockVault(
+      buildConnection({
+        encryption: ['nip44_v2'],
+        lastInfoCheckedAt: new Date(Date.now() - WALLET_INFO_MAX_AGE_MS - 1000).toISOString(),
+      }),
+    );
+    vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('relay down'));
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(vi.mocked(nip47Client.getBalance).mock.calls[0]![0]).toMatchObject({
+      encryption: ['nip44_v2'],
+    });
   });
 
   it('does not read the info event again once the encryption is known', async () => {
@@ -656,6 +693,18 @@ describe('wallet authorization (#110)', () => {
         ),
       });
       expect(JSON.stringify(data)).not.toContain(saved.clientSecret);
+    });
+
+    it('undoes a start the vault locked during, and opens no popup (#142)', async () => {
+      vi.mocked(savePendingNip47Authorization).mockImplementationOnce((entry) => {
+        for (const listener of lockListeners) listener();
+        return Promise.resolve({ ...entry, createdAt: 1, expiresAt: 2 });
+      });
+
+      await expect(
+        handleNip47AuthorizationBegin({ accountPubkey: ACCOUNT, provider: 'coinos' }),
+      ).rejects.toThrow('vault locked');
+      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-uuid');
     });
 
     it('opens a self-hosted Alby Hub at its origin', async () => {
