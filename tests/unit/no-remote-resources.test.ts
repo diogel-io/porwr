@@ -64,6 +64,25 @@ describe('remote resources', () => {
     expect(offending(approvalPath)).toEqual([]);
   });
 
+  // Porwr's own pages show images that profiles and relays name. Each goes through `RemoteImage`,
+  // which holds it back while "Load remote images" is off (T32, diogel-io/workspace#148). An image
+  // that binds its own `src` would skip that.
+  it('are shown on Porwr pages only through RemoteImage', () => {
+    const BOUND_IMAGE = /<(?:img|q-img)\b[^>]*\s(?::|v-bind:)src\s*=/i;
+    const ALLOWED = new Set([
+      'src/components/shared/RemoteImage.vue',
+      // Binds the bundled logo, which the build resolves to a file inside the extension.
+      'src/components/shared/DiogelLogo.vue',
+    ]);
+    const pages = filesUnder('src', ['.vue']).filter((path) => !ALLOWED.has(relative(ROOT, path)));
+    expect(pages.length).toBeGreaterThan(0);
+    expect(
+      pages
+        .filter((path) => BOUND_IMAGE.test(readFileSync(path, 'utf8')))
+        .map((path) => relative(ROOT, path)),
+    ).toEqual([]);
+  });
+
   it('ships the bundled font the stylesheet names', () => {
     const fonts = readdirSync(resolve(ROOT, 'src/css/fonts'));
     for (const weight of [400, 500, 600, 700]) {

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ConversationSummary } from '@/utils/conversations';
+import RemoteImage from '@/components/shared/RemoteImage.vue';
 
 defineOptions({ name: 'ConversationList' });
 
@@ -171,7 +172,7 @@ watch(
           >
             <q-item-section avatar>
               <q-avatar v-if="pictureOf(conversation.peer)">
-                <img :src="pictureOf(conversation.peer)" alt="" />
+                <RemoteImage :src="pictureOf(conversation.peer) ?? ''" />
               </q-avatar>
               <q-avatar v-else color="primary" text-color="white" icon="person" />
             </q-item-section>
@@ -217,7 +218,7 @@ watch(
           >
             <q-item-section avatar>
               <q-avatar v-if="pictureOf(peer)">
-                <img :src="pictureOf(peer)" alt="" />
+                <RemoteImage :src="pictureOf(peer) ?? ''" />
               </q-avatar>
               <q-avatar v-else color="primary" text-color="white" icon="person" />
             </q-item-section>
@@ -265,7 +266,7 @@ watch(
         >
           <q-item-section avatar>
             <q-avatar v-if="pictureOf(conversation.peer)">
-              <img :src="pictureOf(conversation.peer)" alt="" />
+              <RemoteImage :src="pictureOf(conversation.peer) ?? ''" />
             </q-avatar>
             <q-avatar v-else color="primary" text-color="white" icon="person" />
           </q-item-section>

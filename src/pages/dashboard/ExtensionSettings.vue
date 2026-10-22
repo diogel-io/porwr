@@ -56,6 +56,23 @@ onMounted(async () => {
             </q-item-section>
           </q-item>
 
+          <q-item v-ripple tag="label">
+            <q-item-section>
+              <q-item-label>{{ t('settings.loadRemoteImages') }}</q-item-label>
+              <q-item-label caption lines="4">{{
+                t('settings.loadRemoteImagesCaption')
+              }}</q-item-label>
+            </q-item-section>
+            <q-item-section side top>
+              <q-toggle
+                :model-value="settingsStore.loadRemoteImages"
+                :aria-label="t('settings.loadRemoteImages')"
+                data-testid="load-remote-images-toggle"
+                @update:model-value="(val) => settingsStore.setLoadRemoteImages(Boolean(val))"
+              />
+            </q-item-section>
+          </q-item>
+
           <q-item>
             <q-item-section>
               <q-item-label>{{ t('settings.autoLockVault') }}</q-item-label>

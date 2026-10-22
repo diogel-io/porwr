@@ -7,6 +7,7 @@ import type { AccountSummary } from '@/types/accounts';
 import { profileService } from '@/services/profile-service';
 import { PROFILE_UPDATED_KEY, storageService } from '@/services/storage-service';
 import ImageUploader from '@/components/dashboard/ImageUploader.vue';
+import RemoteImage from '@/components/shared/RemoteImage.vue';
 
 defineOptions({ name: 'ProfileImage' });
 
@@ -106,11 +107,12 @@ watch(
 
     <template v-else>
       <div class="profile-header__banner">
-        <img
+        <RemoteImage
           v-if="profile.banner"
           :alt="t('profile.bannerTitle')"
           :src="profile.banner"
           class="profile-header__banner-image"
+          variant="banner"
         />
         <div class="profile-header__action profile-header__action--banner">
           <ImageUploader
@@ -129,11 +131,11 @@ watch(
           every tab narrower than 1440px, and the card's `overflow: hidden` hid that it was (#200).
         -->
         <div class="profile-header__avatar">
-          <img
+          <RemoteImage
             v-if="profile.picture"
             :alt="t('profile.avatarTitle')"
             :src="profile.picture"
-            class="profile-header__avatar-image"
+            class="profile-header__avatar-image profile-header__avatar-icon"
           />
           <q-icon v-else color="grey-6" name="person" class="profile-header__avatar-icon" />
         </div>

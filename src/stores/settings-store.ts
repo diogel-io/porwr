@@ -16,6 +16,7 @@ import { AUTO_LOCK_DEFAULT_MINUTES, clampAutoLockMinutes } from '@/services/auto
 import {
   getProtected,
   PROTECTED_AUTO_LOCK_MINUTES,
+  PROTECTED_LOAD_REMOTE_IMAGES,
   setProtected,
 } from '@/services/protected-settings';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
@@ -109,6 +110,11 @@ const useSettingsStore = defineStore('settings', {
     profileSearchRelays: DEFAULT_PROFILE_SEARCH_RELAYS,
     // NIP-89 client tag on Quick Publish notes. On by default; only an explicit `false` turns it off.
     quickPublishClientTag: true,
+    /**
+     * Load profile pictures, banners and relay icons from the hosts that publish them. On by
+     * default; only an explicit `false` turns it off, and then each image waits for the user (T32).
+     */
+    loadRemoteImages: true,
     isListening: false,
     /**
      * Whether stored settings have been read. An empty relay list is a real state since #142, so it
@@ -165,6 +171,8 @@ const useSettingsStore = defineStore('settings', {
         this.fallbackRelays = resolveFallbackRelays(result[FALLBACK_RELAYS] as unknown[]);
       }
       this.quickPublishClientTag = result[QUICK_PUBLISH_CLIENT_TAG] !== false;
+      // In the protected store, so a content script cannot turn remote images back on (#148).
+      this.loadRemoteImages = (await getProtected<unknown>(PROTECTED_LOAD_REMOTE_IMAGES)) !== false;
       let storedProfileSearchRelays: string[] | undefined;
       try {
         storedProfileSearchRelays = await getStoredProfileSearchRelays();
@@ -199,6 +207,11 @@ const useSettingsStore = defineStore('settings', {
     async setQuickPublishClientTag(enabled: boolean): Promise<void> {
       this.quickPublishClientTag = enabled;
       await storageService.set(QUICK_PUBLISH_CLIENT_TAG, enabled);
+    },
+
+    async setLoadRemoteImages(enabled: boolean): Promise<void> {
+      this.loadRemoteImages = enabled;
+      await setProtected(PROTECTED_LOAD_REMOTE_IMAGES, enabled);
     },
 
     async setVaultAutoLockMinutes(minutes: number): Promise<void> {

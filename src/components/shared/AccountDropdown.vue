@@ -26,7 +26,7 @@
         <q-item-section avatar>
           <template v-if="scope.opt.value !== createAccountValue">
             <q-avatar v-if="scope.opt.avatarUrl" size="32px">
-              <q-img :src="scope.opt.avatarUrl" />
+              <RemoteImage :interactive="false" :src="scope.opt.avatarUrl" />
             </q-avatar>
             <q-avatar v-else size="32px" color="primary" text-color="white" icon="person" />
           </template>
@@ -45,7 +45,7 @@
       <div class="row items-center no-wrap q-gutter-xs">
         <template v-if="scope.opt.value !== createAccountValue">
           <q-avatar v-if="scope.opt.avatarUrl" size="24px">
-            <q-img :src="scope.opt.avatarUrl" />
+            <RemoteImage :interactive="false" :src="scope.opt.avatarUrl" />
           </q-avatar>
           <q-avatar v-else size="24px" color="primary" text-color="white" icon="person" />
         </template>
@@ -61,6 +61,7 @@
 <script lang="ts" setup>
 import { watch } from 'vue';
 import { useAccounts } from '@/composables/useAccounts';
+import RemoteImage from '@/components/shared/RemoteImage.vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

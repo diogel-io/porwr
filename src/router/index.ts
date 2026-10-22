@@ -6,6 +6,7 @@ import {
   createWebHistory,
 } from 'vue-router';
 import routes from './routes';
+import { resetRemoteImageReveals } from '@/composables/useRemoteImages';
 
 /*
  * If not building with SSR mode, you can
@@ -31,6 +32,11 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     // quasar.conf.js -> build -> vueRouterMode
     // quasar.conf.js -> build -> publicPath
     history: createHistory(import.meta.env.QUASAR_VUE_ROUTER_BASE),
+  });
+
+  // Images the user chose to load stay loaded on that page only (T32, diogel-io/workspace#148).
+  Router.afterEach((to, from) => {
+    if (to.path !== from.path) resetRemoteImageReveals();
   });
 
   return Router;

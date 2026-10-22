@@ -15,6 +15,8 @@ import {
 import { RELAY_SEEDS } from '@/data/relay-seeds';
 import { logService } from '@/services/log-service';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
+import { PROTECTED_LOAD_REMOTE_IMAGES } from '@/services/protected-settings-keys';
+import { protectedStore } from '../mocks/protected-settings';
 
 // Mock storage service
 vi.mock('@/services/storage-service', async (importOriginal) => {
@@ -248,6 +250,46 @@ describe('SettingsStore', () => {
 
       listener({ [QUICK_PUBLISH_CLIENT_TAG]: { newValue: true } }, 'local');
       expect(store.quickPublishClientTag).toBe(true);
+    });
+    /* eslint-enable @typescript-eslint/unbound-method */
+  });
+
+  describe('the load remote images setting (diogel-io/workspace#148, T32)', () => {
+    /* eslint-disable @typescript-eslint/unbound-method */
+    beforeEach(() => {
+      protectedStore.delete(PROTECTED_LOAD_REMOTE_IMAGES);
+      vi.mocked(storageService.getMultiple).mockResolvedValue({});
+    });
+
+    it('is on by default, and stays on when nothing is stored', async () => {
+      const store = useSettingsStore();
+      expect(store.loadRemoteImages).toBe(true);
+
+      await store.getSettings();
+
+      expect(store.loadRemoteImages).toBe(true);
+    });
+
+    it('reads a stored false as off, and anything else as on', async () => {
+      const store = useSettingsStore();
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+      await store.getSettings();
+      expect(store.loadRemoteImages).toBe(false);
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, 'false');
+      await store.getSettings();
+      expect(store.loadRemoteImages).toBe(true);
+    });
+
+    it('stores the choice in the protected store, never in content-script storage', async () => {
+      const store = useSettingsStore();
+
+      await store.setLoadRemoteImages(false);
+
+      expect(store.loadRemoteImages).toBe(false);
+      expect(protectedStore.get(PROTECTED_LOAD_REMOTE_IMAGES)).toBe(false);
+      expect(storageService.set).not.toHaveBeenCalled();
     });
     /* eslint-enable @typescript-eslint/unbound-method */
   });

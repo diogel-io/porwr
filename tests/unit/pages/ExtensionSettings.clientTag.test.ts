@@ -8,10 +8,12 @@ import { mount, flushPromises } from '@vue/test-utils';
 
 const store = vi.hoisted(() => ({
   quickPublishClientTag: true,
+  loadRemoteImages: true,
   vaultAutoLockMinutes: 15,
   requestExpiryMinutes: 5,
   getSettings: vi.fn(() => Promise.resolve()),
   setQuickPublishClientTag: vi.fn(() => Promise.resolve()),
+  setLoadRemoteImages: vi.fn(() => Promise.resolve()),
   setVaultAutoLockMinutes: vi.fn(),
   setRequestExpiryMinutes: vi.fn(),
 }));
@@ -71,6 +73,38 @@ describe('ExtensionSettings: Quick Publish client tag', () => {
     await clientTagToggle(wrapper).setValue(false);
 
     expect(store.setQuickPublishClientTag).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('ExtensionSettings: load remote images (diogel-io/workspace#148)', () => {
+  const remoteImagesToggle = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
+    wrapper.find('input.q-toggle[aria-label="settings.loadRemoteImages"]');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    store.loadRemoteImages = true;
+  });
+
+  it('shows the toggle on by default, with what an image host learns', async () => {
+    const wrapper = await mountPage();
+
+    expect((remoteImagesToggle(wrapper).element as HTMLInputElement).checked).toBe(true);
+    expect(wrapper.text()).toContain('settings.loadRemoteImagesCaption');
+  });
+
+  it('shows the toggle off when the setting is off', async () => {
+    store.loadRemoteImages = false;
+    const wrapper = await mountPage();
+
+    expect((remoteImagesToggle(wrapper).element as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('turns remote images off through the store, which persists it', async () => {
+    const wrapper = await mountPage();
+
+    await remoteImagesToggle(wrapper).setValue(false);
+
+    expect(store.setLoadRemoteImages).toHaveBeenCalledWith(false);
   });
 });
 

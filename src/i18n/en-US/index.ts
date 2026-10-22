@@ -620,7 +620,16 @@ export default {
     title: 'Media Management',
     dashboardCaption: 'Choose the Blossom server Porwr uploads your profile images to.',
   },
+  remoteImages: {
+    loadOne: 'Load image',
+    hidden:
+      'Remote images on this page are hidden. Loading them tells their hosts which profiles you viewed.',
+    loadAll: 'Load images on this page',
+  },
   settings: {
+    loadRemoteImages: 'Load remote images',
+    loadRemoteImagesCaption:
+      'Show profile pictures, banners and relay icons as soon as a page opens. Each one is fetched from the host its profile or relay names, which tells that host whose profile you viewed. Turn off to load them only when you choose.',
     quickPublishClientTag: 'Tag Quick Publish notes as from Porwr',
     quickPublishClientTagCaption:
       'Adds a NIP-89 client tag so other Nostr clients can show which app published the note. Turn off to leave no trace of the client.',
