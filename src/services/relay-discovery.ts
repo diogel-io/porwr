@@ -69,9 +69,7 @@ export function extractWritePreferredRelayUrls(event: Event): string[] {
  * `unreachable` means none of the fallback relays answered at all (#285).
  */
 export type AccountRelayListLookup =
-  | { status: 'found'; event: Event }
-  | { status: 'not-found' }
-  | { status: 'unreachable' };
+  { status: 'found'; event: Event } | { status: 'not-found' } | { status: 'unreachable' };
 
 /**
  * The reason nostr-tools gives a relay's subscription when it closes after EOSE, i.e. the relay
@@ -161,9 +159,20 @@ export class RelayDiscoveryService {
     const errors: string[] = [];
     let processedCount = 0;
 
+    // Seeds can come from a catalog saved before relays had to be wss:// (#142). Only relays Porwr
+    // may connect to are asked; with none, nothing is queried.
+    const relays = normalizeAndDeduplicateRelays(seedRelays);
+    if (relays.length === 0) {
+      return {
+        discoveredUrls: [],
+        processedEvents: 0,
+        errors: ['No usable seed relay to discover from'],
+      };
+    }
+
     try {
       // Query for recent kind 10002 events from the seed relays
-      const events = await pool.querySync(seedRelays, {
+      const events = await pool.querySync(relays, {
         kinds: [10002],
         limit,
       });
