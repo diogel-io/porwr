@@ -109,9 +109,18 @@ function handleRelaySelected(relay: RelayCatalogEntry) {
   newRelayWrite.value = false;
 }
 
+function publishTargets(): string[] {
+  const writeRelays = relays.value
+    .filter((relay) => relay.write)
+    .map((relay) => normalizeRelayUrl(relay.url))
+    .flatMap((result) => (result.valid && result.url ? [result.url] : []));
+  return [...new Set([...fallbackRelays.value, ...writeRelays])];
+}
+
 async function saveRelayList() {
   saving.value = true;
   const pool = new SimplePool();
+  let targets: string[] = [];
   try {
     const tags = relays.value.map((r) => {
       const tag = ['r', r.url];
@@ -128,7 +137,10 @@ async function saveRelayList() {
       content: '',
     });
 
-    await Promise.any(pool.publish(fallbackRelays.value, event));
+    // NIP-65: the list also goes to the write relays it names, so it can be saved even when no
+    // fallback relay is usable (#142). Only relays Porwr may connect to are used.
+    targets = publishTargets();
+    await Promise.any(pool.publish(targets, event));
 
     $q.notify({
       type: 'positive',
@@ -141,7 +153,7 @@ async function saveRelayList() {
       message: String($t('relays.saveError')),
     });
   } finally {
-    pool.close(fallbackRelays.value);
+    pool.close(targets);
     saving.value = false;
   }
 }
