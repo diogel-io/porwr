@@ -283,7 +283,9 @@ public issue or pull request.
 
 - Do not add host permissions or `all_frames`, widen `web_accessible_resources`, or loosen the
   content security policy without a recorded decision. That includes `connect-src` and `img-src`,
-  which keep connections and images on `https:`, `wss:`, and loopback `ws:`
+  which keep connections on `https:`, `wss:`, and loopback `ws://localhost:*`,
+  `ws://127.0.0.1:*`, `http://localhost:*` and `http://127.0.0.1:*` (the `http:` pair for a
+  loopback relay's NIP-11 document, never followed by redirects), and images on `https:`
   (`src-bex/manifest-csp.ts` explains each directive). Content scripts run in top-level documents
   only.
 - Every new runtime dependency ships to users with access to keys. Justify it in the pull request,
