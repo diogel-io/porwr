@@ -55,17 +55,9 @@ import {
 import { onVaultLocked } from '../vault';
 import { describeError, LogLevel, logService } from '@/services/log-service';
 
-/**
- * The account a wallet action names, checked against the vault.
- *
- * Every wallet action must say which account it is for (#304). A missing or unknown account is an
- * error rather than a fallback to the active one: falling back is how one wallet came to serve
- * every account.
- */
-// A wallet approval started while unlocked is abandoned when the vault locks, and its client
-// secret goes with the key rather than waiting out its TTL in session storage (#142, T22).
-// Counted so a wallet approval in progress when the lock came, whether starting or finishing, is
-// abandoned rather than saved (#142).
+// A wallet approval in progress when the vault locks, whether starting or finishing, is abandoned:
+// pending client secrets go with the key rather than waiting out their TTL in session storage, and
+// the counter lets an approval already under way see that a lock came (#142, T22).
 let vaultLocks = 0;
 const LOCKED_DURING_AUTHORIZATION =
   'The vault locked while the wallet connection was being set up. Unlock and try again.';
@@ -74,6 +66,13 @@ onVaultLocked(() => {
   void clearPendingNip47Authorizations();
 });
 
+/**
+ * The account a wallet action names, checked against the vault.
+ *
+ * Every wallet action must say which account it is for (#304). A missing or unknown account is an
+ * error rather than a fallback to the active one: falling back is how one wallet came to serve
+ * every account.
+ */
 export function requireWalletAccount(
   vaultData: VaultData,
   payload: Partial<Nip47AccountRequest> | undefined,
@@ -266,6 +265,13 @@ async function recordWalletInfo(
  */
 export const WALLET_INFO_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * After a failed refresh, how long a connection that has a recorded encryption waits before trying
+ * again, so an unreachable info relay doesn't add its full lookup time to every request (#142).
+ */
+export const WALLET_INFO_RETRY_MS = 10 * 60 * 1000;
+const failedRefreshAt = new Map<string, number>();
+
 function isRecent(checkedAt: string | undefined, now: number = Date.now()): boolean {
   const at = checkedAt ? Date.parse(checkedAt) : NaN;
   return Number.isFinite(at) && now - at < WALLET_INFO_MAX_AGE_MS && at <= now;
@@ -291,19 +297,31 @@ async function withNegotiatedEncryption(
   if (connection.encryption !== undefined && isRecent(connection.lastInfoCheckedAt)) {
     return connection;
   }
+  const lastFailure = failedRefreshAt.get(connection.id);
+  if (
+    connection.encryption !== undefined &&
+    lastFailure !== undefined &&
+    Date.now() - lastFailure < WALLET_INFO_RETRY_MS
+  ) {
+    return connection;
+  }
   let info: Nip47InfoResponse;
   try {
     info = await nip47Client.getInfo(connection);
   } catch (error: unknown) {
     // A scheme the wallet once advertised is still a real advertisement: keep using it until the
     // info event can be read again, rather than refusing a connection that worked.
-    if (connection.encryption !== undefined) return connection;
+    if (connection.encryption !== undefined) {
+      failedRefreshAt.set(connection.id, Date.now());
+      return connection;
+    }
     // Class and code only: a relay library's message can echo the relay URL it was given.
     logService.log(LogLevel.WARN, '[NIP-47] Could not read the wallet info event', {
       error: describeError(error),
     });
     throw new Error(WALLET_INFO_UNAVAILABLE);
   }
+  failedRefreshAt.delete(connection.id);
   await recordWalletInfo(accountPubkey, connection.id, info);
   return { ...connection, capabilities: info.capabilities, encryption: info.encryption };
 }
@@ -566,13 +584,19 @@ export async function handleNip47AuthorizationProbe(
   });
 
   let methods: Nip47Command[];
-  let encryption: string[];
+  // The probe uses the wallet's advertised encryption when its info event can be read (#142). When
+  // it can't, the probe goes as NIP-04, which is what NIP-47 says no info event means, rather than
+  // dropping an approval the user has just given in the wallet. The saved connection then records
+  // no encryption, so its first request reads the info event again.
+  let encryption: string[] | undefined;
   try {
-    // The probe uses the wallet's advertised encryption like any other request (#142); a wallet
-    // whose info event can't be read is treated as not having answered.
     encryption = (await nip47Client.getInfo(connection)).encryption;
+  } catch {
+    encryption = undefined;
+  }
+  try {
     const response = await nip47Client.sendRequest(
-      { ...connection, encryption },
+      encryption === undefined ? connection : { ...connection, encryption },
       { method: 'get_info', params: {} },
     );
     if (response.error?.code === 'UNAUTHORIZED') {
@@ -589,7 +613,7 @@ export async function handleNip47AuthorizationProbe(
     return {
       success: true,
       data: await saveAuthorizedConnection(
-        { ...connection, encryption },
+        encryption === undefined ? connection : { ...connection, encryption },
         methods,
         new Date().toISOString(),
         locksBefore,

@@ -163,6 +163,29 @@ describe('WebLN handlers', () => {
     ).rejects.toThrow('does not advertise pay_invoice support');
   });
 
+  // The same rule payments use (#142): once the info event has been read, an empty list means the
+  // wallet advertises nothing; before that, it means unknown.
+  it('rejects a wallet whose info event was read and lists no methods', async () => {
+    mockVault({
+      accounts: ACCOUNTS,
+      nip47Connections: [
+        buildConnection({ capabilities: [], lastInfoCheckedAt: '2026-10-22T00:00:00.000Z' }),
+      ],
+    });
+
+    await expect(
+      handleWebLnEnable({ origin: 'https://jumble.social', approved: true }),
+    ).rejects.toThrow('does not advertise pay_invoice support');
+  });
+
+  it('allows a wallet whose methods are not known yet, as for a connection just imported', async () => {
+    mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection({ capabilities: [] })] });
+
+    await expect(
+      handleWebLnEnable({ origin: 'https://jumble.social', approved: true }),
+    ).resolves.toMatchObject({ success: true });
+  });
+
   describe('pays from the wallet of the account the site is connected as (#304)', () => {
     const vault = (): VaultData => ({
       accounts: ACCOUNTS,

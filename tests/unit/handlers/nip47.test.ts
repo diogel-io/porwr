@@ -312,6 +312,24 @@ describe('NIP-47 encryption negotiation before a request (diogel-io/workspace#14
     });
   });
 
+  it('waits before retrying a failed refresh, instead of paying its lookup on every request', async () => {
+    mockVault(
+      buildConnection({
+        id: 'wallet-a',
+        encryption: ['nip44_v2'],
+        lastInfoCheckedAt: new Date(Date.now() - WALLET_INFO_MAX_AGE_MS - 1000).toISOString(),
+      }),
+    );
+    vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('relay down'));
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(nip47Client.getInfo).toHaveBeenCalledTimes(1);
+    expect(nip47Client.getBalance).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps a known encryption when the refresh cannot read the info event', async () => {
     mockVault(
       buildConnection({
@@ -878,16 +896,26 @@ describe('wallet authorization (#110)', () => {
       ).toMatchObject({ encryption: ['nip44_v2', 'nip04'] });
     });
 
-    it('saves nothing and sends no probe when the info event cannot be read (#142)', async () => {
+    it('probes as NIP-04 when the info event cannot be read, and still saves the approval (#142)', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
       vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('No NIP-47 wallet info event'));
-
-      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({
-        success: true,
-        data: null,
+      vi.mocked(nip47Client.sendRequest).mockResolvedValue({
+        result_type: 'get_info',
+        result: { methods: ['pay_invoice'] },
       });
-      expect(nip47Client.sendRequest).not.toHaveBeenCalled();
-      expect(updateVaultData).not.toHaveBeenCalled();
+
+      const result = await handleNip47AuthorizationProbe({ pendingId: 'pending-1' });
+
+      // No `encryption` on the request: NIP-04, as NIP-47 reads an absent info event.
+      expect(vi.mocked(nip47Client.sendRequest).mock.calls[0]![0].encryption).toBeUndefined();
+      expect(dataOf(result)).toMatchObject({ capabilities: ['pay_invoice'] });
+      const saved = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
+      const stored = saved.nip47Connections?.find(
+        (item) => item.walletServicePubkey === COINOS_WALLET,
+      );
+      // Recorded without an encryption, so its first request reads the info event again.
+      expect(stored).toBeDefined();
+      expect(stored!.encryption).toBeUndefined();
     });
 
     it('saves nothing when the vault locked while the probe waited (#142)', async () => {
