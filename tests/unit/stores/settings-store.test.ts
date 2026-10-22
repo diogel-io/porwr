@@ -6,6 +6,7 @@ import {
   BLOSSOM_SERVER,
   FALLBACK_RELAYS,
   QUICK_PUBLISH_CLIENT_TAG,
+  REMOTE_IMAGES_CHANGED_KEY,
   storageService,
 } from '@/services/storage-service';
 import {
@@ -282,14 +283,44 @@ describe('SettingsStore', () => {
       expect(store.loadRemoteImages).toBe(true);
     });
 
-    it('stores the choice in the protected store, never in content-script storage', async () => {
+    it('stores the choice in the protected store, and signals it without its value', async () => {
       const store = useSettingsStore();
 
       await store.setLoadRemoteImages(false);
 
       expect(store.loadRemoteImages).toBe(false);
       expect(protectedStore.get(PROTECTED_LOAD_REMOTE_IMAGES)).toBe(false);
-      expect(storageService.set).not.toHaveBeenCalled();
+      // Content-script storage gets only a timestamp, so the other surfaces know to re-read.
+      expect(storageService.set).toHaveBeenCalledTimes(1);
+      expect(storageService.set).toHaveBeenCalledWith(
+        REMOTE_IMAGES_CHANGED_KEY,
+        expect.any(Number),
+      );
+    });
+
+    it('follows a change made in another surface, reading the protected store', async () => {
+      const store = useSettingsStore();
+      store.listenToStorageChanges();
+      const listener = vi.mocked(storageService.onChanged).mock.calls[0]![0];
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: 1 } }, 'local');
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, true);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: 2 } }, 'local');
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(true));
+    });
+
+    it('ignores a forged signal: the answer still comes from the protected store', async () => {
+      const store = useSettingsStore();
+      store.listenToStorageChanges();
+      const listener = vi.mocked(storageService.onChanged).mock.calls[0]![0];
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: true } }, 'local');
+
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
     });
     /* eslint-enable @typescript-eslint/unbound-method */
   });

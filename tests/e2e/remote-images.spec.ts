@@ -178,6 +178,32 @@ test.describe('remote images', () => {
     expect(requested.slice(before).filter((url) => url === BOB.picture)).toEqual([]);
   });
 
+  test('turning the setting off reaches a surface that is already open', async ({
+    openPage,
+    relays,
+  }) => {
+    const page = await openPage('/login');
+    await createVault(page);
+    await seed(page, relays.plain);
+    const requested = await watchImageHost(page);
+
+    // A second Porwr tab, open with the setting still on. It has already read its settings.
+    const other = await page.context().newPage();
+    await other.goto(page.url().replace(/#.*$/, '#/dashboard'));
+    await expect(other.locator('.dashboard-layout')).toBeVisible();
+
+    await setLoadRemoteImages(page, false);
+    requested.length = 0;
+
+    // Navigating inside the open tab, without a reload, must still hold images back.
+    await other.locator('.main-navigation__item', { hasText: 'Profile' }).first().click();
+    await expect(
+      other.locator('.profile-header__avatar').getByTestId('remote-image-placeholder'),
+    ).toBeVisible();
+    await other.waitForLoadState('networkidle');
+    expect(requested).toEqual([]);
+  });
+
   test('with the setting on, images load as they always have', async ({ openPage, relays }) => {
     const page = await openPage('/login');
     await createVault(page);

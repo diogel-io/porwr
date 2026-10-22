@@ -4,6 +4,7 @@ import {
   DARK_MODE,
   FALLBACK_RELAYS,
   QUICK_PUBLISH_CLIENT_TAG,
+  REMOTE_IMAGES_CHANGED_KEY,
   REQUEST_EXPIRY_MINUTES,
   storageService,
 } from '@/services/storage-service';
@@ -171,8 +172,7 @@ const useSettingsStore = defineStore('settings', {
         this.fallbackRelays = resolveFallbackRelays(result[FALLBACK_RELAYS] as unknown[]);
       }
       this.quickPublishClientTag = result[QUICK_PUBLISH_CLIENT_TAG] !== false;
-      // In the protected store, so a content script cannot turn remote images back on (#148).
-      this.loadRemoteImages = (await getProtected<unknown>(PROTECTED_LOAD_REMOTE_IMAGES)) !== false;
+      await this.refreshLoadRemoteImages();
       let storedProfileSearchRelays: string[] | undefined;
       try {
         storedProfileSearchRelays = await getStoredProfileSearchRelays();
@@ -212,6 +212,16 @@ const useSettingsStore = defineStore('settings', {
     async setLoadRemoteImages(enabled: boolean): Promise<void> {
       this.loadRemoteImages = enabled;
       await setProtected(PROTECTED_LOAD_REMOTE_IMAGES, enabled);
+      // Tells the other open surfaces to re-read it; the signal carries no value (#148).
+      await storageService.set(REMOTE_IMAGES_CHANGED_KEY, Date.now());
+    },
+
+    /**
+     * Reads "Load remote images" from the protected store, so a content script cannot turn remote
+     * images back on (#148). Only an explicit `false` turns it off.
+     */
+    async refreshLoadRemoteImages(): Promise<void> {
+      this.loadRemoteImages = (await getProtected<unknown>(PROTECTED_LOAD_REMOTE_IMAGES)) !== false;
     },
 
     async setVaultAutoLockMinutes(minutes: number): Promise<void> {
@@ -270,6 +280,9 @@ const useSettingsStore = defineStore('settings', {
           if (DARK_MODE in changes) {
             const newValue = changes[DARK_MODE].newValue;
             this.darkMode = typeof newValue === 'boolean' ? newValue : Boolean(newValue);
+          }
+          if (REMOTE_IMAGES_CHANGED_KEY in changes) {
+            void this.refreshLoadRemoteImages();
           }
           if (QUICK_PUBLISH_CLIENT_TAG in changes) {
             this.quickPublishClientTag = changes[QUICK_PUBLISH_CLIENT_TAG].newValue !== false;
