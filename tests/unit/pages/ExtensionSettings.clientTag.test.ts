@@ -20,7 +20,8 @@ const store = vi.hoisted(() => ({
 
 vi.mock('@/stores/settings-store', () => ({ default: () => store }));
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
-vi.mock('quasar', () => ({ useQuasar: () => ({ notify: vi.fn() }) }));
+const notify = vi.hoisted(() => vi.fn());
+vi.mock('quasar', () => ({ useQuasar: () => ({ notify }) }));
 
 import ExtensionSettings from '@/pages/dashboard/ExtensionSettings.vue';
 
@@ -105,6 +106,21 @@ describe('ExtensionSettings: load remote images (diogel-io/workspace#148)', () =
     await remoteImagesToggle(wrapper).setValue(false);
 
     expect(store.setLoadRemoteImages).toHaveBeenCalledWith(false);
+  });
+
+  it('says so when the choice cannot be saved', async () => {
+    store.setLoadRemoteImages.mockRejectedValueOnce(new Error('quota exceeded'));
+    const wrapper = await mountPage();
+
+    await remoteImagesToggle(wrapper).setValue(false);
+    await flushPromises();
+
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'negative',
+        message: 'settings.loadRemoteImagesSaveFailed',
+      }),
+    );
   });
 });
 

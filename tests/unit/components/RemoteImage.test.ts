@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { defineComponent, h } from 'vue';
+import { defineComponent, h, ref } from 'vue';
 
 import { useLoadedSettings } from '../mocks/remote-images';
 import RemoteImage from '@/components/shared/RemoteImage.vue';
 import RemoteImagesNotice from '@/components/shared/RemoteImagesNotice.vue';
 import { isRemoteImageUrl, resetRemoteImageReveals } from '@/composables/useRemoteImages';
 import useSettingsStore from '@/stores/settings-store';
+import { PROTECTED_LOAD_REMOTE_IMAGES } from '@/services/protected-settings-keys';
+import { protectedStore } from '../mocks/protected-settings';
 
 /**
  * Remote images wait for the user while "Load remote images" is off (T32, diogel-io/workspace#148).
@@ -17,6 +19,7 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 
 const PICTURE = 'https://images.example.com/alice.png';
 const BANNER = 'https://images.example.com/alice-banner.png';
+const LATER = 'https://images.example.com/carol.png';
 
 const stubs = {
   'q-icon': { props: ['name'], template: '<i class="q-icon" :data-name="name" />' },
@@ -49,7 +52,7 @@ const mountPage = async (props: { interactive?: boolean } = {}) => {
   return wrapper;
 };
 
-const sources = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
+const sources = (wrapper: Pick<Awaited<ReturnType<typeof mountPage>>, 'findAll'>) =>
   wrapper.findAll('img').map((img) => img.attributes('src'));
 
 // An image left mounted would still count as waiting in the next test.
@@ -122,6 +125,73 @@ describe('RemoteImage with "Load remote images" off', () => {
     expect(wrapper.find('[data-testid="remote-images-notice"]').exists()).toBe(false);
   });
 
+  it('lets through only the images waiting when the user loads the page, not ones that come later', async () => {
+    const later = ref(false);
+    const Growing = defineComponent({
+      setup() {
+        return () =>
+          h('div', [
+            h(RemoteImagesNotice),
+            h(RemoteImage, { src: PICTURE }),
+            later.value ? h(RemoteImage, { src: LATER }) : null,
+          ]);
+      },
+    });
+    const wrapper = mount(Growing, { global: { stubs } });
+    await flushPromises();
+
+    await wrapper.find('[data-testid="remote-images-load-all"]').trigger('click');
+    expect(sources(wrapper)).toEqual([PICTURE]);
+
+    // A new search result, on the same page.
+    later.value = true;
+    await flushPromises();
+
+    expect(sources(wrapper)).toEqual([PICTURE]);
+    expect(wrapper.find('[data-testid="remote-images-notice"]').exists()).toBe(true);
+  });
+
+  it('raises no notice for images inside a control alone, such as the header avatars', async () => {
+    const HeaderOnly = defineComponent({
+      setup() {
+        return () =>
+          h('div', [h(RemoteImagesNotice), h(RemoteImage, { src: PICTURE, interactive: false })]);
+      },
+    });
+    const wrapper = mount(HeaderOnly, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="remote-image-placeholder"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="remote-images-notice"]').exists()).toBe(false);
+  });
+
+  it('shows only the newest notice, so a dialog does not double the page one', async () => {
+    const dialogOpen = ref(false);
+    const WithDialog = defineComponent({
+      setup() {
+        return () =>
+          h('div', [
+            h('section', { class: 'layout' }, [h(RemoteImagesNotice)]),
+            h(RemoteImage, { src: PICTURE }),
+            dialogOpen.value ? h('section', { class: 'dialog' }, [h(RemoteImagesNotice)]) : null,
+          ]);
+      },
+    });
+    const wrapper = mount(WithDialog, { global: { stubs } });
+    await flushPromises();
+    const notices = () => wrapper.findAll('[data-testid="remote-images-notice"]');
+
+    expect(notices()).toHaveLength(1);
+    dialogOpen.value = true;
+    await flushPromises();
+    expect(notices()).toHaveLength(1);
+    expect(wrapper.find('.dialog [data-testid="remote-images-notice"]').exists()).toBe(true);
+
+    dialogOpen.value = false;
+    await flushPromises();
+    expect(wrapper.find('.layout [data-testid="remote-images-notice"]').exists()).toBe(true);
+  });
+
   it('forgets what was loaded when the page changes', async () => {
     const first = await mountPage();
     await first.find('[data-testid="remote-images-load-all"]').trigger('click');
@@ -156,25 +226,29 @@ describe('RemoteImage with "Load remote images" off', () => {
   });
 });
 
-describe('RemoteImage before the settings are read', () => {
+describe('RemoteImage before the setting is read', () => {
   it('loads nothing until it knows the setting, then follows it', async () => {
     setActivePinia(createPinia());
     const store = useSettingsStore();
     let finishRead: () => void = () => undefined;
-    const getSettings = vi.spyOn(store, 'getSettings').mockImplementation(
+    const refresh = vi.spyOn(store, 'refreshLoadRemoteImages').mockImplementation(
       () =>
         new Promise<void>((resolve) => {
           finishRead = () => {
-            store.$patch({ settingsLoaded: true, loadRemoteImages: true });
+            store.$patch({ loadRemoteImagesRead: true, loadRemoteImages: true });
             resolve();
           };
         }),
     );
+    const getSettings = vi.spyOn(store, 'getSettings');
 
     const wrapper = mount(Page, { global: { stubs } });
     await flushPromises();
 
-    expect(getSettings).toHaveBeenCalledTimes(1);
+    // This setting alone, not a second read of every setting. The store shares one read between
+    // the images (`settings-store.test.ts`).
+    expect(refresh).toHaveBeenCalled();
+    expect(getSettings).not.toHaveBeenCalled();
     expect(wrapper.find('img').exists()).toBe(false);
     // Not yet a button: pressing it would decide before the setting is known.
     expect(wrapper.find('button[data-testid="remote-image-placeholder"]').exists()).toBe(false);
@@ -186,14 +260,19 @@ describe('RemoteImage before the settings are read', () => {
     expect(sources(wrapper)).toEqual([PICTURE, BANNER]);
   });
 
-  it('loads nothing when the settings cannot be read', async () => {
+  it('holds images back when the setting cannot be read, and still lets the user load them', async () => {
     setActivePinia(createPinia());
-    const store = useSettingsStore();
-    vi.spyOn(store, 'getSettings').mockRejectedValue(new Error('storage unavailable'));
+    // A value the protected store cannot hand back, so the read fails.
+    protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, () => undefined);
 
     const wrapper = mount(Page, { global: { stubs } });
     await flushPromises();
 
     expect(wrapper.find('img').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="remote-images-notice"]').exists()).toBe(true);
+    await wrapper.find('button[data-testid="remote-image-placeholder"]').trigger('click');
+    expect(sources(wrapper)).toEqual([PICTURE]);
+
+    protectedStore.delete(PROTECTED_LOAD_REMOTE_IMAGES);
   });
 });

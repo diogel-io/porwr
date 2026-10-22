@@ -1,12 +1,23 @@
 <script lang="ts" setup>
 import { onMounted } from 'vue';
+import { useQuasar } from 'quasar';
 import ThemeSwitch from '@/components/dashboard/ThemeSwitch.vue';
 import useSettingsStore from '@/stores/settings-store';
 import { useI18n } from 'vue-i18n';
 import { REQUEST_EXPIRY_OPTION_MINUTES } from '@/services/request-expiry';
 
+const $q = useQuasar();
 const { t } = useI18n();
 const settingsStore = useSettingsStore();
+
+/** A save that fails leaves the toggle where it was, and says so (#148). */
+async function setLoadRemoteImages(enabled: boolean): Promise<void> {
+  try {
+    await settingsStore.setLoadRemoteImages(enabled);
+  } catch {
+    $q.notify({ type: 'negative', message: t('settings.loadRemoteImagesSaveFailed') });
+  }
+}
 
 // Bounded, discrete choices with no "off" option: expiry is a fail-closed control (ADR D8).
 const requestExpiryOptions = REQUEST_EXPIRY_OPTION_MINUTES.map((minutes: number) => ({
@@ -68,7 +79,7 @@ onMounted(async () => {
                 :model-value="settingsStore.loadRemoteImages"
                 :aria-label="t('settings.loadRemoteImages')"
                 data-testid="load-remote-images-toggle"
-                @update:model-value="(val) => settingsStore.setLoadRemoteImages(Boolean(val))"
+                @update:model-value="(val) => setLoadRemoteImages(Boolean(val))"
               />
             </q-item-section>
           </q-item>

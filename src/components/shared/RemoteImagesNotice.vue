@@ -1,21 +1,29 @@
 <script lang="ts" setup>
-import { computed } from 'vue';
+import { computed, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { useRemoteImages } from '@/composables/useRemoteImages';
 
 /**
  * Says that remote images on this page are held back, and loads them all at once (T32,
- * diogel-io/workspace#148). Shown only while "Load remote images" is off and an image is waiting.
+ * diogel-io/workspace#148). Shown only while "Load remote images" is off and an image in the page's
+ * content is waiting.
+ *
+ * Only the most recently mounted notice shows, so a dialog's notice stands in for the layout's one
+ * behind it rather than doubling it.
  */
 
 defineOptions({ name: 'RemoteImagesNotice' });
 
 const { t } = useI18n();
-const { ready, blocking, hiddenCount, pageLoaded, loadAll } = useRemoteImages();
+const { ready, blocking, hiddenCount, loadAll, registerNotice, isTopNotice, releaseNotice } =
+  useRemoteImages();
+
+const id = registerNotice();
+onUnmounted(() => releaseNotice(id));
 
 const visible = computed(
-  () => ready.value && blocking.value && !pageLoaded.value && hiddenCount.value > 0,
+  () => isTopNotice(id) && ready.value && blocking.value && hiddenCount.value > 0,
 );
 </script>
 

@@ -37,6 +37,9 @@ const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net/';
 const DEFAULT_FALLBACK_RELAYS = RELAY_SEEDS;
 const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
 
+/** The read of "Load remote images" in progress, shared so concurrent callers make one read. */
+let remoteImagesRead: Promise<void> | null = null;
+
 /**
  * The relays to use for a stored list: its usable entries, or `defaults` when it has none, unless
  * the list lost them all to the wss:// rule (#142). Then it stays empty, and Porwr asks no relay
@@ -116,6 +119,11 @@ const useSettingsStore = defineStore('settings', {
      * default; only an explicit `false` turns it off, and then each image waits for the user (T32).
      */
     loadRemoteImages: true,
+    /**
+     * Whether "Load remote images" has been read, so remote images can follow it. Kept apart from
+     * `settingsLoaded`: a failure elsewhere in `getSettings` must not leave images undecided.
+     */
+    loadRemoteImagesRead: false,
     isListening: false,
     /**
      * Whether stored settings have been read. An empty relay list is a real state since #142, so it
@@ -209,19 +217,43 @@ const useSettingsStore = defineStore('settings', {
       await storageService.set(QUICK_PUBLISH_CLIENT_TAG, enabled);
     },
 
+    /** Saves "Load remote images". Throws if it cannot be stored, and then changes nothing. */
     async setLoadRemoteImages(enabled: boolean): Promise<void> {
-      this.loadRemoteImages = enabled;
       await setProtected(PROTECTED_LOAD_REMOTE_IMAGES, enabled);
+      this.loadRemoteImages = enabled;
       // Tells the other open surfaces to re-read it; the signal carries no value (#148).
       await storageService.set(REMOTE_IMAGES_CHANGED_KEY, Date.now());
     },
 
     /**
      * Reads "Load remote images" from the protected store, so a content script cannot turn remote
-     * images back on (#148). Only an explicit `false` turns it off.
+     * images back on (#148). Only an explicit `false` turns it off. A read that fails holds images
+     * back rather than leaving them loading, and never throws.
+     *
+     * Callers that ask at the same time share one read. Pass `fresh` after a change: it waits for
+     * any read in flight, which may have seen the old value, then reads again.
      */
-    async refreshLoadRemoteImages(): Promise<void> {
-      this.loadRemoteImages = (await getProtected<unknown>(PROTECTED_LOAD_REMOTE_IMAGES)) !== false;
+    refreshLoadRemoteImages(options: { fresh?: boolean } = {}): Promise<void> {
+      if (remoteImagesRead && !options.fresh) return remoteImagesRead;
+      const read = async (): Promise<void> => {
+        try {
+          this.loadRemoteImages =
+            (await getProtected<unknown>(PROTECTED_LOAD_REMOTE_IMAGES)) !== false;
+        } catch (error) {
+          this.loadRemoteImages = false;
+          logService.log(
+            LogLevel.WARN,
+            `[settings] Could not read "Load remote images"; holding remote images back: ${String(error)}`,
+          );
+        } finally {
+          this.loadRemoteImagesRead = true;
+        }
+      };
+      const next: Promise<void> = (remoteImagesRead ?? Promise.resolve()).then(read).finally(() => {
+        if (remoteImagesRead === next) remoteImagesRead = null;
+      });
+      remoteImagesRead = next;
+      return next;
     },
 
     async setVaultAutoLockMinutes(minutes: number): Promise<void> {
@@ -282,7 +314,7 @@ const useSettingsStore = defineStore('settings', {
             this.darkMode = typeof newValue === 'boolean' ? newValue : Boolean(newValue);
           }
           if (REMOTE_IMAGES_CHANGED_KEY in changes) {
-            void this.refreshLoadRemoteImages();
+            void this.refreshLoadRemoteImages({ fresh: true });
           }
           if (QUICK_PUBLISH_CLIENT_TAG in changes) {
             this.quickPublishClientTag = changes[QUICK_PUBLISH_CLIENT_TAG].newValue !== false;

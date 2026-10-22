@@ -9,5 +9,9 @@ import useSettingsStore from '@/stores/settings-store';
  */
 export function useLoadedSettings(load = true): void {
   setActivePinia(createPinia());
-  useSettingsStore().$patch({ settingsLoaded: true, loadRemoteImages: load });
+  useSettingsStore().$patch({
+    settingsLoaded: true,
+    loadRemoteImagesRead: true,
+    loadRemoteImages: load,
+  });
 }

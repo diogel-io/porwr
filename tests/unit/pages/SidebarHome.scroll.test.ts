@@ -59,6 +59,7 @@ const mountInScroller = async () => {
         'q-btn': true,
         'q-spinner': true,
         ProfileView: true,
+        RemoteImagesNotice: true,
         CurrentRequest: true,
         PendingRequestList: true,
         SidebarUnlock: true,

@@ -68,13 +68,40 @@ describe('remote resources', () => {
   // which holds it back while "Load remote images" is off (T32, diogel-io/workspace#148). An image
   // that binds its own `src` would skip that.
   it('are shown on Porwr pages only through RemoteImage', () => {
-    const BOUND_IMAGE = /<(?:img|q-img)\b[^>]*\s(?::|v-bind:)src\s*=/i;
+    // A bound `src` or `srcset`, or an object `v-bind`, on `<img>`, `<q-img>` or `<QImg>`; a bound
+    // style naming a `url(`; or an image made in script.
+    const BOUND_IMAGE = new RegExp(
+      [
+        String.raw`<(?:img|q-img|qimg)\b[^>]*\s(?::|v-bind:)(?:src|srcset)\s*=`,
+        String.raw`<(?:img|q-img|qimg)\b[^>]*\sv-bind\s*=`,
+        String.raw`(?::|v-bind:)style\s*=\s*"[^"]*url\(`,
+        String.raw`\bnew\s+Image\s*\(`,
+        String.raw`\b(?:h|createElement|createVNode)\(\s*['"]img['"]`,
+      ].join('|'),
+      'i',
+    );
+    for (const sample of [
+      '<img :src="profile.picture" />',
+      '<q-img\n  v-bind:src="banner"\n/>',
+      '<QImg :src="avatar" />',
+      '<img :srcset="pictures" />',
+      '<img v-bind="{ src: picture }" />',
+      '<div :style="`background-image: url(${banner})`" />',
+      'const preload = new Image();',
+      "return h('img', { src: picture });",
+    ]) {
+      expect(BOUND_IMAGE.test(sample), sample).toBe(true);
+    }
+    expect(BOUND_IMAGE.test('<img src="/icons/logo.png" alt="" />')).toBe(false);
+
     const ALLOWED = new Set([
       'src/components/shared/RemoteImage.vue',
       // Binds the bundled logo, which the build resolves to a file inside the extension.
       'src/components/shared/DiogelLogo.vue',
     ]);
-    const pages = filesUnder('src', ['.vue']).filter((path) => !ALLOWED.has(relative(ROOT, path)));
+    const pages = filesUnder('src', ['.vue', '.ts']).filter(
+      (path) => !ALLOWED.has(relative(ROOT, path)),
+    );
     expect(pages.length).toBeGreaterThan(0);
     expect(
       pages

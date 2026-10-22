@@ -96,6 +96,7 @@ const mountPage = async () => {
         SidebarUnlock: SidebarUnlockStub,
         SidebarSetup: true,
         ProfileView: true,
+        RemoteImagesNotice: true,
       },
     },
   });

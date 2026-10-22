@@ -11,8 +11,8 @@ import { isRemoteImageUrl, useRemoteImages } from '@/composables/useRemoteImages
  * Every remote image on Porwr's pages goes through this component; `no-remote-resources.test.ts`
  * fails on an `<img>` or `<q-img>` that binds its own `src`. While the image is held back it shows
  * a local placeholder, which the user can press to load that one image. Inside a control that
- * already takes the click, such as a select's option, pass `interactive: false`; the page notice
- * still loads it.
+ * already takes the click, such as a select's option, pass `interactive: false`. The page notice
+ * still loads it, but it alone does not raise the notice.
  *
  * Attributes such as `class` land on whichever is shown, so the placeholder takes the image's box.
  */
@@ -39,7 +39,11 @@ const placeholderIcon = computed(
 
 const id = register();
 watchEffect(() => {
-  setHidden(id, ready.value && !show.value && isRemoteImageUrl(props.src) ? props.src : null);
+  setHidden(
+    id,
+    ready.value && !show.value && isRemoteImageUrl(props.src) ? props.src : null,
+    props.interactive,
+  );
 });
 onUnmounted(() => release(id));
 </script>

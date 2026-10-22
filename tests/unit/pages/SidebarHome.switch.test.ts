@@ -89,6 +89,7 @@ const mountPage = async () => {
         SidebarUnlock: true,
         SidebarSetup: true,
         ProfileView: true,
+        RemoteImagesNotice: true,
       },
     },
   });

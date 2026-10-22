@@ -312,6 +312,63 @@ describe('SettingsStore', () => {
       await vi.waitFor(() => expect(store.loadRemoteImages).toBe(true));
     });
 
+    it('holds images back, without throwing, when the protected read fails', async () => {
+      const store = useSettingsStore();
+      store.listenToStorageChanges();
+      const listener = vi.mocked(storageService.onChanged).mock.calls[0]![0];
+      expect(store.loadRemoteImages).toBe(true);
+
+      // A value the protected store cannot hand back, so the read rejects.
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, () => undefined);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: 3 } }, 'local');
+
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+      expect(store.loadRemoteImagesRead).toBe(true);
+      await expect(store.getSettings()).resolves.toBeUndefined();
+      expect(store.loadRemoteImages).toBe(false);
+    });
+
+    it('makes one read for callers that ask at the same time', async () => {
+      const store = useSettingsStore();
+      const get = vi.spyOn(protectedStore, 'get');
+
+      await Promise.all([store.refreshLoadRemoteImages(), store.refreshLoadRemoteImages()]);
+
+      expect(get.mock.calls.filter(([key]) => key === PROTECTED_LOAD_REMOTE_IMAGES)).toHaveLength(
+        1,
+      );
+      get.mockRestore();
+    });
+
+    it('reads again after a change, even while an earlier read is still in flight', async () => {
+      const store = useSettingsStore();
+      store.listenToStorageChanges();
+      const listener = vi.mocked(storageService.onChanged).mock.calls[0]![0];
+
+      // The first read sees the old value; the change lands before it finishes.
+      const get = vi.spyOn(protectedStore, 'get').mockReturnValueOnce(true);
+      const first = store.refreshLoadRemoteImages();
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: 4 } }, 'local');
+      await first;
+      get.mockRestore();
+
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+    });
+
+    it('changes nothing, and sends no signal, when the choice cannot be stored', async () => {
+      const store = useSettingsStore();
+      const set = vi.spyOn(protectedStore, 'set').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+
+      await expect(store.setLoadRemoteImages(false)).rejects.toThrow('quota exceeded');
+
+      expect(store.loadRemoteImages).toBe(true);
+      expect(storageService.set).not.toHaveBeenCalled();
+      set.mockRestore();
+    });
+
     it('ignores a forged signal: the answer still comes from the protected store', async () => {
       const store = useSettingsStore();
       store.listenToStorageChanges();

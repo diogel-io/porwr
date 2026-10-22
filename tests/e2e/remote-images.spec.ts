@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { finalizeEvent, SimplePool } from 'nostr-tools';
+import { finalizeEvent, getPublicKey, SimplePool } from 'nostr-tools';
 import type { EventTemplate } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 
@@ -31,6 +31,12 @@ const BOB = {
   privkey: '2'.repeat(64),
   pubkey: '466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27',
   picture: `${IMAGE_HOST}/bob.png`,
+};
+
+const CAROL = {
+  privkey: '3'.repeat(64),
+  pubkey: getPublicKey(hexToBytes('3'.repeat(64))),
+  picture: `${IMAGE_HOST}/carol.png`,
 };
 
 const PNG = Buffer.from(
@@ -176,6 +182,47 @@ test.describe('remote images', () => {
     ).toBeVisible();
     await page.waitForLoadState('networkidle');
     expect(requested.slice(before).filter((url) => url === BOB.picture)).toEqual([]);
+  });
+
+  test('"Load images on this page" loads what is waiting, not what the page shows next', async ({
+    openPage,
+    relays,
+  }) => {
+    const page = await openPage('/login');
+    await createVault(page);
+    await seed(page, relays.plain);
+    // Carol joins Alice's contacts, so a second search on the same page finds someone new.
+    const later = Math.floor(Date.now() / 1000) + 1;
+    await publish(relays.plain, CAROL.privkey, {
+      kind: 0,
+      created_at: later,
+      tags: [],
+      content: JSON.stringify({ name: 'carol', picture: CAROL.picture }),
+    });
+    await publish(relays.plain, ALICE.privkey, {
+      kind: 3,
+      created_at: later,
+      tags: [
+        ['p', BOB.pubkey, '', 'Bob'],
+        ['p', CAROL.pubkey, '', 'Carol'],
+      ],
+      content: '',
+    });
+    const requested = await watchImageHost(page);
+
+    await setLoadRemoteImages(page, false);
+    await open(page, '/messages');
+    const results = page.getByTestId('conversation-search-results');
+    await page.getByLabel('Search contacts').fill('bob');
+    await expect(results.getByTestId('remote-image-placeholder')).toBeVisible();
+    await page.getByTestId('remote-images-load-all').click();
+    await expect(results.locator('img')).toHaveAttribute('src', BOB.picture);
+
+    await page.getByLabel('Search contacts').fill('carol');
+    await expect(results.getByTestId('remote-image-placeholder')).toBeVisible();
+    await expect(page.getByTestId('remote-images-notice')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    expect(requested).not.toContain(CAROL.picture);
   });
 
   test('turning the setting off reaches a surface that is already open', async ({
