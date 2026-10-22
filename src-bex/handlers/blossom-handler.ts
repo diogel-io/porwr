@@ -107,6 +107,9 @@ export async function handleBlossomUpload(
         });
 
         const response = await fetch(option.url, {
+          // A redirect would resend the file and its signed authorisation to a destination nobody
+          // chose; it fails instead (T21, #142).
+          redirect: 'error',
           method: option.method,
           headers: {
             Authorization: authHeader,

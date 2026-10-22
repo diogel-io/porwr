@@ -263,6 +263,14 @@ describe('BlossomHandler', () => {
       );
     });
 
+    it('never follows a redirect, which would resend the file elsewhere', async () => {
+      await handleBlossomUpload(payload);
+
+      for (const [, init] of mockFetch.mock.calls) {
+        expect((init as RequestInit).redirect).toBe('error');
+      }
+    });
+
     it('names the server by its lowercase bare hostname', async () => {
       await handleBlossomUpload({ ...payload, blossomServer: 'https://Media.Example.ORG:8443/b/' });
 
