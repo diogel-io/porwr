@@ -209,6 +209,22 @@ describe('keeping the vault unlocked (#245)', () => {
     expect(onLocked).toHaveBeenCalledTimes(1);
   });
 
+  it('leaves an unlock that finished during start-up alone, though no session was found', async () => {
+    const vault = await freshWorker();
+    const onLocked = vi.fn();
+    vault.onVaultLocked(onLocked);
+    // The unlock completed in this worker before restoreVaultState looked; its session row is not
+    // visible yet.
+    await vault.createNewVault(PASSWORD, DATA);
+    state.vaultSession.clear();
+
+    await vault.restoreVaultState();
+
+    expect(vault.isVaultUnlocked()).toBe(true);
+    expect(onLocked).not.toHaveBeenCalled();
+    expect(state.session.get('vault:unlocked')).toBe(true);
+  });
+
   it('restores the key when auto-lock is not yet due', async () => {
     await (await freshWorker()).createNewVault(PASSWORD, DATA);
 

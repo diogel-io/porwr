@@ -335,6 +335,22 @@ describe('SettingsStore', () => {
     /* eslint-enable @typescript-eslint/unbound-method */
   });
 
+  describe('loading once (diogel-io/workspace#142)', () => {
+    it('does not reload settings for every read of a list the wss:// rule emptied', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['ws://only.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await expect(store.getFallbackRelays()).resolves.toEqual([]);
+      await store.getFallbackRelays();
+      await store.getProfileSearchRelays();
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(storageService.getMultiple).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('profile search relays (diogel-io/workspace#142, T19)', () => {
     it('uses no relay, not the defaults, when every stored one is plaintext', async () => {
       vi.mocked(storageService.getMultiple).mockResolvedValue({});

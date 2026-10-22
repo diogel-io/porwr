@@ -110,18 +110,23 @@ const useSettingsStore = defineStore('settings', {
     // NIP-89 client tag on Quick Publish notes. On by default; only an explicit `false` turns it off.
     quickPublishClientTag: true,
     isListening: false,
+    /**
+     * Whether stored settings have been read. An empty relay list is a real state since #142, so it
+     * can't double as "not loaded yet".
+     */
+    settingsLoaded: false,
   }),
 
   actions: {
     async getFallbackRelays(): Promise<string[]> {
-      if (this.fallbackRelays.length === 0) {
+      if (!this.settingsLoaded) {
         await this.getSettings();
       }
       return this.fallbackRelays;
     },
 
     async getProfileSearchRelays(): Promise<string[]> {
-      if (this.profileSearchRelays.length === 0) {
+      if (!this.settingsLoaded) {
         await this.getSettings();
       }
       return this.profileSearchRelays;
@@ -173,6 +178,7 @@ const useSettingsStore = defineStore('settings', {
           'profile search',
         );
       }
+      this.settingsLoaded = true;
     },
 
     /** Saves an https:// Blossom server. Throws for anything else, and leaves the setting unchanged. */

@@ -208,6 +208,9 @@ export async function lockVault() {
  * as a pending wallet authorisation, goes now rather than at its own expiry (#142).
  */
 async function startLocked(): Promise<void> {
+  // An unlock finished while this worker was still starting up: the vault is not locked after all,
+  // and its fresh session must not be cleared (#142).
+  if (vaultKey) return;
   try {
     await clearSession();
   } finally {
