@@ -92,6 +92,36 @@ describe('RelayEditor.vue', () => {
     expect(poolGet).not.toHaveBeenCalled();
     expect(wrapper.find('q-spinner-stub').exists()).toBe(false);
     expect(wrapper.find('button[data-icon="explore"]').exists()).toBe(true);
+    // An empty list here is not the account's: the editor says so before anything is saved.
+    expect(wrapper.text()).toContain('relays.loadError');
+  });
+
+  it('warns that the list shown may not be current when reading it fails', async () => {
+    poolGet.mockRejectedValue(new Error('relays down'));
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: {
+        plugins: [createTestingPinia({ createSpy: vi.fn, stubActions: false })],
+        stubs: globalStubs,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(wrapper.text()).toContain('relays.loadError');
+  });
+
+  it('shows no warning when the list loads', async () => {
+    poolGet.mockResolvedValue({ tags: [['r', 'wss://relay.example']] });
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: {
+        plugins: [createTestingPinia({ createSpy: vi.fn, stubActions: false })],
+        stubs: globalStubs,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(wrapper.text()).not.toContain('relays.loadError');
   });
 
   const props = {

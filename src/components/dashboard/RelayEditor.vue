@@ -30,12 +30,19 @@ const fallbackRelays = computed(() => settingsStore.fallbackRelays);
 const newRelayUrl = ref('');
 const newRelayWrite = ref(false);
 const showRelayBrowser = ref(false);
+/**
+ * The account's relay list could not be read, so the list shown is not known to be its current one,
+ * and saving would replace whatever is published (#142).
+ */
+const loadFailed = ref(false);
 
 async function fetchRelayList() {
   relays.value = [];
+  loadFailed.value = false;
   // `pool.get` over no relays never settles. With no usable fallback relay (#142) there is nothing
-  // to read, so the editor shows an empty list instead of spinning.
+  // to read: the editor stays usable, but says the list shown may not be the account's.
   if (fallbackRelays.value.length === 0) {
+    loadFailed.value = true;
     loading.value = false;
     return;
   }
@@ -61,6 +68,7 @@ async function fetchRelayList() {
         });
     }
   } catch (error) {
+    loadFailed.value = true;
     console.error('Error fetching relay list:', error);
     $q.notify({
       type: 'negative',
@@ -180,6 +188,9 @@ watch(
     </div>
 
     <template v-else>
+      <q-banner v-if="loadFailed" class="q-mb-md" dense rounded data-testid="relay-list-load-error">
+        {{ $t('relays.loadError') }}
+      </q-banner>
       <div class="q-mb-md">
         <div class="row q-col-gutter-sm items-center">
           <div class="col-grow">
