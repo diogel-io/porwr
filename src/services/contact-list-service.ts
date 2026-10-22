@@ -68,7 +68,9 @@ async function resolveNip05Pubkey(identifier: string): Promise<string | null> {
   const url = new URL(`https://${parsed.domain}/.well-known/nostr.json`);
   url.searchParams.set('name', parsed.name);
 
+  // NIP-05: fetchers MUST ignore redirects (and a redirect could reach a loopback address, #142).
   const response = await fetch(url.toString(), {
+    redirect: 'error',
     method: 'GET',
     headers: {
       Accept: 'application/json',

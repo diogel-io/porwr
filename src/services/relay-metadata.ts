@@ -72,7 +72,10 @@ export async function fetchRelayMetadata(
   const id = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    // No redirects: an https relay must not be able to send this request to a loopback service the
+    // CSP allows for local relays (#142).
     const response = await fetch(nip11Url, {
+      redirect: 'error',
       method: 'GET',
       headers: {
         Accept: 'application/nostr+json',
