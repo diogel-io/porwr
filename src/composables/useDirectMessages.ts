@@ -36,6 +36,8 @@ export interface DirectMessagesOptions {
  */
 export function useDirectMessages(options: DirectMessagesOptions) {
   const messages = shallowRef<Map<string, DirectMessage>>(new Map());
+  /** Moves on every account switch (`reset`), so work begun for the old account is recognised. */
+  let generation = 0;
   const readState = ref<MessagingReadState>({});
   const inbox = ref<'unknown' | 'ready' | 'none'>('unknown');
   const loadFailed = ref(false);
@@ -109,12 +111,16 @@ export function useDirectMessages(options: DirectMessagesOptions) {
   }
 
   async function deliver(message: PendingMessage) {
+    // A send that finishes after an account switch belongs to the previous account: its result is
+    // dropped, not merged into the new account's conversations (#142).
+    const startedIn = generation;
     try {
       const result = await sendMessage({
         clientMessageId: message.clientMessageId,
         recipient: message.peer,
         content: message.content,
       });
+      if (startedIn !== generation) return;
       pending.value = pending.value.filter(
         (entry) => entry.clientMessageId !== message.clientMessageId,
       );
@@ -125,6 +131,7 @@ export function useDirectMessages(options: DirectMessagesOptions) {
         options.onRecipientNotReady?.(message.peer);
       }
     } catch {
+      if (startedIn !== generation) return;
       pending.value = pending.value.map((entry) =>
         entry.clientMessageId === message.clientMessageId ? { ...entry, status: 'failed' } : entry,
       );
@@ -154,6 +161,7 @@ export function useDirectMessages(options: DirectMessagesOptions) {
 
   /** Forgets everything, for an account switch. */
   function reset() {
+    generation += 1;
     messages.value = new Map();
     readState.value = {};
     inbox.value = 'unknown';
