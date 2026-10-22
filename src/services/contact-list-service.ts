@@ -144,15 +144,20 @@ export async function searchContacts(query: string): Promise<ContactSearchResult
     }
   }
 
-  const events = await pool.querySync(
-    relays,
-    {
-      kinds: [PROFILE_METADATA_KIND],
-      search: trimmedQuery,
-      limit: 20,
-    },
-    { maxWait: 5000 },
-  );
+  // `querySync` over no relays never settles. With no usable profile search relay (#142) only the
+  // direct npub and NIP-05 matches above are returned.
+  const events =
+    relays.length === 0
+      ? []
+      : await pool.querySync(
+          relays,
+          {
+            kinds: [PROFILE_METADATA_KIND],
+            search: trimmedQuery,
+            limit: 20,
+          },
+          { maxWait: 5000 },
+        );
 
   for (const event of events) {
     const profile = parseContactProfile(event);

@@ -445,6 +445,10 @@ export class Nip17Messaging {
     for (const account of [...this.messages.keys()]) {
       if (account !== me) this.messages.delete(account);
     }
+    // A finished send's memo holds the message text; another account's goes with its messages.
+    for (const key of [...this.sends.keys()]) {
+      if (!key.startsWith(`${me}:`)) this.sends.delete(key);
+    }
     for (const [account, pool] of [...this.pools]) {
       if (account !== me) {
         pool.destroy();

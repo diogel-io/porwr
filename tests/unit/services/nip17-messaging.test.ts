@@ -279,6 +279,19 @@ describe('Nip17Messaging', () => {
     expect(toBob.created_at).toBeLessThanOrEqual(Math.floor(clock / 1000));
   });
 
+  it("forgets the old account's finished sends when the account changes (#142)", async () => {
+    const messaging = service();
+    const request = { clientMessageId: 'c1', recipient: ALICE, content: 'hi' };
+    await messaging.send(bob, request);
+    const publishedBefore = publish.mock.calls.length;
+
+    messaging.keepOnly(ALICE);
+    await messaging.send(bob, request);
+
+    // The memo went with the switch, so the same id is delivered afresh rather than replayed.
+    expect(publish.mock.calls.length).toBeGreaterThan(publishedBefore);
+  });
+
   it('sends a retried message only once', async () => {
     const messaging = service();
     const first = messaging.send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'once' });
