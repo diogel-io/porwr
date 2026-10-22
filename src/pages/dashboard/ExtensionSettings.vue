@@ -2,7 +2,7 @@
 import { onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import ThemeSwitch from '@/components/dashboard/ThemeSwitch.vue';
-import useSettingsStore from '@/stores/settings-store';
+import useSettingsStore, { RemoteImagesSignalError } from '@/stores/settings-store';
 import { useI18n } from 'vue-i18n';
 import { REQUEST_EXPIRY_OPTION_MINUTES } from '@/services/request-expiry';
 
@@ -10,12 +10,19 @@ const $q = useQuasar();
 const { t } = useI18n();
 const settingsStore = useSettingsStore();
 
-/** A save that fails leaves the toggle where it was, and says so (#148). */
+/**
+ * A save that fails leaves the toggle where it was, and says so. A save that other open Porwr
+ * pages could not be told about stands, and asks the user to reload them (#148).
+ */
 async function setLoadRemoteImages(enabled: boolean): Promise<void> {
   try {
     await settingsStore.setLoadRemoteImages(enabled);
-  } catch {
-    $q.notify({ type: 'negative', message: t('settings.loadRemoteImagesSaveFailed') });
+  } catch (error) {
+    if (error instanceof RemoteImagesSignalError) {
+      $q.notify({ type: 'warning', message: t('settings.loadRemoteImagesSignalFailed') });
+    } else {
+      $q.notify({ type: 'negative', message: t('settings.loadRemoteImagesSaveFailed') });
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { isProxy } from 'vue';
-import useSettingsStore from '@/stores/settings-store';
+import useSettingsStore, { RemoteImagesSignalError } from '@/stores/settings-store';
 import {
   BLOSSOM_SERVER,
   FALLBACK_RELAYS,
@@ -354,6 +354,41 @@ describe('SettingsStore', () => {
       get.mockRestore();
 
       await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+    });
+
+    it('reads again once it listens, so a change signalled before then is not missed', async () => {
+      const store = useSettingsStore();
+      // The surface's first read saw images on; another tab turned them off before it listened.
+      await store.getSettings();
+      expect(store.loadRemoteImages).toBe(true);
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+
+      store.listenToStorageChanges();
+
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+    });
+
+    it('retries the signal once when it cannot be sent', async () => {
+      const store = useSettingsStore();
+      vi.mocked(storageService.set).mockRejectedValueOnce(new Error('storage unavailable'));
+
+      await store.setLoadRemoteImages(false);
+
+      expect(storageService.set).toHaveBeenCalledTimes(2);
+      expect(store.loadRemoteImages).toBe(false);
+    });
+
+    it('keeps the saved choice, and says the other surfaces were not told, when the signal fails', async () => {
+      const store = useSettingsStore();
+      vi.mocked(storageService.set).mockRejectedValue(new Error('storage unavailable'));
+
+      await expect(store.setLoadRemoteImages(false)).rejects.toBeInstanceOf(
+        RemoteImagesSignalError,
+      );
+
+      expect(store.loadRemoteImages).toBe(false);
+      expect(protectedStore.get(PROTECTED_LOAD_REMOTE_IMAGES)).toBe(false);
+      vi.mocked(storageService.set).mockReset();
     });
 
     it('changes nothing, and sends no signal, when the choice cannot be stored', async () => {

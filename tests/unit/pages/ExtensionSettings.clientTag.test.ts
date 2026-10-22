@@ -18,7 +18,12 @@ const store = vi.hoisted(() => ({
   setRequestExpiryMinutes: vi.fn(),
 }));
 
-vi.mock('@/stores/settings-store', () => ({ default: () => store }));
+const SignalError = vi.hoisted(() => class RemoteImagesSignalError extends Error {});
+
+vi.mock('@/stores/settings-store', () => ({
+  default: () => store,
+  RemoteImagesSignalError: SignalError,
+}));
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 const notify = vi.hoisted(() => vi.fn());
 vi.mock('quasar', () => ({ useQuasar: () => ({ notify }) }));
@@ -120,6 +125,24 @@ describe('ExtensionSettings: load remote images (diogel-io/workspace#148)', () =
         type: 'negative',
         message: 'settings.loadRemoteImagesSaveFailed',
       }),
+    );
+  });
+
+  it('asks for a reload when the choice was saved but other pages could not be told', async () => {
+    store.setLoadRemoteImages.mockRejectedValueOnce(new SignalError('storage unavailable'));
+    const wrapper = await mountPage();
+
+    await remoteImagesToggle(wrapper).setValue(false);
+    await flushPromises();
+
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'warning',
+        message: 'settings.loadRemoteImagesSignalFailed',
+      }),
+    );
+    expect(notify).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'settings.loadRemoteImagesSaveFailed' }),
     );
   });
 });

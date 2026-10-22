@@ -37,6 +37,17 @@ const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net/';
 const DEFAULT_FALLBACK_RELAYS = RELAY_SEEDS;
 const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
 
+/**
+ * "Load remote images" was saved, but the other open surfaces could not be told, so they keep the
+ * old value until they reload (#148).
+ */
+export class RemoteImagesSignalError extends Error {
+  constructor(cause: unknown) {
+    super(`Saved "Load remote images" but could not signal other surfaces: ${String(cause)}`);
+    this.name = 'RemoteImagesSignalError';
+  }
+}
+
 /** The read of "Load remote images" in progress, shared so concurrent callers make one read. */
 let remoteImagesRead: Promise<void> | null = null;
 
@@ -217,12 +228,24 @@ const useSettingsStore = defineStore('settings', {
       await storageService.set(QUICK_PUBLISH_CLIENT_TAG, enabled);
     },
 
-    /** Saves "Load remote images". Throws if it cannot be stored, and then changes nothing. */
+    /**
+     * Saves "Load remote images". Throws if it cannot be stored, and then changes nothing. Once it
+     * is stored the choice stands: if the other open surfaces cannot then be told, after one retry,
+     * it throws `RemoteImagesSignalError` so the user knows to reload them.
+     */
     async setLoadRemoteImages(enabled: boolean): Promise<void> {
       await setProtected(PROTECTED_LOAD_REMOTE_IMAGES, enabled);
       this.loadRemoteImages = enabled;
       // Tells the other open surfaces to re-read it; the signal carries no value (#148).
-      await storageService.set(REMOTE_IMAGES_CHANGED_KEY, Date.now());
+      try {
+        await storageService.set(REMOTE_IMAGES_CHANGED_KEY, Date.now());
+      } catch {
+        try {
+          await storageService.set(REMOTE_IMAGES_CHANGED_KEY, Date.now());
+        } catch (error) {
+          throw new RemoteImagesSignalError(error);
+        }
+      }
     },
 
     /**
@@ -330,6 +353,9 @@ const useSettingsStore = defineStore('settings', {
       });
 
       this.isListening = true;
+      // A change signalled before this listener existed is not replayed, so read once more now
+      // that it does: a surface opening while another turns images off must not miss it (#148).
+      void this.refreshLoadRemoteImages({ fresh: true });
     },
   },
 });
