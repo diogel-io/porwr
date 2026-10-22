@@ -161,6 +161,11 @@ export async function handleBlossomUpload(
     if (!uploadResultUrl) {
       throw lastError || new Error('Upload failed after multiple attempts');
     }
+    // The extension shows images over https only (T32): a plaintext media URL would be reported as
+    // uploaded and then never display.
+    if (!isHttpsUrl(uploadResultUrl)) {
+      throw new Error('The Blossom server returned a media URL that is not https://');
+    }
 
     await storageService.set(uploadStatusKey, {
       uploading: false,
@@ -226,4 +231,12 @@ async function getActiveStoredKey(): Promise<StoredKey | null> {
   }
 
   return null;
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }

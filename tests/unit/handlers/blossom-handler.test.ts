@@ -242,6 +242,27 @@ describe('BlossomHandler', () => {
       }
     });
 
+    it('fails an upload whose server answers with a non-https media URL', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ url: 'http://blossom.example.com/file.txt' })),
+      });
+
+      const result = await handleBlossomUpload(payload);
+
+      expect(result.success).toBe(false);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(storageService.set).toHaveBeenLastCalledWith(
+        BLOSSOM_UPLOAD_STATUS,
+        expect.objectContaining({
+          uploading: false,
+          url: null,
+          error: expect.stringContaining('https'),
+        }),
+      );
+    });
+
     it('names the server by its lowercase bare hostname', async () => {
       await handleBlossomUpload({ ...payload, blossomServer: 'https://Media.Example.ORG:8443/b/' });
 
