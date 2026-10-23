@@ -101,6 +101,8 @@ A change to any of these needs the security review:
   `src/services/auto-lock-minutes.ts`, and the transport rules in `src/services/relay-url.ts`
   (which relays may be contacted) and `src/services/blossom-server.ts` (where uploads and their
   signed authorisation may go)
+- `src/types/wallet-provider.ts`, which decides the addresses the wallet-connect popup may open and
+  when plain `http:` is allowed (T35)
 - `src/components/sidebar/*` and `src/composables/useApprovalQueue.ts`, which present and decide
   requests
 - `src/components/shared/RemoteImage.vue` and `src/composables/useRemoteImages.ts`, which decide
