@@ -395,7 +395,7 @@ export default {
       customHubHint:
         'Your Hub’s https:// address, or its http:// address and port on your home network, such as http://192.168.1.50:59000. If a name such as umbrel.local does not load, use the device’s IP address.',
       customHubUnencrypted:
-        'Porwr will reach this Hub without encryption. Use it only on a network you trust.',
+        'This Hub is reached without encryption, so a device on your network could see the passwords you type into it. Use it only on a home network you trust.',
       pasteTitle: 'Paste a connection string instead',
       pasteCaption:
         'For any other Nostr Wallet Connect wallet, copy its nostr+walletconnect:// connection string and paste it here.',
