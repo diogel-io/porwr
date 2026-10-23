@@ -393,7 +393,7 @@ export default {
       customHubToggle: 'Use my own Alby Hub',
       customHubLabel: 'Alby Hub address',
       customHubHint:
-        'Your Hub’s https:// address, or its http:// address on your home network, such as http://umbrel.local:59000',
+        'Your Hub’s https:// address, or its http:// address and port on your home network, such as http://192.168.1.50:59000. If a name such as umbrel.local does not load, use the device’s IP address.',
       customHubUnencrypted:
         'Porwr will reach this Hub without encryption. Use it only on a network you trust.',
       pasteTitle: 'Paste a connection string instead',

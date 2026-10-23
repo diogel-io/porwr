@@ -61,9 +61,7 @@ const providers = Object.values(WALLET_PROVIDERS);
 // A Hub on a home server such as Umbrel is reached over plain http (workspace#149); say so.
 const customHubUnencrypted = computed(() => {
   const origin = resolveWalletProviderOrigin(WALLET_PROVIDERS['alby-hub'], customHubOrigin.value);
-  return (
-    customHubOrigin.value.trim() !== '' && origin !== null && isUnencryptedWalletOrigin(origin)
-  );
+  return origin !== null && isUnencryptedWalletOrigin(origin);
 });
 const balanceDisplayUnit = ref<'sats' | 'btc'>('sats');
 
@@ -558,7 +556,7 @@ onMounted(async () => {
               outlined
               dense
               type="url"
-              placeholder="http://umbrel.local:59000"
+              placeholder="http://192.168.1.50:59000"
               :label="$t('walletManagement.import.customHubLabel')"
               :hint="$t('walletManagement.import.customHubHint')"
             />
