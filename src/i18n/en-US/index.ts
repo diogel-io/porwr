@@ -388,9 +388,14 @@ export default {
       caption:
         'Choose your wallet and approve Porwr in the window that opens. Nothing to copy or paste. The connection key is created inside Porwr and stored in your encrypted vault; it is never shown to websites.',
       connectWith: 'Connect {provider}',
+      albyAccountNote:
+        'Connect Alby Hub opens Alby Cloud. An Alby account on its own has no wallet: if your Hub runs at home, for example on Umbrel, turn on "Use my own Alby Hub" and enter its address.',
       customHubToggle: 'Use my own Alby Hub',
       customHubLabel: 'Alby Hub address',
-      customHubHint: 'The https:// address of your self-hosted Alby Hub',
+      customHubHint:
+        'Your Hub’s https:// address, or its http:// address on your home network, such as http://umbrel.local:59000',
+      customHubUnencrypted:
+        'Porwr will reach this Hub without encryption. Use it only on a network you trust.',
       pasteTitle: 'Paste a connection string instead',
       pasteCaption:
         'For any other Nostr Wallet Connect wallet, copy its nostr+walletconnect:// connection string and paste it here.',
@@ -482,6 +487,8 @@ export default {
       connected: '{label} connected.',
       noResponse:
         "We didn't hear back from {provider}. If you approved Porwr, try again, or paste a connection string instead.",
+      noResponseAlbyHub:
+        'We didn\'t hear back from Alby Hub. An Alby account needs a Hub: if yours runs at home, turn on "Use my own Alby Hub" and enter its address, or paste a connection string instead.',
       popupBlocked:
         'Your browser blocked the wallet window. Allow pop-ups for Porwr and try again.',
       infoLoaded: 'Wallet info loaded. Capabilities: {capabilities}.',

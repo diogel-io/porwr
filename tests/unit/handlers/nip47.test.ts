@@ -733,6 +733,17 @@ describe('wallet authorization (#110)', () => {
       expect(dataOf(result).authorizationUrl).toMatch(/^https:\/\/hub\.example\.com\/apps\/new\?/);
     });
 
+    it('opens a self-hosted Alby Hub on the home network over http (workspace#149)', async () => {
+      const result = await handleNip47AuthorizationBegin({
+        accountPubkey: ACCOUNT,
+        provider: 'alby-hub',
+        customOrigin: 'http://umbrel.local:59000',
+      });
+
+      expect(dataOf(result).origin).toBe('http://umbrel.local:59000');
+      expect(dataOf(result).authorizationUrl).toMatch(/^http:\/\/umbrel\.local:59000\/apps\/new\?/);
+    });
+
     it('rejects an unknown provider and an unusable address', async () => {
       await expect(
         handleNip47AuthorizationBegin({ accountPubkey: ACCOUNT, provider: 'mutiny' }),
@@ -743,7 +754,7 @@ describe('wallet authorization (#110)', () => {
           provider: 'alby-hub',
           customOrigin: 'http://hub.example.com',
         }),
-      ).rejects.toThrow('https:// address of your Alby Hub');
+      ).rejects.toThrow('https:// address of your Alby Hub, or its http:// address on your home');
       expect(savePendingNip47Authorization).not.toHaveBeenCalled();
     });
 
