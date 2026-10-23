@@ -1441,6 +1441,67 @@ describe('a wallet popup the background owns (workspace#85)', () => {
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
     });
 
+    it('stops a relayed answer it claimed from saving, and closes the popup', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
+      vi.mocked(takePendingNip47Authorization)
+        .mockResolvedValueOnce(pending())
+        .mockResolvedValueOnce(null);
+      let answer!: () => void;
+      vi.mocked(nip47Client.getInfo).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            answer = () =>
+              resolve({
+                pubkey: WALLET,
+                capabilities: ['pay_invoice'],
+                relays: [],
+                encryption: [],
+                notifications: [],
+                rawContent: '',
+                checkedAt: '2026-10-24T00:00:00.000Z',
+              });
+          }),
+      );
+
+      const relayed = handleNip47AuthorizationRelay(topFrame, success);
+      await vi.waitFor(() => expect(nip47Client.getInfo).toHaveBeenCalled());
+      await expect(handleNip47AuthorizationCancel({ pendingId: 'pending-1' })).resolves.toEqual({
+        success: true,
+        data: true,
+      });
+      answer();
+      await relayed;
+
+      expect(updateVaultData).not.toHaveBeenCalled();
+      expect(postWalletConnectOutcome).not.toHaveBeenCalled();
+      expect(remove).toHaveBeenCalledWith(7);
+    });
+
+    it('stops a Coinos check the closing popup started from saving', async () => {
+      const coinos = pending({ providerId: 'coinos', origin: 'https://coinos.io' });
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(coinos);
+      vi.mocked(takePendingNip47Authorization)
+        .mockResolvedValueOnce(coinos)
+        .mockResolvedValueOnce(null);
+      let answer!: () => void;
+      vi.mocked(nip47Client.sendRequest).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            answer = () =>
+              resolve({ result_type: 'get_info', result: { methods: ['pay_invoice'] } });
+          }),
+      );
+
+      const closing = handleNip47AuthorizationPopupClosed(7);
+      await vi.waitFor(() => expect(nip47Client.sendRequest).toHaveBeenCalled());
+      await handleNip47AuthorizationCancel({ pendingId: 'pending-1' });
+      answer();
+      await closing;
+
+      expect(updateVaultData).not.toHaveBeenCalled();
+      expect(postWalletConnectOutcome).not.toHaveBeenCalled();
+    });
+
     it('does nothing for an authorization already settled', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(null);
 
