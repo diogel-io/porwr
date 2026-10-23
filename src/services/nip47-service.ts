@@ -180,3 +180,9 @@ export async function openNip47Authorization(
   }
   return response;
 }
+
+/** Abandons a background-owned authorization and closes its popup (workspace#85). */
+export async function cancelNip47Authorization(pendingId: string): Promise<void> {
+  const response = await sendBexMessage('nip47.authorization.cancel', { pendingId });
+  throwIfError(response);
+}

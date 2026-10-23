@@ -18,6 +18,7 @@ import type {
   Nip47PayInvoiceRequest,
   Nip47PayInvoiceResponse,
   Nip47PaymentHistoryEntry,
+  CancelNip47AuthorizationRequest,
   OpenNip47AuthorizationRequest,
   ProbeNip47AuthorizationRequest,
 } from '@/types/nip47';
@@ -610,6 +611,7 @@ export async function handleNip47AuthorizationOpen(
   const { pendingId, authorizationUrl } = started.data;
 
   let windowId: number | undefined;
+  let tabId: number | undefined;
   try {
     const created = await chrome.windows.create({
       url: authorizationUrl,
@@ -618,7 +620,7 @@ export async function handleNip47AuthorizationOpen(
       height: POPUP_HEIGHT,
     });
     windowId = created?.id;
-    const tabId =
+    tabId =
       created?.tabs?.[0]?.id ??
       (windowId === undefined ? undefined : (await chrome.tabs.query({ windowId }))[0]?.id);
     if (windowId === undefined || tabId === undefined) {
@@ -634,9 +636,6 @@ export async function handleNip47AuthorizationOpen(
     ) {
       throw new Error(LOCKED_DURING_AUTHORIZATION);
     }
-    // The page may have finished loading before the popup was bound, so its tab may never report
-    // `complete` again.
-    await armWalletRelay(tabId);
   } catch (error: unknown) {
     await takePendingNip47Authorization(pendingId);
     if (windowId !== undefined) {
@@ -645,7 +644,41 @@ export async function handleNip47AuthorizationOpen(
     throw error;
   }
 
+  // Closed before it was bound: its `windows.onRemoved` found nothing to settle and will not fire
+  // again, so settle it now rather than leave Wallet Connections waiting.
+  if (!(await popupWindowIsOpen(windowId))) {
+    await handleNip47AuthorizationPopupClosed(windowId);
+  } else {
+    // The page may have finished loading before the popup was bound, so its tab may never report
+    // `complete` again.
+    await armWalletRelay(tabId);
+  }
+
   return { success: true, data: { pendingId } };
+}
+
+async function popupWindowIsOpen(windowId: number): Promise<boolean> {
+  try {
+    await chrome.windows.get(windowId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Abandons a background-owned authorization whose page stopped waiting for it, and closes its
+ * popup (workspace#85). Called when Wallet Connections times out or goes away, so a wallet window
+ * the user never closed does not stay open on its own.
+ */
+export async function handleNip47AuthorizationCancel(
+  payload: CancelNip47AuthorizationRequest,
+): Promise<HandlerResult<boolean>> {
+  const pending = await takePendingNip47Authorization(payload.pendingId);
+  if (pending?.popup) {
+    await closePopupWindow(pending.popup.windowId);
+  }
+  return { success: true, data: pending !== null };
 }
 
 async function closePopupWindow(windowId: number): Promise<void> {

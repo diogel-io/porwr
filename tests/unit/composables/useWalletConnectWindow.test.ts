@@ -7,10 +7,11 @@ import {
   useWalletConnectWindow,
   type UseWalletConnectWindowResult,
 } from '@/composables/useWalletConnectWindow';
-import { openNip47Authorization } from '@/services/nip47-service';
+import { cancelNip47Authorization, openNip47Authorization } from '@/services/nip47-service';
 import { postWalletConnectOutcome } from '@/services/wallet-connect-channel';
 
 vi.mock('@/services/nip47-service', () => ({
+  cancelNip47Authorization: vi.fn(() => Promise.resolve()),
   openNip47Authorization: vi.fn(),
 }));
 
@@ -194,6 +195,37 @@ describe('useWalletConnectWindow in Firefox (workspace#85)', () => {
 
     postWalletConnectOutcome(request.requestId, { status: 'no-response' });
     await expect(result).resolves.toEqual({ status: 'no-response' });
+  });
+
+  it('closes the wallet window in the background when it stops waiting', async () => {
+    vi.mocked(cancelNip47Authorization).mockClear();
+    vi.useFakeTimers();
+    const { api, wrapper } = harness(1_000);
+
+    const timedOut = api.connect('coinos', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await expect(timedOut).resolves.toEqual({ status: 'cancelled' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cancelNip47Authorization).toHaveBeenCalledWith('p');
+
+    void api.connect('coinos', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(0);
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cancelNip47Authorization).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels nothing once the outcome has arrived', async () => {
+    vi.mocked(cancelNip47Authorization).mockClear();
+    const { api } = harness();
+
+    const result = api.connect('alby-hub', ACCOUNT);
+    await settle();
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    postWalletConnectOutcome(requestId, { status: 'no-response' });
+    await result;
+
+    expect(cancelNip47Authorization).not.toHaveBeenCalled();
   });
 
   it('fails when the background cannot open the wallet', async () => {

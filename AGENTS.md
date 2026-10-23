@@ -138,6 +138,11 @@ answers with `nwc:success`, and that answer reaches the background by one of two
   - The content script relays the wallet's answer (`src-bex/wallet-relay.ts`). It listens only in
     the tab the background armed (`services/wallet-relay-arm.ts`).
   - The window closes first (`services/wallet-connect-popup.ts`).
+  - Wallet Connections stops waiting and cancels it (`nip47.authorization.cancel`), which closes
+    the popup.
+
+  Pending entries are claimed through a serialized store, so only one of these settles an
+  authorization.
 
   The relay uses its own `porwr:wallet-relay` port. The background accepts it only from the top
   frame of the bound tab, at the wallet's exact origin, as the browser-supplied `sender` reports

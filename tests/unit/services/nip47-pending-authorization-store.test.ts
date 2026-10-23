@@ -113,6 +113,17 @@ describe('nip47 pending authorization store', () => {
     expect(await takePendingNip47Authorization('two', NOW)).toBeNull();
   });
 
+  it('hands an authorization to only one of two takes that overlap (workspace#85)', async () => {
+    await savePendingNip47Authorization(entry('a'), NOW);
+
+    const [first, second] = await Promise.all([
+      takePendingNip47Authorization('a', NOW),
+      takePendingNip47Authorization('a', NOW),
+    ]);
+
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+  });
+
   describe('a popup the background opened (workspace#85)', () => {
     const popup = { windowId: 7, tabId: 70, requestId: 'req-1' };
 

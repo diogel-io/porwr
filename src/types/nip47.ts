@@ -124,6 +124,11 @@ export interface OpenNip47AuthorizationRequest extends BeginNip47AuthorizationRe
   requestId: string;
 }
 
+/** Abandons a background-owned authorization and closes its popup (workspace#85). */
+export interface CancelNip47AuthorizationRequest {
+  pendingId: string;
+}
+
 /** The authorization the background opened a popup for. The client secret stays in the background. */
 export interface Nip47AuthorizationOpened {
   pendingId: string;

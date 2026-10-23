@@ -81,6 +81,7 @@ vi.mock('@/../src-bex/handlers/nip47', () => ({
   handleNip47PaymentHistoryList: vi.fn(),
   handleNip47AuthorizationBegin: vi.fn(),
   handleNip47AuthorizationComplete: vi.fn(),
+  handleNip47AuthorizationCancel: vi.fn(),
   handleNip47AuthorizationOpen: vi.fn(),
   handleNip47AuthorizationProbe: vi.fn(),
 }));
@@ -558,6 +559,14 @@ const cases: Case[] = [
     name: 'handleNip47AuthorizationBegin',
     resolves: ok({ pendingId: 'p' }),
     expected: { pendingId: 'p' },
+  },
+  {
+    action: 'nip47.authorization.cancel',
+    payload: { pendingId: 'p' },
+    handler: vi.mocked(nip47.handleNip47AuthorizationCancel),
+    name: 'handleNip47AuthorizationCancel',
+    resolves: ok(true),
+    expected: true,
   },
   {
     action: 'nip47.authorization.complete',

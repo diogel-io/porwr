@@ -53,6 +53,17 @@ async function writePending(entries: PendingNip47Authorization[]): Promise<void>
   await storageService.set(NIP47_PENDING_AUTHORIZATIONS_KEY, entries, 'session');
 }
 
+// Each read-modify-write waits for the one before it. The wallet popup closing and the wallet's
+// relayed answer can arrive together, and without this both could read the entry before either
+// removed it, so both would settle the same authorization (workspace#85).
+let pendingWrites: Promise<unknown> = Promise.resolve();
+
+function serialized<T>(operation: () => Promise<T>): Promise<T> {
+  const result = pendingWrites.then(operation, operation);
+  pendingWrites = result.catch(() => undefined);
+  return result;
+}
+
 function unexpired(entries: PendingNip47Authorization[], now: number): PendingNip47Authorization[] {
   return entries.filter((entry) => entry.expiresAt > now);
 }
@@ -62,16 +73,18 @@ export async function savePendingNip47Authorization(
   entry: Omit<PendingNip47Authorization, 'createdAt' | 'expiresAt'>,
   now: number = Date.now(),
 ): Promise<PendingNip47Authorization> {
-  const pending: PendingNip47Authorization = {
-    ...entry,
-    createdAt: now,
-    expiresAt: now + PENDING_AUTHORIZATION_TTL_MS,
-  };
-  const kept = unexpired(await readPending(), now)
-    .filter((item) => item.pendingId !== entry.pendingId)
-    .slice(-(MAX_PENDING_AUTHORIZATIONS - 1));
-  await writePending([...kept, pending]);
-  return pending;
+  return serialized(async () => {
+    const pending: PendingNip47Authorization = {
+      ...entry,
+      createdAt: now,
+      expiresAt: now + PENDING_AUTHORIZATION_TTL_MS,
+    };
+    const kept = unexpired(await readPending(), now)
+      .filter((item) => item.pendingId !== entry.pendingId)
+      .slice(-(MAX_PENDING_AUTHORIZATIONS - 1));
+    await writePending([...kept, pending]);
+    return pending;
+  });
 }
 
 /**
@@ -84,10 +97,12 @@ export async function takePendingNip47Authorization(
   pendingId: string,
   now: number = Date.now(),
 ): Promise<PendingNip47Authorization | null> {
-  const entries = await readPending();
-  const match = entries.find((entry) => entry.pendingId === pendingId);
-  await writePending(unexpired(entries, now).filter((entry) => entry.pendingId !== pendingId));
-  return match && match.expiresAt > now ? match : null;
+  return serialized(async () => {
+    const entries = await readPending();
+    const match = entries.find((entry) => entry.pendingId === pendingId);
+    await writePending(unexpired(entries, now).filter((entry) => entry.pendingId !== pendingId));
+    return match && match.expiresAt > now ? match : null;
+  });
 }
 
 /**
@@ -101,14 +116,16 @@ export async function bindPendingNip47AuthorizationPopup(
   popup: PendingNip47AuthorizationPopup,
   now: number = Date.now(),
 ): Promise<boolean> {
-  const entries = unexpired(await readPending(), now);
-  const index = entries.findIndex((entry) => entry.pendingId === pendingId);
-  if (index === -1) {
-    return false;
-  }
-  entries[index] = { ...entries[index]!, popup };
-  await writePending(entries);
-  return true;
+  return serialized(async () => {
+    const entries = unexpired(await readPending(), now);
+    const index = entries.findIndex((entry) => entry.pendingId === pendingId);
+    if (index === -1) {
+      return false;
+    }
+    entries[index] = { ...entries[index]!, popup };
+    await writePending(entries);
+    return true;
+  });
 }
 
 /**
@@ -138,7 +155,9 @@ export async function findPendingNip47AuthorizationByPopup(
  * @returns The entries removed, so the caller can close any popup the background opened for them.
  */
 export async function clearPendingNip47Authorizations(): Promise<PendingNip47Authorization[]> {
-  const entries = await readPending();
-  await writePending([]);
-  return entries;
+  return serialized(async () => {
+    const entries = await readPending();
+    await writePending([]);
+    return entries;
+  });
 }

@@ -6,7 +6,7 @@ import {
   type WalletConnectOutcome,
 } from '@/services/wallet-connect-channel';
 import type { WalletProviderId } from '@/types/wallet-provider';
-import { openNip47Authorization } from '@/services/nip47-service';
+import { cancelNip47Authorization, openNip47Authorization } from '@/services/nip47-service';
 
 export type WalletConnectWindowResult =
   | WalletAuthorizationResult
@@ -96,6 +96,7 @@ export function useWalletConnectWindow(
       const outcome = await new Promise<WalletConnectOutcome | { status: 'cancelled' }>(
         (resolve, reject) => {
           let windowId: number | undefined;
+          let opened: Promise<{ pendingId: string }> | undefined;
 
           const finish = (result: WalletConnectOutcome | { status: 'cancelled' }): void => {
             stopListening();
@@ -113,8 +114,16 @@ export function useWalletConnectWindow(
           // Listen before the window exists, so even an instant outcome is not missed.
           const stopListening = listenForWalletConnectOutcome(requestId, finish);
           chrome.windows.onRemoved.addListener(onRemoved);
-          const timeout = setTimeout(() => finish({ status: 'cancelled' }), timeoutMs);
-          cancelPending = () => finish({ status: 'cancelled' });
+          // Giving up on a background-owned popup also closes it there, so a wallet window the
+          // user never closed does not stay open on its own (workspace#85).
+          const abandon = (): void => {
+            finish({ status: 'cancelled' });
+            void opened
+              ?.then(({ pendingId }) => cancelNip47Authorization(pendingId))
+              .catch(() => undefined);
+          };
+          const timeout = setTimeout(abandon, timeoutMs);
+          cancelPending = abandon;
 
           const fail = (error: unknown): void => {
             stopListening();
@@ -127,12 +136,13 @@ export function useWalletConnectWindow(
           if (backgroundPopup) {
             // The background opens the wallet itself and posts the outcome, including when the
             // user closes the wallet's window (workspace#85).
-            openNip47Authorization({
+            opened = openNip47Authorization({
               accountPubkey,
               provider,
               requestId,
               ...(customOrigin?.trim() ? { customOrigin: customOrigin.trim() } : {}),
-            }).catch(fail);
+            });
+            opened.catch(fail);
             return;
           }
 
