@@ -541,7 +541,12 @@ onMounted(async () => {
                 @click="connectWallet(provider.id)"
               />
             </div>
-            <p class="text-caption text-grey-7 q-mb-none" data-testid="alby-hub-account-note">
+            <!-- The note describes the Alby Cloud flow, so it goes once the user picks their own Hub. -->
+            <p
+              v-if="!customHubOpen"
+              class="text-caption text-grey-7 q-mb-none"
+              data-testid="alby-hub-account-note"
+            >
               {{ $t('walletManagement.import.albyAccountNote') }}
             </p>
             <q-toggle

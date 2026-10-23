@@ -210,6 +210,8 @@ describe('the wallet connections page (#110)', () => {
     const warning = () => wrapper.find('[data-testid="custom-hub-unencrypted"]');
 
     await wrapper.find('input.toggle').setValue(true);
+    // The Alby Cloud note no longer applies once the user picks their own Hub.
+    expect(wrapper.find('[data-testid="alby-hub-account-note"]').exists()).toBe(false);
     const address = wrapper.find('input:not(.toggle)');
     await address.setValue('https://hub.example.com');
     expect(warning().exists()).toBe(false);
