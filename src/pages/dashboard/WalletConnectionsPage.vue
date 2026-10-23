@@ -272,12 +272,12 @@ async function importConnection(): Promise<void> {
 }
 
 async function connectWallet(provider: WalletProviderId): Promise<void> {
+  const customOrigin =
+    provider === 'alby-hub' && customHubOpen.value ? customHubOrigin.value : undefined;
+  // Only the default Alby Cloud flow can fail because the Alby account has no Hub (workspace#149).
+  const albyCloud = provider === 'alby-hub' && !customOrigin?.trim();
   try {
-    const result = await connect(
-      provider,
-      accountPubkey.value,
-      provider === 'alby-hub' && customHubOpen.value ? customHubOrigin.value : undefined,
-    );
+    const result = await connect(provider, accountPubkey.value, customOrigin);
     if (result.status === 'connected') {
       importPanelOpen.value = false;
       notifySuccess(
@@ -290,12 +290,11 @@ async function connectWallet(provider: WalletProviderId): Promise<void> {
       pasteOpen.value = true;
       $q.notify({
         type: 'warning',
-        message:
-          provider === 'alby-hub'
-            ? t('walletManagement.notifications.noResponseAlbyHub')
-            : t('walletManagement.notifications.noResponse', {
-                provider: WALLET_PROVIDERS[provider].name,
-              }),
+        message: albyCloud
+          ? t('walletManagement.notifications.noResponseAlbyHub')
+          : t('walletManagement.notifications.noResponse', {
+              provider: WALLET_PROVIDERS[provider].name,
+            }),
       });
     }
   } catch (error: unknown) {

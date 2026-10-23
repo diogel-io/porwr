@@ -225,6 +225,11 @@ describe('the wallet connections page (#110)', () => {
     await wrapper.find('[data-testid="connect-alby-hub"]').trigger('click');
     await flushPromises();
     expect(mocks.connect).toHaveBeenCalledWith('alby-hub', ALICE.id, 'http://umbrel.local:59000');
+    // The user already chose their own Hub, so the Hub-less-account advice would not help.
+    expect(mocks.notify).toHaveBeenCalledWith({
+      type: 'warning',
+      message: 'walletManagement.notifications.noResponse:Alby Hub',
+    });
   });
 
   it('explains a blocked popup', async () => {
