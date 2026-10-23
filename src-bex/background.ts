@@ -39,6 +39,7 @@ import { sweepSiteStateForRemovedAccounts } from './services/connected-sites';
 import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
 import { observePageRequests, type PageActionHandlers } from './services/page-channel';
+import { observeWalletConnectPopups } from './services/wallet-connect-popup';
 import { lockDownSessionStorage } from './services/session-storage-lock';
 import { migrateProtectedStorage } from './services/protected-storage-migration';
 import { isSignableEventKind, MAX_EVENT_KIND } from './services/event-kind';
@@ -581,3 +582,6 @@ const pageActionHandlers: PageActionHandlers = {
 };
 
 observePageRequests(pageActionHandlers, chrome.runtime.id, EXTENSION_ORIGIN);
+
+// Wallet popups the background opened itself, in Firefox (workspace#85).
+observeWalletConnectPopups(chrome.runtime.id);

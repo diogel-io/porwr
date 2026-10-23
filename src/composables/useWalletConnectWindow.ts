@@ -6,6 +6,7 @@ import {
   type WalletConnectOutcome,
 } from '@/services/wallet-connect-channel';
 import type { WalletProviderId } from '@/types/wallet-provider';
+import { openNip47Authorization } from '@/services/nip47-service';
 
 export type WalletConnectWindowResult =
   | WalletAuthorizationResult
@@ -18,6 +19,11 @@ export interface WalletConnectWindowOptions {
    * 10-minute wait, so its probe fallback has time to finish and report.
    */
   timeoutMs?: number;
+  /**
+   * Whether the background opens the wallet's popup itself rather than a connect window doing it.
+   * Defaults to Firefox, where a popup a Porwr page opens loses its opener (workspace#85).
+   */
+  backgroundPopup?: boolean;
 }
 
 export interface UseWalletConnectWindowResult {
@@ -29,6 +35,19 @@ export interface UseWalletConnectWindowResult {
     accountPubkey: string,
     customOrigin?: string,
   ) => Promise<WalletConnectWindowResult>;
+}
+
+/**
+ * Firefox replaces the browsing context of a window an extension page opens once it loads a web
+ * page, which severs `window.opener` and leaves the extension holding a dead object (Mozilla bugs
+ * 1947632, 1966088). Told apart by the extension's own URL scheme rather than the user agent.
+ */
+export function opensWalletPopupInBackground(): boolean {
+  try {
+    return chrome.runtime.getURL('').startsWith('moz-extension:');
+  } catch {
+    return false;
+  }
 }
 
 const WINDOW_WIDTH = 420;
@@ -45,12 +64,18 @@ const WINDOW_HEIGHT = 680;
  * cannot reach this page through `window.opener.opener` either.
  *
  * The connect window reports how it ended over `wallet-connect-channel`.
+ *
+ * Firefox is different: a popup an extension page opens loses its opener there, so the wallet's
+ * message could never arrive. In Firefox the background opens the wallet's popup itself, Porwr's
+ * content script relays the wallet's answer, and the background posts the outcome over the same
+ * channel (workspace#85). There is no opener, so no connect window is needed.
  */
 export function useWalletConnectWindow(
   options: WalletConnectWindowOptions = {},
 ): UseWalletConnectWindowResult {
   const connecting = ref<WalletProviderId | null>(null);
   const timeoutMs = options.timeoutMs ?? 11 * 60 * 1000;
+  const backgroundPopup = options.backgroundPopup ?? opensWalletPopupInBackground();
   let cancelPending: (() => void) | null = null;
 
   const connect = async (
@@ -91,6 +116,26 @@ export function useWalletConnectWindow(
           const timeout = setTimeout(() => finish({ status: 'cancelled' }), timeoutMs);
           cancelPending = () => finish({ status: 'cancelled' });
 
+          const fail = (error: unknown): void => {
+            stopListening();
+            chrome.windows.onRemoved.removeListener(onRemoved);
+            clearTimeout(timeout);
+            cancelPending = null;
+            reject(error instanceof Error ? error : new Error(String(error)));
+          };
+
+          if (backgroundPopup) {
+            // The background opens the wallet itself and posts the outcome, including when the
+            // user closes the wallet's window (workspace#85).
+            openNip47Authorization({
+              accountPubkey,
+              provider,
+              requestId,
+              ...(customOrigin?.trim() ? { customOrigin: customOrigin.trim() } : {}),
+            }).catch(fail);
+            return;
+          }
+
           chrome.windows
             .create({
               url: chrome.runtime.getURL(`www/index.html#/wallet-connect?${query.toString()}`),
@@ -101,13 +146,7 @@ export function useWalletConnectWindow(
             .then((created) => {
               windowId = created?.id;
             })
-            .catch((error: unknown) => {
-              stopListening();
-              chrome.windows.onRemoved.removeListener(onRemoved);
-              clearTimeout(timeout);
-              cancelPending = null;
-              reject(error instanceof Error ? error : new Error(String(error)));
-            });
+            .catch(fail);
         },
       );
 

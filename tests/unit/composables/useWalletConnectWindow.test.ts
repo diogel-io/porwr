@@ -7,7 +7,12 @@ import {
   useWalletConnectWindow,
   type UseWalletConnectWindowResult,
 } from '@/composables/useWalletConnectWindow';
+import { openNip47Authorization } from '@/services/nip47-service';
 import { postWalletConnectOutcome } from '@/services/wallet-connect-channel';
+
+vi.mock('@/services/nip47-service', () => ({
+  openNip47Authorization: vi.fn(),
+}));
 
 const removedListeners = new Set<(id: number) => void>();
 const create = vi.fn();
@@ -159,5 +164,42 @@ describe('useWalletConnectWindow (workspace#76)', () => {
     wrapper.unmount();
 
     await expect(pending).resolves.toEqual({ status: 'cancelled' });
+  });
+});
+
+describe('useWalletConnectWindow in Firefox (workspace#85)', () => {
+  beforeEach(() => {
+    vi.mocked(openNip47Authorization).mockReset().mockResolvedValue({ pendingId: 'p' });
+    const stubbed = globalThis.chrome as unknown as {
+      runtime: { getURL: (path: string) => string };
+    };
+    stubbed.runtime.getURL = (path: string) => `moz-extension://porwr/${path}`;
+  });
+
+  it('has the background open the wallet, with no connect window, and takes its outcome', async () => {
+    const { api } = harness();
+
+    const result = api.connect('alby-hub', ACCOUNT, ' http://192.168.1.50:59000 ');
+    await settle();
+
+    expect(create).not.toHaveBeenCalled();
+    expect(window.open).not.toHaveBeenCalled();
+    const request = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    expect(request).toMatchObject({
+      accountPubkey: ACCOUNT,
+      provider: 'alby-hub',
+      customOrigin: 'http://192.168.1.50:59000',
+    });
+    expect(request.requestId).toMatch(/^[0-9a-f-]{36}$/);
+
+    postWalletConnectOutcome(request.requestId, { status: 'no-response' });
+    await expect(result).resolves.toEqual({ status: 'no-response' });
+  });
+
+  it('fails when the background cannot open the wallet', async () => {
+    vi.mocked(openNip47Authorization).mockRejectedValue(new Error('Unsupported wallet provider'));
+    const { api } = harness();
+
+    await expect(api.connect('coinos', ACCOUNT)).rejects.toThrow('Unsupported wallet provider');
   });
 });

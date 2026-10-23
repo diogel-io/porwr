@@ -115,6 +115,20 @@ export interface ProbeNip47AuthorizationRequest {
   pendingId: string;
 }
 
+/**
+ * Asks the background to open the wallet's approval popup itself and see the connection through
+ * (workspace#85). Used in Firefox, where a popup a Porwr page opens loses its opener.
+ */
+export interface OpenNip47AuthorizationRequest extends BeginNip47AuthorizationRequest {
+  /** The Wallet Connections request the outcome is posted back for (`wallet-connect-channel`). */
+  requestId: string;
+}
+
+/** The authorization the background opened a popup for. The client secret stays in the background. */
+export interface Nip47AuthorizationOpened {
+  pendingId: string;
+}
+
 export interface Nip47InfoResponse {
   pubkey: string;
   capabilities: Nip47Command[];

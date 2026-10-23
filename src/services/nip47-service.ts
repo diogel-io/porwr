@@ -3,12 +3,14 @@ import type {
   BeginNip47AuthorizationRequest,
   CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
+  Nip47AuthorizationOpened,
   Nip47AuthorizationStart,
   Nip47BalanceResponse,
   Nip47ConnectionSummary,
   Nip47InfoResponse,
   Nip47PayInvoiceResponse,
   Nip47PaymentHistoryEntry,
+  OpenNip47AuthorizationRequest,
 } from '@/types/nip47';
 
 function isErrorResponse(value: unknown): value is { success: false; error: string } {
@@ -162,4 +164,19 @@ export async function probeNip47Authorization(
   const response = await sendBexMessage('nip47.authorization.probe', { pendingId });
   throwIfError(response);
   return response && typeof response === 'object' && 'id' in response ? response : null;
+}
+
+/**
+ * Has the background open the wallet's approval popup and see the connection through
+ * (workspace#85). The outcome arrives later over `wallet-connect-channel`.
+ */
+export async function openNip47Authorization(
+  request: OpenNip47AuthorizationRequest,
+): Promise<Nip47AuthorizationOpened> {
+  const response = await sendBexMessage('nip47.authorization.open', request);
+  throwIfError(response);
+  if (!response || typeof response !== 'object' || !('pendingId' in response)) {
+    throw new Error('Invalid wallet authorization response');
+  }
+  return response;
 }

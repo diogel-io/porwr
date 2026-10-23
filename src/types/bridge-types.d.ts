@@ -40,6 +40,8 @@ import type { ConnectedSite } from '@/../src-bex/services/connected-sites';
 import type { SiteAccount, SwitchSiteAccountResult } from '@/../src-bex/services/site-account';
 import type {
   BeginNip47AuthorizationRequest,
+  OpenNip47AuthorizationRequest,
+  Nip47AuthorizationOpened,
   CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
   Nip47AccountRequest,
@@ -181,6 +183,7 @@ export type BridgeAction =
   | 'nip47.authorization.begin'
   | 'nip47.authorization.complete'
   | 'nip47.authorization.probe'
+  | 'nip47.authorization.open'
   | 'messaging.dmRelays.get'
   | 'messaging.dmRelays.publish'
   | 'messaging.dmRelays.check'
@@ -470,6 +473,10 @@ export interface BridgeRequestMap {
     id: string;
     action: 'nip47.authorization.probe';
   } & ProbeNip47AuthorizationRequest;
+  'nip47.authorization.open': {
+    id: string;
+    action: 'nip47.authorization.open';
+  } & OpenNip47AuthorizationRequest;
   'messaging.dmRelays.get': {
     id: string;
     action: 'messaging.dmRelays.get';
@@ -546,8 +553,7 @@ export interface BridgeResponseMap {
   'permission.check': boolean;
   'permission.grant': boolean;
   'blossom.upload':
-    | { success: true; url: string; sha256?: string }
-    | { success: false; error: string };
+    { success: true; url: string; sha256?: string } | { success: false; error: string };
   ping: string;
   'vault.getView': VaultView | { success: false; error: string };
   'accounts.add': AccountSummary | { success: false; error: string };
@@ -589,6 +595,7 @@ export interface BridgeResponseMap {
   'nip47.authorization.begin': Nip47AuthorizationStart | { success: false; error: string };
   'nip47.authorization.complete': Nip47ConnectionSummary | { success: false; error: string };
   'nip47.authorization.probe': Nip47ConnectionSummary | null | { success: false; error: string };
+  'nip47.authorization.open': Nip47AuthorizationOpened | { success: false; error: string };
   'messaging.dmRelays.get': DmRelayList | { success: false; error: string };
   'messaging.dmRelays.publish': DmRelayPublishResult | { success: false; error: string };
   'messaging.dmRelays.check': DmRelayCheckResult | { success: false; error: string };

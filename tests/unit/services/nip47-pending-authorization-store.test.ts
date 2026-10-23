@@ -24,7 +24,9 @@ vi.mock('@/services/storage-service', () => ({
 
 import {
   PENDING_AUTHORIZATION_TTL_MS,
+  bindPendingNip47AuthorizationPopup,
   clearPendingNip47Authorizations,
+  findPendingNip47AuthorizationByPopup,
   savePendingNip47Authorization,
   takePendingNip47Authorization,
 } from '@/../src-bex/services/nip47-pending-authorization-store';
@@ -103,10 +105,54 @@ describe('nip47 pending authorization store', () => {
     await savePendingNip47Authorization(entry('one'), NOW);
     await savePendingNip47Authorization(entry('two'), NOW);
 
-    await clearPendingNip47Authorizations();
+    const cleared = await clearPendingNip47Authorizations();
 
+    expect(cleared.map((item) => item.pendingId)).toEqual(['one', 'two']);
     expect(session.value).toBeUndefined();
     expect(await takePendingNip47Authorization('one', NOW)).toBeNull();
     expect(await takePendingNip47Authorization('two', NOW)).toBeNull();
+  });
+
+  describe('a popup the background opened (workspace#85)', () => {
+    const popup = { windowId: 7, tabId: 70, requestId: 'req-1' };
+
+    it('binds a popup to its authorization and finds it by window or tab without taking it', async () => {
+      await savePendingNip47Authorization(entry('a'), NOW);
+      await savePendingNip47Authorization(entry('b'), NOW);
+
+      expect(await bindPendingNip47AuthorizationPopup('a', popup, NOW)).toBe(true);
+
+      expect(await findPendingNip47AuthorizationByPopup({ windowId: 7 }, NOW)).toMatchObject({
+        pendingId: 'a',
+        popup,
+      });
+      expect(await findPendingNip47AuthorizationByPopup({ tabId: 70 }, NOW)).toMatchObject({
+        pendingId: 'a',
+      });
+      expect(await findPendingNip47AuthorizationByPopup({ tabId: 71 }, NOW)).toBeNull();
+      // Still there: finding is not taking.
+      expect(await takePendingNip47Authorization('a', NOW)).toMatchObject({ popup });
+    });
+
+    it('binds nothing once the authorization is gone or expired', async () => {
+      expect(await bindPendingNip47AuthorizationPopup('missing', popup, NOW)).toBe(false);
+
+      await savePendingNip47Authorization(entry('a'), NOW);
+      const later = NOW + PENDING_AUTHORIZATION_TTL_MS + 1;
+      expect(await bindPendingNip47AuthorizationPopup('a', popup, later)).toBe(false);
+      expect(await findPendingNip47AuthorizationByPopup({ windowId: 7 }, later)).toBeNull();
+    });
+
+    it('does not find an expired authorization by its popup', async () => {
+      await savePendingNip47Authorization(entry('a'), NOW);
+      await bindPendingNip47AuthorizationPopup('a', popup, NOW);
+
+      expect(
+        await findPendingNip47AuthorizationByPopup(
+          { windowId: 7 },
+          NOW + PENDING_AUTHORIZATION_TTL_MS + 1,
+        ),
+      ).toBeNull();
+    });
   });
 });

@@ -12,6 +12,7 @@
 import '#q-app/bex/content';
 import { createPagePortClient } from './page-port-client';
 import { handleDiogelWindowMessage } from './window-message-handler';
+import { installWalletRelay } from './wallet-relay';
 
 const channel = createPagePortClient();
 
@@ -68,3 +69,6 @@ try {
     error: connectError instanceof Error ? connectError.message : String(connectError),
   });
 }
+
+// Inert until the background arms this tab as a wallet's approval popup (workspace#85).
+installWalletRelay();

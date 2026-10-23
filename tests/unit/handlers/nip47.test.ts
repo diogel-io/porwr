@@ -1,11 +1,14 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 
 /* eslint-disable @typescript-eslint/unbound-method */
 
 import {
   handleNip47AuthorizationBegin,
   handleNip47AuthorizationComplete,
+  handleNip47AuthorizationOpen,
+  handleNip47AuthorizationPopupClosed,
   handleNip47AuthorizationProbe,
+  handleNip47AuthorizationRelay,
   handleNip47ConnectionImport,
   handleNip47ConnectionRemove,
   handleNip47ConnectionSetActive,
@@ -26,11 +29,15 @@ import type { Nip47Connection } from '@/types/nip47';
 import type { HandlerResult } from '@/../src-bex/types/background';
 import { ErrorCode } from '@/types/error-codes.d';
 import {
+  bindPendingNip47AuthorizationPopup,
   clearPendingNip47Authorizations,
+  findPendingNip47AuthorizationByPopup,
   savePendingNip47Authorization,
   takePendingNip47Authorization,
   type PendingNip47Authorization,
 } from '@/../src-bex/services/nip47-pending-authorization-store';
+import { armWalletRelay } from '@/../src-bex/services/wallet-relay-arm';
+import { postWalletConnectOutcome } from '@/services/wallet-connect-channel';
 
 const lockListeners = vi.hoisted(() => [] as (() => void)[]);
 
@@ -54,9 +61,19 @@ vi.mock('@/../src-bex/services/nip47-client', async (importOriginal) => ({
 }));
 
 vi.mock('@/../src-bex/services/nip47-pending-authorization-store', () => ({
-  clearPendingNip47Authorizations: vi.fn(),
+  bindPendingNip47AuthorizationPopup: vi.fn(),
+  clearPendingNip47Authorizations: vi.fn(() => Promise.resolve([])),
+  findPendingNip47AuthorizationByPopup: vi.fn(),
   savePendingNip47Authorization: vi.fn(),
   takePendingNip47Authorization: vi.fn(),
+}));
+
+vi.mock('@/../src-bex/services/wallet-relay-arm', () => ({
+  armWalletRelay: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('@/services/wallet-connect-channel', () => ({
+  postWalletConnectOutcome: vi.fn(),
 }));
 
 vi.mock('@/services/nip47-uri', () => ({
@@ -1233,5 +1250,264 @@ describe('vault lock (diogel-io/workspace#142, T22)', () => {
     for (const listener of lockListeners) listener();
 
     expect(clearPendingNip47Authorizations).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes a wallet popup the background opened, and says why (workspace#85)', async () => {
+    const remove = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('chrome', { windows: { remove } });
+    vi.mocked(postWalletConnectOutcome).mockClear();
+    vi.mocked(clearPendingNip47Authorizations).mockResolvedValueOnce([
+      {
+        pendingId: 'p',
+        accountPubkey: ACCOUNT,
+        providerId: 'alby-hub',
+        origin: 'https://my.albyhub.com',
+        clientSecret: '1'.repeat(64),
+        clientPubkey: 'c',
+        createdAt: 0,
+        expiresAt: 1,
+        popup: { windowId: 7, tabId: 70, requestId: 'req-1' },
+      },
+    ]);
+
+    for (const listener of lockListeners) listener();
+    await vi.waitFor(() => expect(remove).toHaveBeenCalledWith(7));
+
+    expect(postWalletConnectOutcome).toHaveBeenCalledWith('req-1', {
+      status: 'error',
+      message: expect.stringContaining('vault locked') as string,
+    });
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('a wallet popup the background owns (workspace#85)', () => {
+  const WALLET = 'b'.repeat(64);
+  const POPUP = { windowId: 7, tabId: 70, requestId: 'req-1' };
+  const create = vi.fn();
+  const remove = vi.fn(() => Promise.resolve());
+  const query = vi.fn(() => Promise.resolve([] as { id?: number }[]));
+  let vaultData: VaultData;
+
+  function pending(overrides: Partial<PendingNip47Authorization> = {}): PendingNip47Authorization {
+    return {
+      pendingId: 'pending-1',
+      accountPubkey: ACCOUNT,
+      providerId: 'alby-hub',
+      origin: 'http://192.168.1.50:59000',
+      clientSecret: '1'.repeat(64),
+      clientPubkey: 'client-pubkey',
+      createdAt: 0,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      popup: POPUP,
+      ...overrides,
+    };
+  }
+
+  const success = {
+    type: 'nwc:success',
+    walletPubkey: WALLET,
+    relayUrls: ['wss://relay.getalby.com/v1'],
+    lud16: 'alice@getalby.com',
+  };
+  const topFrame = { tabId: 70, frameId: 0, url: 'http://192.168.1.50:59000/apps/created' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('chrome', { windows: { create, remove }, tabs: { query } });
+    create.mockResolvedValue({ id: 7, tabs: [{ id: 70 }] });
+    vaultData = { accounts: [MAIN_ACCOUNT], nip47Connections: [] };
+    vi.mocked(getVaultData).mockImplementation(() => Promise.resolve({ success: true, vaultData }));
+    vi.mocked(updateVaultData).mockImplementation((next) => {
+      vaultData = next as VaultData;
+      return Promise.resolve({ success: true });
+    });
+    vi.mocked(buildNip47ConnectionId).mockImplementation(
+      (wallet, client) => `nip47:${wallet}:${client}`,
+    );
+    vi.mocked(savePendingNip47Authorization).mockImplementation((entry) =>
+      Promise.resolve({ ...entry, createdAt: 0, expiresAt: 1 }),
+    );
+    vi.mocked(bindPendingNip47AuthorizationPopup).mockResolvedValue(true);
+    vi.mocked(nip47Client.getInfo).mockResolvedValue({
+      pubkey: WALLET,
+      capabilities: ['pay_invoice'],
+      relays: [],
+      encryption: ['nip44_v2'],
+      notifications: [],
+      rawContent: '',
+      checkedAt: '2026-10-24T00:00:00.000Z',
+    });
+    globalThis.crypto.randomUUID = vi.fn(
+      () => 'pending-uuid',
+    ) as () => `${string}-${string}-${string}-${string}-${string}`;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  describe('handleNip47AuthorizationOpen', () => {
+    it('opens the wallet itself, binds the popup, and returns no secret', async () => {
+      const result = await handleNip47AuthorizationOpen({
+        accountPubkey: ACCOUNT,
+        provider: 'alby-hub',
+        customOrigin: 'http://192.168.1.50:59000',
+        requestId: 'req-1',
+      });
+
+      expect(result).toEqual({ success: true, data: { pendingId: 'pending-uuid' } });
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'popup',
+          url: expect.stringMatching(/^http:\/\/192\.168\.1\.50:59000\/apps\/new\?/) as string,
+        }),
+      );
+      expect(bindPendingNip47AuthorizationPopup).toHaveBeenCalledWith('pending-uuid', POPUP);
+      expect(armWalletRelay).toHaveBeenCalledWith(70);
+      expect(JSON.stringify(result)).not.toContain(
+        vi.mocked(savePendingNip47Authorization).mock.calls[0]![0].clientSecret,
+      );
+    });
+
+    it('finds the tab when the new window does not list it', async () => {
+      create.mockResolvedValue({ id: 7 });
+      query.mockResolvedValue([{ id: 70 }]);
+
+      await handleNip47AuthorizationOpen({
+        accountPubkey: ACCOUNT,
+        provider: 'coinos',
+        requestId: 'req-1',
+      });
+
+      expect(query).toHaveBeenCalledWith({ windowId: 7 });
+      expect(bindPendingNip47AuthorizationPopup).toHaveBeenCalledWith('pending-uuid', POPUP);
+    });
+
+    it('refuses without a request to report back to', async () => {
+      await expect(
+        handleNip47AuthorizationOpen({ accountPubkey: ACCOUNT, provider: 'coinos', requestId: '' }),
+      ).rejects.toThrow('Missing wallet connection request');
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('drops the authorization and closes the window when a lock removed it meanwhile', async () => {
+      vi.mocked(bindPendingNip47AuthorizationPopup).mockResolvedValue(false);
+
+      await expect(
+        handleNip47AuthorizationOpen({
+          accountPubkey: ACCOUNT,
+          provider: 'coinos',
+          requestId: 'req-1',
+        }),
+      ).rejects.toThrow('vault locked');
+      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-uuid');
+      expect(remove).toHaveBeenCalledWith(7);
+    });
+  });
+
+  describe('handleNip47AuthorizationRelay', () => {
+    it('saves the wallet the bound tab relayed, posts the outcome, and closes the popup', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+
+      await expect(handleNip47AuthorizationRelay(topFrame, success)).resolves.toBe(true);
+
+      expect(findPendingNip47AuthorizationByPopup).toHaveBeenCalledWith({ tabId: 70 });
+      expect(vaultData.nip47Connections?.[0]).toMatchObject({
+        walletServicePubkey: WALLET,
+        relays: ['wss://relay.getalby.com/v1'],
+      });
+      expect(postWalletConnectOutcome).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({ status: 'connected' }),
+      );
+      expect(remove).toHaveBeenCalledWith(7);
+    });
+
+    it.each([
+      ['a subframe', { ...topFrame, frameId: 3 }, success],
+      ['another origin', { ...topFrame, url: 'http://192.168.1.50:2000/app-auth' }, success],
+      ['another scheme', { ...topFrame, url: 'https://192.168.1.50:59000/' }, success],
+      ['a malformed url', { ...topFrame, url: 'not a url' }, success],
+      ['another message type', topFrame, { ...success, type: 'nwc:other' }],
+      ['a plaintext relay', topFrame, { ...success, relayUrls: ['ws://relay.example.com'] }],
+    ])('ignores %s', async (_label, sender, message) => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
+
+      await expect(handleNip47AuthorizationRelay(sender, message)).resolves.toBe(false);
+
+      expect(takePendingNip47Authorization).not.toHaveBeenCalled();
+      expect(postWalletConnectOutcome).not.toHaveBeenCalled();
+    });
+
+    it('ignores a tab no pending authorization owns', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(null);
+
+      await expect(handleNip47AuthorizationRelay(topFrame, success)).resolves.toBe(false);
+      expect(postWalletConnectOutcome).not.toHaveBeenCalled();
+    });
+
+    it('leaves the outcome to the popup closing when that claimed the authorization first', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(null);
+
+      await expect(handleNip47AuthorizationRelay(topFrame, success)).resolves.toBe(false);
+      expect(postWalletConnectOutcome).not.toHaveBeenCalled();
+    });
+
+    it('reports the error when the wallet does not answer', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('No answer from the wallet'));
+
+      await handleNip47AuthorizationRelay(topFrame, success);
+
+      expect(postWalletConnectOutcome).toHaveBeenCalledWith('req-1', {
+        status: 'error',
+        message: 'No answer from the wallet',
+      });
+      expect(updateVaultData).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleNip47AuthorizationPopupClosed', () => {
+    it('reports no response for a wallet it cannot ask directly', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+
+      await handleNip47AuthorizationPopupClosed(7);
+
+      expect(findPendingNip47AuthorizationByPopup).toHaveBeenCalledWith({ windowId: 7 });
+      expect(postWalletConnectOutcome).toHaveBeenCalledWith('req-1', { status: 'no-response' });
+    });
+
+    it('saves a Coinos approval it confirms with the wallet', async () => {
+      const coinos = pending({ providerId: 'coinos', origin: 'https://coinos.io' });
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(coinos);
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(coinos);
+      vi.mocked(nip47Client.sendRequest).mockResolvedValue({
+        result_type: 'get_info',
+        result: { methods: ['pay_invoice'] },
+      });
+
+      await handleNip47AuthorizationPopupClosed(7);
+
+      expect(postWalletConnectOutcome).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({ status: 'connected' }),
+      );
+    });
+
+    it('does nothing for a window no pending authorization owns, or one already settled', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValueOnce(null);
+      await handleNip47AuthorizationPopupClosed(8);
+
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValueOnce(pending());
+      vi.mocked(takePendingNip47Authorization).mockResolvedValueOnce(null);
+      await handleNip47AuthorizationPopupClosed(7);
+
+      expect(postWalletConnectOutcome).not.toHaveBeenCalled();
+    });
   });
 });
