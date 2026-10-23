@@ -432,7 +432,9 @@ export async function handleNip47AuthorizationBegin(
   const provider = WALLET_PROVIDERS[providerId];
   const origin = resolveWalletProviderOrigin(provider, payload.customOrigin);
   if (!origin) {
-    throw new Error(`Enter the https:// address of your ${provider.name}`);
+    throw new Error(
+      `Enter the https:// address of your ${provider.name}, or its http:// address on your home network`,
+    );
   }
 
   const locksBefore = vaultLocks;

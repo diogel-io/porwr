@@ -85,6 +85,7 @@ const mountPage = async () => {
         'q-item-label': slot(),
         'q-avatar': slot(),
         'q-badge': slot('span'),
+        'q-banner': slot(),
         'q-dialog': true,
         'q-icon': true,
         'q-separator': true,
@@ -176,14 +177,61 @@ describe('the wallet connections page (#110)', () => {
     mocks.connect.mockResolvedValue({ status: 'no-response' });
     const wrapper = await mountPage();
 
+    await wrapper.find('[data-testid="connect-coinos"]').trigger('click');
+    await flushPromises();
+
+    expect(mocks.notify).toHaveBeenCalledWith({
+      type: 'warning',
+      message: 'walletManagement.notifications.noResponse:Coinos',
+    });
+    expect(wrapper.find('.expansion').attributes('data-open')).toBe('true');
+  });
+
+  it('tells an Alby account without a Hub to use its own Hub (workspace#149)', async () => {
+    mocks.connect.mockResolvedValue({ status: 'no-response' });
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="alby-hub-account-note"]').text()).toBe(
+      'walletManagement.import.albyAccountNote',
+    );
     await wrapper.find('[data-testid="connect-alby-hub"]').trigger('click');
     await flushPromises();
 
     expect(mocks.notify).toHaveBeenCalledWith({
       type: 'warning',
-      message: 'walletManagement.notifications.noResponse:Alby Hub',
+      message: 'walletManagement.notifications.noResponseAlbyHub',
     });
     expect(wrapper.find('.expansion').attributes('data-open')).toBe('true');
+  });
+
+  it('warns that a Hub on the home network is reached without encryption (workspace#149)', async () => {
+    mocks.connect.mockResolvedValue({ status: 'no-response' });
+    const wrapper = await mountPage();
+    const warning = () => wrapper.find('[data-testid="custom-hub-unencrypted"]');
+
+    await wrapper.find('input.toggle').setValue(true);
+    // The Alby Cloud note no longer applies once the user picks their own Hub.
+    expect(wrapper.find('[data-testid="alby-hub-account-note"]').exists()).toBe(false);
+    const address = wrapper.find('input:not(.toggle)');
+    await address.setValue('https://hub.example.com');
+    expect(warning().exists()).toBe(false);
+
+    await address.setValue('http://umbrel.local:59000');
+    expect(warning().text()).toBe('walletManagement.import.customHubUnencrypted');
+
+    // A public http address is refused when connecting, so it gets no warning to accept.
+    await address.setValue('http://hub.example.com');
+    expect(warning().exists()).toBe(false);
+
+    await address.setValue('http://umbrel.local:59000');
+    await wrapper.find('[data-testid="connect-alby-hub"]').trigger('click');
+    await flushPromises();
+    expect(mocks.connect).toHaveBeenCalledWith('alby-hub', ALICE.id, 'http://umbrel.local:59000');
+    // The user already chose their own Hub, so the Hub-less-account advice would not help.
+    expect(mocks.notify).toHaveBeenCalledWith({
+      type: 'warning',
+      message: 'walletManagement.notifications.noResponse:Alby Hub',
+    });
   });
 
   it('explains a blocked popup', async () => {

@@ -278,6 +278,12 @@ public issue or pull request.
   before connecting to it.
 - Every other remote request, a Blossom upload included, goes over `https:`. A Blossom upload is
   authorised by one BUD-11 token scoped to the server and expiring within minutes.
+- The one exception is the wallet-connect popup for a self-hosted Alby Hub (workspace#149). It may
+  open an `http:` address only when `isLocalNetworkHost` (`src/types/wallet-provider.ts`) accepts
+  the host, because home servers such as Umbrel serve Alby Hub without TLS. The page warns first,
+  and Porwr itself still sends nothing to that address. Any other custom address must be `https:`.
+  The accepted risk, that a device on the same network can read the user's Hub login and forge the
+  Hub's reply, is T35 in `docs/threat-model.md`.
 - NIP-47 requests use NIP-44 whenever the wallet advertises it.
 - Show an image that a profile or relay names only through `RemoteImage`
   (`src/components/shared/RemoteImage.vue`), never an `<img>` or `<q-img>` that binds its own

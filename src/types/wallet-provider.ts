@@ -59,11 +59,72 @@ export function createWalletProviderId(input: unknown): WalletProviderId | null 
     : null;
 }
 
+function isPrivateIpv4(host: string): boolean {
+  const match = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(host);
+  if (!match) {
+    return false;
+  }
+  const a = Number(match[1]);
+  const b = Number(match[2]);
+  return (
+    a === 10 ||
+    a === 127 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254)
+  );
+}
+
+function isPrivateIpv6(host: string): boolean {
+  if (!host.startsWith('[') || !host.endsWith(']')) {
+    return false;
+  }
+  const address = host.slice(1, -1);
+  if (address === '::1') {
+    return true;
+  }
+  // `URL` serialises IPv6 compressed and lower-case, so the first hextet is everything before the
+  // first colon, and is empty when the address starts with `::`.
+  const first = Number.parseInt(address.split(':')[0] || '0', 16);
+  return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80;
+}
+
+/**
+ * Whether `hostname`, as `URL.hostname` gives it, names a machine on the user's own network:
+ * loopback, a single-label `.local` mDNS name such as `umbrel.local`, a `.home.arpa` name, or a
+ * private, loopback or link-local IP address (workspace#149).
+ *
+ * Home servers such as Umbrel serve Alby Hub over plain `http:`, which Porwr accepts only for these.
+ */
+export function isLocalNetworkHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    /^[a-z0-9-]+\.local$/.test(host) ||
+    host.endsWith('.home.arpa') ||
+    isPrivateIpv4(host) ||
+    isPrivateIpv6(host)
+  );
+}
+
+/**
+ * Whether Porwr would reach the wallet at `origin` without encryption, so the user should be told.
+ */
+export function isUnencryptedWalletOrigin(origin: string): boolean {
+  try {
+    return new URL(origin).protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Resolves the origin Porwr opens and accepts the `nwc:success` message from.
  *
- * A custom origin is honoured only for a provider that allows one, must be `https:`, and is reduced
- * to its origin so a path or query in the user's input cannot change where the popup goes.
+ * A custom origin is honoured only for a provider that allows one, and is reduced to its origin so a
+ * path or query in the user's input cannot change where the popup goes. It must be `https:`, or
+ * `http:` for a host on the user's own network (`isLocalNetworkHost`), such as a Hub on Umbrel.
  *
  * @returns The origin, or `null` when `customOrigin` is not acceptable for this provider.
  */
@@ -81,7 +142,9 @@ export function resolveWalletProviderOrigin(
 
   try {
     const url = new URL(trimmed);
-    return url.protocol === 'https:' && !url.username && !url.password ? url.origin : null;
+    const allowedScheme =
+      url.protocol === 'https:' || (url.protocol === 'http:' && isLocalNetworkHost(url.hostname));
+    return allowedScheme && !url.username && !url.password ? url.origin : null;
   } catch {
     return null;
   }
