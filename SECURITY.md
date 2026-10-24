@@ -91,6 +91,7 @@ A change to any of these needs the security review:
   `auto-lock.ts`, `vault-mutation.ts`, `wallet-vault.ts`, `relay-auth.ts`, `nip17-messaging.ts`,
   and the `nip47-*` stores
 - `src-bex/background.ts`, `src-bex/dispatcher.ts`, `src-bex/content-script.ts`,
+  `src-bex/wallet-relay.ts`,
   `src-bex/page-port-client.ts`, `src-bex/window-message-handler.ts`,
   `src-bex/window-message-security.ts`, `src-bex/nostr-provider.js`, `src-bex/page-actions.ts`
 - `src-bex/manifest.json`, `src-bex/manifest-csp.ts`, and the BEX settings in `quasar.config.ts`

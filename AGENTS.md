@@ -124,6 +124,36 @@ requires one per allowlisted action), add a case in `dispatcher.ts`, implement t
 `src-bex/handlers/`, and wire the provider-side call in `nostr-provider.js`. Never read the origin
 from the request.
 
+### Wallet connection (NIP-47 one-click)
+
+The background generates the NWC client secret and keeps it (`handlers/nip47.ts`,
+`services/nip47-pending-authorization-store.ts`). Pages only ever see the public key. The wallet
+answers with `nwc:success`, and that answer reaches the background by one of two routes:
+
+- **Chromium.** Wallet Connections opens a throwaway connect window (`WalletConnectPage`), which
+  opens the wallet's popup and receives `nwc:success` through `window.opener` (workspace#76).
+- **Firefox.** A popup an extension page opens loses its opener there. So the background opens
+  the wallet's popup itself (`nip47.authorization.open`), records its window and tab, and settles
+  the authorization from one of two events (workspace#85):
+  - The content script relays the wallet's answer (`src-bex/wallet-relay.ts`). It listens only in
+    the tab the background armed (`services/wallet-relay-arm.ts`).
+  - The window closes first (`services/wallet-connect-popup.ts`).
+  - Wallet Connections stops waiting and cancels it (`nip47.authorization.cancel`), which closes
+    the popup.
+
+  Pending entries are claimed through a serialized store, so only one of these settles an
+  authorization. A claimed entry stays in session storage until its result is final, so a Firefox
+  event page that is suspended meanwhile can still have its popup closed. A popup whose authorization expires is closed when the store drops the entry. A
+  cancel that arrives once a save's vault write has begun cannot stop it, so the save finishes and
+  reports, and Wallet Connections reads its wallet list again after any cancelled connection.
+
+  The relay uses its own `porwr:wallet-relay` port. The background accepts it only from the top
+  frame of the bound tab, at the wallet's exact origin, as the browser-supplied `sender` reports
+  it. The general runtime channel still refuses content scripts.
+
+Both routes post their outcome on `wallet-connect-channel`. Both check the wallet's details and
+call `get_info` before anything is saved.
+
 ### Approval / permission model
 
 - Per-origin, per-event-kind permissions are checked via `checkPermission` /

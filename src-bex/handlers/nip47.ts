@@ -6,6 +6,7 @@ import type {
   CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
   Nip47AccountRequest,
+  Nip47AuthorizationOpened,
   Nip47AuthorizationStart,
   Nip47AuthorizedWalletService,
   Nip47Command,
@@ -17,14 +18,22 @@ import type {
   Nip47PayInvoiceRequest,
   Nip47PayInvoiceResponse,
   Nip47PaymentHistoryEntry,
+  CancelNip47AuthorizationRequest,
+  Nip47AuthorizationCancelled,
+  OpenNip47AuthorizationRequest,
   ProbeNip47AuthorizationRequest,
 } from '@/types/nip47';
 import type { VaultData } from '@/types/bridge';
 import { parseNwcUri, buildNip47ConnectionId } from '@/services/nip47-uri';
 import {
   buildAuthorizationUrl,
+  parseAuthorizationMessage,
   validateAuthorizedWalletService,
 } from '@/services/nip47-authorization';
+import {
+  postWalletConnectOutcome,
+  type WalletConnectOutcome,
+} from '@/services/wallet-connect-channel';
 import {
   WALLET_PROVIDERS,
   createWalletProviderId,
@@ -47,12 +56,17 @@ import {
 } from '../services/nip47-payment-history-store';
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import {
+  bindPendingNip47AuthorizationPopup,
+  claimPendingNip47Authorization,
   clearPendingNip47Authorizations,
+  findPendingNip47AuthorizationByPopup,
+  onExpiredPendingNip47Popups,
   savePendingNip47Authorization,
   takePendingNip47Authorization,
   type PendingNip47Authorization,
 } from '../services/nip47-pending-authorization-store';
 import { onVaultLocked } from '../vault';
+import { armWalletRelay } from '../services/wallet-relay-arm';
 import { describeError, LogLevel, logService } from '@/services/log-service';
 
 // A wallet approval in progress when the vault locks, whether starting or finishing, is abandoned:
@@ -61,10 +75,68 @@ import { describeError, LogLevel, logService } from '@/services/log-service';
 let vaultLocks = 0;
 const LOCKED_DURING_AUTHORIZATION =
   'The vault locked while the wallet connection was being set up. Unlock and try again.';
+const CANCELLED_AUTHORIZATION = 'The wallet connection was cancelled.';
+const EXPIRED_AUTHORIZATION = 'This wallet connection request has expired. Start again.';
+const EVICTED_AUTHORIZATION =
+  'Too many wallet connections were started at once, so this one was stopped. Try again.';
+const notCancelled = (): boolean => false;
+
+/**
+ * Background-owned authorizations being settled right now, by `pendingId` (workspace#85). Settling
+ * takes the pending entry before asking the wallet, so a page that stops waiting meanwhile finds
+ * nothing to cancel in the store; this lets it still close the popup and stop the save.
+ */
+const settling = new Map<
+  string,
+  { windowId: number; requestId: string; cancelled: boolean; committed: boolean }
+>();
+
+/**
+ * Wallet Connections requests cancelled before the background had bound their popup, so the open
+ * still in progress can drop it (workspace#85). Kept small: an entry is removed when its open
+ * checks it, and the oldest go first.
+ */
+const cancelledRequests = new Set<string>();
+const MAX_CANCELLED_REQUESTS = 20;
+
+/**
+ * Whether a stored claim was left by an earlier run of the background: one this run would be
+ * settling is in `settling`. Firefox can unload the event page mid-settlement (workspace#85).
+ */
+function claimLeftByRestart(pendingId: string): boolean {
+  return !settling.has(pendingId);
+}
+
+function rememberCancelledRequest(requestId: string): void {
+  cancelledRequests.add(requestId);
+  while (cancelledRequests.size > MAX_CANCELLED_REQUESTS) {
+    cancelledRequests.delete(cancelledRequests.values().next().value!);
+  }
+}
 onVaultLocked(() => {
   vaultLocks += 1;
-  void clearPendingNip47Authorizations();
+  void clearPendingNip47Authorizations().then((abandoned) => closeAbandonedPopups(abandoned));
 });
+// A popup that outlived its authorization's expiry is closed when the store drops the entry.
+onExpiredPendingNip47Popups((expired) => {
+  void closeAbandonedPopups(expired, EXPIRED_AUTHORIZATION);
+});
+
+/**
+ * Closes the wallet popups the background opened for authorizations that were abandoned, by a lock
+ * or by too many starting at once, and reports why (workspace#85).
+ */
+async function closeAbandonedPopups(
+  abandoned: PendingNip47Authorization[],
+  message: string = LOCKED_DURING_AUTHORIZATION,
+): Promise<void> {
+  for (const { popup } of abandoned) {
+    if (popup) {
+      postWalletConnectOutcome(popup.requestId, { status: 'error', message });
+      await closePopupWindow(popup.windowId);
+    }
+  }
+}
 
 /**
  * The account a wallet action names, checked against the vault.
@@ -440,14 +512,24 @@ export async function handleNip47AuthorizationBegin(
   const locksBefore = vaultLocks;
   const clientSecret = bytesToHex(generateSecretKey());
   const clientPubkey = getPublicKey(hexToBytes(clientSecret));
-  const pending = await savePendingNip47Authorization({
-    pendingId: crypto.randomUUID(),
-    accountPubkey,
-    providerId,
-    origin,
-    clientSecret,
-    clientPubkey,
-  });
+  let evicted: PendingNip47Authorization[] = [];
+  const pending = await savePendingNip47Authorization(
+    {
+      pendingId: crypto.randomUUID(),
+      accountPubkey,
+      providerId,
+      origin,
+      clientSecret,
+      clientPubkey,
+    },
+    Date.now(),
+    (dropped) => {
+      evicted = dropped;
+    },
+  );
+  // Pushed out to make room: close any popup the background opened for one, and say so, rather
+  // than leave it open with nothing able to settle it (workspace#85).
+  await closeAbandonedPopups(evicted, EVICTED_AUTHORIZATION);
   // The vault locked while this was being saved: the lock's clear-out may have run first, so this
   // entry is removed here, and no popup opens for an approval the lock abandoned.
   if (vaultLocks !== locksBefore) {
@@ -502,11 +584,16 @@ async function saveAuthorizedConnection(
   capabilities: Nip47Command[],
   checkedAt: string,
   locksBefore: number,
+  cancelled: () => boolean = notCancelled,
+  onCommit?: () => void,
 ): Promise<Nip47ConnectionSummary> {
   const saved = await mutateWalletVault((vaultData) => {
     // Checked inside the vault mutation, so the decision and the write go together: a lock after
     // this point makes the write itself fail (`updateVaultData`), and one before it is seen here.
     if (vaultLocks !== locksBefore) throw new Error(LOCKED_DURING_AUTHORIZATION);
+    if (cancelled()) throw new Error(CANCELLED_AUTHORIZATION);
+    // Past this point the write goes ahead; a cancel can no longer stop it (workspace#85).
+    onCommit?.();
     // Removed while the user was in the wallet's popup: saving would recreate wallet data for an
     // account that no longer exists.
     requireWalletAccount(vaultData, connection);
@@ -532,7 +619,16 @@ export async function handleNip47AuthorizationComplete(
   const locksBefore = vaultLocks;
   await readWalletVault();
   const pending = await requirePendingAuthorization(payload.pendingId);
+  return completePendingAuthorization(pending, payload, locksBefore);
+}
 
+async function completePendingAuthorization(
+  pending: PendingNip47Authorization,
+  payload: Partial<Nip47AuthorizedWalletService>,
+  locksBefore: number,
+  cancelled: () => boolean = notCancelled,
+  onCommit?: () => void,
+): Promise<HandlerResult<Nip47ConnectionSummary>> {
   const service = validateAuthorizedWalletService(payload);
   if (!service) {
     throw new Error('The wallet sent connection details Porwr could not use');
@@ -542,6 +638,7 @@ export async function handleNip47AuthorizationComplete(
   const info = await nip47Client.getInfo(connection);
   // A lock while the wallet answered abandoned this approval, even if the vault is unlocked again.
   if (vaultLocks !== locksBefore) throw new Error(LOCKED_DURING_AUTHORIZATION);
+  if (cancelled()) throw new Error(CANCELLED_AUTHORIZATION);
   return {
     success: true,
     data: await saveAuthorizedConnection(
@@ -549,8 +646,295 @@ export async function handleNip47AuthorizationComplete(
       info.capabilities,
       info.checkedAt,
       locksBefore,
+      cancelled,
+      onCommit,
     ),
   };
+}
+
+const POPUP_WIDTH = 420;
+const POPUP_HEIGHT = 680;
+
+/**
+ * Starts connecting a wallet with the background, not a Porwr page, owning the wallet's popup
+ * (workspace#85).
+ *
+ * In Firefox, a popup a Porwr page opens loses `window.opener` as soon as it loads the wallet, and
+ * the page's handle to it becomes a dead object, so neither the wallet's message nor the popup
+ * closing would ever be seen. Here the background opens the popup with `windows.create`, which no
+ * popup blocker applies to, and records its window and tab. The outcome arrives later, from the
+ * wallet page's relay (`handleNip47AuthorizationRelay`) or the window closing
+ * (`handleNip47AuthorizationPopupClosed`), and is posted back over `wallet-connect-channel`.
+ */
+export async function handleNip47AuthorizationOpen(
+  payload: OpenNip47AuthorizationRequest,
+): Promise<HandlerResult<Nip47AuthorizationOpened>> {
+  if (typeof payload.requestId !== 'string' || payload.requestId.length === 0) {
+    throw new Error('Missing wallet connection request');
+  }
+  if (cancelledRequests.delete(payload.requestId)) {
+    throw new Error(CANCELLED_AUTHORIZATION);
+  }
+  const started = await handleNip47AuthorizationBegin(payload);
+  if (!started.success) {
+    return started;
+  }
+  const { pendingId, authorizationUrl } = started.data;
+
+  let windowId: number | undefined;
+  let tabId: number | undefined;
+  try {
+    const created = await chrome.windows.create({
+      url: authorizationUrl,
+      type: 'popup',
+      width: POPUP_WIDTH,
+      height: POPUP_HEIGHT,
+    });
+    windowId = created?.id;
+    tabId =
+      created?.tabs?.[0]?.id ??
+      (windowId === undefined ? undefined : (await chrome.tabs.query({ windowId }))[0]?.id);
+    if (windowId === undefined || tabId === undefined) {
+      throw new Error('Porwr could not open the wallet window');
+    }
+    // A lock while the window opened removed the pending entry; nothing is left to approve.
+    if (
+      !(await bindPendingNip47AuthorizationPopup(pendingId, {
+        windowId,
+        tabId,
+        requestId: payload.requestId,
+      }))
+    ) {
+      throw new Error(LOCKED_DURING_AUTHORIZATION);
+    }
+    // Wallet Connections gave up while this was opening, so nobody is waiting for it.
+    if (cancelledRequests.delete(payload.requestId)) {
+      throw new Error(CANCELLED_AUTHORIZATION);
+    }
+  } catch (error: unknown) {
+    await takePendingNip47Authorization(pendingId);
+    if (windowId !== undefined) {
+      await closePopupWindow(windowId);
+    }
+    throw error;
+  }
+
+  // Closed before it was bound: its `windows.onRemoved` found nothing to settle and will not fire
+  // again, so settle it now rather than leave Wallet Connections waiting.
+  if (!(await popupWindowIsOpen(windowId))) {
+    await handleNip47AuthorizationPopupClosed(windowId);
+  } else {
+    // The page may have finished loading before the popup was bound, so its tab may never report
+    // `complete` again.
+    await armWalletRelay(tabId);
+  }
+
+  return { success: true, data: { pendingId } };
+}
+
+async function popupWindowIsOpen(windowId: number): Promise<boolean> {
+  try {
+    await chrome.windows.get(windowId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Abandons a background-owned authorization whose page stopped waiting for it, and closes its
+ * popup (workspace#85). Called when Wallet Connections times out or goes away, so a wallet window
+ * the user never closed does not stay open on its own.
+ */
+export async function handleNip47AuthorizationCancel(
+  payload: CancelNip47AuthorizationRequest,
+): Promise<HandlerResult<Nip47AuthorizationCancelled>> {
+  const { requestId } = payload;
+  if (typeof requestId !== 'string' || requestId.length === 0) {
+    throw new Error('Missing wallet connection request');
+  }
+  // An expired entry still in the store counts: Wallet Connections waits a little past the expiry
+  // before it gives up, and its popup must still be closed.
+  const bound = await findPendingNip47AuthorizationByPopup({ requestId }, Date.now(), {
+    includeExpired: true,
+  });
+  // Claimed, but not by this background: it was suspended or restarted while settling, so nothing
+  // will finish it. Drop it and close its popup.
+  // Checked again as it is removed, so a claim reclaimed meanwhile is left to the settling path.
+  if (
+    bound?.popup &&
+    bound.claimed &&
+    (await takePendingNip47Authorization(bound.pendingId, Date.now(), {
+      when: (entry) => Boolean(entry.claimed) && claimLeftByRestart(entry.pendingId),
+    }))
+  ) {
+    await closePopupWindow(bound.popup.windowId);
+    return { success: true, data: 'closed' };
+  }
+  if (bound?.popup && !bound.claimed) {
+    // Removed only while still unclaimed, in one step: one a settling path claimed meanwhile is
+    // left to it and handled below.
+    const taken = await takePendingNip47Authorization(bound.pendingId, Date.now(), {
+      when: (entry) => !entry.claimed,
+    });
+    if (taken || bound.expiresAt <= Date.now()) {
+      await closePopupWindow(bound.popup.windowId);
+      return { success: true, data: 'closed' };
+    }
+  }
+  // Already claimed and being settled: stop it before it saves, and close the popup. Once its
+  // vault write has begun it can no longer be stopped, so it is left to finish and report.
+  const inProgress = [...settling.values()].find((record) => record.requestId === requestId);
+  if (inProgress) {
+    await closePopupWindow(inProgress.windowId);
+    if (inProgress.committed) {
+      return { success: true, data: 'committed' };
+    }
+    inProgress.cancelled = true;
+    return { success: true, data: 'closed' };
+  }
+  // Not bound yet: the open still in progress drops it when it gets there.
+  rememberCancelledRequest(requestId);
+  return { success: true, data: 'not-open' };
+}
+
+async function closePopupWindow(windowId: number): Promise<void> {
+  try {
+    await chrome.windows.remove(windowId);
+  } catch {
+    // Already closed by the user.
+  }
+}
+
+/**
+ * Finishes a background-owned authorization from the `nwc:success` details Porwr's content script
+ * relayed from the wallet's page (workspace#85).
+ *
+ * The browser fills in `sender`, and it is what this decides on: the message counts only from the
+ * top frame of the very tab the background opened for a pending authorization, while that tab shows
+ * the wallet's exact origin. The details are then checked and the wallet asked for `get_info`, as
+ * for a message a Porwr page received (`handleNip47AuthorizationComplete`).
+ *
+ * @returns Whether the message was for a pending authorization. Anything else is ignored.
+ */
+export async function handleNip47AuthorizationRelay(
+  sender: { tabId: number; frameId: number; url: string },
+  message: unknown,
+): Promise<boolean> {
+  if (sender.frameId !== 0) {
+    return false;
+  }
+  const pending = await findPendingNip47AuthorizationByPopup({ tabId: sender.tabId });
+  if (!pending?.popup) {
+    return false;
+  }
+  let senderOrigin: string;
+  try {
+    senderOrigin = new URL(sender.url).origin;
+  } catch {
+    return false;
+  }
+  const service = parseAuthorizationMessage(senderOrigin, message, pending.origin);
+  if (!service) {
+    return false;
+  }
+
+  const { requestId, windowId } = pending.popup;
+  const locksBefore = vaultLocks;
+  // Claimed before anything is awaited on the wallet, so the popup closing meanwhile finds it taken
+  // and only this outcome is posted. The claim stays stored until the result is final.
+  const claimed = await claimPendingNip47Authorization(
+    pending.pendingId,
+    Date.now(),
+    claimLeftByRestart,
+  );
+  if (!claimed) {
+    return false;
+  }
+  const record = { windowId, requestId, cancelled: false, committed: false };
+  settling.set(claimed.pendingId, record);
+  let outcome: WalletConnectOutcome;
+  try {
+    await readWalletVault();
+    const result = await completePendingAuthorization(
+      claimed,
+      service,
+      locksBefore,
+      () => record.cancelled,
+      () => {
+        record.committed = true;
+      },
+    );
+    outcome = result.success
+      ? { status: 'connected', connection: result.data }
+      : { status: 'error', message: result.error };
+  } catch (error: unknown) {
+    outcome = { status: 'error', message: error instanceof Error ? error.message : String(error) };
+  } finally {
+    // The stored claim goes first: while it exists, its in-memory record must too, or a cancel
+    // checking it meanwhile would take it for one a restart left behind.
+    await takePendingNip47Authorization(claimed.pendingId);
+    settling.delete(claimed.pendingId);
+  }
+  // Nobody is waiting for a cancelled one.
+  if (!record.cancelled) {
+    postWalletConnectOutcome(requestId, outcome);
+  }
+  await closePopupWindow(windowId);
+  return true;
+}
+
+/**
+ * Settles a background-owned authorization whose popup closed before the wallet's page relayed a
+ * result (workspace#85).
+ *
+ * Checks with the wallet directly where it can (Coinos), as Porwr's pages do when their popup
+ * closes. A popup closed after its result arrived finds nothing pending and is ignored.
+ */
+export async function handleNip47AuthorizationPopupClosed(windowId: number): Promise<void> {
+  const pending = await findPendingNip47AuthorizationByPopup({ windowId });
+  if (!pending?.popup) {
+    return;
+  }
+  const { requestId } = pending.popup;
+  const locksBefore = vaultLocks;
+  // A relayed result claimed it first: that path posts the outcome.
+  const claimed = await claimPendingNip47Authorization(
+    pending.pendingId,
+    Date.now(),
+    claimLeftByRestart,
+  );
+  if (!claimed) {
+    return;
+  }
+  const record = { windowId, requestId, cancelled: false, committed: false };
+  settling.set(claimed.pendingId, record);
+  let outcome: WalletConnectOutcome;
+  try {
+    await readWalletVault();
+    const result = await probePendingAuthorization(
+      claimed,
+      locksBefore,
+      () => record.cancelled,
+      () => {
+        record.committed = true;
+      },
+    );
+    outcome =
+      result.success && result.data
+        ? { status: 'connected', connection: result.data }
+        : { status: 'no-response' };
+  } catch (error: unknown) {
+    outcome = { status: 'error', message: error instanceof Error ? error.message : String(error) };
+  } finally {
+    // The stored claim goes first: while it exists, its in-memory record must too, or a cancel
+    // checking it meanwhile would take it for one a restart left behind.
+    await takePendingNip47Authorization(claimed.pendingId);
+    settling.delete(claimed.pendingId);
+  }
+  if (!record.cancelled) {
+    postWalletConnectOutcome(requestId, outcome);
+  }
 }
 
 function parseMethods(value: unknown): Nip47Command[] {
@@ -574,7 +958,15 @@ export async function handleNip47AuthorizationProbe(
   const locksBefore = vaultLocks;
   await readWalletVault();
   const pending = await requirePendingAuthorization(payload.pendingId);
+  return probePendingAuthorization(pending, locksBefore);
+}
 
+async function probePendingAuthorization(
+  pending: PendingNip47Authorization,
+  locksBefore: number,
+  cancelled: () => boolean = notCancelled,
+  onCommit?: () => void,
+): Promise<HandlerResult<Nip47ConnectionSummary | null>> {
   const known = WALLET_PROVIDERS[pending.providerId].knownWalletService;
   if (!known) {
     return { success: true, data: null };
@@ -609,7 +1001,7 @@ export async function handleNip47AuthorizationProbe(
     return { success: true, data: null };
   }
   // Locked while the wallet answered: the approval was abandoned, so nothing is saved.
-  if (vaultLocks !== locksBefore) return { success: true, data: null };
+  if (vaultLocks !== locksBefore || cancelled()) return { success: true, data: null };
 
   try {
     return {
@@ -619,13 +1011,17 @@ export async function handleNip47AuthorizationProbe(
         methods,
         new Date().toISOString(),
         locksBefore,
+        cancelled,
+        onCommit,
       ),
     };
   } catch (error: unknown) {
     // A lock while saving abandons the approval, which for a probe means nothing was saved.
     if (
       error instanceof Error &&
-      (error.message === LOCKED_DURING_AUTHORIZATION || error.message === 'Vault is locked')
+      (error.message === LOCKED_DURING_AUTHORIZATION ||
+        error.message === CANCELLED_AUTHORIZATION ||
+        error.message === 'Vault is locked')
     ) {
       return { success: true, data: null };
     }

@@ -7,7 +7,13 @@ import {
   useWalletConnectWindow,
   type UseWalletConnectWindowResult,
 } from '@/composables/useWalletConnectWindow';
+import { cancelNip47Authorization, openNip47Authorization } from '@/services/nip47-service';
 import { postWalletConnectOutcome } from '@/services/wallet-connect-channel';
+
+vi.mock('@/services/nip47-service', () => ({
+  cancelNip47Authorization: vi.fn(() => Promise.resolve()),
+  openNip47Authorization: vi.fn(),
+}));
 
 const removedListeners = new Set<(id: number) => void>();
 const create = vi.fn();
@@ -159,5 +165,132 @@ describe('useWalletConnectWindow (workspace#76)', () => {
     wrapper.unmount();
 
     await expect(pending).resolves.toEqual({ status: 'cancelled' });
+  });
+});
+
+describe('useWalletConnectWindow in Firefox (workspace#85)', () => {
+  beforeEach(() => {
+    vi.mocked(openNip47Authorization).mockReset().mockResolvedValue({ pendingId: 'p' });
+    const stubbed = globalThis.chrome as unknown as {
+      runtime: { getURL: (path: string) => string };
+    };
+    stubbed.runtime.getURL = (path: string) => `moz-extension://porwr/${path}`;
+  });
+
+  it('has the background open the wallet, with no connect window, and takes its outcome', async () => {
+    const { api } = harness();
+
+    const result = api.connect('alby-hub', ACCOUNT, ' http://192.168.1.50:59000 ');
+    await settle();
+
+    expect(create).not.toHaveBeenCalled();
+    expect(window.open).not.toHaveBeenCalled();
+    const request = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    expect(request).toMatchObject({
+      accountPubkey: ACCOUNT,
+      provider: 'alby-hub',
+      customOrigin: 'http://192.168.1.50:59000',
+    });
+    expect(request.requestId).toMatch(/^[0-9a-f-]{36}$/);
+
+    postWalletConnectOutcome(request.requestId, { status: 'no-response' });
+    await expect(result).resolves.toEqual({ status: 'no-response' });
+  });
+
+  it('closes the wallet window in the background when it stops waiting', async () => {
+    vi.mocked(cancelNip47Authorization).mockClear();
+    vi.useFakeTimers();
+    const { api, wrapper } = harness(1_000);
+
+    const timedOut = api.connect('coinos', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await expect(timedOut).resolves.toEqual({ status: 'cancelled' });
+    await vi.advanceTimersByTimeAsync(0);
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    expect(cancelNip47Authorization).toHaveBeenCalledWith(requestId);
+
+    void api.connect('coinos', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(0);
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cancelNip47Authorization).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits for a save the background could no longer stop when its wait ran out', async () => {
+    vi.mocked(cancelNip47Authorization).mockResolvedValueOnce('committed');
+    vi.useFakeTimers();
+    const { api } = harness(1_000);
+
+    const result = api.connect('alby-hub', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    postWalletConnectOutcome(requestId, {
+      status: 'connected',
+      connection: { id: 'w', label: 'Alby Hub' } as never,
+    });
+
+    await expect(result).resolves.toMatchObject({ status: 'connected' });
+  });
+
+  it("does not let a finished wait's fallback undo a later connection's cancel hook", async () => {
+    vi.mocked(cancelNip47Authorization).mockClear();
+    vi.mocked(cancelNip47Authorization).mockResolvedValueOnce('committed');
+    vi.useFakeTimers();
+    const { api, wrapper } = harness(1_000);
+
+    const first = api.connect('alby-hub', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const firstId = vi.mocked(openNip47Authorization).mock.calls[0]![0].requestId;
+    postWalletConnectOutcome(firstId, { status: 'no-response' });
+    await first;
+
+    // A second connection starts, then the first one's 30 s fallback would have fired.
+    void api.connect('alby-hub', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(0);
+    const secondId = vi.mocked(openNip47Authorization).mock.calls[1]![0].requestId;
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cancelNip47Authorization).toHaveBeenLastCalledWith(secondId);
+  });
+
+  it('still takes a committed save when its open call failed', async () => {
+    vi.mocked(openNip47Authorization).mockRejectedValueOnce(new Error('Background did not answer'));
+    vi.mocked(cancelNip47Authorization).mockResolvedValueOnce('committed');
+    const { api } = harness();
+
+    const result = api.connect('alby-hub', ACCOUNT);
+    await settle();
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    postWalletConnectOutcome(requestId, {
+      status: 'connected',
+      connection: { id: 'w', label: 'Alby Hub' } as never,
+    });
+
+    await expect(result).resolves.toMatchObject({ status: 'connected' });
+  });
+
+  it('cancels nothing once the outcome has arrived', async () => {
+    vi.mocked(cancelNip47Authorization).mockClear();
+    const { api } = harness();
+
+    const result = api.connect('alby-hub', ACCOUNT);
+    await settle();
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    postWalletConnectOutcome(requestId, { status: 'no-response' });
+    await result;
+
+    expect(cancelNip47Authorization).not.toHaveBeenCalled();
+  });
+
+  it('fails when the background cannot open the wallet, and cancels what it may have opened', async () => {
+    vi.mocked(cancelNip47Authorization).mockClear();
+    vi.mocked(openNip47Authorization).mockRejectedValue(new Error('Background did not answer'));
+    const { api } = harness();
+
+    await expect(api.connect('coinos', ACCOUNT)).rejects.toThrow('Background did not answer');
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    expect(cancelNip47Authorization).toHaveBeenCalledWith(requestId);
   });
 });
