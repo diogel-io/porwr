@@ -55,7 +55,9 @@ const RETRY_DELAYS_MS = [100, 400];
 /**
  * Calls a timeout must not repeat: each one signs, publishes, sends or pays. A DM relay check
  * publishes a test gift wrap to every relay it checks. Importing an encrypted key adds an account:
- * a repeat would fail as a duplicate after the first had already succeeded (#141).
+ * a repeat would fail as a duplicate after the first had already succeeded (#141). Opening a
+ * wallet authorization opens a wallet window in the background: a repeat would open another, with
+ * its own client secret, for the same request (workspace#85).
  */
 const NOT_REPEATED_AFTER_TIMEOUT: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
   'account.signEvent',
@@ -64,6 +66,7 @@ const NOT_REPEATED_AFTER_TIMEOUT: ReadonlySet<BridgeAction> = new Set<BridgeActi
   'messaging.dmRelays.check',
   'messaging.dmRelays.publish',
   'messaging.send',
+  'nip47.authorization.open',
   'nip47.payInvoice',
   'nostr.requests.respond',
 ]);
