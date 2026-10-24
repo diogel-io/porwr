@@ -20,28 +20,38 @@ import { opensWalletPopupInBackground } from '@/services/wallet-popup-owner';
  * The general runtime channel still refuses content scripts (#240); this port carries one message
  * and nothing else. In other browsers a Porwr page owns the popup, so nothing is registered.
  */
-export function observeWalletConnectPopups(extensionId: string): void {
+export function observeWalletConnectPopups(
+  extensionId: string,
+  ready: Promise<unknown> = Promise.resolve(),
+): void {
   // Only Firefox has the background open wallet popups. Elsewhere these listeners would wake the
   // service worker on every page load and window close for nothing.
   if (!opensWalletPopupInBackground()) return;
 
+  // Each event can be what wakes an unloaded Firefox background. The listeners are registered at
+  // once, so nothing is missed, but act only once start-up has restored the vault: before that it
+  // would read as locked, and a claim the restart left would be dropped for nothing.
   chrome.windows?.onRemoved?.addListener((windowId) => {
-    void handleNip47AuthorizationPopupClosed(windowId).catch(logFailure);
+    void ready.then(() => handleNip47AuthorizationPopupClosed(windowId)).catch(logFailure);
   });
 
   chrome.tabs?.onUpdated?.addListener((tabId, changeInfo) => {
     if (changeInfo.status === 'complete') {
-      void armWalletRelay(tabId);
+      void ready.then(() => armWalletRelay(tabId));
     }
   });
 
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== WALLET_RELAY_PORT_NAME) return;
-    serveWalletRelayPort(port, extensionId);
+    serveWalletRelayPort(port, extensionId, ready);
   });
 }
 
-function serveWalletRelayPort(port: chrome.runtime.Port, extensionId: string): void {
+function serveWalletRelayPort(
+  port: chrome.runtime.Port,
+  extensionId: string,
+  ready: Promise<unknown>,
+): void {
   const sender = port.sender;
   const tabId = sender?.tab?.id;
   if (
@@ -57,7 +67,8 @@ function serveWalletRelayPort(port: chrome.runtime.Port, extensionId: string): v
 
   const onMessage = (message: unknown): void => {
     port.onMessage.removeListener(onMessage);
-    void handleNip47AuthorizationRelay({ tabId, frameId, url }, message)
+    void ready
+      .then(() => handleNip47AuthorizationRelay({ tabId, frameId, url }, message))
       .catch(logFailure)
       .finally(() => port.disconnect());
   };

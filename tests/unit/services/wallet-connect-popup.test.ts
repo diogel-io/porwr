@@ -130,9 +130,30 @@ describe('the wallet relay port', () => {
 });
 
 describe('popup events', () => {
-  it('settles an authorization when its window closes', () => {
+  it('settles an authorization when its window closes', async () => {
     for (const listener of removed) listener(7);
 
+    await vi.waitFor(() => expect(handleNip47AuthorizationPopupClosed).toHaveBeenCalledWith(7));
+  });
+
+  it('waits for start-up before acting on anything that woke the background', async () => {
+    let started!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    removed = [];
+    connected = [];
+    observeWalletConnectPopups('porwr', ready);
+
+    for (const listener of removed) listener(7);
+    const port = openPort(WALLET_RELAY_PORT_NAME, SENDER);
+    port.deliver({ type: 'nwc:success' });
+    await Promise.resolve();
+    expect(handleNip47AuthorizationPopupClosed).not.toHaveBeenCalled();
+    expect(handleNip47AuthorizationRelay).not.toHaveBeenCalled();
+
+    started();
+    await vi.waitFor(() => expect(handleNip47AuthorizationRelay).toHaveBeenCalledOnce());
     expect(handleNip47AuthorizationPopupClosed).toHaveBeenCalledWith(7);
   });
 

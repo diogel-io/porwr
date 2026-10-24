@@ -871,8 +871,10 @@ export async function handleNip47AuthorizationRelay(
   } catch (error: unknown) {
     outcome = { status: 'error', message: error instanceof Error ? error.message : String(error) };
   } finally {
-    settling.delete(claimed.pendingId);
+    // The stored claim goes first: while it exists, its in-memory record must too, or a cancel
+    // checking it meanwhile would take it for one a restart left behind.
     await takePendingNip47Authorization(claimed.pendingId);
+    settling.delete(claimed.pendingId);
   }
   // Nobody is waiting for a cancelled one.
   if (!record.cancelled) {
@@ -925,8 +927,10 @@ export async function handleNip47AuthorizationPopupClosed(windowId: number): Pro
   } catch (error: unknown) {
     outcome = { status: 'error', message: error instanceof Error ? error.message : String(error) };
   } finally {
-    settling.delete(claimed.pendingId);
+    // The stored claim goes first: while it exists, its in-memory record must too, or a cancel
+    // checking it meanwhile would take it for one a restart left behind.
     await takePendingNip47Authorization(claimed.pendingId);
+    settling.delete(claimed.pendingId);
   }
   if (!record.cancelled) {
     postWalletConnectOutcome(requestId, outcome);
