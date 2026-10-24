@@ -5,6 +5,7 @@ import {
 import { armWalletRelay } from './wallet-relay-arm';
 import { WALLET_RELAY_PORT_NAME } from './wallet-relay-protocol';
 import { describeError, LogLevel, logService } from '@/services/log-service';
+import { opensWalletPopupInBackground } from '@/services/wallet-popup-owner';
 
 /**
  * The background's side of a wallet popup it opened itself (workspace#85).
@@ -17,9 +18,13 @@ import { describeError, LogLevel, logService } from '@/services/log-service';
  *   (`handleNip47AuthorizationPopupClosed`).
  *
  * The general runtime channel still refuses content scripts (#240); this port carries one message
- * and nothing else.
+ * and nothing else. In other browsers a Porwr page owns the popup, so nothing is registered.
  */
 export function observeWalletConnectPopups(extensionId: string): void {
+  // Only Firefox has the background open wallet popups. Elsewhere these listeners would wake the
+  // service worker on every page load and window close for nothing.
+  if (!opensWalletPopupInBackground()) return;
+
   chrome.windows?.onRemoved?.addListener((windowId) => {
     void handleNip47AuthorizationPopupClosed(windowId).catch(logFailure);
   });

@@ -52,7 +52,11 @@ beforeEach(() => {
       sendMessage,
       onUpdated: { addListener: (l: Listener<[number, { status?: string }]>) => updated.push(l) },
     },
-    runtime: { onConnect: { addListener: (l: Listener<[FakePort]>) => connected.push(l) } },
+    runtime: {
+      // Firefox: only there does the background own wallet popups.
+      getURL: (path: string) => `moz-extension://porwr/${path}`,
+      onConnect: { addListener: (l: Listener<[FakePort]>) => connected.push(l) },
+    },
   });
   observeWalletConnectPopups('porwr');
 });
@@ -151,5 +155,30 @@ describe('popup events', () => {
     sendMessage.mockRejectedValue(new Error('Could not establish connection'));
 
     await expect(armWalletRelay(70)).resolves.toBeUndefined();
+  });
+});
+
+describe('outside Firefox', () => {
+  it('registers nothing, so page loads and window closes never wake the background', () => {
+    removed = [];
+    updated = [];
+    connected = [];
+    vi.stubGlobal('chrome', {
+      windows: { onRemoved: { addListener: (l: Listener<[number]>) => removed.push(l) } },
+      tabs: {
+        sendMessage,
+        onUpdated: { addListener: (l: Listener<[number, { status?: string }]>) => updated.push(l) },
+      },
+      runtime: {
+        getURL: (path: string) => `chrome-extension://porwr/${path}`,
+        onConnect: { addListener: (l: Listener<[FakePort]>) => connected.push(l) },
+      },
+    });
+
+    observeWalletConnectPopups('porwr');
+
+    expect(removed).toHaveLength(0);
+    expect(updated).toHaveLength(0);
+    expect(connected).toHaveLength(0);
   });
 });

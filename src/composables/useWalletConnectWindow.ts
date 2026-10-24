@@ -7,6 +7,7 @@ import {
 } from '@/services/wallet-connect-channel';
 import type { WalletProviderId } from '@/types/wallet-provider';
 import { cancelNip47Authorization, openNip47Authorization } from '@/services/nip47-service';
+import { opensWalletPopupInBackground } from '@/services/wallet-popup-owner';
 
 export type WalletConnectWindowResult =
   | WalletAuthorizationResult
@@ -35,19 +36,6 @@ export interface UseWalletConnectWindowResult {
     accountPubkey: string,
     customOrigin?: string,
   ) => Promise<WalletConnectWindowResult>;
-}
-
-/**
- * Firefox replaces the browsing context of a window an extension page opens once it loads a web
- * page, which severs `window.opener` and leaves the extension holding a dead object (Mozilla bugs
- * 1947632, 1966088). Told apart by the extension's own URL scheme rather than the user agent.
- */
-export function opensWalletPopupInBackground(): boolean {
-  try {
-    return chrome.runtime.getURL('').startsWith('moz-extension:');
-  } catch {
-    return false;
-  }
 }
 
 const WINDOW_WIDTH = 420;
