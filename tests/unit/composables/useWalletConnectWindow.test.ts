@@ -216,6 +216,22 @@ describe('useWalletConnectWindow in Firefox (workspace#85)', () => {
     expect(cancelNip47Authorization).toHaveBeenCalledTimes(2);
   });
 
+  it('waits for a save the background could no longer stop when its wait ran out', async () => {
+    vi.mocked(cancelNip47Authorization).mockResolvedValueOnce('committed');
+    vi.useFakeTimers();
+    const { api } = harness(1_000);
+
+    const result = api.connect('alby-hub', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    postWalletConnectOutcome(requestId, {
+      status: 'connected',
+      connection: { id: 'w', label: 'Alby Hub' } as never,
+    });
+
+    await expect(result).resolves.toMatchObject({ status: 'connected' });
+  });
+
   it('cancels nothing once the outcome has arrived', async () => {
     vi.mocked(cancelNip47Authorization).mockClear();
     const { api } = harness();

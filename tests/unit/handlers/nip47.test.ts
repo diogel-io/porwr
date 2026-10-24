@@ -31,6 +31,7 @@ import type { HandlerResult } from '@/../src-bex/types/background';
 import { ErrorCode } from '@/types/error-codes.d';
 import {
   bindPendingNip47AuthorizationPopup,
+  claimPendingNip47Authorization,
   clearPendingNip47Authorizations,
   findPendingNip47AuthorizationByPopup,
   savePendingNip47Authorization,
@@ -69,6 +70,7 @@ vi.mock('@/../src-bex/services/nip47-client', async (importOriginal) => ({
 
 vi.mock('@/../src-bex/services/nip47-pending-authorization-store', () => ({
   bindPendingNip47AuthorizationPopup: vi.fn(),
+  claimPendingNip47Authorization: vi.fn(),
   clearPendingNip47Authorizations: vi.fn(() => Promise.resolve([])),
   findPendingNip47AuthorizationByPopup: vi.fn(),
   onExpiredPendingNip47Popups: (listener: (expired: PendingNip47Authorization[]) => void) => {
@@ -1475,7 +1477,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
     it('is settled at once instead of left waiting', async () => {
       get.mockRejectedValue(new Error('No window with id: 7'));
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
-      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValue(pending());
 
       await handleNip47AuthorizationOpen({
         accountPubkey: ACCOUNT,
@@ -1497,7 +1499,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
       await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
         success: true,
-        data: true,
+        data: 'closed',
       });
       expect(findPendingNip47AuthorizationByPopup).toHaveBeenCalledWith(
         { requestId: 'req-1' },
@@ -1509,13 +1511,24 @@ describe('a wallet popup the background owns (workspace#85)', () => {
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
     });
 
+    it('closes the popup of an authorization a restarted background had claimed', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending({ claimed: true }));
+
+      await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
+        success: true,
+        data: 'closed',
+      });
+      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1');
+      expect(remove).toHaveBeenCalledWith(7);
+    });
+
     it('closes the popup of an authorization that expired while the page still waited', async () => {
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending({ expiresAt: 0 }));
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(null);
 
       await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
         success: true,
-        data: true,
+        data: 'closed',
       });
       expect(remove).toHaveBeenCalledWith(7);
     });
@@ -1524,9 +1537,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
       vi.mocked(findPendingNip47AuthorizationByPopup)
         .mockResolvedValueOnce(pending())
         .mockResolvedValue(null);
-      vi.mocked(takePendingNip47Authorization)
-        .mockResolvedValueOnce(pending())
-        .mockResolvedValue(null);
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValueOnce(pending());
       let writes = 0;
       let finishWrite!: () => void;
       vi.mocked(updateVaultData).mockImplementation((next) => {
@@ -1544,7 +1555,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
       await vi.waitFor(() => expect(finishWrite).toBeTypeOf('function'));
       await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
         success: true,
-        data: false,
+        data: 'committed',
       });
       finishWrite();
       await relayed;
@@ -1557,10 +1568,8 @@ describe('a wallet popup the background owns (workspace#85)', () => {
     });
 
     it('stops a relayed answer it claimed from saving, and closes the popup', async () => {
-      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
-      vi.mocked(takePendingNip47Authorization)
-        .mockResolvedValueOnce(pending())
-        .mockResolvedValueOnce(null);
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending({ claimed: true }));
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValueOnce(pending({ claimed: true }));
       let answer!: () => void;
       vi.mocked(nip47Client.getInfo).mockImplementation(
         () =>
@@ -1582,7 +1591,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
       await vi.waitFor(() => expect(nip47Client.getInfo).toHaveBeenCalled());
       await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
         success: true,
-        data: true,
+        data: 'closed',
       });
       answer();
       await relayed;
@@ -1593,11 +1602,9 @@ describe('a wallet popup the background owns (workspace#85)', () => {
     });
 
     it('stops a Coinos check the closing popup started from saving', async () => {
-      const coinos = pending({ providerId: 'coinos', origin: 'https://coinos.io' });
+      const coinos = pending({ providerId: 'coinos', origin: 'https://coinos.io', claimed: true });
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(coinos);
-      vi.mocked(takePendingNip47Authorization)
-        .mockResolvedValueOnce(coinos)
-        .mockResolvedValueOnce(null);
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValueOnce(coinos);
       let answer!: () => void;
       vi.mocked(nip47Client.sendRequest).mockImplementation(
         () =>
@@ -1623,7 +1630,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
       create.mockImplementationOnce(async () => {
         await expect(handleNip47AuthorizationCancel({ requestId: 'req-mid' })).resolves.toEqual({
           success: true,
-          data: false,
+          data: 'not-open',
         });
         return { id: 7, tabs: [{ id: 70 }] };
       });
@@ -1666,11 +1673,14 @@ describe('a wallet popup the background owns (workspace#85)', () => {
   describe('handleNip47AuthorizationRelay', () => {
     it('saves the wallet the bound tab relayed, posts the outcome, and closes the popup', async () => {
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
-      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValue(pending());
 
       await expect(handleNip47AuthorizationRelay(topFrame, success)).resolves.toBe(true);
 
       expect(findPendingNip47AuthorizationByPopup).toHaveBeenCalledWith({ tabId: 70 });
+      // Claimed while it settled, and removed only once the result was final.
+      expect(claimPendingNip47Authorization).toHaveBeenCalledWith('pending-1');
+      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1');
       expect(vaultData.nip47Connections?.[0]).toMatchObject({
         walletServicePubkey: WALLET,
         relays: ['wss://relay.getalby.com/v1'],
@@ -1694,7 +1704,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
       await expect(handleNip47AuthorizationRelay(sender, message)).resolves.toBe(false);
 
-      expect(takePendingNip47Authorization).not.toHaveBeenCalled();
+      expect(claimPendingNip47Authorization).not.toHaveBeenCalled();
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
     });
 
@@ -1707,7 +1717,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
     it('leaves the outcome to the popup closing when that claimed the authorization first', async () => {
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
-      vi.mocked(takePendingNip47Authorization).mockResolvedValue(null);
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValue(null);
 
       await expect(handleNip47AuthorizationRelay(topFrame, success)).resolves.toBe(false);
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
@@ -1715,7 +1725,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
     it('reports the error when the wallet does not answer', async () => {
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
-      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValue(pending());
       vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('No answer from the wallet'));
 
       await handleNip47AuthorizationRelay(topFrame, success);
@@ -1731,7 +1741,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
   describe('handleNip47AuthorizationPopupClosed', () => {
     it('reports no response for a wallet it cannot ask directly', async () => {
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
-      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValue(pending());
 
       await handleNip47AuthorizationPopupClosed(7);
 
@@ -1742,7 +1752,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
     it('saves a Coinos approval it confirms with the wallet', async () => {
       const coinos = pending({ providerId: 'coinos', origin: 'https://coinos.io' });
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(coinos);
-      vi.mocked(takePendingNip47Authorization).mockResolvedValue(coinos);
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValue(coinos);
       vi.mocked(nip47Client.sendRequest).mockResolvedValue({
         result_type: 'get_info',
         result: { methods: ['pay_invoice'] },
@@ -1761,7 +1771,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
       await handleNip47AuthorizationPopupClosed(8);
 
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValueOnce(pending());
-      vi.mocked(takePendingNip47Authorization).mockResolvedValueOnce(null);
+      vi.mocked(claimPendingNip47Authorization).mockResolvedValueOnce(null);
       await handleNip47AuthorizationPopupClosed(7);
 
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();

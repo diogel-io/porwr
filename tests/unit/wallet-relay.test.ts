@@ -118,6 +118,18 @@ describe('installWalletRelay', () => {
     });
   });
 
+  it('forwards an answer the page gave before the tab was armed, once armed', () => {
+    installWalletRelay();
+
+    dispatchSuccess({ walletPubkey: WALLET, relayUrls: ['wss://relay.example.com'] });
+    expect(connect).not.toHaveBeenCalled();
+
+    arm();
+
+    expect(connect).toHaveBeenCalledOnce();
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ walletPubkey: WALLET }));
+  });
+
   it('does not touch the opener outside Firefox', () => {
     const before: unknown = window.opener;
     installWalletRelay();

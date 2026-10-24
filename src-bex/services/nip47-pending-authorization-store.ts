@@ -25,6 +25,12 @@ export interface PendingNip47Authorization {
    * only when the background, not a Porwr page, owns the popup.
    */
   popup?: PendingNip47AuthorizationPopup;
+  /**
+   * Set while the background settles a background-owned authorization (workspace#85). The entry
+   * stays stored until the result is final, so a background that is suspended or restarted
+   * meanwhile still finds it, and cancelling can still close its popup.
+   */
+  claimed?: boolean;
 }
 
 export interface PendingNip47AuthorizationPopup {
@@ -35,6 +41,8 @@ export interface PendingNip47AuthorizationPopup {
 }
 
 export const PENDING_AUTHORIZATION_TTL_MS = 10 * 60 * 1000;
+/** How long a claimed authorization may take to settle: the wallet's answer and the vault write. */
+export const CLAIMED_AUTHORIZATION_GRACE_MS = 2 * 60 * 1000;
 const MAX_PENDING_AUTHORIZATIONS = 5;
 
 async function readPending(): Promise<PendingNip47Authorization[]> {
@@ -137,6 +145,35 @@ export async function takePendingNip47Authorization(
     const match = entries.find((entry) => entry.pendingId === pendingId);
     await writePending(dropExpired(entries, now).filter((entry) => entry.pendingId !== pendingId));
     return match && match.expiresAt > now ? match : null;
+  });
+}
+
+/**
+ * Marks a background-owned authorization as being settled, and keeps it stored until the caller
+ * removes it with `takePendingNip47Authorization` (workspace#85). Only one caller can claim an
+ * entry. Its expiry is pushed out by `CLAIMED_AUTHORIZATION_GRACE_MS`, so settling is not cut off.
+ *
+ * @returns The entry, or `null` when it does not exist, has expired, or is already claimed.
+ */
+export async function claimPendingNip47Authorization(
+  pendingId: string,
+  now: number = Date.now(),
+): Promise<PendingNip47Authorization | null> {
+  return serialized(async () => {
+    const entries = dropExpired(await readPending(), now);
+    const index = entries.findIndex((entry) => entry.pendingId === pendingId);
+    const entry = entries[index];
+    if (!entry || entry.claimed) {
+      return null;
+    }
+    const claimed: PendingNip47Authorization = {
+      ...entry,
+      claimed: true,
+      expiresAt: Math.max(entry.expiresAt, now + CLAIMED_AUTHORIZATION_GRACE_MS),
+    };
+    entries[index] = claimed;
+    await writePending(entries);
+    return claimed;
   });
 }
 

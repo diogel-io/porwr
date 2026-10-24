@@ -133,6 +133,13 @@ export interface CancelNip47AuthorizationRequest {
   requestId: string;
 }
 
+/**
+ * What cancelling did: closed the popup and stopped the authorization; found a save whose vault
+ * write had already begun, which will finish and report; or found no popup open yet, so the open
+ * still in progress will drop it.
+ */
+export type Nip47AuthorizationCancelled = 'closed' | 'committed' | 'not-open';
+
 /** The authorization the background opened a popup for. The client secret stays in the background. */
 export interface Nip47AuthorizationOpened {
   pendingId: string;

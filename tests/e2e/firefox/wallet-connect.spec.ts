@@ -31,7 +31,9 @@ const SUCCESS = {
 
 /** How the stand-in Hub answers: Alby Hub's own event, Coinos's opener call, or not at all. */
 const ANSWERS: Record<string, string> = {
-  event: `setInterval(() => window.dispatchEvent(new CustomEvent('nwc:success', { detail: ${JSON.stringify(SUCCESS)} })), 500);`,
+  // Once, on load: after Porwr's content script starts but before the tab reports `complete` and is
+  // armed, so the content script must keep it until then (workspace#85).
+  event: `window.addEventListener('load', () => window.dispatchEvent(new CustomEvent('nwc:success', { detail: ${JSON.stringify(SUCCESS)} })));`,
   opener: `setInterval(() => { if (window.opener) window.opener.postMessage(${JSON.stringify({ type: 'nwc:success', ...SUCCESS })}, '*'); }, 500);`,
   none: '',
 };

@@ -24,7 +24,9 @@ vi.mock('@/services/storage-service', () => ({
 
 import {
   PENDING_AUTHORIZATION_TTL_MS,
+  CLAIMED_AUTHORIZATION_GRACE_MS,
   bindPendingNip47AuthorizationPopup,
+  claimPendingNip47Authorization,
   clearPendingNip47Authorizations,
   findPendingNip47AuthorizationByPopup,
   onExpiredPendingNip47Popups,
@@ -159,6 +161,29 @@ describe('nip47 pending authorization store', () => {
       expect(await findPendingNip47AuthorizationByPopup({ tabId: 71 }, NOW)).toBeNull();
       // Still there: finding is not taking.
       expect(await takePendingNip47Authorization('a', NOW)).toMatchObject({ popup });
+    });
+
+    it('claims an authorization once, keeps it stored, and gives it time to settle', async () => {
+      await savePendingNip47Authorization(entry('a'), NOW);
+      await bindPendingNip47AuthorizationPopup('a', popup, NOW);
+      const nearExpiry = NOW + PENDING_AUTHORIZATION_TTL_MS - 1;
+
+      const [first, second] = await Promise.all([
+        claimPendingNip47Authorization('a', nearExpiry),
+        claimPendingNip47Authorization('a', nearExpiry),
+      ]);
+
+      expect([first, second].filter(Boolean)).toHaveLength(1);
+      const claimed = first ?? second;
+      expect(claimed).toMatchObject({ claimed: true, popup });
+      expect(claimed!.expiresAt).toBe(nearExpiry + CLAIMED_AUTHORIZATION_GRACE_MS);
+      // Still stored, so a restarted background can find it by its popup.
+      expect(
+        await findPendingNip47AuthorizationByPopup({ requestId: 'req-1' }, nearExpiry + 1),
+      ).toMatchObject({ claimed: true });
+      expect(await takePendingNip47Authorization('a', nearExpiry + 1)).toMatchObject({
+        claimed: true,
+      });
     });
 
     it('binds nothing once the authorization is gone or expired', async () => {

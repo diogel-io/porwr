@@ -42,6 +42,7 @@ import type {
   BeginNip47AuthorizationRequest,
   OpenNip47AuthorizationRequest,
   CancelNip47AuthorizationRequest,
+  Nip47AuthorizationCancelled,
   Nip47AuthorizationOpened,
   CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
@@ -602,7 +603,7 @@ export interface BridgeResponseMap {
   'nip47.authorization.complete': Nip47ConnectionSummary | { success: false; error: string };
   'nip47.authorization.probe': Nip47ConnectionSummary | null | { success: false; error: string };
   'nip47.authorization.open': Nip47AuthorizationOpened | { success: false; error: string };
-  'nip47.authorization.cancel': boolean | { success: false; error: string };
+  'nip47.authorization.cancel': Nip47AuthorizationCancelled | { success: false; error: string };
   'messaging.dmRelays.get': DmRelayList | { success: false; error: string };
   'messaging.dmRelays.publish': DmRelayPublishResult | { success: false; error: string };
   'messaging.dmRelays.check': DmRelayCheckResult | { success: false; error: string };

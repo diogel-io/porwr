@@ -19,6 +19,7 @@ import type {
   Nip47PayInvoiceResponse,
   Nip47PaymentHistoryEntry,
   CancelNip47AuthorizationRequest,
+  Nip47AuthorizationCancelled,
   OpenNip47AuthorizationRequest,
   ProbeNip47AuthorizationRequest,
 } from '@/types/nip47';
@@ -56,6 +57,7 @@ import {
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import {
   bindPendingNip47AuthorizationPopup,
+  claimPendingNip47Authorization,
   clearPendingNip47Authorizations,
   findPendingNip47AuthorizationByPopup,
   onExpiredPendingNip47Popups,
@@ -738,7 +740,7 @@ async function popupWindowIsOpen(windowId: number): Promise<boolean> {
  */
 export async function handleNip47AuthorizationCancel(
   payload: CancelNip47AuthorizationRequest,
-): Promise<HandlerResult<boolean>> {
+): Promise<HandlerResult<Nip47AuthorizationCancelled>> {
   const { requestId } = payload;
   if (typeof requestId !== 'string' || requestId.length === 0) {
     throw new Error('Missing wallet connection request');
@@ -748,11 +750,18 @@ export async function handleNip47AuthorizationCancel(
   const bound = await findPendingNip47AuthorizationByPopup({ requestId }, Date.now(), {
     includeExpired: true,
   });
-  if (bound?.popup) {
+  // Claimed, but not by this background: it was suspended or restarted while settling, so nothing
+  // will finish it. Drop it and close its popup.
+  if (bound?.popup && bound.claimed && !settling.has(bound.pendingId)) {
+    await takePendingNip47Authorization(bound.pendingId);
+    await closePopupWindow(bound.popup.windowId);
+    return { success: true, data: 'closed' };
+  }
+  if (bound?.popup && !bound.claimed) {
     const taken = await takePendingNip47Authorization(bound.pendingId);
     if (taken || bound.expiresAt <= Date.now()) {
       await closePopupWindow(bound.popup.windowId);
-      return { success: true, data: true };
+      return { success: true, data: 'closed' };
     }
   }
   // Already claimed and being settled: stop it before it saves, and close the popup. Once its
@@ -761,14 +770,14 @@ export async function handleNip47AuthorizationCancel(
   if (inProgress) {
     await closePopupWindow(inProgress.windowId);
     if (inProgress.committed) {
-      return { success: true, data: false };
+      return { success: true, data: 'committed' };
     }
     inProgress.cancelled = true;
-    return { success: true, data: true };
+    return { success: true, data: 'closed' };
   }
   // Not bound yet: the open still in progress drops it when it gets there.
   rememberCancelledRequest(requestId);
-  return { success: true, data: false };
+  return { success: true, data: 'not-open' };
 }
 
 async function closePopupWindow(windowId: number): Promise<void> {
@@ -814,9 +823,9 @@ export async function handleNip47AuthorizationRelay(
 
   const { requestId, windowId } = pending.popup;
   const locksBefore = vaultLocks;
-  // Claimed before anything is awaited on the wallet, so the popup closing meanwhile finds nothing
-  // to settle and only this outcome is posted.
-  const claimed = await takePendingNip47Authorization(pending.pendingId);
+  // Claimed before anything is awaited on the wallet, so the popup closing meanwhile finds it taken
+  // and only this outcome is posted. The claim stays stored until the result is final.
+  const claimed = await claimPendingNip47Authorization(pending.pendingId);
   if (!claimed) {
     return false;
   }
@@ -841,6 +850,7 @@ export async function handleNip47AuthorizationRelay(
     outcome = { status: 'error', message: error instanceof Error ? error.message : String(error) };
   } finally {
     settling.delete(claimed.pendingId);
+    await takePendingNip47Authorization(claimed.pendingId);
   }
   // Nobody is waiting for a cancelled one.
   if (!record.cancelled) {
@@ -865,7 +875,7 @@ export async function handleNip47AuthorizationPopupClosed(windowId: number): Pro
   const { requestId } = pending.popup;
   const locksBefore = vaultLocks;
   // A relayed result claimed it first: that path posts the outcome.
-  const claimed = await takePendingNip47Authorization(pending.pendingId);
+  const claimed = await claimPendingNip47Authorization(pending.pendingId);
   if (!claimed) {
     return;
   }
@@ -890,6 +900,7 @@ export async function handleNip47AuthorizationPopupClosed(windowId: number): Pro
     outcome = { status: 'error', message: error instanceof Error ? error.message : String(error) };
   } finally {
     settling.delete(claimed.pendingId);
+    await takePendingNip47Authorization(claimed.pendingId);
   }
   if (!record.cancelled) {
     postWalletConnectOutcome(requestId, outcome);

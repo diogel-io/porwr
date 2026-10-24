@@ -3,6 +3,7 @@ import type {
   BeginNip47AuthorizationRequest,
   CompleteNip47AuthorizationRequest,
   ImportNip47ConnectionRequest,
+  Nip47AuthorizationCancelled,
   Nip47AuthorizationOpened,
   Nip47AuthorizationStart,
   Nip47BalanceResponse,
@@ -182,7 +183,10 @@ export async function openNip47Authorization(
 }
 
 /** Abandons a background-owned authorization and closes its popup (workspace#85). */
-export async function cancelNip47Authorization(requestId: string): Promise<void> {
+export async function cancelNip47Authorization(
+  requestId: string,
+): Promise<Nip47AuthorizationCancelled> {
   const response = await sendBexMessage('nip47.authorization.cancel', { requestId });
   throwIfError(response);
+  return response === 'committed' || response === 'not-open' ? response : 'closed';
 }

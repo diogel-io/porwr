@@ -142,7 +142,8 @@ answers with `nwc:success`, and that answer reaches the background by one of two
     the popup.
 
   Pending entries are claimed through a serialized store, so only one of these settles an
-  authorization. A popup whose authorization expires is closed when the store drops the entry. A
+  authorization. A claimed entry stays in session storage until its result is final, so a Firefox
+  event page that is suspended meanwhile can still have its popup closed. A popup whose authorization expires is closed when the store drops the entry. A
   cancel that arrives once a save's vault write has begun cannot stop it, so the save finishes and
   reports, and Wallet Connections reads its wallet list again after any cancelled connection.
 

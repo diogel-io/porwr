@@ -109,11 +109,18 @@ function readEventDetail(event: Event): unknown {
 }
 
 /**
- * Installs the relay. It does nothing until the background arms this tab.
+ * Installs the relay. It forwards nothing until the background arms this tab.
+ *
+ * The `nwc:success` event is listened for from the start and the latest one kept, because the arm
+ * message can arrive after the page has answered: the background's first attempt may come before
+ * this script exists, and the next only once the tab reports `complete`. What was kept is forwarded
+ * when the tab is armed, and never otherwise. The opener stand-in, which changes what the page
+ * sees, is placed only once armed.
  */
 export function installWalletRelay(): void {
   let armed = false;
   let relayed = false;
+  let heard: RelayedSuccess | null = null;
 
   const relay = (success: RelayedSuccess | null): void => {
     if (relayed || !success) {
@@ -124,14 +131,21 @@ export function installWalletRelay(): void {
     port.postMessage(success);
   };
 
+  window.addEventListener('nwc:success', (event) => {
+    const success = readWalletSuccess(readEventDetail(event), true);
+    if (armed) {
+      relay(success);
+    } else if (success) {
+      heard = success;
+    }
+  });
+
   const arm = (): void => {
     if (armed) {
       return;
     }
     armed = true;
-    window.addEventListener('nwc:success', (event) => {
-      relay(readWalletSuccess(readEventDetail(event), true));
-    });
+    relay(heard);
     installOpenerStandIn((data) => relay(readWalletSuccess(data)));
   };
 

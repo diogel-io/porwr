@@ -38,6 +38,9 @@ export interface UseWalletConnectWindowResult {
   ) => Promise<WalletConnectWindowResult>;
 }
 
+/** How long to wait for a save the background could no longer stop when the wait ran out. */
+const COMMITTED_SAVE_WAIT_MS = 30_000;
+
 const WINDOW_WIDTH = 420;
 const WINDOW_HEIGHT = 680;
 
@@ -103,14 +106,32 @@ export function useWalletConnectWindow(
           chrome.windows.onRemoved.addListener(onRemoved);
           // Giving up on a background-owned popup also closes it there, so a wallet window the
           // user never closed does not stay open on its own (workspace#85).
-          const abandon = (): void => {
+          const leave = (): void => {
             finish({ status: 'cancelled' });
             if (backgroundPopup) {
               void cancelNip47Authorization(requestId).catch(() => undefined);
             }
           };
-          const timeout = setTimeout(abandon, timeoutMs);
-          cancelPending = abandon;
+          // When the wait runs out, a save whose vault write has already begun cannot be stopped.
+          // Its outcome is waited for, briefly, so the new wallet is reported rather than missed.
+          const giveUp = (): void => {
+            if (!backgroundPopup) {
+              finish({ status: 'cancelled' });
+              return;
+            }
+            void cancelNip47Authorization(requestId).then(
+              (cancelled) => {
+                if (cancelled === 'committed') {
+                  setTimeout(() => finish({ status: 'cancelled' }), COMMITTED_SAVE_WAIT_MS);
+                } else {
+                  finish({ status: 'cancelled' });
+                }
+              },
+              () => finish({ status: 'cancelled' }),
+            );
+          };
+          const timeout = setTimeout(giveUp, timeoutMs);
+          cancelPending = leave;
 
           const fail = (error: unknown): void => {
             stopListening();
