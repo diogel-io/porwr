@@ -134,15 +134,22 @@ export async function savePendingNip47Authorization(
  * Removes and returns a pending authorization. It is single use: whatever happens next, a second
  * completion for the same id finds nothing.
  *
+ * `unclaimedOnly` leaves a claimed entry in place and returns `null` for it, in the same serialized
+ * step, so a cancel cannot remove an entry a settling path claimed a moment before (workspace#85).
+ *
  * @returns The entry, or `null` when it does not exist or has expired.
  */
 export async function takePendingNip47Authorization(
   pendingId: string,
   now: number = Date.now(),
+  { unclaimedOnly = false }: { unclaimedOnly?: boolean } = {},
 ): Promise<PendingNip47Authorization | null> {
   return serialized(async () => {
     const entries = await readPending();
     const match = entries.find((entry) => entry.pendingId === pendingId);
+    if (unclaimedOnly && match?.claimed) {
+      return null;
+    }
     await writePending(dropExpired(entries, now).filter((entry) => entry.pendingId !== pendingId));
     return match && match.expiresAt > now ? match : null;
   });
@@ -153,17 +160,21 @@ export async function takePendingNip47Authorization(
  * removes it with `takePendingNip47Authorization` (workspace#85). Only one caller can claim an
  * entry. Its expiry is pushed out by `CLAIMED_AUTHORIZATION_GRACE_MS`, so settling is not cut off.
  *
- * @returns The entry, or `null` when it does not exist, has expired, or is already claimed.
+ * `abandoned` is asked, inside the same serialized step, whether an existing claim was left by a
+ * background that has since restarted; such a claim can be taken over, so its work resumes.
+ *
+ * @returns The entry, or `null` when it does not exist, has expired, or is claimed by live work.
  */
 export async function claimPendingNip47Authorization(
   pendingId: string,
   now: number = Date.now(),
+  abandoned: (pendingId: string) => boolean = () => false,
 ): Promise<PendingNip47Authorization | null> {
   return serialized(async () => {
     const entries = dropExpired(await readPending(), now);
     const index = entries.findIndex((entry) => entry.pendingId === pendingId);
     const entry = entries[index];
-    if (!entry || entry.claimed) {
+    if (!entry || (entry.claimed && !abandoned(pendingId))) {
       return null;
     }
     const claimed: PendingNip47Authorization = {

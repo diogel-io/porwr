@@ -186,6 +186,26 @@ describe('nip47 pending authorization store', () => {
       });
     });
 
+    it('lets a cancel remove an entry only while it is unclaimed', async () => {
+      await savePendingNip47Authorization(entry('a'), NOW);
+      await claimPendingNip47Authorization('a', NOW);
+
+      expect(await takePendingNip47Authorization('a', NOW, { unclaimedOnly: true })).toBeNull();
+      // Still there for the path settling it.
+      expect(await takePendingNip47Authorization('a', NOW)).toMatchObject({ claimed: true });
+    });
+
+    it('lets a claim left by a restarted background be taken over, and no other', async () => {
+      await savePendingNip47Authorization(entry('a'), NOW);
+      await claimPendingNip47Authorization('a', NOW);
+
+      expect(await claimPendingNip47Authorization('a', NOW, () => false)).toBeNull();
+      expect(await claimPendingNip47Authorization('a', NOW, () => true)).toMatchObject({
+        pendingId: 'a',
+        claimed: true,
+      });
+    });
+
     it('binds nothing once the authorization is gone or expired', async () => {
       expect(await bindPendingNip47AuthorizationPopup('missing', popup, NOW)).toBe(false);
 

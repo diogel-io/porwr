@@ -99,6 +99,14 @@ const settling = new Map<
 const cancelledRequests = new Set<string>();
 const MAX_CANCELLED_REQUESTS = 20;
 
+/**
+ * Whether a stored claim was left by an earlier run of the background: one this run would be
+ * settling is in `settling`. Firefox can unload the event page mid-settlement (workspace#85).
+ */
+function claimLeftByRestart(pendingId: string): boolean {
+  return !settling.has(pendingId);
+}
+
 function rememberCancelledRequest(requestId: string): void {
   cancelledRequests.add(requestId);
   while (cancelledRequests.size > MAX_CANCELLED_REQUESTS) {
@@ -758,7 +766,11 @@ export async function handleNip47AuthorizationCancel(
     return { success: true, data: 'closed' };
   }
   if (bound?.popup && !bound.claimed) {
-    const taken = await takePendingNip47Authorization(bound.pendingId);
+    // Removed only while still unclaimed, in one step: one a settling path claimed meanwhile is
+    // left to it and handled below.
+    const taken = await takePendingNip47Authorization(bound.pendingId, Date.now(), {
+      unclaimedOnly: true,
+    });
     if (taken || bound.expiresAt <= Date.now()) {
       await closePopupWindow(bound.popup.windowId);
       return { success: true, data: 'closed' };
@@ -825,7 +837,11 @@ export async function handleNip47AuthorizationRelay(
   const locksBefore = vaultLocks;
   // Claimed before anything is awaited on the wallet, so the popup closing meanwhile finds it taken
   // and only this outcome is posted. The claim stays stored until the result is final.
-  const claimed = await claimPendingNip47Authorization(pending.pendingId);
+  const claimed = await claimPendingNip47Authorization(
+    pending.pendingId,
+    Date.now(),
+    claimLeftByRestart,
+  );
   if (!claimed) {
     return false;
   }
@@ -875,7 +891,11 @@ export async function handleNip47AuthorizationPopupClosed(windowId: number): Pro
   const { requestId } = pending.popup;
   const locksBefore = vaultLocks;
   // A relayed result claimed it first: that path posts the outcome.
-  const claimed = await claimPendingNip47Authorization(pending.pendingId);
+  const claimed = await claimPendingNip47Authorization(
+    pending.pendingId,
+    Date.now(),
+    claimLeftByRestart,
+  );
   if (!claimed) {
     return;
   }

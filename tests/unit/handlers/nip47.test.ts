@@ -1506,7 +1506,9 @@ describe('a wallet popup the background owns (workspace#85)', () => {
         expect.any(Number),
         { includeExpired: true },
       );
-      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1');
+      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1', expect.any(Number), {
+        unclaimedOnly: true,
+      });
       expect(remove).toHaveBeenCalledWith(7);
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
     });
@@ -1679,7 +1681,11 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
       expect(findPendingNip47AuthorizationByPopup).toHaveBeenCalledWith({ tabId: 70 });
       // Claimed while it settled, and removed only once the result was final.
-      expect(claimPendingNip47Authorization).toHaveBeenCalledWith('pending-1');
+      expect(claimPendingNip47Authorization).toHaveBeenCalledWith(
+        'pending-1',
+        expect.any(Number),
+        expect.any(Function),
+      );
       expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1');
       expect(vaultData.nip47Connections?.[0]).toMatchObject({
         walletServicePubkey: WALLET,
@@ -1706,6 +1712,43 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
       expect(claimPendingNip47Authorization).not.toHaveBeenCalled();
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
+    });
+
+    it('takes over a claim an earlier run of the background left, but not one it is settling', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending({ claimed: true }));
+      let leftByRestart: ((pendingId: string) => boolean) | undefined;
+      let finishInfo!: () => void;
+      vi.mocked(claimPendingNip47Authorization).mockImplementation((_id, _now, abandoned) => {
+        leftByRestart = abandoned;
+        return Promise.resolve(pending({ claimed: true }));
+      });
+      vi.mocked(nip47Client.getInfo).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishInfo = () =>
+              resolve({
+                pubkey: WALLET,
+                capabilities: ['pay_invoice'],
+                relays: [],
+                encryption: [],
+                notifications: [],
+                rawContent: '',
+                checkedAt: '2026-10-24T00:00:00.000Z',
+              });
+          }),
+      );
+
+      const relayed = handleNip47AuthorizationRelay(topFrame, success);
+      await vi.waitFor(() => expect(nip47Client.getInfo).toHaveBeenCalled());
+      // This run is settling it now, so it is live work; any other claim would be a leftover.
+      expect(leftByRestart!('pending-1')).toBe(false);
+      expect(leftByRestart!('another')).toBe(true);
+      finishInfo();
+      await relayed;
+      expect(postWalletConnectOutcome).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({ status: 'connected' }),
+      );
     });
 
     it('ignores a tab no pending authorization owns', async () => {

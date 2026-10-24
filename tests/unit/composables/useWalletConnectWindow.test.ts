@@ -232,6 +232,29 @@ describe('useWalletConnectWindow in Firefox (workspace#85)', () => {
     await expect(result).resolves.toMatchObject({ status: 'connected' });
   });
 
+  it("does not let a finished wait's fallback undo a later connection's cancel hook", async () => {
+    vi.mocked(cancelNip47Authorization).mockClear();
+    vi.mocked(cancelNip47Authorization).mockResolvedValueOnce('committed');
+    vi.useFakeTimers();
+    const { api, wrapper } = harness(1_000);
+
+    const first = api.connect('alby-hub', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const firstId = vi.mocked(openNip47Authorization).mock.calls[0]![0].requestId;
+    postWalletConnectOutcome(firstId, { status: 'no-response' });
+    await first;
+
+    // A second connection starts, then the first one's 30 s fallback would have fired.
+    void api.connect('alby-hub', ACCOUNT);
+    await vi.advanceTimersByTimeAsync(0);
+    const secondId = vi.mocked(openNip47Authorization).mock.calls[1]![0].requestId;
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cancelNip47Authorization).toHaveBeenLastCalledWith(secondId);
+  });
+
   it('cancels nothing once the outcome has arrived', async () => {
     vi.mocked(cancelNip47Authorization).mockClear();
     const { api } = harness();

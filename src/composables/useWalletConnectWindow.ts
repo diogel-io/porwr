@@ -87,12 +87,17 @@ export function useWalletConnectWindow(
       const outcome = await new Promise<WalletConnectOutcome | { status: 'cancelled' }>(
         (resolve, reject) => {
           let windowId: number | undefined;
+          let committedWait: ReturnType<typeof setTimeout> | undefined;
 
           const finish = (result: WalletConnectOutcome | { status: 'cancelled' }): void => {
             stopListening();
             chrome.windows.onRemoved.removeListener(onRemoved);
             clearTimeout(timeout);
-            cancelPending = null;
+            clearTimeout(committedWait);
+            // Only this attempt's hook: a later connection may have installed its own.
+            if (cancelPending === leave) {
+              cancelPending = null;
+            }
             resolve(result);
           };
           const onRemoved = (removedId: number): void => {
@@ -122,7 +127,10 @@ export function useWalletConnectWindow(
             void cancelNip47Authorization(requestId).then(
               (cancelled) => {
                 if (cancelled === 'committed') {
-                  setTimeout(() => finish({ status: 'cancelled' }), COMMITTED_SAVE_WAIT_MS);
+                  committedWait = setTimeout(
+                    () => finish({ status: 'cancelled' }),
+                    COMMITTED_SAVE_WAIT_MS,
+                  );
                 } else {
                   finish({ status: 'cancelled' });
                 }
@@ -137,7 +145,9 @@ export function useWalletConnectWindow(
             stopListening();
             chrome.windows.onRemoved.removeListener(onRemoved);
             clearTimeout(timeout);
-            cancelPending = null;
+            if (cancelPending === leave) {
+              cancelPending = null;
+            }
             reject(error instanceof Error ? error : new Error(String(error)));
           };
 
