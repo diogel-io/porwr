@@ -62,6 +62,8 @@ import {
 import {
   handleNip47AuthorizationBegin,
   handleNip47AuthorizationComplete,
+  handleNip47AuthorizationCancel,
+  handleNip47AuthorizationOpen,
   handleNip47AuthorizationProbe,
   handleNip47ConnectionImport,
   handleNip47ConnectionRemove,
@@ -675,6 +677,40 @@ export async function dispatchMessage<K extends BridgeAction>(
       try {
         const result = await handleNip47AuthorizationProbe(
           payload as BridgeRequestMap['nip47.authorization.probe'],
+        );
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'nip47.authorization.open': {
+      try {
+        const result = await handleNip47AuthorizationOpen(
+          payload as BridgeRequestMap['nip47.authorization.open'],
+        );
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'nip47.authorization.cancel': {
+      try {
+        const result = await handleNip47AuthorizationCancel(
+          payload as BridgeRequestMap['nip47.authorization.cancel'],
         );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;

@@ -247,7 +247,7 @@ describe('the wallet connections page (#110)', () => {
     });
   });
 
-  it('says nothing when the user closes the connect window', async () => {
+  it('says nothing when the user closes the connect window, but reads the list again', async () => {
     mocks.connect.mockResolvedValue({ status: 'cancelled' });
     const wrapper = await mountPage();
     mocks.notify.mockClear();
@@ -256,7 +256,8 @@ describe('the wallet connections page (#110)', () => {
     await flushPromises();
 
     expect(mocks.notify).not.toHaveBeenCalled();
-    expect(mocks.listNip47Connections).toHaveBeenCalledOnce();
+    // A wallet approved just as Porwr stopped waiting may have been saved (workspace#85).
+    expect(mocks.listNip47Connections).toHaveBeenCalledTimes(2);
   });
 
   it('shows an error when connecting fails', async () => {

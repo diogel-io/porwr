@@ -148,6 +148,23 @@ describe('bridge client', () => {
       expect(send).toHaveBeenCalledTimes(1);
     });
 
+    // Each attempt would open another wallet window with its own client secret (workspace#85).
+    it('does not open a second wallet window after a timeout', async () => {
+      const send = vi.fn(() => new Promise(() => {}));
+      setBridge({ send });
+
+      const result = sendBexMessage('nip47.authorization.open', {
+        accountPubkey: 'a'.repeat(64),
+        provider: 'coinos',
+        requestId: 'req-1',
+      });
+      const assertion = expect(result).rejects.toBeInstanceOf(BackgroundTimeoutError);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await assertion;
+
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
     it('is not sent again through runtime messaging', async () => {
       const send = vi.fn(() => new Promise(() => {}));
       const sendMessage = vi.fn();

@@ -6,6 +6,8 @@ import {
   type WalletConnectOutcome,
 } from '@/services/wallet-connect-channel';
 import type { WalletProviderId } from '@/types/wallet-provider';
+import { cancelNip47Authorization, openNip47Authorization } from '@/services/nip47-service';
+import { opensWalletPopupInBackground } from '@/services/wallet-popup-owner';
 
 export type WalletConnectWindowResult =
   | WalletAuthorizationResult
@@ -18,6 +20,11 @@ export interface WalletConnectWindowOptions {
    * 10-minute wait, so its probe fallback has time to finish and report.
    */
   timeoutMs?: number;
+  /**
+   * Whether the background opens the wallet's popup itself rather than a connect window doing it.
+   * Defaults to Firefox, where a popup a Porwr page opens loses its opener (workspace#85).
+   */
+  backgroundPopup?: boolean;
 }
 
 export interface UseWalletConnectWindowResult {
@@ -30,6 +37,9 @@ export interface UseWalletConnectWindowResult {
     customOrigin?: string,
   ) => Promise<WalletConnectWindowResult>;
 }
+
+/** How long to wait for a save the background could no longer stop when the wait ran out. */
+const COMMITTED_SAVE_WAIT_MS = 30_000;
 
 const WINDOW_WIDTH = 420;
 const WINDOW_HEIGHT = 680;
@@ -45,12 +55,18 @@ const WINDOW_HEIGHT = 680;
  * cannot reach this page through `window.opener.opener` either.
  *
  * The connect window reports how it ended over `wallet-connect-channel`.
+ *
+ * Firefox is different: a popup an extension page opens loses its opener there, so the wallet's
+ * message could never arrive. In Firefox the background opens the wallet's popup itself, Porwr's
+ * content script relays the wallet's answer, and the background posts the outcome over the same
+ * channel (workspace#85). There is no opener, so no connect window is needed.
  */
 export function useWalletConnectWindow(
   options: WalletConnectWindowOptions = {},
 ): UseWalletConnectWindowResult {
   const connecting = ref<WalletProviderId | null>(null);
   const timeoutMs = options.timeoutMs ?? 11 * 60 * 1000;
+  const backgroundPopup = options.backgroundPopup ?? opensWalletPopupInBackground();
   let cancelPending: (() => void) | null = null;
 
   const connect = async (
@@ -71,12 +87,17 @@ export function useWalletConnectWindow(
       const outcome = await new Promise<WalletConnectOutcome | { status: 'cancelled' }>(
         (resolve, reject) => {
           let windowId: number | undefined;
+          let committedWait: ReturnType<typeof setTimeout> | undefined;
 
           const finish = (result: WalletConnectOutcome | { status: 'cancelled' }): void => {
             stopListening();
             chrome.windows.onRemoved.removeListener(onRemoved);
             clearTimeout(timeout);
-            cancelPending = null;
+            clearTimeout(committedWait);
+            // Only this attempt's hook: a later connection may have installed its own.
+            if (cancelPending === leave) {
+              cancelPending = null;
+            }
             resolve(result);
           };
           const onRemoved = (removedId: number): void => {
@@ -88,8 +109,74 @@ export function useWalletConnectWindow(
           // Listen before the window exists, so even an instant outcome is not missed.
           const stopListening = listenForWalletConnectOutcome(requestId, finish);
           chrome.windows.onRemoved.addListener(onRemoved);
-          const timeout = setTimeout(() => finish({ status: 'cancelled' }), timeoutMs);
-          cancelPending = () => finish({ status: 'cancelled' });
+          // Giving up on a background-owned popup also closes it there, so a wallet window the
+          // user never closed does not stay open on its own (workspace#85).
+          const leave = (): void => {
+            finish({ status: 'cancelled' });
+            if (backgroundPopup) {
+              void cancelNip47Authorization(requestId).catch(() => undefined);
+            }
+          };
+          // When the wait runs out, a save whose vault write has already begun cannot be stopped.
+          // Its outcome is waited for, briefly, so the new wallet is reported rather than missed.
+          const giveUp = (): void => {
+            if (!backgroundPopup) {
+              finish({ status: 'cancelled' });
+              return;
+            }
+            void cancelNip47Authorization(requestId).then(
+              (cancelled) => {
+                if (cancelled === 'committed') {
+                  committedWait = setTimeout(
+                    () => finish({ status: 'cancelled' }),
+                    COMMITTED_SAVE_WAIT_MS,
+                  );
+                } else {
+                  finish({ status: 'cancelled' });
+                }
+              },
+              () => finish({ status: 'cancelled' }),
+            );
+          };
+          const timeout = setTimeout(giveUp, timeoutMs);
+          cancelPending = leave;
+
+          const fail = (error: unknown): void => {
+            stopListening();
+            chrome.windows.onRemoved.removeListener(onRemoved);
+            clearTimeout(timeout);
+            clearTimeout(committedWait);
+            if (cancelPending === leave) {
+              cancelPending = null;
+            }
+            reject(error instanceof Error ? error : new Error(String(error)));
+          };
+
+          if (backgroundPopup) {
+            // The background opens the wallet itself and posts the outcome, including when the
+            // user closes the wallet's window (workspace#85).
+            openNip47Authorization({
+              accountPubkey,
+              provider,
+              requestId,
+              ...(customOrigin?.trim() ? { customOrigin: customOrigin.trim() } : {}),
+            }).catch((error: unknown) => {
+              // It may have timed out with the popup still opening in the background. A save that
+              // had already begun cannot be stopped, so its outcome is waited for, briefly.
+              void cancelNip47Authorization(requestId).then(
+                (cancelled) => {
+                  if (cancelled === 'committed') {
+                    clearTimeout(timeout);
+                    committedWait = setTimeout(() => fail(error), COMMITTED_SAVE_WAIT_MS);
+                  } else {
+                    fail(error);
+                  }
+                },
+                () => fail(error),
+              );
+            });
+            return;
+          }
 
           chrome.windows
             .create({
@@ -101,13 +188,7 @@ export function useWalletConnectWindow(
             .then((created) => {
               windowId = created?.id;
             })
-            .catch((error: unknown) => {
-              stopListening();
-              chrome.windows.onRemoved.removeListener(onRemoved);
-              clearTimeout(timeout);
-              cancelPending = null;
-              reject(error instanceof Error ? error : new Error(String(error)));
-            });
+            .catch(fail);
         },
       );
 

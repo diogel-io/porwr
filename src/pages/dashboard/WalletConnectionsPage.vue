@@ -286,6 +286,10 @@ async function connectWallet(provider: WalletProviderId): Promise<void> {
       await refreshConnections();
     } else if (result.status === 'popup-blocked') {
       $q.notify({ type: 'warning', message: t('walletManagement.notifications.popupBlocked') });
+    } else if (result.status === 'cancelled') {
+      // A wallet the user approved just as Porwr stopped waiting may still have been saved
+      // (workspace#85), so the list is read again rather than left stale.
+      await refreshConnections();
     } else if (result.status === 'no-response') {
       pasteOpen.value = true;
       $q.notify({
