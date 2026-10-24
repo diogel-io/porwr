@@ -134,7 +134,7 @@ answers with `nwc:success`, and that answer reaches the background by one of two
   opens the wallet's popup and receives `nwc:success` through `window.opener` (workspace#76).
 - **Firefox.** A popup an extension page opens loses its opener there. So the background opens
   the wallet's popup itself (`nip47.authorization.open`), records its window and tab, and settles
-  the authorization from one of two events (workspace#85):
+  the authorization from one of three events (workspace#85):
   - The content script relays the wallet's answer (`src-bex/wallet-relay.ts`). It listens only in
     the tab the background armed (`services/wallet-relay-arm.ts`).
   - The window closes first (`services/wallet-connect-popup.ts`).
