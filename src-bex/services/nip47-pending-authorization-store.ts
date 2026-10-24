@@ -145,7 +145,7 @@ export async function bindPendingNip47AuthorizationPopup(
  * @returns The entry, or `null` when no unexpired authorization owns that popup.
  */
 export async function findPendingNip47AuthorizationByPopup(
-  match: { windowId: number } | { tabId: number },
+  match: { windowId: number } | { tabId: number } | { requestId: string },
   now: number = Date.now(),
 ): Promise<PendingNip47Authorization | null> {
   const entries = unexpired(await readPending(), now);
@@ -153,7 +153,9 @@ export async function findPendingNip47AuthorizationByPopup(
     entries.find((entry) =>
       'windowId' in match
         ? entry.popup?.windowId === match.windowId
-        : entry.popup?.tabId === match.tabId,
+        : 'tabId' in match
+          ? entry.popup?.tabId === match.tabId
+          : entry.popup?.requestId === match.requestId,
     ) ?? null
   );
 }

@@ -206,7 +206,8 @@ describe('useWalletConnectWindow in Firefox (workspace#85)', () => {
     await vi.advanceTimersByTimeAsync(1_000);
     await expect(timedOut).resolves.toEqual({ status: 'cancelled' });
     await vi.advanceTimersByTimeAsync(0);
-    expect(cancelNip47Authorization).toHaveBeenCalledWith('p');
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    expect(cancelNip47Authorization).toHaveBeenCalledWith(requestId);
 
     void api.connect('coinos', ACCOUNT);
     await vi.advanceTimersByTimeAsync(0);
@@ -228,10 +229,13 @@ describe('useWalletConnectWindow in Firefox (workspace#85)', () => {
     expect(cancelNip47Authorization).not.toHaveBeenCalled();
   });
 
-  it('fails when the background cannot open the wallet', async () => {
-    vi.mocked(openNip47Authorization).mockRejectedValue(new Error('Unsupported wallet provider'));
+  it('fails when the background cannot open the wallet, and cancels what it may have opened', async () => {
+    vi.mocked(cancelNip47Authorization).mockClear();
+    vi.mocked(openNip47Authorization).mockRejectedValue(new Error('Background did not answer'));
     const { api } = harness();
 
-    await expect(api.connect('coinos', ACCOUNT)).rejects.toThrow('Unsupported wallet provider');
+    await expect(api.connect('coinos', ACCOUNT)).rejects.toThrow('Background did not answer');
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    expect(cancelNip47Authorization).toHaveBeenCalledWith(requestId);
   });
 });

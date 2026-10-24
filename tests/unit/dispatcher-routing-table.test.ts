@@ -562,7 +562,7 @@ const cases: Case[] = [
   },
   {
     action: 'nip47.authorization.cancel',
-    payload: { pendingId: 'p' },
+    payload: { requestId: 'r' },
     handler: vi.mocked(nip47.handleNip47AuthorizationCancel),
     name: 'handleNip47AuthorizationCancel',
     resolves: ok(true),

@@ -124,9 +124,13 @@ export interface OpenNip47AuthorizationRequest extends BeginNip47AuthorizationRe
   requestId: string;
 }
 
-/** Abandons a background-owned authorization and closes its popup (workspace#85). */
+/**
+ * Abandons a background-owned authorization and closes its popup (workspace#85). Named by the
+ * Wallet Connections request, which the page always has, even when opening timed out before it
+ * learned the `pendingId`.
+ */
 export interface CancelNip47AuthorizationRequest {
-  pendingId: string;
+  requestId: string;
 }
 
 /** The authorization the background opened a popup for. The client secret stays in the background. */

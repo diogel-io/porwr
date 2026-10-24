@@ -96,7 +96,6 @@ export function useWalletConnectWindow(
       const outcome = await new Promise<WalletConnectOutcome | { status: 'cancelled' }>(
         (resolve, reject) => {
           let windowId: number | undefined;
-          let opened: Promise<{ pendingId: string }> | undefined;
 
           const finish = (result: WalletConnectOutcome | { status: 'cancelled' }): void => {
             stopListening();
@@ -118,9 +117,9 @@ export function useWalletConnectWindow(
           // user never closed does not stay open on its own (workspace#85).
           const abandon = (): void => {
             finish({ status: 'cancelled' });
-            void opened
-              ?.then(({ pendingId }) => cancelNip47Authorization(pendingId))
-              .catch(() => undefined);
+            if (backgroundPopup) {
+              void cancelNip47Authorization(requestId).catch(() => undefined);
+            }
           };
           const timeout = setTimeout(abandon, timeoutMs);
           cancelPending = abandon;
@@ -136,13 +135,16 @@ export function useWalletConnectWindow(
           if (backgroundPopup) {
             // The background opens the wallet itself and posts the outcome, including when the
             // user closes the wallet's window (workspace#85).
-            opened = openNip47Authorization({
+            openNip47Authorization({
               accountPubkey,
               provider,
               requestId,
               ...(customOrigin?.trim() ? { customOrigin: customOrigin.trim() } : {}),
+            }).catch((error: unknown) => {
+              // It may have timed out with the popup still opening in the background.
+              void cancelNip47Authorization(requestId).catch(() => undefined);
+              fail(error);
             });
-            opened.catch(fail);
             return;
           }
 

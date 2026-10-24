@@ -1451,12 +1451,14 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
   describe('handleNip47AuthorizationCancel', () => {
     it('drops the authorization and closes its popup', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending());
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
 
-      await expect(handleNip47AuthorizationCancel({ pendingId: 'pending-1' })).resolves.toEqual({
+      await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
         success: true,
         data: true,
       });
+      expect(findPendingNip47AuthorizationByPopup).toHaveBeenCalledWith({ requestId: 'req-1' });
       expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1');
       expect(remove).toHaveBeenCalledWith(7);
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
@@ -1486,7 +1488,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
       const relayed = handleNip47AuthorizationRelay(topFrame, success);
       await vi.waitFor(() => expect(nip47Client.getInfo).toHaveBeenCalled());
-      await expect(handleNip47AuthorizationCancel({ pendingId: 'pending-1' })).resolves.toEqual({
+      await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
         success: true,
         data: true,
       });
@@ -1515,7 +1517,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
       const closing = handleNip47AuthorizationPopupClosed(7);
       await vi.waitFor(() => expect(nip47Client.sendRequest).toHaveBeenCalled());
-      await handleNip47AuthorizationCancel({ pendingId: 'pending-1' });
+      await handleNip47AuthorizationCancel({ requestId: 'req-1' });
       answer();
       await closing;
 
@@ -1523,14 +1525,49 @@ describe('a wallet popup the background owns (workspace#85)', () => {
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
     });
 
-    it('does nothing for an authorization already settled', async () => {
-      vi.mocked(takePendingNip47Authorization).mockResolvedValue(null);
-
-      await expect(handleNip47AuthorizationCancel({ pendingId: 'pending-1' })).resolves.toEqual({
-        success: true,
-        data: false,
+    it('closes nothing for a request with no popup yet, and the open still in progress drops it', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(null);
+      // The cancel arrives while the window is being created, before it is bound.
+      create.mockImplementationOnce(async () => {
+        await expect(handleNip47AuthorizationCancel({ requestId: 'req-mid' })).resolves.toEqual({
+          success: true,
+          data: false,
+        });
+        return { id: 7, tabs: [{ id: 70 }] };
       });
-      expect(remove).not.toHaveBeenCalled();
+
+      await expect(
+        handleNip47AuthorizationOpen({
+          accountPubkey: ACCOUNT,
+          provider: 'coinos',
+          requestId: 'req-mid',
+        }),
+      ).rejects.toThrow('cancelled');
+
+      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-uuid');
+      expect(remove).toHaveBeenCalledWith(7);
+      expect(armWalletRelay).not.toHaveBeenCalled();
+    });
+
+    it('opens nothing for a request cancelled before it started', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(null);
+      await handleNip47AuthorizationCancel({ requestId: 'req-early' });
+
+      await expect(
+        handleNip47AuthorizationOpen({
+          accountPubkey: ACCOUNT,
+          provider: 'coinos',
+          requestId: 'req-early',
+        }),
+      ).rejects.toThrow('cancelled');
+      expect(create).not.toHaveBeenCalled();
+      expect(savePendingNip47Authorization).not.toHaveBeenCalled();
+    });
+
+    it('refuses a cancel that names no request', async () => {
+      await expect(handleNip47AuthorizationCancel({ requestId: '' })).rejects.toThrow(
+        'Missing wallet connection request',
+      );
     });
   });
 

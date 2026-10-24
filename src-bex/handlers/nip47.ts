@@ -82,7 +82,22 @@ const notCancelled = (): boolean => false;
  * takes the pending entry before asking the wallet, so a page that stops waiting meanwhile finds
  * nothing to cancel in the store; this lets it still close the popup and stop the save.
  */
-const settling = new Map<string, { windowId: number; cancelled: boolean }>();
+const settling = new Map<string, { windowId: number; requestId: string; cancelled: boolean }>();
+
+/**
+ * Wallet Connections requests cancelled before the background had bound their popup, so the open
+ * still in progress can drop it (workspace#85). Kept small: an entry is removed when its open
+ * checks it, and the oldest go first.
+ */
+const cancelledRequests = new Set<string>();
+const MAX_CANCELLED_REQUESTS = 20;
+
+function rememberCancelledRequest(requestId: string): void {
+  cancelledRequests.add(requestId);
+  while (cancelledRequests.size > MAX_CANCELLED_REQUESTS) {
+    cancelledRequests.delete(cancelledRequests.values().next().value!);
+  }
+}
 onVaultLocked(() => {
   vaultLocks += 1;
   void clearPendingNip47Authorizations().then(closeAbandonedPopups);
@@ -633,6 +648,9 @@ export async function handleNip47AuthorizationOpen(
   if (typeof payload.requestId !== 'string' || payload.requestId.length === 0) {
     throw new Error('Missing wallet connection request');
   }
+  if (cancelledRequests.delete(payload.requestId)) {
+    throw new Error(CANCELLED_AUTHORIZATION);
+  }
   const started = await handleNip47AuthorizationBegin(payload);
   if (!started.success) {
     return started;
@@ -664,6 +682,10 @@ export async function handleNip47AuthorizationOpen(
       }))
     ) {
       throw new Error(LOCKED_DURING_AUTHORIZATION);
+    }
+    // Wallet Connections gave up while this was opening, so nobody is waiting for it.
+    if (cancelledRequests.delete(payload.requestId)) {
+      throw new Error(CANCELLED_AUTHORIZATION);
     }
   } catch (error: unknown) {
     await takePendingNip47Authorization(pendingId);
@@ -703,19 +725,25 @@ async function popupWindowIsOpen(windowId: number): Promise<boolean> {
 export async function handleNip47AuthorizationCancel(
   payload: CancelNip47AuthorizationRequest,
 ): Promise<HandlerResult<boolean>> {
-  const pending = await takePendingNip47Authorization(payload.pendingId);
-  if (pending?.popup) {
-    await closePopupWindow(pending.popup.windowId);
+  const { requestId } = payload;
+  if (typeof requestId !== 'string' || requestId.length === 0) {
+    throw new Error('Missing wallet connection request');
+  }
+  const bound = await findPendingNip47AuthorizationByPopup({ requestId });
+  if (bound?.popup && (await takePendingNip47Authorization(bound.pendingId))) {
+    await closePopupWindow(bound.popup.windowId);
     return { success: true, data: true };
   }
   // Already claimed and being settled: stop it before it saves, and close the popup.
-  const inProgress = settling.get(payload.pendingId);
+  const inProgress = [...settling.values()].find((record) => record.requestId === requestId);
   if (inProgress) {
     inProgress.cancelled = true;
     await closePopupWindow(inProgress.windowId);
     return { success: true, data: true };
   }
-  return { success: true, data: pending !== null };
+  // Not bound yet: the open still in progress drops it when it gets there.
+  rememberCancelledRequest(requestId);
+  return { success: true, data: false };
 }
 
 async function closePopupWindow(windowId: number): Promise<void> {
@@ -767,7 +795,7 @@ export async function handleNip47AuthorizationRelay(
   if (!claimed) {
     return false;
   }
-  const record = { windowId, cancelled: false };
+  const record = { windowId, requestId, cancelled: false };
   settling.set(claimed.pendingId, record);
   let outcome: WalletConnectOutcome;
   try {
@@ -813,7 +841,7 @@ export async function handleNip47AuthorizationPopupClosed(windowId: number): Pro
   if (!claimed) {
     return;
   }
-  const record = { windowId, cancelled: false };
+  const record = { windowId, requestId, cancelled: false };
   settling.set(claimed.pendingId, record);
   let outcome: WalletConnectOutcome;
   try {
