@@ -88,6 +88,16 @@ describe('getFallbackRelays', () => {
     await expect(getFallbackRelays()).resolves.toEqual(FALLBACK);
   });
 
+  it('uses no relay, not the seeds, when every stored relay is plaintext ws:// (#142)', async () => {
+    storage.fallback = ['ws://relay.example.com', 'ws://other.example.com'];
+    await expect(getFallbackRelays()).resolves.toEqual([]);
+  });
+
+  it('keeps the usable relays of a list that also held plaintext ones', async () => {
+    storage.fallback = ['ws://relay.example.com', 'wss://fallback.one'];
+    await expect(getFallbackRelays()).resolves.toEqual(['wss://fallback.one']);
+  });
+
   it('uses the relay seeds when nothing usable is stored', async () => {
     storage.fallback = ['not a relay'];
     await expect(getFallbackRelays()).resolves.toEqual(

@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as DashboardService from '@/services/dashboard-service';
 import type * as DexieStorage from '@/services/dexie-storage';
 import type * as VaultService from '@/services/vault-service';
-import { useEventService } from '@/composables/useEventService';
 
 const { countSitesHoldingGrantsFor } = vi.hoisted(() => ({
   countSitesHoldingGrantsFor: vi.fn(),
@@ -89,10 +88,6 @@ vi.mock('@/services/relay-discovery', () => ({
   fetchAccountRelayListEvent: fetchAccountRelayListEventMock,
 }));
 
-vi.mock('@/composables/useEventService', () => ({
-  useEventService: vi.fn(),
-}));
-
 const { getApprovalsMock, getExceptionsMock } = vi.hoisted(() => ({
   getApprovalsMock: vi.fn(),
   getExceptionsMock: vi.fn(),
@@ -112,21 +107,9 @@ describe('dashboard-service', () => {
   let dexieStorage: typeof DexieStorage;
   let vaultService: typeof VaultService;
 
-  const getEventsMock = vi.fn();
-  const closeMock = vi.fn();
-
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-
-    getEventsMock.mockReset();
-    closeMock.mockReset();
-
-    vi.mocked(useEventService).mockReturnValue({
-      getEvents: getEventsMock,
-      close: closeMock,
-      relayUrls: ['wss://relay.default'],
-    });
 
     approvalsToArrayMock.mockResolvedValue([]);
     approvalsWhereMock.mockReturnValue({
@@ -227,7 +210,8 @@ describe('dashboard-service', () => {
     expect(countSitesHoldingGrantsFor).not.toHaveBeenCalled();
   });
 
-  it('does not call relay event service for approved client metric', async () => {
+  // The figure comes from the local grant store; counting approved clients must not reach a relay.
+  it('queries no relay for the approved client metric', async () => {
     vi.mocked(dexieStorage.getActive).mockResolvedValue('alpha');
     approvalsToArrayMock.mockResolvedValue([
       { id: 1, dateTime: '2026-01-01', eventKind: 1, hostname: 'site.com', account: 'alpha' },
@@ -235,7 +219,8 @@ describe('dashboard-service', () => {
 
     await dashboardService.getApprovedClientCountForActiveKey();
 
-    expect(useEventService).not.toHaveBeenCalled();
+    expect(fetchAccountRelayListEventMock).not.toHaveBeenCalled();
+    expect(normalizeAndDeduplicateRelaysMock).not.toHaveBeenCalled();
   });
 
   it('returns 0 approved clients when vault is locked', async () => {
@@ -259,7 +244,6 @@ describe('dashboard-service', () => {
     // The figure now comes from the grant store, not the approvals log.
     countSitesHoldingGrantsFor.mockResolvedValue(1);
     fetchAccountRelayListEventMock.mockResolvedValue(null);
-    getEventsMock.mockResolvedValue([]);
 
     const summary = await dashboardService.getDashboardSummary(5);
 
@@ -398,7 +382,6 @@ describe('dashboard-service', () => {
 
       expect(getApprovalsMock).toHaveBeenCalledWith('alpha');
       expect(getExceptionsMock).toHaveBeenCalledWith('alpha');
-      expect(useEventService).not.toHaveBeenCalled();
     });
 
     it('merges approvals and exceptions newest first, with their outcomes, up to the limit', async () => {

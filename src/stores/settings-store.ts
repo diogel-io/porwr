@@ -4,30 +4,108 @@ import {
   DARK_MODE,
   FALLBACK_RELAYS,
   QUICK_PUBLISH_CLIENT_TAG,
+  REMOTE_IMAGES_CHANGED_KEY,
   REQUEST_EXPIRY_MINUTES,
   storageService,
-  VAULT_AUTO_LOCK_MINUTES,
 } from '@/services/storage-service';
 import {
   clampRequestExpiryMinutes,
   REQUEST_EXPIRY_DEFAULT_MINUTES,
 } from '@/services/request-expiry';
 import { RELAY_SEEDS } from '@/data/relay-seeds';
+import { AUTO_LOCK_DEFAULT_MINUTES, clampAutoLockMinutes } from '@/services/auto-lock-minutes';
+import {
+  getProtected,
+  PROTECTED_AUTO_LOCK_MINUTES,
+  PROTECTED_LOAD_REMOTE_IMAGES,
+  setProtected,
+} from '@/services/protected-settings';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
-import { normalizeRelayUrl } from '@/services/relay-url';
+import {
+  hasRefusedPlaintextRelay,
+  isRefusedPlaintextRelay,
+  normalizeRelayUrl,
+} from '@/services/relay-url';
+import { LogLevel, logService } from '@/services/log-service';
+import { normalizeBlossomServer } from '@/services/blossom-server';
 import {
   getStoredProfileSearchRelays,
   setStoredProfileSearchRelays,
 } from '@/services/profile-search-relay-settings-service';
 
 const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net/';
-const DEFAULT_VAULT_AUTO_LOCK_MINUTES = 15;
 const DEFAULT_FALLBACK_RELAYS = RELAY_SEEDS;
 const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
 
+/**
+ * "Load remote images" was saved, but the other open surfaces could not be told, so they keep the
+ * old value until they reload (#148).
+ */
+export class RemoteImagesSignalError extends Error {
+  constructor(cause: unknown) {
+    super(`Saved "Load remote images" but could not signal other surfaces: ${String(cause)}`);
+    this.name = 'RemoteImagesSignalError';
+  }
+}
+
+/** The read of "Load remote images" in progress, shared so concurrent callers make one read. */
+let remoteImagesRead: Promise<void> | null = null;
+
+/**
+ * The relays to use for a stored list: its usable entries, or `defaults` when it has none, unless
+ * the list lost them all to the wss:// rule (#142). Then it stays empty, and Porwr asks no relay
+ * rather than public ones the user did not choose. Applies to the fallback relays and the profile
+ * search relays alike.
+ */
+function resolveStoredRelays(
+  storedValue: readonly unknown[],
+  defaults: readonly string[],
+  listName: string,
+): string[] {
+  // Storage can hold anything; a non-string entry is skipped rather than failing the load.
+  const stored = storedValue.filter((relay): relay is string => typeof relay === 'string');
+  const normalized = normalizeRelayList(stored);
+  if (normalized.length > 0) return normalized;
+  if (hasRefusedPlaintextRelay(stored)) {
+    if (!loggedEmptyLists.has(listName)) {
+      loggedEmptyLists.add(listName);
+      logService.log(
+        LogLevel.WARN,
+        `[settings] Every stored ${listName} relay was plaintext ws://; none are used until wss:// relays are set`,
+      );
+    }
+    return [];
+  }
+  return [...defaults];
+}
+
+const resolveFallbackRelays = (stored: readonly unknown[]): string[] =>
+  resolveStoredRelays(stored, DEFAULT_FALLBACK_RELAYS, 'fallback');
+
+/**
+ * Hosts whose dropped relay has already been logged in this context. Settings load on every
+ * dashboard page and before every upload; the drop is worth one line, not one per load.
+ */
+const loggedRelayDrops = new Set<string>();
+/** Lists whose emptying by the wss:// rule has already been logged in this context. */
+const loggedEmptyLists = new Set<string>();
+
 function normalizeRelayList(relays: string[]): string[] {
-  const normalized = relays
-    .map((relay) => normalizeRelayUrl(relay))
+  const results = relays.map((relay) => normalizeRelayUrl(relay));
+  results.forEach((_result, index) => {
+    if (!isRefusedPlaintextRelay(relays[index]!)) return;
+    // Saved before relays had to be wss:// (diogel-io/workspace#142). The host only, never the URL.
+    let host = 'unparseable';
+    try {
+      host = new URL(relays[index]!.trim()).hostname;
+    } catch {
+      // keep the placeholder
+    }
+    if (loggedRelayDrops.has(host)) return;
+    loggedRelayDrops.add(host);
+    logService.log(LogLevel.INFO, '[settings] Dropped a stored plaintext ws:// relay', { host });
+  });
+  const normalized = results
     .filter(
       (result): result is { valid: true; url: string; hostname?: string } =>
         result.valid && typeof result.url === 'string',
@@ -41,25 +119,40 @@ const useSettingsStore = defineStore('settings', {
   state: () => ({
     blossomServer: DEFAULT_BLOSSOM_SERVER,
     darkMode: true, // Default to dark mode as per current observed behavior
-    vaultAutoLockMinutes: DEFAULT_VAULT_AUTO_LOCK_MINUTES,
+    vaultAutoLockMinutes: AUTO_LOCK_DEFAULT_MINUTES,
     requestExpiryMinutes: REQUEST_EXPIRY_DEFAULT_MINUTES,
     fallbackRelays: DEFAULT_FALLBACK_RELAYS,
     profileSearchRelays: DEFAULT_PROFILE_SEARCH_RELAYS,
     // NIP-89 client tag on Quick Publish notes. On by default; only an explicit `false` turns it off.
     quickPublishClientTag: true,
+    /**
+     * Load profile pictures, banners and relay icons from the hosts that publish them. On by
+     * default; only an explicit `false` turns it off, and then each image waits for the user (T32).
+     */
+    loadRemoteImages: true,
+    /**
+     * Whether "Load remote images" has been read, so remote images can follow it. Kept apart from
+     * `settingsLoaded`: a failure elsewhere in `getSettings` must not leave images undecided.
+     */
+    loadRemoteImagesRead: false,
     isListening: false,
+    /**
+     * Whether stored settings have been read. An empty relay list is a real state since #142, so it
+     * can't double as "not loaded yet".
+     */
+    settingsLoaded: false,
   }),
 
   actions: {
     async getFallbackRelays(): Promise<string[]> {
-      if (this.fallbackRelays.length === 0) {
+      if (!this.settingsLoaded) {
         await this.getSettings();
       }
       return this.fallbackRelays;
     },
 
     async getProfileSearchRelays(): Promise<string[]> {
-      if (this.profileSearchRelays.length === 0) {
+      if (!this.settingsLoaded) {
         await this.getSettings();
       }
       return this.profileSearchRelays;
@@ -69,23 +162,23 @@ const useSettingsStore = defineStore('settings', {
       const result = await storageService.getMultiple([
         BLOSSOM_SERVER,
         DARK_MODE,
-        VAULT_AUTO_LOCK_MINUTES,
         REQUEST_EXPIRY_MINUTES,
         FALLBACK_RELAYS,
         QUICK_PUBLISH_CLIENT_TAG,
       ]);
       if (result[BLOSSOM_SERVER] && typeof result[BLOSSOM_SERVER] === 'string') {
+        // Kept as stored, even when it is not https://: the Media page shows it with the reason, and
+        // the background refuses to upload to it. Swapping in the default would send the user's
+        // images to a server they never chose (T21, #142).
         this.blossomServer = result[BLOSSOM_SERVER];
       }
       if (Object.prototype.hasOwnProperty.call(result, DARK_MODE)) {
         this.darkMode = Boolean(result[DARK_MODE]);
       }
-      if (Object.prototype.hasOwnProperty.call(result, VAULT_AUTO_LOCK_MINUTES)) {
-        const value = Number(result[VAULT_AUTO_LOCK_MINUTES]);
-        this.vaultAutoLockMinutes = Number.isFinite(value)
-          ? Math.max(0, Math.floor(value))
-          : DEFAULT_VAULT_AUTO_LOCK_MINUTES;
-      }
+      // Kept out of content-script storage, and clamped as the background clamps it (#140).
+      this.vaultAutoLockMinutes = clampAutoLockMinutes(
+        await getProtected<unknown>(PROTECTED_AUTO_LOCK_MINUTES),
+      );
       if (Object.prototype.hasOwnProperty.call(result, REQUEST_EXPIRY_MINUTES)) {
         // Clamped on read as well as on write: the background applies the same clamp, and the
         // UI must never present a value the background would refuse (ADR D8).
@@ -95,9 +188,10 @@ const useSettingsStore = defineStore('settings', {
         Array.isArray(result[FALLBACK_RELAYS]) &&
         (result[FALLBACK_RELAYS] as unknown[]).length > 0
       ) {
-        this.fallbackRelays = result[FALLBACK_RELAYS] as string[];
+        this.fallbackRelays = resolveFallbackRelays(result[FALLBACK_RELAYS] as unknown[]);
       }
       this.quickPublishClientTag = result[QUICK_PUBLISH_CLIENT_TAG] !== false;
+      await this.refreshLoadRemoteImages();
       let storedProfileSearchRelays: string[] | undefined;
       try {
         storedProfileSearchRelays = await getStoredProfileSearchRelays();
@@ -105,15 +199,23 @@ const useSettingsStore = defineStore('settings', {
         storedProfileSearchRelays = undefined;
       }
       if (Array.isArray(storedProfileSearchRelays)) {
-        const normalized = normalizeRelayList(storedProfileSearchRelays);
-        this.profileSearchRelays =
-          normalized.length > 0 ? normalized : DEFAULT_PROFILE_SEARCH_RELAYS;
+        this.profileSearchRelays = resolveStoredRelays(
+          storedProfileSearchRelays,
+          DEFAULT_PROFILE_SEARCH_RELAYS,
+          'profile search',
+        );
       }
+      this.settingsLoaded = true;
     },
 
+    /** Saves an https:// Blossom server. Throws for anything else, and leaves the setting unchanged. */
     async setBlossomServer(url: string): Promise<void> {
-      this.blossomServer = url;
-      await storageService.set(BLOSSOM_SERVER, url);
+      const result = normalizeBlossomServer(url);
+      if (!result.valid || !result.url) {
+        throw new Error(result.error ?? 'Enter a valid Blossom server URL');
+      }
+      this.blossomServer = result.url;
+      await storageService.set(BLOSSOM_SERVER, result.url);
     },
 
     async setDarkMode(dark: boolean): Promise<void> {
@@ -126,10 +228,61 @@ const useSettingsStore = defineStore('settings', {
       await storageService.set(QUICK_PUBLISH_CLIENT_TAG, enabled);
     },
 
+    /**
+     * Saves "Load remote images". Throws if it cannot be stored, and then changes nothing. Once it
+     * is stored the choice stands: if the other open surfaces cannot then be told, after one retry,
+     * it throws `RemoteImagesSignalError` so the user knows to reload them.
+     */
+    async setLoadRemoteImages(enabled: boolean): Promise<void> {
+      await setProtected(PROTECTED_LOAD_REMOTE_IMAGES, enabled);
+      this.loadRemoteImages = enabled;
+      // Tells the other open surfaces to re-read it; the signal carries no value (#148).
+      try {
+        await storageService.set(REMOTE_IMAGES_CHANGED_KEY, Date.now());
+      } catch {
+        try {
+          await storageService.set(REMOTE_IMAGES_CHANGED_KEY, Date.now());
+        } catch (error) {
+          throw new RemoteImagesSignalError(error);
+        }
+      }
+    },
+
+    /**
+     * Reads "Load remote images" from the protected store, so a content script cannot turn remote
+     * images back on (#148). Only an explicit `false` turns it off. A read that fails holds images
+     * back rather than leaving them loading, and never throws.
+     *
+     * Callers that ask at the same time share one read. Pass `fresh` after a change: it waits for
+     * any read in flight, which may have seen the old value, then reads again.
+     */
+    refreshLoadRemoteImages(options: { fresh?: boolean } = {}): Promise<void> {
+      if (remoteImagesRead && !options.fresh) return remoteImagesRead;
+      const read = async (): Promise<void> => {
+        try {
+          this.loadRemoteImages =
+            (await getProtected<unknown>(PROTECTED_LOAD_REMOTE_IMAGES)) !== false;
+        } catch (error) {
+          this.loadRemoteImages = false;
+          logService.log(
+            LogLevel.WARN,
+            `[settings] Could not read "Load remote images"; holding remote images back: ${String(error)}`,
+          );
+        } finally {
+          this.loadRemoteImagesRead = true;
+        }
+      };
+      const next: Promise<void> = (remoteImagesRead ?? Promise.resolve()).then(read).finally(() => {
+        if (remoteImagesRead === next) remoteImagesRead = null;
+      });
+      remoteImagesRead = next;
+      return next;
+    },
+
     async setVaultAutoLockMinutes(minutes: number): Promise<void> {
-      const normalized = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0;
+      const normalized = clampAutoLockMinutes(minutes);
       this.vaultAutoLockMinutes = normalized;
-      await storageService.set(VAULT_AUTO_LOCK_MINUTES, normalized);
+      await setProtected(PROTECTED_AUTO_LOCK_MINUTES, normalized);
     },
 
     async setRequestExpiryMinutes(minutes: number): Promise<void> {
@@ -183,27 +336,26 @@ const useSettingsStore = defineStore('settings', {
             const newValue = changes[DARK_MODE].newValue;
             this.darkMode = typeof newValue === 'boolean' ? newValue : Boolean(newValue);
           }
-          if (VAULT_AUTO_LOCK_MINUTES in changes) {
-            const newValue = Number(changes[VAULT_AUTO_LOCK_MINUTES].newValue);
-            this.vaultAutoLockMinutes = Number.isFinite(newValue)
-              ? Math.max(0, Math.floor(newValue))
-              : DEFAULT_VAULT_AUTO_LOCK_MINUTES;
+          if (REMOTE_IMAGES_CHANGED_KEY in changes) {
+            void this.refreshLoadRemoteImages({ fresh: true });
           }
           if (QUICK_PUBLISH_CLIENT_TAG in changes) {
             this.quickPublishClientTag = changes[QUICK_PUBLISH_CLIENT_TAG].newValue !== false;
           }
           if (FALLBACK_RELAYS in changes) {
             const newValue = changes[FALLBACK_RELAYS].newValue;
-            if (Array.isArray(newValue) && newValue.length > 0) {
-              this.fallbackRelays = normalizeRelayList(newValue as string[]);
-            } else {
-              this.fallbackRelays = DEFAULT_FALLBACK_RELAYS;
-            }
+            this.fallbackRelays =
+              Array.isArray(newValue) && newValue.length > 0
+                ? resolveFallbackRelays(newValue as unknown[])
+                : DEFAULT_FALLBACK_RELAYS;
           }
         }
       });
 
       this.isListening = true;
+      // A change signalled before this listener existed is not replayed, so read once more now
+      // that it does: a surface opening while another turns images off must not miss it (#148).
+      void this.refreshLoadRemoteImages({ fresh: true });
     },
   },
 });

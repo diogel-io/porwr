@@ -6,7 +6,7 @@ export default {
   success: 'Action was successful',
   validation: {
     profileNameRequired: 'Profile Name is required',
-    invalidNsec: 'Please enter a valid nsec private key',
+    invalidNsec: 'Enter a valid nsec, or an ncryptsec encrypted key',
     keyPairExists: 'A key pair with this public key or alias already exists',
   },
   createAccount: {
@@ -16,7 +16,8 @@ export default {
       import: 'Import Existing',
     },
     generateKeys: 'Generate Keys',
-    importNsecLabel: 'NSEC Private Key',
+    importNsecLabel: 'Private key (nsec or ncryptsec)',
+    ncryptsecPassword: 'Password for the encrypted key',
     importButton: 'Import',
     save: 'Save',
   },
@@ -33,10 +34,21 @@ export default {
     editAccount: 'Edit Account',
     editDashboardCaption: 'Review account details and export a secure backup when needed.',
     exportAccount: 'Export Account',
-    exportChoosePassword: 'Choose a password and file name',
+    exportChoosePassword: 'Enter your vault password, then choose a password for the backup',
     exportStarted: 'Export started. You will be prompted to save the file.',
     exportFailed: 'Could not export the key. Unlock Porwr and try again.',
-    revealFailed: 'Could not show the private key. Unlock Porwr and try again.',
+    revealFailed: 'Could not show the private key. Check your vault password and try again.',
+    revealConfirmTitle: 'Enter your vault password',
+    revealConfirmBody:
+      'Your private key controls your Nostr identity. Confirm it is you before it is shown.',
+    revealConfirm: 'Show key',
+    revealCancel: 'Cancel',
+    exportFormatNote:
+      'The key is saved encrypted with this password, as a NIP-49 ncryptsec that Porwr and other Nostr clients can import. Keep the password: without it the backup cannot be opened.',
+    passwordTooShort: 'Use at least {min} characters',
+    passwordMismatch: 'The passwords do not match',
+    confirmPassword: 'Confirm password',
+    vaultPassword: 'Vault password',
     showPrivateKey: 'Show private key',
     hidePrivateKey: 'Hide private key',
     copyPrivateKey: 'Copy private key',
@@ -376,9 +388,14 @@ export default {
       caption:
         'Choose your wallet and approve Porwr in the window that opens. Nothing to copy or paste. The connection key is created inside Porwr and stored in your encrypted vault; it is never shown to websites.',
       connectWith: 'Connect {provider}',
+      albyAccountNote:
+        'Connect Alby Hub opens Alby Cloud. An Alby account on its own has no wallet: if your Hub runs at home, for example on Umbrel, turn on "Use my own Alby Hub" and enter its address.',
       customHubToggle: 'Use my own Alby Hub',
       customHubLabel: 'Alby Hub address',
-      customHubHint: 'The https:// address of your self-hosted Alby Hub',
+      customHubHint:
+        'Your Hub’s https:// address, or its http:// address and port on your home network, such as http://192.168.1.50:59000. If a name such as umbrel.local does not load, use the device’s IP address.',
+      customHubUnencrypted:
+        'This Hub is reached without encryption, so a device on your network could see the passwords you type into it. Use it only on a home network you trust.',
       pasteTitle: 'Paste a connection string instead',
       pasteCaption:
         'For any other Nostr Wallet Connect wallet, copy its nostr+walletconnect:// connection string and paste it here.',
@@ -470,6 +487,8 @@ export default {
       connected: '{label} connected.',
       noResponse:
         "We didn't hear back from {provider}. If you approved Porwr, try again, or paste a connection string instead.",
+      noResponseAlbyHub:
+        'We didn\'t hear back from Alby Hub. An Alby account needs a Hub: if yours runs at home, turn on "Use my own Alby Hub" and enter its address, or paste a connection string instead.',
       popupBlocked:
         'Your browser blocked the wallet window. Allow pop-ups for Porwr and try again.',
       infoLoaded: 'Wallet info loaded. Capabilities: {capabilities}.',
@@ -608,7 +627,19 @@ export default {
     title: 'Media Management',
     dashboardCaption: 'Choose the Blossom server Porwr uploads your profile images to.',
   },
+  remoteImages: {
+    loadOne: 'Load image',
+    hidden:
+      'Remote images on this page are hidden. Loading them tells their hosts which profiles you viewed.',
+    loadAll: 'Load images on this page',
+  },
   settings: {
+    loadRemoteImages: 'Load remote images',
+    loadRemoteImagesCaption:
+      'Show profile pictures, banners and relay icons as soon as a page opens. Each one is fetched from the host its profile or relay names, which tells that host whose profile you viewed. Turn off to load them only when you choose.',
+    loadRemoteImagesSaveFailed: 'Could not save "Load remote images". The setting is unchanged.',
+    loadRemoteImagesSignalFailed:
+      'Saved "Load remote images", but other open Porwr pages keep the old setting until you reload them.',
     quickPublishClientTag: 'Tag Quick Publish notes as from Porwr',
     quickPublishClientTagCaption:
       'Adds a NIP-89 client tag so other Nostr clients can show which app published the note. Turn off to leave no trace of the client.',
@@ -677,9 +708,11 @@ export default {
     browse: 'Browse',
     save: 'Save',
     fetchError: 'Failed to fetch relay list from relays',
+    loadError:
+      'Could not load your relay list, so the list below may not be your current one. Saving will replace your published relay list with the list shown here.',
     saveSuccess: 'Relay list updated successfully',
     saveError: 'Failed to update relay list',
-    invalidUrl: 'Invalid relay URL (must start with ws:// or wss://)',
+    invalidUrl: 'Invalid relay URL (must start with wss://, or ws:// for localhost)',
     noRelays: 'No relays in the list',
     recommendedSize: 'NIP-65 recommends keeping the list small (2-4 relays per category).',
     dmRelays: {
@@ -828,7 +861,7 @@ export default {
       warning: 'This password encrypts your keys. Porwr cannot recover it for you.',
       password: 'Password',
       confirmPassword: 'Confirm password',
-      minimum: 'Minimum 8 characters',
+      minimum: 'Minimum {min} characters',
       mismatch: 'Passwords must match',
     },
     accountSwitcher: {
@@ -871,6 +904,15 @@ export default {
     },
     refresh: 'Refresh',
     noData: 'No activity found',
+    clear: {
+      label: 'Clear history',
+      title: 'Clear event history?',
+      body: 'This deletes the approval and exception history for every account. It cannot be undone.',
+      confirm: 'Clear history',
+      cancel: 'Cancel',
+      done: 'Event history cleared',
+      failed: 'Could not clear the event history',
+    },
   },
   footer: {
     version: 'V',

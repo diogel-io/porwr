@@ -41,6 +41,8 @@ describe('nip05-service', () => {
       expect(result.status).toBe('verified');
       expect(result.actualPubkey).toBe(expectedPubkey);
       expect(fetch).toHaveBeenCalledWith('https://example.com/.well-known/nostr.json?name=alice', {
+        // NIP-05 forbids following redirects (#142).
+        redirect: 'error',
         method: 'GET',
         headers: {
           Accept: 'application/json',

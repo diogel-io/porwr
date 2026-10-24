@@ -7,15 +7,18 @@ const store = vi.hoisted(() => ({
   setBlossomServer: vi.fn(),
 }));
 
-vi.mock('@/stores/settings-store', () => ({
-  default: () => store,
-}));
+vi.mock('@/stores/settings-store', async () => {
+  const { reactive } = await import('vue');
+  const reactiveStore = reactive(store);
+  return { default: () => reactiveStore };
+});
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
 import MediaManagementPage from '@/pages/dashboard/MediaManagementPage.vue';
+import useSettingsStore from '@/stores/settings-store';
 
 const mountPage = async () => {
   const wrapper = mount(MediaManagementPage, {
@@ -67,5 +70,39 @@ describe('MediaManagementPage', () => {
     await wrapper.find('input').setValue('https://media.example.org/');
 
     expect(store.setBlossomServer).toHaveBeenCalledWith('https://media.example.org/');
+  });
+
+  it('does not save an http:// URL, and shows why (diogel-io/workspace#142, T21)', async () => {
+    const wrapper = await mountPage();
+
+    await wrapper.find('input').setValue('http://media.example.org/');
+
+    expect(store.setBlossomServer).not.toHaveBeenCalled();
+  });
+
+  it('follows a server changed elsewhere after it mounted (diogel-io/workspace#142)', async () => {
+    const wrapper = await mountPage();
+
+    useSettingsStore().blossomServer = 'https://other-tab.example/';
+    await flushPromises();
+
+    expect((wrapper.find('input').element as HTMLInputElement).value).toBe(
+      'https://other-tab.example/',
+    );
+  });
+
+  it('does not rewrite what is being typed when its own save comes back normalised', async () => {
+    store.setBlossomServer.mockImplementation((url: string) => {
+      useSettingsStore().blossomServer = new URL(url).toString();
+      return Promise.resolve();
+    });
+    const wrapper = await mountPage();
+
+    await wrapper.find('input').setValue('https://media.example.org');
+    await flushPromises();
+
+    expect((wrapper.find('input').element as HTMLInputElement).value).toBe(
+      'https://media.example.org',
+    );
   });
 });

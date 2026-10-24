@@ -5,14 +5,17 @@ import {
   clearPermissionCache,
   getGrantedPermissions,
   grantPermission,
+  revokeGrantsExcept,
   revokePermission,
 } from '@/../src-bex/handlers/permission-handler';
-import { storageService } from '@/services/storage-service';
+import { getProtected, setProtected } from '@/services/protected-settings';
 import type { PermissionGrant } from '@/../src-bex/types/background';
 
-vi.mock('@/services/storage-service', () => ({
-  storageService: { get: vi.fn(), set: vi.fn() },
-  PERMISSIONS_KEY: 'permissions',
+// Grants are kept in the protected store (#140); spies stand in for it so reads and writes show.
+vi.mock('@/services/protected-settings', () => ({
+  getProtected: vi.fn(),
+  setProtected: vi.fn(),
+  PROTECTED_PERMISSIONS: 'protected:permissions',
 }));
 
 vi.mock('@/services/log-service', () => ({
@@ -44,8 +47,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   clearPermissionCache();
   stored = [];
-  vi.mocked(storageService).get.mockImplementation(() => Promise.resolve(stored));
-  vi.mocked(storageService).set.mockImplementation((_key, value) => {
+  vi.mocked(getProtected).mockImplementation(() => Promise.resolve(stored as never));
+  vi.mocked(setProtected).mockImplementation((_key, value) => {
     stored = value as PermissionGrant[];
     return Promise.resolve();
   });
@@ -111,12 +114,12 @@ describe('permission grants', () => {
     });
 
     it('keeps each kindless request type separate from the others', async () => {
-      await grantPermission(ORIGIN, ALICE, 'nip04_decrypt', null, 'always');
+      await grantPermission(ORIGIN, ALICE, 'nip04_encrypt', null, 'always');
 
-      expect(await checkPermission(ORIGIN, ALICE, 'nip44_decrypt', null)).toEqual({
+      expect(await checkPermission(ORIGIN, ALICE, 'nip44_encrypt', null)).toEqual({
         granted: false,
       });
-      expect(await checkPermission(ORIGIN, ALICE, 'nip04_decrypt', null)).toEqual({
+      expect(await checkPermission(ORIGIN, ALICE, 'nip04_encrypt', null)).toEqual({
         granted: true,
         always: true,
       });
@@ -142,7 +145,9 @@ describe('permission grants', () => {
    * side effect: it must be written as a wildcard on a signing request, and no path offers that yet.
    */
   describe('the signing wildcard', () => {
-    it('answers any kind for the same origin when one exists', async () => {
+    // A wildcard would answer every kind, elevated and unknown ones included, so it can meet no
+    // per-kind duration limit. Nothing writes one; a stored one is dropped (#139).
+    it('is never honoured, and a stored one is dropped', async () => {
       seed([
         {
           origin: ORIGIN,
@@ -155,9 +160,10 @@ describe('permission grants', () => {
       ]);
 
       expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 30023)).toEqual({
-        granted: true,
-        always: true,
+        granted: false,
       });
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 9734)).toEqual({ granted: false });
+      expect(stored).toEqual([]);
     });
 
     it('answers only signing, never another request type', async () => {
@@ -218,7 +224,7 @@ describe('permission grants', () => {
           origin: ORIGIN,
           accountPubkey: ALICE,
           requestType: 'sign_event',
-          eventKind: 5,
+          eventKind: 7,
           granted: true,
           timestamp: 1,
         },
@@ -226,9 +232,9 @@ describe('permission grants', () => {
 
       await getGrantedPermissions();
 
-      expect(vi.mocked(storageService).set).toHaveBeenCalled();
+      expect(vi.mocked(setProtected)).toHaveBeenCalled();
       expect(stored).toHaveLength(1);
-      expect(stored[0]).toMatchObject({ accountPubkey: ALICE, eventKind: 5 });
+      expect(stored[0]).toMatchObject({ accountPubkey: ALICE, eventKind: 7 });
     });
 
     it('leaves fully-keyed records alone', async () => {
@@ -245,7 +251,7 @@ describe('permission grants', () => {
 
       await getGrantedPermissions();
 
-      expect(vi.mocked(storageService).set).not.toHaveBeenCalled();
+      expect(vi.mocked(setProtected)).not.toHaveBeenCalled();
     });
   });
 
@@ -256,7 +262,7 @@ describe('permission grants', () => {
       expect(await checkPermission(ORIGIN, BOB, 'sign_event', 1)).toEqual({ granted: false });
     });
 
-    it('keeps a wildcard to the account it was given to', async () => {
+    it('honours no wildcard for any account', async () => {
       seed([
         {
           origin: ORIGIN,
@@ -268,10 +274,7 @@ describe('permission grants', () => {
         },
       ]);
 
-      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 7)).toEqual({
-        granted: true,
-        always: true,
-      });
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 7)).toEqual({ granted: false });
       expect(await checkPermission(ORIGIN, BOB, 'sign_event', 7)).toEqual({ granted: false });
     });
 
@@ -346,11 +349,11 @@ describe('permission grants', () => {
 
       await getGrantedPermissions();
       await getGrantedPermissions();
-      expect(vi.mocked(storageService).get).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(getProtected)).toHaveBeenCalledTimes(1);
 
       clearPermissionCache();
       await getGrantedPermissions();
-      expect(vi.mocked(storageService).get).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(getProtected)).toHaveBeenCalledTimes(2);
     });
   });
 });
@@ -448,5 +451,86 @@ describe('origin normalisation', () => {
     expect((await checkPermission('http://example.com', ALICE, 'sign_event', 1)).granted).toBe(
       false,
     );
+  });
+
+  // The risk class limits how long a grant may stand (D11, D12). The background enforces it on
+  // write and on read, so a grant from before a request type became elevated stops answering (#139).
+  describe('durations the risk class allows', () => {
+    const fullyKeyed = (overrides: Record<string, unknown>) => ({
+      origin: ORIGIN,
+      accountPubkey: ALICE,
+      requestType: 'sign_event',
+      eventKind: 1,
+      granted: true,
+      timestamp: 1,
+      ...overrides,
+    });
+
+    it('refuses to write an always grant for an elevated kind or a decrypt request', async () => {
+      await expect(grantPermission(ORIGIN, ALICE, 'sign_event', 9734, 'always')).rejects.toThrow(
+        /not allowed/,
+      );
+      await expect(grantPermission(ORIGIN, ALICE, 'nip44_decrypt', null, 'always')).rejects.toThrow(
+        /not allowed/,
+      );
+    });
+
+    it('refuses to write any standing grant for an unknown kind', async () => {
+      await expect(grantPermission(ORIGIN, ALICE, 'sign_event', 31_999, '8h')).rejects.toThrow(
+        /not allowed/,
+      );
+    });
+
+    it('still writes an 8h decrypt grant', async () => {
+      await grantPermission(ORIGIN, ALICE, 'nip44_decrypt', null, '8h');
+
+      expect(await checkPermission(ORIGIN, ALICE, 'nip44_decrypt', null)).toEqual({
+        granted: true,
+        always: false,
+      });
+    });
+
+    it('no longer honours an always decrypt grant written before decrypt became elevated', async () => {
+      seed([fullyKeyed({ requestType: 'nip04_decrypt', eventKind: null })]);
+
+      expect(await checkPermission(ORIGIN, ALICE, 'nip04_decrypt', null)).toEqual({
+        granted: false,
+      });
+      expect(stored).toEqual([]);
+    });
+
+    it('drops an expired grant from storage rather than keeping it', async () => {
+      seed([fullyKeyed({ expiry: Date.now() - 1_000 }), fullyKeyed({ eventKind: 7 })]);
+
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 1)).toEqual({ granted: false });
+      expect(stored).toHaveLength(1);
+      expect(stored[0]).toMatchObject({ eventKind: 7 });
+    });
+
+    it('drops a grant that expires after it was loaded, when it is next checked', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(1_000_000);
+        await grantPermission(ORIGIN, ALICE, 'sign_event', 1, '8h');
+        vi.setSystemTime(1_000_000 + 9 * 60 * 60 * 1000);
+
+        expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 1)).toEqual({ granted: false });
+        expect(stored).toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('grants of removed accounts (#139)', () => {
+    it('drops every grant held by an account that is no longer present', async () => {
+      await grantPermission(ORIGIN, ALICE, 'sign_event', 1, 'always');
+      await grantPermission(ORIGIN, BOB, 'sign_event', 1, 'always');
+
+      await expect(revokeGrantsExcept(new Set([BOB]))).resolves.toBe(1);
+
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 1)).toEqual({ granted: false });
+      expect((await checkPermission(ORIGIN, BOB, 'sign_event', 1)).granted).toBe(true);
+    });
   });
 });

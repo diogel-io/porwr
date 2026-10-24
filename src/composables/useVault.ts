@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import useVaultStore from '@/stores/vault-store';
+import { MIN_PASSWORD_LENGTH } from '@/types/accounts';
 import { type ErrorCode, formatErrorForUser } from '@/types/error-codes.d';
 
 type LoginContext = 'dashboard' | 'extension';
@@ -66,7 +67,7 @@ export function useVault() {
   }
 
   async function handleCreate() {
-    if (password.value.length < 8 || password.value !== confirmPassword.value) {
+    if (password.value.length < MIN_PASSWORD_LENGTH || password.value !== confirmPassword.value) {
       return;
     }
     loading.value = true;

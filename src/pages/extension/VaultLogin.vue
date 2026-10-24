@@ -29,7 +29,10 @@
 
           <q-input
             v-model="password"
-            :rules="[(val) => val.length >= 8 || 'Minimum 8 characters']"
+            :rules="[
+              (val) =>
+                val.length >= MIN_PASSWORD_LENGTH || `Minimum ${MIN_PASSWORD_LENGTH} characters`,
+            ]"
             class="q-mb-md"
             filled
             label="Password"
@@ -88,6 +91,7 @@ import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useVault } from '@/composables/useVault';
+import { MIN_PASSWORD_LENGTH } from '@/types/accounts';
 import DiogelLogo from '@/components/shared/DiogelLogo.vue';
 
 const {

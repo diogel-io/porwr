@@ -36,6 +36,8 @@ async function refresh(accountPubkey: string, options: RefreshOptions): Promise<
   }
 
   const relays = await getFallbackRelays();
+  // No usable fallback relay (#142): there is nothing to ask, and the cache stays as it is.
+  if (relays.length === 0) return;
   await writeContactList(
     accountPubkey,
     await fetchContactListSnapshot(pool, relays, accountPubkey),

@@ -1,12 +1,30 @@
 <script lang="ts" setup>
 import { onMounted } from 'vue';
+import { useQuasar } from 'quasar';
 import ThemeSwitch from '@/components/dashboard/ThemeSwitch.vue';
-import useSettingsStore from '@/stores/settings-store';
+import useSettingsStore, { RemoteImagesSignalError } from '@/stores/settings-store';
 import { useI18n } from 'vue-i18n';
 import { REQUEST_EXPIRY_OPTION_MINUTES } from '@/services/request-expiry';
 
+const $q = useQuasar();
 const { t } = useI18n();
 const settingsStore = useSettingsStore();
+
+/**
+ * A save that fails leaves the toggle where it was, and says so. A save that other open Porwr
+ * pages could not be told about stands, and asks the user to reload them (#148).
+ */
+async function setLoadRemoteImages(enabled: boolean): Promise<void> {
+  try {
+    await settingsStore.setLoadRemoteImages(enabled);
+  } catch (error) {
+    if (error instanceof RemoteImagesSignalError) {
+      $q.notify({ type: 'warning', message: t('settings.loadRemoteImagesSignalFailed') });
+    } else {
+      $q.notify({ type: 'negative', message: t('settings.loadRemoteImagesSaveFailed') });
+    }
+  }
+}
 
 // Bounded, discrete choices with no "off" option: expiry is a fail-closed control (ADR D8).
 const requestExpiryOptions = REQUEST_EXPIRY_OPTION_MINUTES.map((minutes: number) => ({
@@ -52,6 +70,23 @@ onMounted(async () => {
                 :model-value="settingsStore.quickPublishClientTag"
                 :aria-label="t('settings.quickPublishClientTag')"
                 @update:model-value="(val) => settingsStore.setQuickPublishClientTag(Boolean(val))"
+              />
+            </q-item-section>
+          </q-item>
+
+          <q-item v-ripple tag="label">
+            <q-item-section>
+              <q-item-label>{{ t('settings.loadRemoteImages') }}</q-item-label>
+              <q-item-label caption lines="4">{{
+                t('settings.loadRemoteImagesCaption')
+              }}</q-item-label>
+            </q-item-section>
+            <q-item-section side top>
+              <q-toggle
+                :model-value="settingsStore.loadRemoteImages"
+                :aria-label="t('settings.loadRemoteImages')"
+                data-testid="load-remote-images-toggle"
+                @update:model-value="(val) => setLoadRemoteImages(Boolean(val))"
               />
             </q-item-section>
           </q-item>

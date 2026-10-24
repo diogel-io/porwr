@@ -36,6 +36,8 @@ export interface DirectMessagesOptions {
  */
 export function useDirectMessages(options: DirectMessagesOptions) {
   const messages = shallowRef<Map<string, DirectMessage>>(new Map());
+  /** Moves on every account switch (`reset`), so work begun for the old account is recognised. */
+  let generation = 0;
   const readState = ref<MessagingReadState>({});
   const inbox = ref<'unknown' | 'ready' | 'none'>('unknown');
   const loadFailed = ref(false);
@@ -44,14 +46,18 @@ export function useDirectMessages(options: DirectMessagesOptions) {
 
   let newestFetched: number | undefined;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
-  let polling = false;
+  /** The generation a poll is running for, so a switch neither waits on nor takes the old one's. */
+  let pollingIn: number | null = null;
 
   async function poll() {
-    if (polling || !options.hasAccount()) return;
-    polling = true;
+    if (pollingIn === generation || !options.hasAccount()) return;
+    const startedIn = generation;
+    pollingIn = startedIn;
     try {
       const since = newestFetched === undefined ? undefined : newestFetched - FETCH_OVERLAP_S;
       const result = await fetchMessages(since);
+      // Fetched for the account before a switch: none of it belongs to the page now (#142).
+      if (startedIn !== generation) return;
       inbox.value = result.inbox;
       loadFailed.value = false;
       if (result.messages.length > 0) {
@@ -63,9 +69,9 @@ export function useDirectMessages(options: DirectMessagesOptions) {
         await options.onMessages?.(result.messages);
       }
     } catch {
-      loadFailed.value = true;
+      if (startedIn === generation) loadFailed.value = true;
     } finally {
-      polling = false;
+      if (pollingIn === startedIn) pollingIn = null;
     }
   }
 
@@ -89,8 +95,10 @@ export function useDirectMessages(options: DirectMessagesOptions) {
 
   /** Loads what has been read, which is kept per account in the vault. */
   async function loadReadState() {
+    const startedIn = generation;
     try {
-      readState.value = await getReadState();
+      const state = await getReadState();
+      if (startedIn === generation) readState.value = state;
     } catch {
       // Read state is a convenience; everything shows as unread until it loads.
     }
@@ -101,20 +109,26 @@ export function useDirectMessages(options: DirectMessagesOptions) {
     const newest = newestFrom(conversationMessages(messages.value.values(), peer), peer);
     if (newest === undefined || newest <= (readState.value[peer] ?? 0)) return;
     readState.value = { ...readState.value, [peer]: newest };
+    const startedIn = generation;
     try {
-      readState.value = await markConversationRead(peer, newest);
+      const state = await markConversationRead(peer, newest);
+      if (startedIn === generation) readState.value = state;
     } catch {
       // Read state is a convenience; the next open tries again.
     }
   }
 
   async function deliver(message: PendingMessage) {
+    // A send that finishes after an account switch belongs to the previous account: its result is
+    // dropped, not merged into the new account's conversations (#142).
+    const startedIn = generation;
     try {
       const result = await sendMessage({
         clientMessageId: message.clientMessageId,
         recipient: message.peer,
         content: message.content,
       });
+      if (startedIn !== generation) return;
       pending.value = pending.value.filter(
         (entry) => entry.clientMessageId !== message.clientMessageId,
       );
@@ -125,6 +139,7 @@ export function useDirectMessages(options: DirectMessagesOptions) {
         options.onRecipientNotReady?.(message.peer);
       }
     } catch {
+      if (startedIn !== generation) return;
       pending.value = pending.value.map((entry) =>
         entry.clientMessageId === message.clientMessageId ? { ...entry, status: 'failed' } : entry,
       );
@@ -154,6 +169,7 @@ export function useDirectMessages(options: DirectMessagesOptions) {
 
   /** Forgets everything, for an account switch. */
   function reset() {
+    generation += 1;
     messages.value = new Map();
     readState.value = {};
     inbox.value = 'unknown';

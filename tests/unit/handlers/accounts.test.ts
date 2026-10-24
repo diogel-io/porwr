@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
-import { bytesToHex } from '@noble/hashes/utils';
+import * as nip49 from 'nostr-tools/nip49';
+import { bech32 } from '@scure/base';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 import type { VaultData } from '@/types/bridge';
 
@@ -12,9 +14,30 @@ const state = vi.hoisted(() => ({
   approvals: vi.fn(),
   exceptions: vi.fn(),
   clearContactCache: vi.fn(),
+  sweepSiteState: vi.fn().mockResolvedValue({ grants: 0, bindings: 0 }),
+  interruptForAccount: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('@/services/contact-cache', () => ({ clearAccount: state.clearContactCache }));
+vi.mock('@/../src-bex/services/request-queue', () => ({
+  interruptRequestsForAccount: state.interruptForAccount,
+}));
+vi.mock('@/../src-bex/services/connected-sites', () => ({
+  sweepSiteStateForRemovedAccounts: state.sweepSiteState,
+}));
+
+// NIP-49 at full strength (scrypt, logn 16) takes seconds per call, and many times that under
+// coverage. Tests run the handlers' calls at a low cost instead; the test "encrypts at full NIP-49
+// strength" checks the handler asks for no cost of its own, so production uses the default.
+vi.mock('nostr-tools/nip49', async () => {
+  const actual = await vi.importActual<typeof import('nostr-tools/nip49')>('nostr-tools/nip49');
+  return {
+    ...actual,
+    encrypt: vi.fn((secret: Uint8Array, password: string, logn?: number) =>
+      actual.encrypt(secret, password, logn ?? 4),
+    ),
+  };
+});
 
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(() =>
@@ -24,6 +47,8 @@ vi.mock('@/../src-bex/vault', () => ({
         : { success: false, error: 'Vault is locked' },
     ),
   ),
+  // The vault password the tests use; anything else fails, as a wrong password does (#141).
+  verifyVaultPassword: vi.fn((password: string) => Promise.resolve(password === 'vault-password')),
   updateVaultData: vi.fn((next: VaultData) => {
     state.vault = structuredClone(next);
     state.writes += 1;
@@ -54,6 +79,10 @@ import {
   handleAccountsRemove,
   handleAccountsRename,
   handleAccountsRevealSecret,
+  handleAccountsExportEncrypted,
+  handleAccountsImportEncrypted,
+  MAX_NCRYPTSEC_LOGN,
+  ncryptsecCost,
   handleVaultGetView,
 } from '@/../src-bex/handlers/accounts';
 
@@ -225,6 +254,51 @@ describe('accounts.remove', () => {
     expect(state.clearContactCache).toHaveBeenCalledWith(ALICE);
   });
 
+  // Its sites must not sign as it again if the same key is imported later (#139).
+  it('removes the grants and bindings of the account it removed, keeping the rest', async () => {
+    const bob = state.vault!.accounts[1]!.id;
+
+    await handleAccountsRemove({ accountPubkey: ALICE });
+
+    expect(state.sweepSiteState).toHaveBeenCalledWith([bob]);
+  });
+
+  // A request still waiting for the removed account must not be approvable: approving would bind a
+  // site to, and grant for, an account that is gone (#139).
+  it('interrupts requests waiting on a decision for the account it removed', async () => {
+    await handleAccountsRemove({ accountPubkey: ALICE });
+
+    expect(state.interruptForAccount).toHaveBeenCalledWith(ALICE);
+  });
+
+  // Wallet data from before #304 has no owner until a wallet action assigns it to the main account.
+  // Removing that account must remove it, not leave it for the next main account (#139).
+  it('removes the wallets the main account owned before ownership was recorded', async () => {
+    state.vault = {
+      ...state.vault!,
+      nip47Connections: [{ id: 'legacy-wallet', relays: [], isActive: true }],
+      nip47PaymentHistory: [{ id: 'legacy-payment', status: 'paid' }],
+      webLnPermissions: [
+        { origin: 'https://shop.example', connectionId: 'legacy-wallet', methods: ['enable'] },
+      ],
+    } as unknown as VaultData;
+
+    await handleAccountsRemove({ accountPubkey: ALICE });
+
+    expect(state.vault!.nip47Connections).toEqual([]);
+    expect(state.vault!.nip47PaymentHistory).toEqual([]);
+    expect(state.vault!.webLnPermissions).toEqual([]);
+  });
+
+  it('still reports the removal if the site cleanup fails, since unlock sweeps again', async () => {
+    state.sweepSiteState.mockRejectedValueOnce(new Error('storage unavailable'));
+
+    await expect(handleAccountsRemove({ accountPubkey: ALICE })).resolves.toEqual({
+      success: true,
+      data: true,
+    });
+  });
+
   it('still reports the removal if clearing the contact cache fails', async () => {
     state.clearContactCache.mockRejectedValue(new Error('IndexedDB unavailable'));
 
@@ -313,21 +387,259 @@ describe('accounts.remove', () => {
 });
 
 describe('accounts.revealSecret', () => {
-  it('returns that one account’s nsec', async () => {
-    await expect(handleAccountsRevealSecret({ accountPubkey: BOB })).resolves.toEqual({
-      success: true,
-      data: { nsec: nip19.nsecEncode(bobKey) },
-    });
+  it('returns that one account’s nsec once the vault password is given again (#141)', async () => {
+    await expect(
+      handleAccountsRevealSecret({ accountPubkey: BOB, password: 'vault-password' }),
+    ).resolves.toEqual({ success: true, data: { nsec: nip19.nsecEncode(bobKey) } });
+  });
+
+  it.each([
+    ['no password', ''],
+    ['a wrong password', 'not-the-vault-password'],
+  ])('refuses %s, and returns no key', async (_label, password) => {
+    const result = await handleAccountsRevealSecret({ accountPubkey: BOB, password });
+
+    expect(result).toEqual({ success: false, error: 'Incorrect vault password' });
+    expect(JSON.stringify(result)).not.toContain(nip19.nsecEncode(bobKey));
   });
 
   it('refuses an unknown account and a locked vault', async () => {
-    await expect(handleAccountsRevealSecret({ accountPubkey: 'c'.repeat(64) })).resolves.toEqual({
-      success: false,
-      error: 'Account not found',
-    });
+    await expect(
+      handleAccountsRevealSecret({ accountPubkey: 'c'.repeat(64), password: 'vault-password' }),
+    ).resolves.toEqual({ success: false, error: 'Account not found' });
     state.vault = null;
-    await expect(handleAccountsRevealSecret({ accountPubkey: BOB })).resolves.toMatchObject({
-      success: false,
+    await expect(
+      handleAccountsRevealSecret({ accountPubkey: BOB, password: 'vault-password' }),
+    ).resolves.toMatchObject({ success: false });
+  });
+});
+
+// An export is encrypted here as a NIP-49 ncryptsec, so the page never receives the nsec (#141).
+describe('accounts.exportEncrypted', () => {
+  it('returns an ncryptsec that decrypts to the key with the export password, and the npub', async () => {
+    const result = await handleAccountsExportEncrypted({
+      accountPubkey: BOB,
+      password: 'export-password',
+      vaultPassword: 'vault-password',
+    });
+
+    if (!result.success) throw new Error(result.error);
+    expect(result.data.npub).toBe(nip19.npubEncode(BOB));
+    expect(nip49.decrypt(result.data.ncryptsec, 'export-password')).toEqual(bobKey);
+    expect(() => nip49.decrypt(result.data.ncryptsec, 'wrong-password')).toThrow();
+    expect(JSON.stringify(result)).not.toContain(nip19.nsecEncode(bobKey));
+    expect(JSON.stringify(result)).not.toContain(bytesToHex(bobKey));
+  });
+
+  it('encrypts at full NIP-49 strength, setting no cost of its own', async () => {
+    await handleAccountsExportEncrypted({
+      accountPubkey: BOB,
+      password: 'export-password',
+      vaultPassword: 'vault-password',
+    });
+
+    expect(vi.mocked(nip49.encrypt)).toHaveBeenCalledWith(bobKey, 'export-password');
+  });
+
+  // Whoever chooses the export password can decrypt the export, so exporting asks for the vault
+  // password just as showing a key does (#141).
+  it.each([
+    ['no vault password', ''],
+    ['a wrong vault password', 'not-the-vault-password'],
+  ])('refuses %s, and returns no ncryptsec', async (_label, vaultPassword) => {
+    const result = await handleAccountsExportEncrypted({
+      accountPubkey: BOB,
+      password: 'export-password',
+      vaultPassword,
+    });
+
+    expect(result).toEqual({ success: false, error: 'Incorrect vault password' });
+    expect(vi.mocked(nip49.encrypt)).not.toHaveBeenCalled();
+  });
+
+  // NIP-49 derives the key from the NFKC-normalised password: 'e' plus a combining acute is one
+  // character once normalised, so four of them are four characters, not eight (#141).
+  it('measures the export password as NIP-49 does, after NFKC normalisation', async () => {
+    await expect(
+      handleAccountsExportEncrypted({
+        accountPubkey: BOB,
+        password: 'e\u0301'.repeat(4),
+        vaultPassword: 'vault-password',
+      }),
+    ).resolves.toMatchObject({ success: false, error: expect.stringMatching(/at least 8/) });
+  });
+
+  it('refuses an export password under the minimum', async () => {
+    await expect(
+      handleAccountsExportEncrypted({
+        accountPubkey: BOB,
+        password: 'short',
+        vaultPassword: 'vault-password',
+      }),
+    ).resolves.toMatchObject({ success: false, error: expect.stringMatching(/at least 8/) });
+  });
+
+  it('refuses an unknown account and a locked vault', async () => {
+    await expect(
+      handleAccountsExportEncrypted({
+        accountPubkey: 'c'.repeat(64),
+        password: 'export-password',
+        vaultPassword: 'vault-password',
+      }),
+    ).resolves.toEqual({ success: false, error: 'Account not found' });
+    state.vault = null;
+    await expect(
+      handleAccountsExportEncrypted({
+        accountPubkey: BOB,
+        password: 'export-password',
+        vaultPassword: 'vault-password',
+      }),
+    ).resolves.toMatchObject({ success: false });
+  });
+});
+
+describe('accounts.importEncrypted', () => {
+  const newKey = generateSecretKey();
+  const newPubkey = getPublicKey(newKey);
+
+  it('decrypts an ncryptsec and adds the key under its own public key', async () => {
+    const ncryptsec = nip49.encrypt(newKey, 'backup-password');
+
+    const result = await handleAccountsImportEncrypted({
+      ncryptsec,
+      password: 'backup-password',
+      alias: 'restored',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      data: expect.objectContaining({ id: newPubkey, alias: 'restored' }),
+    });
+    expect(state.vault!.accounts.at(-1)?.account.privkey).toBe(bytesToHex(newKey));
+  });
+
+  it('round-trips an export into a vault that lacks the key', async () => {
+    const exported = await handleAccountsExportEncrypted({
+      accountPubkey: BOB,
+      password: 'export-password',
+      vaultPassword: 'vault-password',
+    });
+    if (!exported.success) throw new Error(exported.error);
+    state.vault = { ...state.vault!, accounts: state.vault!.accounts.filter((a) => a.id !== BOB) };
+
+    await expect(
+      handleAccountsImportEncrypted({
+        ncryptsec: exported.data.ncryptsec,
+        password: 'export-password',
+        alias: 'bob again',
+      }),
+    ).resolves.toMatchObject({ success: true, data: { id: BOB } });
+  });
+
+  it('refuses a wrong password, and adds nothing', async () => {
+    const before = state.vault!.accounts.length;
+
+    const result = await handleAccountsImportEncrypted({
+      ncryptsec: nip49.encrypt(newKey, 'backup-password'),
+      password: 'wrong-password',
+      alias: 'restored',
+    });
+
+    expect(result).toMatchObject({ success: false });
+    expect(state.vault!.accounts).toHaveLength(before);
+  });
+
+  // All-uppercase Bech32 is valid; mixed case is not (#141).
+  it('accepts an all-uppercase ncryptsec, and refuses a mixed-case one', async () => {
+    const ncryptsec = nip49.encrypt(newKey, 'backup-password');
+
+    await expect(
+      handleAccountsImportEncrypted({
+        ncryptsec: ncryptsec.slice(0, 14) + ncryptsec.slice(14).toUpperCase(),
+        password: 'backup-password',
+        alias: 'mixed',
+      }),
+    ).resolves.toMatchObject({ success: false });
+    await expect(
+      handleAccountsImportEncrypted({
+        ncryptsec: ncryptsec.toUpperCase(),
+        password: 'backup-password',
+        alias: 'upper',
+      }),
+    ).resolves.toMatchObject({ success: true, data: { id: newPubkey } });
+  });
+
+  // The scrypt cost comes from the key itself; a crafted one could stall the background (#141).
+  describe('the scrypt cost a key asks for', () => {
+    /** A real ncryptsec with its cost byte rewritten, so no slow scrypt runs to make it. */
+    const withCost = (logn: number): string => {
+      const bytes = bech32.fromWords(bech32.decode(nip49.encrypt(newKey, 'pw', 4), 5000).words);
+      bytes[1] = logn;
+      return bech32.encode('ncryptsec', bech32.toWords(bytes), 5000);
+    };
+
+    it('reads the cost from the key', () => {
+      expect(ncryptsecCost(withCost(16))).toBe(16);
+      expect(ncryptsecCost(withCost(16).toUpperCase())).toBe(16);
+      expect(ncryptsecCost('ncryptsec1notbech32')).toBeNull();
+    });
+
+    it.each([MAX_NCRYPTSEC_LOGN + 1, 20, 30])(
+      'refuses a key asking for cost %s before running scrypt',
+      async (logn) => {
+        const decrypt = vi.spyOn(nip49, 'decrypt');
+
+        const result = await handleAccountsImportEncrypted({
+          ncryptsec: withCost(logn),
+          password: 'pw',
+          alias: 'costly',
+        });
+
+        expect(result).toMatchObject({
+          success: false,
+          error: expect.stringMatching(/cost Porwr does not accept/),
+        });
+        expect(decrypt).not.toHaveBeenCalled();
+        decrypt.mockRestore();
+      },
+    );
+  });
+
+  it('refuses something that is not an ncryptsec', async () => {
+    await expect(
+      handleAccountsImportEncrypted({ ncryptsec: 'nsec1abc', password: 'x', alias: 'y' }),
+    ).resolves.toEqual({ success: false, error: 'Not an ncryptsec key' });
+  });
+
+  it('refuses a key the vault already holds', async () => {
+    await expect(
+      handleAccountsImportEncrypted({
+        ncryptsec: nip49.encrypt(bobKey, 'backup-password'),
+        password: 'backup-password',
+        alias: 'duplicate',
+      }),
+    ).resolves.toMatchObject({ success: false });
+  });
+
+  // The NIP-49 specification's own test vector, so the format is the standard one. It is fixed at
+  // logn 16, which is slow under coverage.
+  it('decrypts the NIP-49 specification test vector', { timeout: 120_000 }, async () => {
+    const vector =
+      'ncryptsec1qgg9947rlpvqu76pj5ecreduf9jxhselq2nae2kghhvd5g7dgjtcxfqtd67p9m0w57lspw8gsq6yphnm8623nsl8xn9j4jdzz84zm3frztj3z7s35vpzmqf6ksu8r89qk5z2zxfmu5gv8th8wclt0h4p';
+
+    const result = await handleAccountsImportEncrypted({
+      ncryptsec: vector,
+      password: 'nostr',
+      alias: 'vector',
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        id: getPublicKey(
+          hexToBytes('3501454135014541350145413501453fefb02227e449e57cf4d3a3ce05378683'),
+        ),
+      },
     });
   });
 });

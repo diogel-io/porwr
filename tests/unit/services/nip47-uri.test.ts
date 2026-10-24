@@ -27,6 +27,16 @@ describe('parseNwcUri', () => {
     ).toThrow('at least one relay');
   });
 
+  it('rejects a plaintext ws:// relay to a public host, and accepts one on localhost (T19)', () => {
+    const walletPubkey = getPublicKey(generateSecretKey());
+    const clientSecret = bytesToHex(generateSecretKey());
+    const uri = (relay: string) =>
+      `nostr+walletconnect://${walletPubkey}?relay=${encodeURIComponent(relay)}&secret=${clientSecret}`;
+
+    expect(() => parseNwcUri(uri('ws://relay.example.com'))).toThrow('Relays must use wss://');
+    expect(parseNwcUri(uri('ws://localhost:7777')).relays).toEqual(['ws://localhost:7777/']);
+  });
+
   it('builds stable local connection ids', () => {
     const walletPubkey = getPublicKey(generateSecretKey());
     const clientPubkey = getPublicKey(generateSecretKey());

@@ -18,6 +18,7 @@
 
     <q-page-container>
       <div class="dashboard-page-shell">
+        <remote-images-notice />
         <router-view />
       </div>
     </q-page-container>
@@ -32,6 +33,7 @@ import { useQuasar } from 'quasar';
 import DashboardHeader from '@/components/dashboard/DashboardHeader.vue';
 import DashboardNavigation from '@/components/dashboard/DashboardNavigation.vue';
 import DashboardFooter from '@/components/dashboard/DashboardFooter.vue';
+import RemoteImagesNotice from '@/components/shared/RemoteImagesNotice.vue';
 
 defineOptions({ name: 'DashboardLayout' });
 

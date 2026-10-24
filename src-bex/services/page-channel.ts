@@ -17,8 +17,22 @@ import { pageOriginOf, type PageSenderLike } from './sender-policy';
  * A port whose sender names no usable site has every request refused.
  */
 
+/** What a page handler knows about the page that asked, beyond its origin. */
+export interface PageContext {
+  /**
+   * Aborted when the page's port disconnects: the tab closed or navigated away. A request waiting
+   * on a decision for that page is interrupted, even while another tab holds the same origin
+   * (#139).
+   */
+  signal: AbortSignal;
+}
+
 export type PageActionHandlers = {
-  [A in PageAction]: (payload: PagePayload<A>, origin: string) => Promise<unknown>;
+  [A in PageAction]: (
+    payload: PagePayload<A>,
+    origin: string,
+    page: PageContext,
+  ) => Promise<unknown>;
 };
 
 export interface PagePortLike {
@@ -53,6 +67,7 @@ export function servePagePort(
 ): void {
   const origin = pageOriginOf(port.sender, extensionId, extensionOrigin);
   let connected = true;
+  const gone = new AbortController();
 
   const reply = (message: PageReplyMessage): void => {
     if (!connected) return;
@@ -65,6 +80,7 @@ export function servePagePort(
 
   port.onDisconnect.addListener(() => {
     connected = false;
+    gone.abort();
   });
 
   port.onMessage.addListener((message: unknown) => {
@@ -85,8 +101,12 @@ export function servePagePort(
       return;
     }
 
-    const handler = handlers[action] as (payload: unknown, origin: string) => Promise<unknown>;
-    handler(stripPagePayload(payload), origin).then(
+    const handler = handlers[action] as (
+      payload: unknown,
+      origin: string,
+      page: PageContext,
+    ) => Promise<unknown>;
+    handler(stripPagePayload(payload), origin, { signal: gone.signal }).then(
       (result) => reply({ id, result }),
       (error: unknown) => reply({ id, error: errorMessage(error) }),
     );

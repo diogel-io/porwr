@@ -18,14 +18,48 @@ import type { BridgeAction, BridgeRequestMap, BridgeResponsePayload } from '@/ty
  */
 
 const CALL_TIMEOUT_MS = 5000;
+
+/**
+ * Calls that run NIP-49's scrypt in the background (#141). A key encrypted at a high cost takes
+ * many seconds to decrypt, which is not a background that has stopped answering.
+ */
+const SLOW_CALL_TIMEOUT_MS = 60_000;
+const SLOW_CALLS: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
+  'accounts.exportEncrypted',
+  'accounts.importEncrypted',
+]);
+
+/**
+ * Calls that wait on a wallet (#142). A wallet request publishes for up to 5 s and waits up to 15 s
+ * for the answer, and a connection that has not yet read its info event first waits up to 5 s for
+ * that. Under the default deadline the page would report a payment as failed while the background
+ * went on to make it.
+ */
+const WALLET_CALL_TIMEOUT_MS = 30_000;
+const WALLET_CALLS: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
+  'nip47.getInfo',
+  'nip47.getBalance',
+  'nip47.payInvoice',
+  'nip47.authorization.complete',
+  'nip47.authorization.probe',
+]);
+
+const timeoutFor = (type: BridgeAction): number =>
+  SLOW_CALLS.has(type)
+    ? SLOW_CALL_TIMEOUT_MS
+    : WALLET_CALLS.has(type)
+      ? WALLET_CALL_TIMEOUT_MS
+      : CALL_TIMEOUT_MS;
 const RETRY_DELAYS_MS = [100, 400];
 
 /**
  * Calls a timeout must not repeat: each one signs, publishes, sends or pays. A DM relay check
- * publishes a test gift wrap to every relay it checks.
+ * publishes a test gift wrap to every relay it checks. Importing an encrypted key adds an account:
+ * a repeat would fail as a duplicate after the first had already succeeded (#141).
  */
 const NOT_REPEATED_AFTER_TIMEOUT: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
   'account.signEvent',
+  'accounts.importEncrypted',
   'blossom.upload',
   'messaging.dmRelays.check',
   'messaging.dmRelays.publish',
@@ -68,11 +102,11 @@ export class BackgroundTimeoutError extends Error {
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const withTimeout = <T>(operation: Promise<T>, message: string): Promise<T> =>
+const withTimeout = <T>(operation: Promise<T>, message: string, timeoutMs: number): Promise<T> =>
   Promise.race([
     operation,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new BackgroundTimeoutError(message)), CALL_TIMEOUT_MS),
+      setTimeout(() => reject(new BackgroundTimeoutError(message)), timeoutMs),
     ),
   ]);
 
@@ -90,6 +124,7 @@ async function attempt<T extends BridgeAction>(
           payload,
         }) as Promise<BridgeEnvelope<BridgeResponsePayload<T>> | BridgeResponsePayload<T>>,
         'Bridge timeout',
+        timeoutFor(type),
       );
       if (response && typeof response === 'object' && 'data' in response) {
         return response.data as BridgeResponsePayload<T>;
@@ -122,6 +157,7 @@ async function attempt<T extends BridgeAction>(
         });
       }),
       `Direct background timeout for ${type}`,
+      timeoutFor(type),
     );
   }
 

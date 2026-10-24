@@ -1,4 +1,4 @@
-import Dexie, { type Table } from 'dexie';
+import Dexie, { type Table, type Transaction } from 'dexie';
 import type { CachedContactList, CachedContactProfile } from '@/types/contact-list';
 import type { RelayCatalogEntry, RelayDiscoveryState } from '@/types/relay';
 
@@ -165,7 +165,27 @@ export class DiogelDatabase extends Dexie {
       contactLists: 'accountPubkey',
       contactProfiles: '[accountPubkey+pubkey], accountPubkey',
     });
+
+    // Earlier builds persisted raw error text, which could carry plaintext or event content.
+    // Failures are now recorded without it (#144), and the rows already stored are removed once.
+    this.version(12)
+      .stores({
+        vaults: 'id',
+        exceptions: '++id, dateTime, account, hostname',
+        approvals: '++id, dateTime, eventKind, hostname, account, outcome',
+        relayCatalog: 'url, hostname, status, lastSeen, createdAt',
+        relayDiscoveryState: 'id, lastGlobalDiscoveryAt',
+        appSettings: 'key, updatedAt',
+        vaultSession: 'id',
+        contactLists: 'accountPubkey',
+        contactProfiles: '[accountPubkey+pubkey], accountPubkey',
+      })
+      .upgrade(clearLegacyExceptions);
   }
 }
+
+/** The version 12 upgrade: delete every exception row an earlier build wrote (#144). */
+export const clearLegacyExceptions = (tx: Pick<Transaction, 'table'>): Promise<void> =>
+  tx.table('exceptions').clear();
 
 export const db = new DiogelDatabase();

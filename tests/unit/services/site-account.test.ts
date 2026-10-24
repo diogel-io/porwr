@@ -34,7 +34,7 @@ vi.mock('@/../src-bex/services/request-queue', () => ({
 import { getVaultData, isVaultUnlocked } from '@/../src-bex/vault';
 import { storageService } from '@/services/storage-service';
 import { clearSiteBindingCache, getBinding } from '@/../src-bex/services/site-binding-store';
-import { resolveSigningAccount } from '@/../src-bex/services/signing-account';
+import { bindSiteToAccount, resolveSigningAccount } from '@/../src-bex/services/signing-account';
 import { getSiteAccount, switchSiteToActiveAccount } from '@/../src-bex/services/site-account';
 import { ErrorCode } from '@/types/error-codes.d';
 
@@ -53,7 +53,7 @@ const withAccounts = (accounts: unknown[], activeAlias?: string): void => {
 /** The site connected while alice was active, then bob selected. */
 const boundToAliceWithBobActive = async (): Promise<void> => {
   withAccounts([alice, bob], 'alice');
-  await resolveSigningAccount(ORIGIN);
+  await bindSiteToAccount(ORIGIN, alice.id);
   withAccounts([alice, bob], 'bob');
 };
 
@@ -75,7 +75,7 @@ describe('which account a site is connected as', () => {
 
   it('matches the active account when it is the bound one', async () => {
     withAccounts([alice, bob], 'alice');
-    await resolveSigningAccount(ORIGIN);
+    await bindSiteToAccount(ORIGIN, alice.id);
 
     expect(await getSiteAccount(ORIGIN)).toEqual({
       origin: ORIGIN,

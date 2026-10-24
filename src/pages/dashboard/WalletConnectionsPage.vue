@@ -15,7 +15,12 @@ import {
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import { parseNwcUri } from '@/services/nip47-uri';
 import { useWalletConnectWindow } from '@/composables/useWalletConnectWindow';
-import { WALLET_PROVIDERS, type WalletProviderId } from '@/types/wallet-provider';
+import {
+  WALLET_PROVIDERS,
+  isUnencryptedWalletOrigin,
+  resolveWalletProviderOrigin,
+  type WalletProviderId,
+} from '@/types/wallet-provider';
 import type { Nip47ConnectionSummary, Nip47PaymentHistoryEntry } from '@/types/nip47';
 import useAccountStore from '@/stores/account-store';
 
@@ -53,6 +58,11 @@ const customHubOrigin = ref('');
 const pasteOpen = ref(false);
 const { connecting, connect } = useWalletConnectWindow();
 const providers = Object.values(WALLET_PROVIDERS);
+// A Hub on a home server such as Umbrel is reached over plain http (workspace#149); say so.
+const customHubUnencrypted = computed(() => {
+  const origin = resolveWalletProviderOrigin(WALLET_PROVIDERS['alby-hub'], customHubOrigin.value);
+  return origin !== null && isUnencryptedWalletOrigin(origin);
+});
 const balanceDisplayUnit = ref<'sats' | 'btc'>('sats');
 
 const hasConnections = computed(() => connections.value.length > 0);
@@ -262,12 +272,12 @@ async function importConnection(): Promise<void> {
 }
 
 async function connectWallet(provider: WalletProviderId): Promise<void> {
+  const customOrigin =
+    provider === 'alby-hub' && customHubOpen.value ? customHubOrigin.value : undefined;
+  // Only the default Alby Cloud flow can fail because the Alby account has no Hub (workspace#149).
+  const albyCloud = provider === 'alby-hub' && !customOrigin?.trim();
   try {
-    const result = await connect(
-      provider,
-      accountPubkey.value,
-      provider === 'alby-hub' && customHubOpen.value ? customHubOrigin.value : undefined,
-    );
+    const result = await connect(provider, accountPubkey.value, customOrigin);
     if (result.status === 'connected') {
       importPanelOpen.value = false;
       notifySuccess(
@@ -280,9 +290,11 @@ async function connectWallet(provider: WalletProviderId): Promise<void> {
       pasteOpen.value = true;
       $q.notify({
         type: 'warning',
-        message: t('walletManagement.notifications.noResponse', {
-          provider: WALLET_PROVIDERS[provider].name,
-        }),
+        message: albyCloud
+          ? t('walletManagement.notifications.noResponseAlbyHub')
+          : t('walletManagement.notifications.noResponse', {
+              provider: WALLET_PROVIDERS[provider].name,
+            }),
       });
     }
   } catch (error: unknown) {
@@ -529,6 +541,14 @@ onMounted(async () => {
                 @click="connectWallet(provider.id)"
               />
             </div>
+            <!-- The note describes the Alby Cloud flow, so it goes once the user picks their own Hub. -->
+            <p
+              v-if="!customHubOpen"
+              class="text-caption text-grey-7 q-mb-none"
+              data-testid="alby-hub-account-note"
+            >
+              {{ $t('walletManagement.import.albyAccountNote') }}
+            </p>
             <q-toggle
               v-model="customHubOpen"
               dense
@@ -540,10 +560,21 @@ onMounted(async () => {
               outlined
               dense
               type="url"
-              placeholder="https://"
+              placeholder="http://192.168.1.50:59000"
               :label="$t('walletManagement.import.customHubLabel')"
               :hint="$t('walletManagement.import.customHubHint')"
             />
+            <q-banner
+              v-if="customHubOpen && customHubUnencrypted"
+              dense
+              rounded
+              data-testid="custom-hub-unencrypted"
+            >
+              <template #avatar>
+                <q-icon name="lock_open" color="warning" />
+              </template>
+              {{ $t('walletManagement.import.customHubUnencrypted') }}
+            </q-banner>
             <q-expansion-item
               v-model="pasteOpen"
               dense

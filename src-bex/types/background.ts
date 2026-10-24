@@ -163,7 +163,13 @@ export interface ApprovalDecision {
 }
 
 /** Why a decision was refused, when it was not applied. */
-export type DecisionRefusal = 'unknown-request' | 'already-resolved' | 'expired';
+export type DecisionRefusal =
+  | 'unknown-request'
+  | 'already-resolved'
+  | 'expired'
+  // A duration the request's risk class does not allow (D11, D12). The panel never offers one,
+  // so this is a decision from something other than the panel's own controls (#139).
+  | 'duration-not-allowed';
 
 export type DecisionResult =
   | { applied: true; record: ApprovalRequestRecord }

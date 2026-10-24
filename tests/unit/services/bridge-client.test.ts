@@ -93,6 +93,61 @@ describe('bridge client', () => {
       expect(send).toHaveBeenCalledTimes(1);
     });
 
+    // Importing an encrypted key adds an account: a repeat would fail as a duplicate after the
+    // first had already succeeded (#141).
+    it('includes importing an encrypted key', async () => {
+      const send = vi.fn(() => new Promise(() => {}));
+      setBridge({ send });
+
+      const result = sendBexMessage('accounts.importEncrypted', {
+        ncryptsec: 'ncryptsec1x',
+        password: 'pw',
+        alias: 'a',
+      });
+      const assertion = expect(result).rejects.toBeInstanceOf(BackgroundTimeoutError);
+      await vi.advanceTimersByTimeAsync(120_000);
+      await assertion;
+
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    // NIP-49's scrypt can take many seconds; that is not a background that stopped answering.
+    it('waits longer for a NIP-49 call before calling it timed out', async () => {
+      let answer: (value: unknown) => void = () => undefined;
+      const send = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+      setBridge({ send });
+
+      const result = sendBexMessage('accounts.importEncrypted', {
+        ncryptsec: 'ncryptsec1x',
+        password: 'pw',
+        alias: 'a',
+      });
+      await vi.advanceTimersByTimeAsync(30_000);
+      answer({ id: 'a', alias: 'a', createdAt: '' });
+
+      await expect(result).resolves.toEqual({ id: 'a', alias: 'a', createdAt: '' });
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    // A wallet call waits on the wallet: reporting a payment as failed while the background goes on
+    // to make it would invite a second payment (diogel-io/workspace#142).
+    it('waits longer for a wallet call before calling it timed out', async () => {
+      let answer: (value: unknown) => void = () => undefined;
+      const send = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+      setBridge({ send });
+
+      const result = sendBexMessage('nip47.payInvoice', {
+        accountPubkey: 'a'.repeat(64),
+        connectionId: 'wallet-a',
+        invoice: 'lnbc1',
+      });
+      await vi.advanceTimersByTimeAsync(20_000);
+      answer({ preimage: 'p', raw: {} });
+
+      await expect(result).resolves.toEqual({ preimage: 'p', raw: {} });
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
     it('is not sent again through runtime messaging', async () => {
       const send = vi.fn(() => new Promise(() => {}));
       const sendMessage = vi.fn();

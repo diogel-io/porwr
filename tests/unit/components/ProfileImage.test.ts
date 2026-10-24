@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useLoadedSettings } from '../mocks/remote-images';
 import { flushPromises, mount } from '@vue/test-utils';
 
 import ProfileImage from '@/components/dashboard/ProfileImage.vue';
@@ -55,13 +56,13 @@ function uploader(wrapper: Awaited<ReturnType<typeof mountHeader>>, id: 'avatar'
 /** Fires the storage listener the header registered, as `chrome.storage.onChanged` would. */
 function signalProfileUpdated(pubkey: string) {
   const listener = storageMock.onChanged.mock.calls[0]?.[0] as
-    | ((changes: Record<string, chrome.storage.StorageChange>) => void)
-    | undefined;
+    ((changes: Record<string, chrome.storage.StorageChange>) => void) | undefined;
   listener?.({ 'profile:updated': { newValue: { pubkey, at: 1 } } });
 }
 
 describe('ProfileImage.vue', () => {
   beforeEach(() => {
+    useLoadedSettings();
     vi.clearAllMocks();
     saveProfileMock.mockResolvedValue(undefined);
   });

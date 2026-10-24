@@ -88,6 +88,14 @@ describe('parseAuthorizationMessage', () => {
     expect(parseAuthorizationMessage('https://evil.example.com', success(), ORIGIN)).toBeNull();
   });
 
+  it('matches a home-network Hub origin exactly, scheme and port included (workspace#149)', () => {
+    const hub = 'http://umbrel.local:59000';
+    expect(parseAuthorizationMessage(hub, success(), hub)).not.toBeNull();
+    expect(parseAuthorizationMessage('https://umbrel.local:59000', success(), hub)).toBeNull();
+    expect(parseAuthorizationMessage('http://umbrel.local', success(), hub)).toBeNull();
+    expect(parseAuthorizationMessage('http://umbrel.local:59001', success(), hub)).toBeNull();
+  });
+
   it.each([
     ['a non-object', 'nwc:success'],
     ['an array', [success()]],

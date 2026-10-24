@@ -8,17 +8,25 @@ import { mount, flushPromises } from '@vue/test-utils';
 
 const store = vi.hoisted(() => ({
   quickPublishClientTag: true,
+  loadRemoteImages: true,
   vaultAutoLockMinutes: 15,
   requestExpiryMinutes: 5,
   getSettings: vi.fn(() => Promise.resolve()),
   setQuickPublishClientTag: vi.fn(() => Promise.resolve()),
+  setLoadRemoteImages: vi.fn(() => Promise.resolve()),
   setVaultAutoLockMinutes: vi.fn(),
   setRequestExpiryMinutes: vi.fn(),
 }));
 
-vi.mock('@/stores/settings-store', () => ({ default: () => store }));
+const SignalError = vi.hoisted(() => class RemoteImagesSignalError extends Error {});
+
+vi.mock('@/stores/settings-store', () => ({
+  default: () => store,
+  RemoteImagesSignalError: SignalError,
+}));
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
-vi.mock('quasar', () => ({ useQuasar: () => ({ notify: vi.fn() }) }));
+const notify = vi.hoisted(() => vi.fn());
+vi.mock('quasar', () => ({ useQuasar: () => ({ notify }) }));
 
 import ExtensionSettings from '@/pages/dashboard/ExtensionSettings.vue';
 
@@ -71,6 +79,71 @@ describe('ExtensionSettings: Quick Publish client tag', () => {
     await clientTagToggle(wrapper).setValue(false);
 
     expect(store.setQuickPublishClientTag).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('ExtensionSettings: load remote images (diogel-io/workspace#148)', () => {
+  const remoteImagesToggle = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
+    wrapper.find('input.q-toggle[aria-label="settings.loadRemoteImages"]');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    store.loadRemoteImages = true;
+  });
+
+  it('shows the toggle on by default, with what an image host learns', async () => {
+    const wrapper = await mountPage();
+
+    expect((remoteImagesToggle(wrapper).element as HTMLInputElement).checked).toBe(true);
+    expect(wrapper.text()).toContain('settings.loadRemoteImagesCaption');
+  });
+
+  it('shows the toggle off when the setting is off', async () => {
+    store.loadRemoteImages = false;
+    const wrapper = await mountPage();
+
+    expect((remoteImagesToggle(wrapper).element as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('turns remote images off through the store, which persists it', async () => {
+    const wrapper = await mountPage();
+
+    await remoteImagesToggle(wrapper).setValue(false);
+
+    expect(store.setLoadRemoteImages).toHaveBeenCalledWith(false);
+  });
+
+  it('says so when the choice cannot be saved', async () => {
+    store.setLoadRemoteImages.mockRejectedValueOnce(new Error('quota exceeded'));
+    const wrapper = await mountPage();
+
+    await remoteImagesToggle(wrapper).setValue(false);
+    await flushPromises();
+
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'negative',
+        message: 'settings.loadRemoteImagesSaveFailed',
+      }),
+    );
+  });
+
+  it('asks for a reload when the choice was saved but other pages could not be told', async () => {
+    store.setLoadRemoteImages.mockRejectedValueOnce(new SignalError('storage unavailable'));
+    const wrapper = await mountPage();
+
+    await remoteImagesToggle(wrapper).setValue(false);
+    await flushPromises();
+
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'warning',
+        message: 'settings.loadRemoteImagesSignalFailed',
+      }),
+    );
+    expect(notify).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'settings.loadRemoteImagesSaveFailed' }),
+    );
   });
 });
 

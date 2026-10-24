@@ -18,11 +18,13 @@ vi.mock('nostr-tools', async (importActual) => {
   };
 });
 
+const settings = vi.hoisted(() => ({
+  getFallbackRelays: vi.fn(() => Promise.resolve(['wss://relay.test'])),
+  getProfileSearchRelays: vi.fn(() => Promise.resolve(['wss://profile-search.test'])),
+}));
+
 vi.mock('@/stores/settings-store', () => ({
-  default: () => ({
-    getFallbackRelays: vi.fn(() => Promise.resolve(['wss://relay.test'])),
-    getProfileSearchRelays: vi.fn(() => Promise.resolve(['wss://profile-search.test'])),
-  }),
+  default: () => settings,
 }));
 
 import { searchContacts } from '@/services/contact-list-service';
@@ -50,6 +52,14 @@ describe('searchContacts', () => {
   beforeEach(() => {
     querySyncMock.mockReset();
     vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('returns direct matches without a relay search when no profile search relay is usable (#142)', async () => {
+    settings.getProfileSearchRelays.mockResolvedValueOnce([]);
+    querySyncMock.mockReturnValue(new Promise(() => undefined));
+
+    await expect(searchContacts('nobody-matches-this')).resolves.toEqual([]);
+    expect(querySyncMock).not.toHaveBeenCalled();
   });
 
   it('returns an empty list for blank search input', async () => {

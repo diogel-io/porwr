@@ -8,6 +8,7 @@ import { profileService } from '@/services/profile-service';
 import { PROFILE_UPDATED_KEY, storageService } from '@/services/storage-service';
 import { formatBirthday, normalizeWebsiteUrl } from '@/utils/profile-format';
 import { encodeNpub, formatNpubDisplay } from '@/utils/npub-format';
+import RemoteImage from '@/components/shared/RemoteImage.vue';
 
 defineOptions({ name: 'ProfileView' });
 
@@ -147,13 +148,12 @@ watch(
       <!-- Banner Section -->
       <q-card-section class="q-pa-none">
         <div :class="{ 'banner-container--has-image': profile.banner }" class="banner-container">
-          <q-img
+          <RemoteImage
             v-if="profile.banner"
+            :alt="t('profile.bannerTitle')"
             :src="profile.banner"
             class="banner-image"
-            fit="contain"
-            ratio="3"
-            height="120px"
+            variant="banner"
           />
           <div v-else class="banner-placeholder" />
         </div>
@@ -163,7 +163,7 @@ watch(
       <q-card-section class="content-section">
         <div class="avatar-wrapper">
           <q-avatar size="60px" class="profile-avatar">
-            <q-img v-if="profile.picture" :src="profile.picture" />
+            <RemoteImage v-if="profile.picture" :src="profile.picture" />
             <q-icon v-else name="person" color="grey-7" />
           </q-avatar>
         </div>
@@ -344,8 +344,10 @@ watch(
   }
 
   .banner-image {
+    display: block;
     width: 100%;
     height: 100%;
+    object-fit: contain;
   }
 
   // Neutral rather than brand orange, so an empty banner does not look like a default one (#301).

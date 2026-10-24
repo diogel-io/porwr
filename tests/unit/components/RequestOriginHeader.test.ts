@@ -38,3 +38,13 @@ describe('the account named on a request (workspace#23)', () => {
     expect(wrapper.find('[data-testid="request-not-active"]').exists()).toBe(false);
   });
 });
+
+describe('a look-alike origin (#144, threat model T1)', () => {
+  it('shows a punycode origin exactly as given, never decoded back to Unicode', () => {
+    const wrapper = mountHeader({ origin: 'https://xn--pple-43d.com' });
+
+    const value = wrapper.find('.request-origin__value');
+    expect(value.text()).toBe('https://xn--pple-43d.com');
+    expect(wrapper.text()).not.toContain('\u0430pple');
+  });
+});

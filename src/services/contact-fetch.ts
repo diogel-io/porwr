@@ -109,6 +109,8 @@ export async function fetchContactListSnapshot(
   relays: string[],
   accountPubkey: string,
 ): Promise<ContactListSnapshot> {
+  // `pool.get` over no relays never settles; no relay means no list could be read (#142).
+  if (relays.length === 0) return { contacts: [] };
   const event = await pool.get(
     relays,
     { authors: [accountPubkey], kinds: [CONTACT_LIST_KIND] },

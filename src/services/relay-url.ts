@@ -1,3 +1,45 @@
+/**
+ * Hosts a plaintext `ws:` relay may use: traffic to them never leaves the device (T19). The
+ * extension CSP's `connect-src` names the same two (`src-bex/manifest-csp.ts`); CSP cannot name an
+ * IPv6 address, so `[::1]` is not one of them.
+ */
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1']);
+
+export const RELAY_PROTOCOL_ERROR = 'Relays must use wss:// (ws:// is allowed only for localhost)';
+
+/**
+ * Whether a relay URL may be connected to: `wss:` anywhere, plaintext `ws:` only to a loopback
+ * host (diogel-io/workspace#142). Every path that opens a relay connection checks this.
+ */
+export function isAllowedRelayProtocol(url: URL): boolean {
+  if (url.protocol === 'wss:') return true;
+  return url.protocol === 'ws:' && LOOPBACK_HOSTS.has(url.hostname.toLowerCase());
+}
+
+/**
+ * Whether any of `relays` is a plaintext `ws://` relay that `normalizeRelayUrl` now refuses. A
+ * stored list that loses every entry this way was the user's own choice of relays: it is left
+ * empty rather than replaced by the seed relays, so nothing is read from relays the user never
+ * chose (diogel-io/workspace#142).
+ */
+export function hasRefusedPlaintextRelay(relays: readonly string[]): boolean {
+  return relays.some(isRefusedPlaintextRelay);
+}
+
+/**
+ * Whether `relay` is a `ws://` relay refused only because it is plaintext to a non-loopback host.
+ * An entry with another scheme, such as `https://`, is unusable for a different reason and does not
+ * count (`normalizeRelayUrl` gives both the same error).
+ */
+export function isRefusedPlaintextRelay(relay: string): boolean {
+  if (normalizeRelayUrl(relay).error !== RELAY_PROTOCOL_ERROR) return false;
+  try {
+    return new URL(relay.trim()).protocol === 'ws:';
+  } catch {
+    return false;
+  }
+}
+
 export interface RelayUrlResult {
   valid: boolean;
   url?: string;
@@ -11,7 +53,7 @@ export interface RelayUrlResult {
  * Requirements:
  * - trim whitespace
  * - reject empty values
- * - accept only ws:// and wss:// URLs
+ * - accept only wss:// URLs, and ws:// to a loopback host
  * - reject malformed URLs
  * - reject URLs with a fragment (the WebSocket constructor throws on these)
  * - normalize hostname casing where safe
@@ -35,10 +77,10 @@ export function normalizeRelayUrl(input: string | null | undefined): RelayUrlRes
   try {
     const url = new URL(trimmed);
 
-    if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
+    if (!isAllowedRelayProtocol(url)) {
       return {
         valid: false,
-        error: 'Only ws:// and wss:// protocols are supported',
+        error: RELAY_PROTOCOL_ERROR,
       };
     }
 

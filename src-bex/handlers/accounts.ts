@@ -1,4 +1,6 @@
 import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
+import * as nip49 from 'nostr-tools/nip49';
+import { bech32 } from '@scure/base';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 
 import { db } from '@/services/database';
@@ -9,15 +11,23 @@ import type {
   AccountRequest,
   AccountSummary,
   AddAccountRequest,
+  EncryptedKeyExport,
+  ExportEncryptedRequest,
+  ImportEncryptedRequest,
   RenameAccountRequest,
   RevealedSecret,
+  RevealSecretRequest,
   VaultView,
 } from '@/types/accounts';
-import { MAIN_ACCOUNT_ALIAS } from '@/types/accounts';
+import { MAIN_ACCOUNT_ALIAS, MIN_PASSWORD_LENGTH } from '@/types/accounts';
+import { verifyVaultPassword } from '../vault';
 import { createPubkey } from '@/types/pubkey';
 import type { HandlerResult } from '../types/background';
 import { mutateVault, readVault } from '../services/vault-mutation';
 import { removeAccountWalletData } from '../services/nip47-connection-store';
+import { assignUnownedWalletData } from '../services/nip47-ownership';
+import { interruptRequestsForAccount } from '../services/request-queue';
+import { sweepSiteStateForRemovedAccounts } from '../services/connected-sites';
 
 /**
  * Accounts, for Porwr's own pages (#240).
@@ -149,8 +159,10 @@ export async function handleAccountsRemove(
         findByKey(vault, pubkey) ?? (vault.accounts ?? []).find((account) => account.id === pubkey);
       if (!target) return { vault, result: undefined };
       // Its wallets go with it, in the same write (#304): a connection with no account behind it
-      // would otherwise be migrated to the main account on the next wallet action.
-      const withoutWallets = removeAccountWalletData(vault, target.id);
+      // would otherwise be migrated to the main account on the next wallet action. Pre-#304 data is
+      // given its owner first, so removing the main account removes the wallets it owned instead of
+      // leaving them to be handed to whichever account is main next (#139).
+      const withoutWallets = removeAccountWalletData(assignUnownedWalletData(vault), target.id);
       return {
         vault: {
           ...withoutWallets,
@@ -160,6 +172,14 @@ export async function handleAccountsRemove(
       };
     });
     if (removedId !== undefined) {
+      // A request waiting on a decision for it can no longer be approved: approving would bind a
+      // site to, and grant for, an account that no longer exists (#139).
+      await interruptRequestsForAccount(removedId).catch(() => undefined);
+      // Its sites must not sign as it again if the same key is imported later (#139). Best-effort:
+      // the account is gone, signing as it already fails closed, and unlock sweeps again.
+      await readVault()
+        .then((vault) => sweepSiteStateForRemovedAccounts((vault.accounts ?? []).map((a) => a.id)))
+        .catch(() => undefined);
       // Its cached contacts would otherwise outlive the account (#257). Best-effort: the account is gone.
       await clearContactCache(removedId).catch(() => undefined);
     }
@@ -170,18 +190,23 @@ export async function handleAccountsRemove(
 }
 
 /**
- * One account's nsec, for the user's explicit "show private key" or backup export.
+ * One account's nsec, for the user's explicit "show private key".
  *
- * The only action that returns a private key to a page. It does not ask for the password again (a
- * decision on #240): the vault must already be unlocked, and only Porwr's own pages can call it.
+ * The only action that returns a private key to a page, and only to Porwr's own. The vault password
+ * is asked for again first, so a moment at an unlocked browser is not enough to read a key (#141;
+ * this replaces the no-re-authentication decision on #240). Export no longer uses it: an export is
+ * encrypted here and the page receives only the `ncryptsec`.
  */
 export async function handleAccountsRevealSecret(
-  payload: AccountRequest,
+  payload: RevealSecretRequest,
 ): Promise<HandlerResult<RevealedSecret>> {
   const pubkey = createPubkey(
     typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '',
   );
   if (!pubkey) return { success: false, error: 'accountPubkey must be a hex public key' };
+  if (!(await verifyVaultPassword(payload?.password))) {
+    return { success: false, error: 'Incorrect vault password' };
+  }
 
   try {
     const account = findByKey(await readVault(), pubkey);
@@ -190,4 +215,114 @@ export async function handleAccountsRevealSecret(
   } catch (error: unknown) {
     return fail(error);
   }
+}
+
+/**
+ * One account's key, encrypted for export as a NIP-49 `ncryptsec` with a password chosen for the
+ * export (#141). The key is encrypted here, so the page never receives the nsec. Any NIP-49 client,
+ * Porwr included, can import the result with the same password.
+ *
+ * The vault password is checked first, as for showing a key: whoever chooses the export password
+ * can decrypt the export, so exporting is as sensitive as showing.
+ */
+export async function handleAccountsExportEncrypted(
+  payload: ExportEncryptedRequest,
+): Promise<HandlerResult<EncryptedKeyExport>> {
+  const pubkey = createPubkey(
+    typeof payload?.accountPubkey === 'string' ? payload.accountPubkey : '',
+  );
+  if (!pubkey) return { success: false, error: 'accountPubkey must be a hex public key' };
+  // NIP-49 derives the key from the NFKC-normalised password, so that is what is measured, in
+  // characters rather than UTF-16 units: `'e\u0301'` four times is eight units but four characters.
+  if (
+    typeof payload?.password !== 'string' ||
+    Array.from(payload.password.normalize('NFKC')).length < MIN_PASSWORD_LENGTH
+  ) {
+    return {
+      success: false,
+      error: `The export password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+    };
+  }
+  if (!(await verifyVaultPassword(payload?.vaultPassword))) {
+    return { success: false, error: 'Incorrect vault password' };
+  }
+
+  try {
+    const account = findByKey(await readVault(), pubkey);
+    if (!account) return { success: false, error: 'Account not found' };
+    return {
+      success: true,
+      data: {
+        ncryptsec: nip49.encrypt(hexToBytes(account.account.privkey), payload.password),
+        npub: nip19.npubEncode(account.id),
+      },
+    };
+  } catch (error: unknown) {
+    return fail(error);
+  }
+}
+
+/**
+ * The highest scrypt cost (`logn`) accepted for an imported `ncryptsec`: four times NIP-49's usual
+ * 16, which Porwr's own exports use, at about 256 MiB. The cost is read from the key itself, so
+ * without a cap a crafted key could make the background allocate 1 GiB and run scrypt for tens of
+ * seconds, stalling every signing request while it does (#141).
+ */
+export const MAX_NCRYPTSEC_LOGN = 18;
+
+/** NIP-49's limit on the Bech32 string, as `nostr-tools` uses it. */
+const NCRYPTSEC_MAX_LENGTH = 5000;
+
+/** The scrypt cost an `ncryptsec` asks for, or null when it is not a version 2 ncryptsec. */
+export function ncryptsecCost(ncryptsec: string): number | null {
+  try {
+    const { prefix, words } = bech32.decode(
+      ncryptsec as `${string}1${string}`,
+      NCRYPTSEC_MAX_LENGTH,
+    );
+    if (prefix !== 'ncryptsec') return null;
+    const bytes = bech32.fromWords(words);
+    return bytes[0] === 0x02 && typeof bytes[1] === 'number' ? bytes[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Import a NIP-49 `ncryptsec`, decrypted here with its password, then added as any key is
+ * (`handleAccountsAdd`). The decrypted key never reaches the page (#141).
+ */
+export async function handleAccountsImportEncrypted(
+  payload: ImportEncryptedRequest,
+): Promise<HandlerResult<AccountSummary>> {
+  const ncryptsec = typeof payload?.ncryptsec === 'string' ? payload.ncryptsec.trim() : '';
+  // All-uppercase Bech32 is valid too. The original string goes to the decoder, which still
+  // refuses mixed case.
+  if (!ncryptsec.toLowerCase().startsWith('ncryptsec1')) {
+    return { success: false, error: 'Not an ncryptsec key' };
+  }
+
+  // Read before any scrypt runs, so a key asking for an excessive cost is refused at once.
+  const cost = ncryptsecCost(ncryptsec);
+  if (cost === null) {
+    return { success: false, error: 'Incorrect password, or not a valid ncryptsec' };
+  }
+  if (cost > MAX_NCRYPTSEC_LOGN) {
+    return {
+      success: false,
+      error: `This key is encrypted at a cost Porwr does not accept (${cost}, maximum ${MAX_NCRYPTSEC_LOGN})`,
+    };
+  }
+
+  let secretKey: Uint8Array;
+  try {
+    secretKey = nip49.decrypt(
+      ncryptsec,
+      typeof payload?.password === 'string' ? payload.password : '',
+    );
+  } catch {
+    return { success: false, error: 'Incorrect password, or not a valid ncryptsec' };
+  }
+
+  return handleAccountsAdd({ alias: payload?.alias, privkey: bytesToHex(secretKey) });
 }

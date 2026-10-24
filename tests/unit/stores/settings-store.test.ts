@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { isProxy } from 'vue';
-import useSettingsStore from '@/stores/settings-store';
+import useSettingsStore, { RemoteImagesSignalError } from '@/stores/settings-store';
 import {
+  BLOSSOM_SERVER,
   FALLBACK_RELAYS,
   QUICK_PUBLISH_CLIENT_TAG,
+  REMOTE_IMAGES_CHANGED_KEY,
   storageService,
 } from '@/services/storage-service';
 import {
@@ -12,7 +14,10 @@ import {
   setStoredProfileSearchRelays,
 } from '@/services/profile-search-relay-settings-service';
 import { RELAY_SEEDS } from '@/data/relay-seeds';
+import { logService } from '@/services/log-service';
 import { PROFILE_SEARCH_RELAY_SEEDS } from '@/data/profile-search-relay-seeds';
+import { PROTECTED_LOAD_REMOTE_IMAGES } from '@/services/protected-settings-keys';
+import { protectedStore } from '../mocks/protected-settings';
 
 // Mock storage service
 vi.mock('@/services/storage-service', async (importOriginal) => {
@@ -246,6 +251,333 @@ describe('SettingsStore', () => {
 
       listener({ [QUICK_PUBLISH_CLIENT_TAG]: { newValue: true } }, 'local');
       expect(store.quickPublishClientTag).toBe(true);
+    });
+    /* eslint-enable @typescript-eslint/unbound-method */
+  });
+
+  describe('the load remote images setting (diogel-io/workspace#148, T32)', () => {
+    /* eslint-disable @typescript-eslint/unbound-method */
+    beforeEach(() => {
+      protectedStore.delete(PROTECTED_LOAD_REMOTE_IMAGES);
+      vi.mocked(storageService.getMultiple).mockResolvedValue({});
+    });
+
+    it('is on by default, and stays on when nothing is stored', async () => {
+      const store = useSettingsStore();
+      expect(store.loadRemoteImages).toBe(true);
+
+      await store.getSettings();
+
+      expect(store.loadRemoteImages).toBe(true);
+    });
+
+    it('reads a stored false as off, and anything else as on', async () => {
+      const store = useSettingsStore();
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+      await store.getSettings();
+      expect(store.loadRemoteImages).toBe(false);
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, 'false');
+      await store.getSettings();
+      expect(store.loadRemoteImages).toBe(true);
+    });
+
+    it('stores the choice in the protected store, and signals it without its value', async () => {
+      const store = useSettingsStore();
+
+      await store.setLoadRemoteImages(false);
+
+      expect(store.loadRemoteImages).toBe(false);
+      expect(protectedStore.get(PROTECTED_LOAD_REMOTE_IMAGES)).toBe(false);
+      // Content-script storage gets only a timestamp, so the other surfaces know to re-read.
+      expect(storageService.set).toHaveBeenCalledTimes(1);
+      expect(storageService.set).toHaveBeenCalledWith(
+        REMOTE_IMAGES_CHANGED_KEY,
+        expect.any(Number),
+      );
+    });
+
+    it('follows a change made in another surface, reading the protected store', async () => {
+      const store = useSettingsStore();
+      store.listenToStorageChanges();
+      const listener = vi.mocked(storageService.onChanged).mock.calls[0]![0];
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: 1 } }, 'local');
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, true);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: 2 } }, 'local');
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(true));
+    });
+
+    it('holds images back, without throwing, when the protected read fails', async () => {
+      const store = useSettingsStore();
+      store.listenToStorageChanges();
+      const listener = vi.mocked(storageService.onChanged).mock.calls[0]![0];
+      expect(store.loadRemoteImages).toBe(true);
+
+      // A value the protected store cannot hand back, so the read rejects.
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, () => undefined);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: 3 } }, 'local');
+
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+      expect(store.loadRemoteImagesRead).toBe(true);
+      await expect(store.getSettings()).resolves.toBeUndefined();
+      expect(store.loadRemoteImages).toBe(false);
+    });
+
+    it('makes one read for callers that ask at the same time', async () => {
+      const store = useSettingsStore();
+      const get = vi.spyOn(protectedStore, 'get');
+
+      await Promise.all([store.refreshLoadRemoteImages(), store.refreshLoadRemoteImages()]);
+
+      expect(get.mock.calls.filter(([key]) => key === PROTECTED_LOAD_REMOTE_IMAGES)).toHaveLength(
+        1,
+      );
+      get.mockRestore();
+    });
+
+    it('reads again after a change, even while an earlier read is still in flight', async () => {
+      const store = useSettingsStore();
+      store.listenToStorageChanges();
+      const listener = vi.mocked(storageService.onChanged).mock.calls[0]![0];
+
+      // The first read sees the old value; the change lands before it finishes.
+      const get = vi.spyOn(protectedStore, 'get').mockReturnValueOnce(true);
+      const first = store.refreshLoadRemoteImages();
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: 4 } }, 'local');
+      await first;
+      get.mockRestore();
+
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+    });
+
+    it('reads again once it listens, so a change signalled before then is not missed', async () => {
+      const store = useSettingsStore();
+      // The surface's first read saw images on; another tab turned them off before it listened.
+      await store.getSettings();
+      expect(store.loadRemoteImages).toBe(true);
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+
+      store.listenToStorageChanges();
+
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+    });
+
+    it('retries the signal once when it cannot be sent', async () => {
+      const store = useSettingsStore();
+      vi.mocked(storageService.set).mockRejectedValueOnce(new Error('storage unavailable'));
+
+      await store.setLoadRemoteImages(false);
+
+      expect(storageService.set).toHaveBeenCalledTimes(2);
+      expect(store.loadRemoteImages).toBe(false);
+    });
+
+    it('keeps the saved choice, and says the other surfaces were not told, when the signal fails', async () => {
+      const store = useSettingsStore();
+      vi.mocked(storageService.set).mockRejectedValue(new Error('storage unavailable'));
+
+      await expect(store.setLoadRemoteImages(false)).rejects.toBeInstanceOf(
+        RemoteImagesSignalError,
+      );
+
+      expect(store.loadRemoteImages).toBe(false);
+      expect(protectedStore.get(PROTECTED_LOAD_REMOTE_IMAGES)).toBe(false);
+      vi.mocked(storageService.set).mockReset();
+    });
+
+    it('changes nothing, and sends no signal, when the choice cannot be stored', async () => {
+      const store = useSettingsStore();
+      const set = vi.spyOn(protectedStore, 'set').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+
+      await expect(store.setLoadRemoteImages(false)).rejects.toThrow('quota exceeded');
+
+      expect(store.loadRemoteImages).toBe(true);
+      expect(storageService.set).not.toHaveBeenCalled();
+      set.mockRestore();
+    });
+
+    it('ignores a forged signal: the answer still comes from the protected store', async () => {
+      const store = useSettingsStore();
+      store.listenToStorageChanges();
+      const listener = vi.mocked(storageService.onChanged).mock.calls[0]![0];
+
+      protectedStore.set(PROTECTED_LOAD_REMOTE_IMAGES, false);
+      listener({ [REMOTE_IMAGES_CHANGED_KEY]: { newValue: true } }, 'local');
+
+      await vi.waitFor(() => expect(store.loadRemoteImages).toBe(false));
+    });
+    /* eslint-enable @typescript-eslint/unbound-method */
+  });
+
+  describe('fallback relays (diogel-io/workspace#142, T19)', () => {
+    /* eslint-disable @typescript-eslint/unbound-method */
+    it('drops stored plaintext ws:// relays to public hosts when it loads', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: [
+          'ws://relay.example.com',
+          'wss://relay.damus.io',
+          'ws://localhost:7777',
+        ],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual(['wss://relay.damus.io', 'ws://localhost:7777']);
+    });
+
+    it('logs each dropped relay once, however often settings load', async () => {
+      const log = vi.spyOn(logService, 'log');
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['ws://once.example.com', 'wss://relay.damus.io'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+      await store.getSettings();
+      await useSettingsStore().getSettings();
+
+      const drops = log.mock.calls.filter(
+        ([, message, context]) =>
+          String(message).includes('Dropped a stored plaintext') &&
+          (context as { host?: string })?.host === 'once.example.com',
+      );
+      expect(drops).toHaveLength(1);
+      log.mockRestore();
+    });
+
+    it('skips malformed stored entries instead of failing to load', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: [42, null, 'wss://relay.damus.io'],
+      });
+      const store = useSettingsStore();
+
+      await expect(store.getSettings()).resolves.toBeUndefined();
+
+      expect(store.fallbackRelays).toEqual(['wss://relay.damus.io']);
+    });
+
+    it('uses no relay, not the public seeds, when every stored relay is plaintext', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['ws://relay.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual([]);
+    });
+
+    it('uses the seeds for a list of https:// entries, which are unusable but not plaintext', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['https://relay.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual(DEFAULT_FALLBACK_RELAYS);
+    });
+
+    it('still uses the seeds when the stored list holds nothing usable for another reason', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['not a relay'],
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.fallbackRelays).toEqual(DEFAULT_FALLBACK_RELAYS);
+    });
+    /* eslint-enable @typescript-eslint/unbound-method */
+  });
+
+  describe('loading once (diogel-io/workspace#142)', () => {
+    it('does not reload settings for every read of a list the wss:// rule emptied', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [FALLBACK_RELAYS]: ['ws://only.example.com'],
+      });
+      const store = useSettingsStore();
+
+      await expect(store.getFallbackRelays()).resolves.toEqual([]);
+      await store.getFallbackRelays();
+      await store.getProfileSearchRelays();
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(storageService.getMultiple).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('profile search relays (diogel-io/workspace#142, T19)', () => {
+    it('uses no relay, not the defaults, when every stored one is plaintext', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({});
+      vi.mocked(getStoredProfileSearchRelays).mockResolvedValue(['ws://search.example.com']);
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.profileSearchRelays).toEqual([]);
+    });
+
+    it('keeps the usable ones of a list that also held plaintext relays', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({});
+      vi.mocked(getStoredProfileSearchRelays).mockResolvedValue([
+        'ws://search.example.com',
+        'wss://search.nos.today',
+      ]);
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      expect(store.profileSearchRelays).toEqual(['wss://search.nos.today']);
+    });
+  });
+
+  describe('Blossom server (diogel-io/workspace#142, T21)', () => {
+    /* eslint-disable @typescript-eslint/unbound-method */
+    it('saves an https:// server', async () => {
+      const store = useSettingsStore();
+
+      await store.setBlossomServer('https://media.example.org');
+
+      expect(store.blossomServer).toBe('https://media.example.org/');
+      expect(storageService.set).toHaveBeenCalledWith(BLOSSOM_SERVER, 'https://media.example.org/');
+    });
+
+    it.each([
+      'http://media.example.org',
+      'ftp://media.example.org',
+      'https://user:pass@media.example.org',
+      '',
+    ])('refuses %j and leaves the setting unchanged', async (url) => {
+      const store = useSettingsStore();
+      const before = store.blossomServer;
+
+      await expect(store.setBlossomServer(url)).rejects.toThrow();
+
+      expect(store.blossomServer).toBe(before);
+      expect(storageService.set).not.toHaveBeenCalled();
+    });
+
+    it('keeps a stored server that is not https://, rather than swapping in the default', async () => {
+      vi.mocked(storageService.getMultiple).mockResolvedValue({
+        [BLOSSOM_SERVER]: 'http://media.example.org/',
+      });
+      const store = useSettingsStore();
+
+      await store.getSettings();
+
+      // Shown with its error on the Media page; the background refuses to upload to it.
+      expect(store.blossomServer).toBe('http://media.example.org/');
+      expect(storageService.set).not.toHaveBeenCalled();
     });
     /* eslint-enable @typescript-eslint/unbound-method */
   });

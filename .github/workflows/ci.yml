@@ -12,6 +12,10 @@ on:
   # retargeted. Running on every pull request costs one job and closes that gap.
   pull_request:
 
+# Least privilege: the token can read the repository and nothing more (#143).
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -21,14 +25,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Against a stand-in for curl: nothing reaches the Chrome Web Store.
       - name: Test the Chrome Web Store publish script
         run: bash .github/scripts/test-publish-chrome.sh
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'

@@ -13,10 +13,12 @@ import {
   handleNip47GetBalance,
   handleNip47GetInfo,
   handleNip47PayInvoice,
+  WALLET_INFO_MAX_AGE_MS,
+  WALLET_INFO_UNAVAILABLE,
   handleNip47PaymentHistoryList,
 } from '@/../src-bex/handlers/nip47';
 import { getVaultData, updateVaultData } from '@/../src-bex/vault';
-import { nip47Client } from '@/../src-bex/services/nip47-client';
+import { NIP47_NO_ALLOWED_RELAYS, nip47Client } from '@/../src-bex/services/nip47-client';
 import { parseNwcUri, buildNip47ConnectionId } from '@/services/nip47-uri';
 import { listNip47PaymentHistory } from '@/../src-bex/services/nip47-payment-history-store';
 import type { StoredKey, VaultData } from '@/types/bridge';
@@ -24,17 +26,25 @@ import type { Nip47Connection } from '@/types/nip47';
 import type { HandlerResult } from '@/../src-bex/types/background';
 import { ErrorCode } from '@/types/error-codes.d';
 import {
+  clearPendingNip47Authorizations,
   savePendingNip47Authorization,
   takePendingNip47Authorization,
   type PendingNip47Authorization,
 } from '@/../src-bex/services/nip47-pending-authorization-store';
 
+const lockListeners = vi.hoisted(() => [] as (() => void)[]);
+
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(),
   updateVaultData: vi.fn(),
+  onVaultLocked: (listener: () => void) => {
+    lockListeners.push(listener);
+    return () => undefined;
+  },
 }));
 
-vi.mock('@/../src-bex/services/nip47-client', () => ({
+vi.mock('@/../src-bex/services/nip47-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/../src-bex/services/nip47-client')>()),
   nip47Client: {
     payInvoice: vi.fn(),
     getInfo: vi.fn(),
@@ -44,6 +54,7 @@ vi.mock('@/../src-bex/services/nip47-client', () => ({
 }));
 
 vi.mock('@/../src-bex/services/nip47-pending-authorization-store', () => ({
+  clearPendingNip47Authorizations: vi.fn(),
   savePendingNip47Authorization: vi.fn(),
   takePendingNip47Authorization: vi.fn(),
 }));
@@ -84,6 +95,9 @@ function buildConnection(overrides: Partial<Nip47Connection> = {}): Nip47Connect
     createdAt: '2026-06-14T00:00:00.000Z',
     updatedAt: '2026-06-14T00:00:00.000Z',
     isActive: true,
+    // Already read from the wallet's info event, recently, unless a test says otherwise (#142).
+    encryption: [],
+    lastInfoCheckedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -165,18 +179,15 @@ describe('handleNip47PayInvoice', () => {
     expect(updateVaultData).not.toHaveBeenCalled();
   });
 
-  it('allows payment when capabilities are unknown (empty)', async () => {
+  // By the time of this check the info event has been read, so an empty list is the wallet
+  // advertising no methods (#142).
+  it('refuses payment when the wallet advertises no methods', async () => {
     mockVault(buildConnection({ capabilities: [] }));
-    vi.mocked(nip47Client.payInvoice).mockResolvedValue({ preimage: 'preimage', raw: {} });
 
-    const result = await handleNip47PayInvoice({
-      accountPubkey: ACCOUNT,
-      connectionId: 'wallet-a',
-      invoice: INVOICE,
-    });
-
-    expect(result.success).toBe(true);
-    expect(nip47Client.payInvoice).toHaveBeenCalled();
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow('does not advertise pay_invoice');
+    expect(nip47Client.payInvoice).not.toHaveBeenCalled();
   });
 
   it('throws when the connection cannot be found', async () => {
@@ -189,6 +200,187 @@ describe('handleNip47PayInvoice', () => {
         invoice: INVOICE,
       }),
     ).rejects.toThrow('NIP-47 connection not found');
+  });
+});
+
+describe('NIP-47 encryption negotiation before a request (diogel-io/workspace#142, T22)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    globalThis.crypto.randomUUID = vi.fn(
+      () => 'history-entry-id',
+    ) as () => `${string}-${string}-${string}-${string}-${string}`;
+    vi.mocked(updateVaultData).mockResolvedValue({ success: true });
+  });
+
+  function mockVault(connection: Nip47Connection): void {
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [MAIN_ACCOUNT], nip47Connections: [connection] },
+    });
+  }
+
+  const INFO = {
+    capabilities: ['pay_invoice', 'get_balance'],
+    encryption: ['nip44_v2', 'nip04'],
+    checkedAt: '2026-10-21T00:00:00.000Z',
+  } as never;
+
+  it('reads and stores the wallet encryption before paying from an imported connection', async () => {
+    const { encryption: _unread, ...imported } = buildConnection();
+    void _unread;
+    mockVault(imported);
+    vi.mocked(nip47Client.getInfo).mockResolvedValue(INFO);
+    vi.mocked(nip47Client.payInvoice).mockResolvedValue({ preimage: 'preimage', raw: {} });
+
+    await handleNip47PayInvoice({
+      accountPubkey: ACCOUNT,
+      connectionId: 'wallet-a',
+      invoice: INVOICE,
+    });
+
+    expect(nip47Client.getInfo).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(nip47Client.payInvoice).mock.calls[0]![0]).toMatchObject({
+      encryption: ['nip44_v2', 'nip04'],
+    });
+    const stored = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
+    expect(stored.nip47Connections?.[0]).toMatchObject({ encryption: ['nip44_v2', 'nip04'] });
+  });
+
+  it('does the same before reading the balance', async () => {
+    const { encryption: _unread, ...imported } = buildConnection();
+    void _unread;
+    mockVault(imported);
+    vi.mocked(nip47Client.getInfo).mockResolvedValue(INFO);
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(vi.mocked(nip47Client.getBalance).mock.calls[0]![0]).toMatchObject({
+      encryption: ['nip44_v2', 'nip04'],
+    });
+  });
+
+  it('refuses to pay when the info event read for an imported connection lacks pay_invoice', async () => {
+    const { encryption: _unread, ...imported } = buildConnection({ capabilities: [] });
+    void _unread;
+    mockVault(imported);
+    vi.mocked(nip47Client.getInfo).mockResolvedValue({
+      capabilities: ['get_balance'],
+      encryption: ['nip44_v2'],
+      checkedAt: '2026-10-21T00:00:00.000Z',
+    } as never);
+
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow('does not advertise pay_invoice');
+    expect(nip47Client.payInvoice).not.toHaveBeenCalled();
+  });
+
+  it('refuses a connection saved with only plaintext ws:// relays, before contacting anything', async () => {
+    mockVault(buildConnection({ relays: ['ws://relay.example.com/'] }));
+
+    await expect(
+      handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' }),
+    ).rejects.toThrow(NIP47_NO_ALLOWED_RELAYS);
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow(NIP47_NO_ALLOWED_RELAYS);
+    await expect(
+      handleNip47GetInfo({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' }),
+    ).rejects.toThrow(NIP47_NO_ALLOWED_RELAYS);
+
+    expect(nip47Client.getInfo).not.toHaveBeenCalled();
+    expect(nip47Client.getBalance).not.toHaveBeenCalled();
+    expect(nip47Client.payInvoice).not.toHaveBeenCalled();
+  });
+
+  it('reads the info event again once the recorded encryption is a day old', async () => {
+    mockVault(
+      buildConnection({
+        encryption: [],
+        lastInfoCheckedAt: new Date(Date.now() - WALLET_INFO_MAX_AGE_MS - 1000).toISOString(),
+      }),
+    );
+    vi.mocked(nip47Client.getInfo).mockResolvedValue(INFO);
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(nip47Client.getInfo).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(nip47Client.getBalance).mock.calls[0]![0]).toMatchObject({
+      encryption: ['nip44_v2', 'nip04'],
+    });
+  });
+
+  it('waits before retrying a failed refresh, instead of paying its lookup on every request', async () => {
+    mockVault(
+      buildConnection({
+        id: 'wallet-a',
+        encryption: ['nip44_v2'],
+        lastInfoCheckedAt: new Date(Date.now() - WALLET_INFO_MAX_AGE_MS - 1000).toISOString(),
+      }),
+    );
+    vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('relay down'));
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(nip47Client.getInfo).toHaveBeenCalledTimes(1);
+    expect(nip47Client.getBalance).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a known encryption when the refresh cannot read the info event', async () => {
+    mockVault(
+      buildConnection({
+        encryption: ['nip44_v2'],
+        lastInfoCheckedAt: new Date(Date.now() - WALLET_INFO_MAX_AGE_MS - 1000).toISOString(),
+      }),
+    );
+    vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('relay down'));
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(vi.mocked(nip47Client.getBalance).mock.calls[0]![0]).toMatchObject({
+      encryption: ['nip44_v2'],
+    });
+  });
+
+  it('does not read the info event again once the encryption is known', async () => {
+    mockVault(buildConnection({ encryption: ['nip04'] }));
+    vi.mocked(nip47Client.getBalance).mockResolvedValue({ balanceMsat: 1, raw: {} });
+
+    await handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    expect(nip47Client.getInfo).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing, rather than guessing NIP-04, when the info event cannot be read', async () => {
+    const { encryption: _unread, ...imported } = buildConnection();
+    void _unread;
+    mockVault(imported);
+    vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('No NIP-47 wallet info event'));
+
+    await expect(
+      handleNip47GetBalance({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' }),
+    ).rejects.toThrow(WALLET_INFO_UNAVAILABLE);
+    await expect(
+      handleNip47PayInvoice({ accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE }),
+    ).rejects.toThrow(WALLET_INFO_UNAVAILABLE);
+
+    expect(nip47Client.getBalance).not.toHaveBeenCalled();
+    expect(nip47Client.payInvoice).not.toHaveBeenCalled();
+  });
+
+  it('stores the advertised encryption when wallet info is refreshed', async () => {
+    mockVault(buildConnection());
+    vi.mocked(nip47Client.getInfo).mockResolvedValue(INFO);
+
+    await handleNip47GetInfo({ accountPubkey: ACCOUNT, connectionId: 'wallet-a' });
+
+    const stored = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
+    expect(stored.nip47Connections?.[0]).toMatchObject({ encryption: ['nip44_v2', 'nip04'] });
   });
 });
 
@@ -518,6 +710,18 @@ describe('wallet authorization (#110)', () => {
       expect(JSON.stringify(data)).not.toContain(saved.clientSecret);
     });
 
+    it('undoes a start the vault locked during, and opens no popup (#142)', async () => {
+      vi.mocked(savePendingNip47Authorization).mockImplementationOnce((entry) => {
+        for (const listener of lockListeners) listener();
+        return Promise.resolve({ ...entry, createdAt: 1, expiresAt: 2 });
+      });
+
+      await expect(
+        handleNip47AuthorizationBegin({ accountPubkey: ACCOUNT, provider: 'coinos' }),
+      ).rejects.toThrow('vault locked');
+      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-uuid');
+    });
+
     it('opens a self-hosted Alby Hub at its origin', async () => {
       const result = await handleNip47AuthorizationBegin({
         accountPubkey: ACCOUNT,
@@ -527,6 +731,17 @@ describe('wallet authorization (#110)', () => {
 
       expect(dataOf(result).origin).toBe('https://hub.example.com');
       expect(dataOf(result).authorizationUrl).toMatch(/^https:\/\/hub\.example\.com\/apps\/new\?/);
+    });
+
+    it('opens a self-hosted Alby Hub on the home network over http (workspace#149)', async () => {
+      const result = await handleNip47AuthorizationBegin({
+        accountPubkey: ACCOUNT,
+        provider: 'alby-hub',
+        customOrigin: 'http://umbrel.local:59000',
+      });
+
+      expect(dataOf(result).origin).toBe('http://umbrel.local:59000');
+      expect(dataOf(result).authorizationUrl).toMatch(/^http:\/\/umbrel\.local:59000\/apps\/new\?/);
     });
 
     it('rejects an unknown provider and an unusable address', async () => {
@@ -539,7 +754,7 @@ describe('wallet authorization (#110)', () => {
           provider: 'alby-hub',
           customOrigin: 'http://hub.example.com',
         }),
-      ).rejects.toThrow('https:// address of your Alby Hub');
+      ).rejects.toThrow('https:// address of your Alby Hub, or its http:// address on your home');
       expect(savePendingNip47Authorization).not.toHaveBeenCalled();
     });
 
@@ -564,6 +779,40 @@ describe('wallet authorization (#110)', () => {
       relays: ['wss://relay.example.com'],
       lud16: 'alice@coinos.io',
     };
+
+    it('saves nothing when the vault locked as the connection was being saved (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.getInfo).mockResolvedValue({
+        capabilities: ['pay_invoice'],
+        encryption: ['nip44_v2'],
+        checkedAt: '2026-10-22T00:00:00.000Z',
+      } as never);
+      const vault = vi.mocked(getVaultData).getMockImplementation();
+      let reads = 0;
+      vi.mocked(getVaultData).mockImplementation(async () => {
+        // The second read is the save's own: lock just before the mutation decides.
+        if (++reads === 2) for (const listener of lockListeners) listener();
+        return vault ? vault() : { success: true, vaultData: { accounts: [MAIN_ACCOUNT] } };
+      });
+
+      await expect(handleNip47AuthorizationComplete(request)).rejects.toThrow('vault locked');
+      expect(updateVaultData).not.toHaveBeenCalled();
+    });
+
+    it('saves nothing when the vault locked while the wallet answered (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.getInfo).mockImplementation(() => {
+        for (const listener of lockListeners) listener();
+        return Promise.resolve({
+          capabilities: ['pay_invoice'],
+          encryption: ['nip44_v2'],
+          checkedAt: '2026-10-22T00:00:00.000Z',
+        } as never);
+      });
+
+      await expect(handleNip47AuthorizationComplete(request)).rejects.toThrow('vault locked');
+      expect(updateVaultData).not.toHaveBeenCalled();
+    });
 
     it('saves a checked connection as the active wallet and returns no secret', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
@@ -632,6 +881,68 @@ describe('wallet authorization (#110)', () => {
   });
 
   describe('handleNip47AuthorizationProbe', () => {
+    beforeEach(() => {
+      vi.mocked(nip47Client.getInfo).mockResolvedValue({
+        capabilities: ['pay_invoice'],
+        encryption: ['nip44_v2', 'nip04'],
+        checkedAt: '2026-10-21T00:00:00.000Z',
+      } as never);
+    });
+
+    it('probes in the encryption the wallet advertises, and stores it (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.sendRequest).mockResolvedValue({
+        result_type: 'get_info',
+        result: { methods: ['pay_invoice'] },
+      });
+
+      await handleNip47AuthorizationProbe({ pendingId: 'pending-1' });
+
+      expect(vi.mocked(nip47Client.sendRequest).mock.calls[0]![0]).toMatchObject({
+        encryption: ['nip44_v2', 'nip04'],
+      });
+      const saved = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
+      expect(
+        saved.nip47Connections?.find((item) => item.walletServicePubkey === COINOS_WALLET),
+      ).toMatchObject({ encryption: ['nip44_v2', 'nip04'] });
+    });
+
+    it('probes as NIP-04 when the info event cannot be read, and still saves the approval (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.getInfo).mockRejectedValue(new Error('No NIP-47 wallet info event'));
+      vi.mocked(nip47Client.sendRequest).mockResolvedValue({
+        result_type: 'get_info',
+        result: { methods: ['pay_invoice'] },
+      });
+
+      const result = await handleNip47AuthorizationProbe({ pendingId: 'pending-1' });
+
+      // No `encryption` on the request: NIP-04, as NIP-47 reads an absent info event.
+      expect(vi.mocked(nip47Client.sendRequest).mock.calls[0]![0].encryption).toBeUndefined();
+      expect(dataOf(result)).toMatchObject({ capabilities: ['pay_invoice'] });
+      const saved = vi.mocked(updateVaultData).mock.calls[0]?.[0] as VaultData;
+      const stored = saved.nip47Connections?.find(
+        (item) => item.walletServicePubkey === COINOS_WALLET,
+      );
+      // Recorded without an encryption, so its first request reads the info event again.
+      expect(stored).toBeDefined();
+      expect(stored!.encryption).toBeUndefined();
+    });
+
+    it('saves nothing when the vault locked while the probe waited (#142)', async () => {
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
+      vi.mocked(nip47Client.sendRequest).mockImplementation(() => {
+        for (const listener of lockListeners) listener();
+        return Promise.resolve({ result_type: 'get_info', result: { methods: ['pay_invoice'] } });
+      });
+
+      await expect(handleNip47AuthorizationProbe({ pendingId: 'pending-1' })).resolves.toEqual({
+        success: true,
+        data: null,
+      });
+      expect(updateVaultData).not.toHaveBeenCalled();
+    });
+
     it('saves a Coinos connection the wallet answers for', async () => {
       vi.mocked(takePendingNip47Authorization).mockResolvedValue(pending());
       vi.mocked(nip47Client.sendRequest).mockResolvedValue({
@@ -911,5 +1222,16 @@ describe('wallets belong to one account (#304)', () => {
     // Migrated on the first read; the second found nothing to change and wrote nothing.
     expect(updateVaultData).toHaveBeenCalledTimes(1);
     expect(vaultData.nip47Connections?.[0]?.accountPubkey).toBe(ACCOUNT);
+  });
+});
+
+describe('vault lock (diogel-io/workspace#142, T22)', () => {
+  it('clears pending wallet authorizations when the vault locks', () => {
+    vi.mocked(clearPendingNip47Authorizations).mockClear();
+    expect(lockListeners.length).toBeGreaterThan(0);
+
+    for (const listener of lockListeners) listener();
+
+    expect(clearPendingNip47Authorizations).toHaveBeenCalledTimes(1);
   });
 });

@@ -9,6 +9,8 @@ import {
   getRelayDiscoveryStatus,
 } from '@/services/relay-service';
 import { filterRelays } from '@/utils/relay-filters';
+import RemoteImage from '@/components/shared/RemoteImage.vue';
+import RemoteImagesNotice from '@/components/shared/RemoteImagesNotice.vue';
 
 const { t } = useI18n();
 
@@ -210,6 +212,7 @@ function selectRelay(relay: RelayCatalogEntry) {
           </template>
         </q-input>
         <q-toggle v-model="searchOnly" :label="t('relays.browser.search_only')" dense />
+        <RemoteImagesNotice class="q-mt-sm q-mb-none" />
       </q-card-section>
 
       <q-card-section class="col scroll q-pt-none diogel-scrollbar">
@@ -231,7 +234,7 @@ function selectRelay(relay: RelayCatalogEntry) {
             >
               <q-item-section v-if="relay.metadata?.icon" avatar>
                 <q-avatar size="32px">
-                  <img :src="relay.metadata.icon" alt="Relay Icon" />
+                  <RemoteImage :src="relay.metadata.icon" alt="Relay Icon" variant="icon" />
                 </q-avatar>
               </q-item-section>
               <q-item-section v-else avatar>

@@ -1,6 +1,7 @@
-import { finalizeEvent, getPublicKey, SimplePool, nip04 } from 'nostr-tools';
+import { finalizeEvent, getPublicKey, SimplePool, nip04, nip44 } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import type { Event } from 'nostr-tools';
+import { isAllowedRelayProtocol } from '@/services/relay-url';
 import {
   NIP47_REQUEST_KIND,
   NIP47_RESPONSE_KIND,
@@ -27,6 +28,60 @@ function parseCommands(content: string): Nip47Command[] {
     .split(/\s+/)
     .map((item) => item.trim())
     .filter((item): item is Nip47Command => item.length > 0);
+}
+
+export const NIP47_NO_ALLOWED_RELAYS =
+  'This wallet connection only uses plaintext ws:// relays, which Porwr no longer connects to. ' +
+  'Nothing was sent. Remove it and connect the wallet again with a wss:// relay.';
+
+/**
+ * The connection's relays that Porwr may connect to (`wss:`, or `ws:` to a loopback host). A
+ * connection saved before that rule (#142) may hold others; they are never contacted.
+ *
+ * @throws When none are left, so no wallet call is made over a refused relay.
+ */
+export function allowedWalletRelays(connection: Pick<Nip47Connection, 'relays'>): string[] {
+  const relays = connection.relays.filter((relay) => {
+    try {
+      return isAllowedRelayProtocol(new URL(relay));
+    } catch {
+      return false;
+    }
+  });
+  if (relays.length === 0) throw new Error(NIP47_NO_ALLOWED_RELAYS);
+  return relays;
+}
+
+export type Nip47Encryption = 'nip44_v2' | 'nip04';
+
+/**
+ * The scheme a request uses, per NIP-47 §Encryption: NIP-44 whenever the wallet advertises it,
+ * otherwise NIP-04, which is what an absent `encryption` tag means (diogel-io/workspace#142, T22).
+ */
+export function selectNip47Encryption(advertised: readonly string[] | undefined): Nip47Encryption {
+  return advertised?.includes('nip44_v2') ? 'nip44_v2' : 'nip04';
+}
+
+function encryptFor(
+  scheme: Nip47Encryption,
+  clientSecretBytes: Uint8Array,
+  walletPubkey: string,
+  plaintext: string,
+): string {
+  return scheme === 'nip44_v2'
+    ? nip44.encrypt(plaintext, nip44.getConversationKey(clientSecretBytes, walletPubkey))
+    : nip04.encrypt(clientSecretBytes, walletPubkey, plaintext);
+}
+
+function decryptFrom(
+  scheme: Nip47Encryption,
+  clientSecretBytes: Uint8Array,
+  walletPubkey: string,
+  ciphertext: string,
+): string {
+  return scheme === 'nip44_v2'
+    ? nip44.decrypt(ciphertext, nip44.getConversationKey(clientSecretBytes, walletPubkey))
+    : nip04.decrypt(clientSecretBytes, walletPubkey, ciphertext);
 }
 
 function tagValues(event: Event, tagName: string): string[] {
@@ -67,15 +122,22 @@ function parseRpcResponse(content: string): Nip47RpcResponse {
 export class Nip47Client {
   private readonly pool = new SimplePool();
 
-  async getInfo(connection: Nip47Connection): Promise<Nip47InfoResponse> {
-    const event = await this.pool.get(
+  async getInfo(stored: Nip47Connection): Promise<Nip47InfoResponse> {
+    const connection = { ...stored, relays: allowedWalletRelays(stored) };
+    // Every relay is asked and the newest event wins: a replaceable event can be stale on one
+    // relay, and negotiating from an old one could pick NIP-04 for a wallet that now offers NIP-44.
+    const events = await this.pool.querySync(
       connection.relays,
       {
         kinds: [NIP47_WALLET_INFO_KIND],
         authors: [connection.walletServicePubkey],
-        limit: 1,
       },
       { maxWait: 5000 },
+    );
+    const event = events.reduce<Event | null>(
+      (newest, candidate) =>
+        !newest || candidate.created_at > newest.created_at ? candidate : newest,
+      null,
     );
 
     if (!event) {
@@ -141,17 +203,17 @@ export class Nip47Client {
     };
   }
 
-  async sendRequest(
-    connection: Nip47Connection,
-    request: Nip47RpcRequest,
-  ): Promise<Nip47RpcResponse> {
+  async sendRequest(stored: Nip47Connection, request: Nip47RpcRequest): Promise<Nip47RpcResponse> {
+    const connection = { ...stored, relays: allowedWalletRelays(stored) };
     const clientSecretBytes = hexToBytes(connection.clientSecret);
     const clientPubkey = getPublicKey(clientSecretBytes);
     const requestPayload = JSON.stringify({
       method: request.method,
       params: request.params,
     });
-    const encryptedContent = nip04.encrypt(
+    const scheme = selectNip47Encryption(connection.encryption);
+    const encryptedContent = encryptFor(
+      scheme,
       clientSecretBytes,
       connection.walletServicePubkey,
       requestPayload,
@@ -162,7 +224,11 @@ export class Nip47Client {
       {
         kind: NIP47_REQUEST_KIND,
         created_at: Math.floor(Date.now() / 1000),
-        tags: [['p', connection.walletServicePubkey]],
+        // A NIP-04 request carries no `encryption` tag, which is how the spec says to mark it.
+        tags: [
+          ['p', connection.walletServicePubkey],
+          ...(scheme === 'nip44_v2' ? [['encryption', 'nip44_v2']] : []),
+        ],
         content: encryptedContent,
       },
       clientSecretBytes,
@@ -173,6 +239,7 @@ export class Nip47Client {
       event.id,
       since,
       clientSecretBytes,
+      scheme,
     );
 
     try {
@@ -201,6 +268,7 @@ export class Nip47Client {
     requestEventId: string,
     since: number,
     clientSecretBytes: Uint8Array,
+    scheme: Nip47Encryption,
   ): { promise: Promise<Nip47RpcResponse>; cancel: () => void } {
     let timeout: ReturnType<typeof setTimeout>;
     let closer: { close: (reason?: string) => void };
@@ -230,7 +298,8 @@ export class Nip47Client {
               if (!hasMatchingRequestTag) {
                 return;
               }
-              const decrypted = nip04.decrypt(clientSecretBytes, event.pubkey, event.content);
+              // The wallet answers in the scheme the request used.
+              const decrypted = decryptFrom(scheme, clientSecretBytes, event.pubkey, event.content);
               clearTimeout(timeout);
               closer.close('nip47 response received');
               resolve(parseRpcResponse(decrypted));

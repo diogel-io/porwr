@@ -279,6 +279,19 @@ describe('Nip17Messaging', () => {
     expect(toBob.created_at).toBeLessThanOrEqual(Math.floor(clock / 1000));
   });
 
+  it("forgets the old account's finished sends when the account changes (#142)", async () => {
+    const messaging = service();
+    const request = { clientMessageId: 'c1', recipient: ALICE, content: 'hi' };
+    await messaging.send(bob, request);
+    const publishedBefore = publish.mock.calls.length;
+
+    messaging.keepOnly(ALICE);
+    await messaging.send(bob, request);
+
+    // The memo went with the switch, so the same id is delivered afresh rather than replayed.
+    expect(publish.mock.calls.length).toBeGreaterThan(publishedBefore);
+  });
+
   it('sends a retried message only once', async () => {
     const messaging = service();
     const first = messaging.send(alice, { clientMessageId: 'm1', recipient: BOB, content: 'once' });
@@ -559,6 +572,43 @@ describe('Nip17Messaging', () => {
 
     await expect(messaging.fetch(bob, {})).resolves.toMatchObject({ messages: [] });
     expect(relays.clearCache).toHaveBeenCalled();
+  });
+
+  it('discards a fetch overtaken by an account switch while it looked up the inbox (#142)', async () => {
+    const messaging = service();
+    stored.push(...wrapMessage(alice, BOB, 'for bob'));
+    let finishLookup: (list: DmRelayList) => void = () => undefined;
+    vi.mocked(relays.lookupDmRelays).mockImplementationOnce(
+      () => new Promise<DmRelayList>((resolve) => (finishLookup = resolve)),
+    );
+
+    const pending = messaging.fetch(bob, {});
+    messaging.keepOnly(ALICE);
+    finishLookup(INBOX[BOB]!);
+
+    await expect(pending).resolves.toEqual({ inbox: 'ready', messages: [], dropped: 0 });
+    expect(pools).toHaveLength(0);
+  });
+
+  it('keeps nothing from a fetch whose relays answer after the vault locked (#142)', async () => {
+    const messaging = service();
+    stored.push(...wrapMessage(alice, BOB, 'secret'));
+    const read = subscribeEose.getMockImplementation() as (...args: unknown[]) => unknown;
+    let release: () => void = () => undefined;
+    subscribeEose.mockImplementationOnce((...args: unknown[]) => {
+      release = () => void read(...args);
+      return { close: vi.fn() };
+    });
+
+    const pending = messaging.fetch(bob, {});
+    await vi.waitFor(() => expect(subscribeEose).toHaveBeenCalled());
+    messaging.clear();
+    release();
+
+    await expect(pending).resolves.toMatchObject({ messages: [] });
+    expect(pools.every((pool) => pool.destroy.mock.calls.length > 0)).toBe(true);
+    stored.length = 0;
+    await expect(messaging.fetch(bob, {})).resolves.toMatchObject({ messages: [] });
   });
 
   it("keeps one account's messages at a time", async () => {

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
 import { externaliseCheckerPreamble } from './src-bex/dev-checker-preamble';
-import { withDevScriptSources } from './src-bex/manifest-csp';
+import { withDevSources } from './src-bex/manifest-csp';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'));
 
@@ -18,7 +18,7 @@ export default defineConfig((ctx) => {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['i18n', 'axios'],
+    boot: ['i18n'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
     css: ['app.scss'],
@@ -251,11 +251,12 @@ export default defineConfig((ctx) => {
         }
 
         // Only `quasar dev` serves page scripts from localhost; a released build allows 'self' alone (#247).
+        // See src-bex/manifest-csp.ts for the released policy and what dev adds to it.
         const csp = json.content_security_policy?.extension_pages;
         if (ctx.dev && csp) {
           json.content_security_policy = {
             ...json.content_security_policy,
-            extension_pages: withDevScriptSources(csp),
+            extension_pages: withDevSources(csp),
           };
         }
 
