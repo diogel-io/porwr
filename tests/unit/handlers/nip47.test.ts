@@ -41,6 +41,12 @@ import { armWalletRelay } from '@/../src-bex/services/wallet-relay-arm';
 import { postWalletConnectOutcome } from '@/services/wallet-connect-channel';
 
 const lockListeners = vi.hoisted(() => [] as (() => void)[]);
+const expiredPopupListeners = vi.hoisted(
+  () =>
+    [] as ((
+      expired: import('@/../src-bex/services/nip47-pending-authorization-store').PendingNip47Authorization[],
+    ) => void)[],
+);
 
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(),
@@ -65,6 +71,9 @@ vi.mock('@/../src-bex/services/nip47-pending-authorization-store', () => ({
   bindPendingNip47AuthorizationPopup: vi.fn(),
   clearPendingNip47Authorizations: vi.fn(() => Promise.resolve([])),
   findPendingNip47AuthorizationByPopup: vi.fn(),
+  onExpiredPendingNip47Popups: (listener: (expired: PendingNip47Authorization[]) => void) => {
+    expiredPopupListeners.push(listener);
+  },
   savePendingNip47Authorization: vi.fn(),
   takePendingNip47Authorization: vi.fn(),
 }));
@@ -1282,6 +1291,38 @@ describe('vault lock (diogel-io/workspace#142, T22)', () => {
   });
 });
 
+describe('an expired popup authorization (workspace#85)', () => {
+  it('closes its popup and says it expired when the store drops it', async () => {
+    const remove = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('chrome', { windows: { remove } });
+    vi.mocked(postWalletConnectOutcome).mockClear();
+    expect(expiredPopupListeners.length).toBeGreaterThan(0);
+
+    for (const listener of expiredPopupListeners) {
+      listener([
+        {
+          pendingId: 'p',
+          accountPubkey: ACCOUNT,
+          providerId: 'alby-hub',
+          origin: 'https://my.albyhub.com',
+          clientSecret: '1'.repeat(64),
+          clientPubkey: 'c',
+          createdAt: 0,
+          expiresAt: 1,
+          popup: { windowId: 9, tabId: 90, requestId: 'req-9' },
+        },
+      ]);
+    }
+    await vi.waitFor(() => expect(remove).toHaveBeenCalledWith(9));
+
+    expect(postWalletConnectOutcome).toHaveBeenCalledWith('req-9', {
+      status: 'error',
+      message: expect.stringContaining('expired') as string,
+    });
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('a wallet popup the background owns (workspace#85)', () => {
   const WALLET = 'b'.repeat(64);
   const POPUP = { windowId: 7, tabId: 70, requestId: 'req-1' };
@@ -1458,10 +1499,61 @@ describe('a wallet popup the background owns (workspace#85)', () => {
         success: true,
         data: true,
       });
-      expect(findPendingNip47AuthorizationByPopup).toHaveBeenCalledWith({ requestId: 'req-1' });
+      expect(findPendingNip47AuthorizationByPopup).toHaveBeenCalledWith(
+        { requestId: 'req-1' },
+        expect.any(Number),
+        { includeExpired: true },
+      );
       expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1');
       expect(remove).toHaveBeenCalledWith(7);
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
+    });
+
+    it('closes the popup of an authorization that expired while the page still waited', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending({ expiresAt: 0 }));
+      vi.mocked(takePendingNip47Authorization).mockResolvedValue(null);
+
+      await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
+        success: true,
+        data: true,
+      });
+      expect(remove).toHaveBeenCalledWith(7);
+    });
+
+    it('lets a save that has begun its vault write finish and report, rather than claim to stop it', async () => {
+      vi.mocked(findPendingNip47AuthorizationByPopup)
+        .mockResolvedValueOnce(pending())
+        .mockResolvedValue(null);
+      vi.mocked(takePendingNip47Authorization)
+        .mockResolvedValueOnce(pending())
+        .mockResolvedValue(null);
+      let writes = 0;
+      let finishWrite!: () => void;
+      vi.mocked(updateVaultData).mockImplementation((next) => {
+        writes += 1;
+        vaultData = next as VaultData;
+        // The connection's own write is the one held open; others complete at once.
+        return (vaultData.nip47Connections ?? []).length > 0
+          ? new Promise((resolve) => {
+              finishWrite = () => resolve({ success: true });
+            })
+          : Promise.resolve({ success: true });
+      });
+
+      const relayed = handleNip47AuthorizationRelay(topFrame, success);
+      await vi.waitFor(() => expect(finishWrite).toBeTypeOf('function'));
+      await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
+        success: true,
+        data: false,
+      });
+      finishWrite();
+      await relayed;
+
+      expect(writes).toBeGreaterThan(0);
+      expect(postWalletConnectOutcome).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({ status: 'connected' }),
+      );
     });
 
     it('stops a relayed answer it claimed from saving, and closes the popup', async () => {

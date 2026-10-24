@@ -68,6 +68,30 @@ function unexpired(entries: PendingNip47Authorization[], now: number): PendingNi
   return entries.filter((entry) => entry.expiresAt > now);
 }
 
+let expiredPopupListener: ((expired: PendingNip47Authorization[]) => void) | null = null;
+
+/**
+ * Called with expired entries that owned a background-opened popup, whenever a write drops them, so
+ * the popup can be closed rather than outlive its authorization (workspace#85).
+ */
+export function onExpiredPendingNip47Popups(
+  listener: (expired: PendingNip47Authorization[]) => void,
+): void {
+  expiredPopupListener = listener;
+}
+
+/** `unexpired`, for a write: the expired entries it drops are reported if they owned a popup. */
+function dropExpired(
+  entries: PendingNip47Authorization[],
+  now: number,
+): PendingNip47Authorization[] {
+  const expiredWithPopup = entries.filter((entry) => entry.expiresAt <= now && entry.popup);
+  if (expiredWithPopup.length > 0) {
+    expiredPopupListener?.(expiredWithPopup);
+  }
+  return unexpired(entries, now);
+}
+
 /**
  * Records a new pending authorization, dropping expired ones and keeping only the newest few.
  *
@@ -85,7 +109,7 @@ export async function savePendingNip47Authorization(
       createdAt: now,
       expiresAt: now + PENDING_AUTHORIZATION_TTL_MS,
     };
-    const others = unexpired(await readPending(), now).filter(
+    const others = dropExpired(await readPending(), now).filter(
       (item) => item.pendingId !== entry.pendingId,
     );
     const keep = MAX_PENDING_AUTHORIZATIONS - 1;
@@ -111,7 +135,7 @@ export async function takePendingNip47Authorization(
   return serialized(async () => {
     const entries = await readPending();
     const match = entries.find((entry) => entry.pendingId === pendingId);
-    await writePending(unexpired(entries, now).filter((entry) => entry.pendingId !== pendingId));
+    await writePending(dropExpired(entries, now).filter((entry) => entry.pendingId !== pendingId));
     return match && match.expiresAt > now ? match : null;
   });
 }
@@ -128,7 +152,7 @@ export async function bindPendingNip47AuthorizationPopup(
   now: number = Date.now(),
 ): Promise<boolean> {
   return serialized(async () => {
-    const entries = unexpired(await readPending(), now);
+    const entries = dropExpired(await readPending(), now);
     const index = entries.findIndex((entry) => entry.pendingId === pendingId);
     if (index === -1) {
       return false;
@@ -142,13 +166,18 @@ export async function bindPendingNip47AuthorizationPopup(
 /**
  * Finds the pending authorization whose background-owned popup matches, without removing it.
  *
+ * `includeExpired` also finds one that has expired but is still stored, so cancelling it can close
+ * its popup.
+ *
  * @returns The entry, or `null` when no unexpired authorization owns that popup.
  */
 export async function findPendingNip47AuthorizationByPopup(
   match: { windowId: number } | { tabId: number } | { requestId: string },
   now: number = Date.now(),
+  { includeExpired = false }: { includeExpired?: boolean } = {},
 ): Promise<PendingNip47Authorization | null> {
-  const entries = unexpired(await readPending(), now);
+  const stored = await readPending();
+  const entries = includeExpired ? stored : unexpired(stored, now);
   return (
     entries.find((entry) =>
       'windowId' in match

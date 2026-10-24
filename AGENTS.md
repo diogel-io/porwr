@@ -142,7 +142,9 @@ answers with `nwc:success`, and that answer reaches the background by one of two
     the popup.
 
   Pending entries are claimed through a serialized store, so only one of these settles an
-  authorization.
+  authorization. A popup whose authorization expires is closed when the store drops the entry. A
+  cancel that arrives once a save's vault write has begun cannot stop it, so the save finishes and
+  reports, and Wallet Connections reads its wallet list again after any cancelled connection.
 
   The relay uses its own `porwr:wallet-relay` port. The background accepts it only from the top
   frame of the bound tab, at the wallet's exact origin, as the browser-supplied `sender` reports

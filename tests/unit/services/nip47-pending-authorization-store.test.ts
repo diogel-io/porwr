@@ -27,6 +27,7 @@ import {
   bindPendingNip47AuthorizationPopup,
   clearPendingNip47Authorizations,
   findPendingNip47AuthorizationByPopup,
+  onExpiredPendingNip47Popups,
   savePendingNip47Authorization,
   takePendingNip47Authorization,
 } from '@/../src-bex/services/nip47-pending-authorization-store';
@@ -167,6 +168,28 @@ describe('nip47 pending authorization store', () => {
       const later = NOW + PENDING_AUTHORIZATION_TTL_MS + 1;
       expect(await bindPendingNip47AuthorizationPopup('a', popup, later)).toBe(false);
       expect(await findPendingNip47AuthorizationByPopup({ windowId: 7 }, later)).toBeNull();
+    });
+
+    it('reports an expired authorization that owned a popup when a write drops it', async () => {
+      const onExpired = vi.fn();
+      onExpiredPendingNip47Popups(onExpired);
+      await savePendingNip47Authorization(entry('a'), NOW);
+      await bindPendingNip47AuthorizationPopup('a', popup, NOW);
+      await savePendingNip47Authorization(entry('b'), NOW);
+      expect(onExpired).not.toHaveBeenCalled();
+
+      const later = NOW + PENDING_AUTHORIZATION_TTL_MS + 1;
+      // Still stored until a write drops it, and cancelling can find it meanwhile.
+      expect(
+        await findPendingNip47AuthorizationByPopup({ requestId: 'req-1' }, later, {
+          includeExpired: true,
+        }),
+      ).toMatchObject({ pendingId: 'a' });
+      await takePendingNip47Authorization('missing', later);
+
+      expect(onExpired).toHaveBeenCalledOnce();
+      expect(onExpired.mock.calls[0]![0]).toEqual([expect.objectContaining({ pendingId: 'a' })]);
+      onExpiredPendingNip47Popups(() => undefined);
     });
 
     it('does not find an expired authorization by its popup', async () => {

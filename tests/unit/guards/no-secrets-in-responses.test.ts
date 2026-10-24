@@ -67,6 +67,7 @@ vi.mock('@/../src-bex/services/nip47-pending-authorization-store', () => ({
     return Promise.resolve({ ...entry, createdAt: 0, expiresAt: 1 });
   }),
   takePendingNip47Authorization: vi.fn(),
+  onExpiredPendingNip47Popups: vi.fn(),
 }));
 
 import { dispatchMessage } from '@/../src-bex/dispatcher';
