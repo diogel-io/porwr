@@ -44,6 +44,8 @@ export const PENDING_AUTHORIZATION_TTL_MS = 10 * 60 * 1000;
 /** How long a claimed authorization may take to settle: the wallet's answer and the vault write. */
 export const CLAIMED_AUTHORIZATION_GRACE_MS = 2 * 60 * 1000;
 const MAX_PENDING_AUTHORIZATIONS = 5;
+export const TOO_MANY_PENDING_AUTHORIZATIONS =
+  'Too many wallet connections are still being finished. Wait for one to complete, then try again.';
 
 async function readPending(): Promise<PendingNip47Authorization[]> {
   const stored = await storageService.get<PendingNip47Authorization[]>(
@@ -124,7 +126,12 @@ export async function savePendingNip47Authorization(
     // removed once its result is final (workspace#85).
     const keep = MAX_PENDING_AUTHORIZATIONS - 1;
     const evictable = others.filter((item) => !item.claimed);
-    const evicted = evictable.slice(0, Math.max(0, others.length - keep));
+    const needed = Math.max(0, others.length - keep);
+    // Every slot is being settled: refuse rather than grow past the limit while wallets hang.
+    if (evictable.length < needed) {
+      throw new Error(TOO_MANY_PENDING_AUTHORIZATIONS);
+    }
+    const evicted = evictable.slice(0, needed);
     await writePending([...others.filter((item) => !evicted.includes(item)), pending]);
     if (evicted.length > 0) {
       onEvicted?.(evicted);

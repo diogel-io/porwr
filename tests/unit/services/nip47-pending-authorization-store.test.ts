@@ -98,6 +98,18 @@ describe('nip47 pending authorization store', () => {
     ]);
   });
 
+  it('refuses a new authorization when every slot is being settled (workspace#85)', async () => {
+    for (const id of ['1', '2', '3', '4', '5']) {
+      await savePendingNip47Authorization(entry(id), NOW);
+      await claimPendingNip47Authorization(id, NOW);
+    }
+
+    await expect(savePendingNip47Authorization(entry('6'), NOW)).rejects.toThrow(
+      'Too many wallet connections',
+    );
+    expect((session.value as unknown[]).length).toBe(5);
+  });
+
   it('never pushes out an entry that is being settled (workspace#85)', async () => {
     const onEvicted = vi.fn();
     for (const id of ['1', '2', '3', '4', '5']) {

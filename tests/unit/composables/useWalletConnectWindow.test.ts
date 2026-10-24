@@ -255,6 +255,22 @@ describe('useWalletConnectWindow in Firefox (workspace#85)', () => {
     expect(cancelNip47Authorization).toHaveBeenLastCalledWith(secondId);
   });
 
+  it('still takes a committed save when its open call failed', async () => {
+    vi.mocked(openNip47Authorization).mockRejectedValueOnce(new Error('Background did not answer'));
+    vi.mocked(cancelNip47Authorization).mockResolvedValueOnce('committed');
+    const { api } = harness();
+
+    const result = api.connect('alby-hub', ACCOUNT);
+    await settle();
+    const { requestId } = vi.mocked(openNip47Authorization).mock.calls[0]![0];
+    postWalletConnectOutcome(requestId, {
+      status: 'connected',
+      connection: { id: 'w', label: 'Alby Hub' } as never,
+    });
+
+    await expect(result).resolves.toMatchObject({ status: 'connected' });
+  });
+
   it('cancels nothing once the outcome has arrived', async () => {
     vi.mocked(cancelNip47Authorization).mockClear();
     const { api } = harness();

@@ -145,6 +145,7 @@ export function useWalletConnectWindow(
             stopListening();
             chrome.windows.onRemoved.removeListener(onRemoved);
             clearTimeout(timeout);
+            clearTimeout(committedWait);
             if (cancelPending === leave) {
               cancelPending = null;
             }
@@ -160,9 +161,19 @@ export function useWalletConnectWindow(
               requestId,
               ...(customOrigin?.trim() ? { customOrigin: customOrigin.trim() } : {}),
             }).catch((error: unknown) => {
-              // It may have timed out with the popup still opening in the background.
-              void cancelNip47Authorization(requestId).catch(() => undefined);
-              fail(error);
+              // It may have timed out with the popup still opening in the background. A save that
+              // had already begun cannot be stopped, so its outcome is waited for, briefly.
+              void cancelNip47Authorization(requestId).then(
+                (cancelled) => {
+                  if (cancelled === 'committed') {
+                    clearTimeout(timeout);
+                    committedWait = setTimeout(() => fail(error), COMMITTED_SAVE_WAIT_MS);
+                  } else {
+                    fail(error);
+                  }
+                },
+                () => fail(error),
+              );
             });
             return;
           }
