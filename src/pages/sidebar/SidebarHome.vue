@@ -26,7 +26,7 @@ const { t } = useI18n();
 const accountStore = useAccountStore();
 const { activeOrigin } = useActiveTab();
 const vaultStore = useVaultStore();
-const { pending, current, content, decide, dismiss, refresh } = useApprovalQueue();
+const { pending, current, content, decide, dismiss, present } = useApprovalQueue();
 
 const busy = ref(false);
 
@@ -93,22 +93,27 @@ async function onDismiss(id: string): Promise<void> {
   }
 }
 
+/**
+ * Show the request chosen from the pending list (S7).
+ *
+ * The choice is made in the background, which owns what is current. Setting it only here was
+ * overwritten by the next read, so the panel stayed on the request it was showing (porwr#334).
+ */
 async function onSelect(id: string): Promise<void> {
-  // Choosing another request is moving on from the notice, so it is dismissed first. Otherwise
-  // the background would keep answering with the notice and the choice would not take.
-  if (current.value && isNotice(current.value)) await dismiss(current.value.id);
-  await sendPresent(id);
+  if (!pending.value.some((request) => request.id === id)) return;
+  busy.value = true;
+  try {
+    // Choosing another request is moving on from the notice, so it is dismissed first. Otherwise
+    // the background would keep answering with the notice and the choice would not take.
+    if (current.value && isNotice(current.value)) await dismiss(current.value.id);
+    await present(id);
+  } finally {
+    busy.value = false;
+  }
 }
 
 /** A notice cannot be rejected, so the unlock view is never handed one to name. */
 const waitingRequest = computed(() => (isNotice(current.value) ? null : current.value));
-
-async function sendPresent(id: string): Promise<void> {
-  const target = pending.value.find((request) => request.id === id);
-  if (!target) return;
-  current.value = target;
-  await refresh();
-}
 
 /**
  * Which view the panel is showing. Views are branches of this page, not routes, so the router's
