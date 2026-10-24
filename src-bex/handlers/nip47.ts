@@ -760,8 +760,14 @@ export async function handleNip47AuthorizationCancel(
   });
   // Claimed, but not by this background: it was suspended or restarted while settling, so nothing
   // will finish it. Drop it and close its popup.
-  if (bound?.popup && bound.claimed && !settling.has(bound.pendingId)) {
-    await takePendingNip47Authorization(bound.pendingId);
+  // Checked again as it is removed, so a claim reclaimed meanwhile is left to the settling path.
+  if (
+    bound?.popup &&
+    bound.claimed &&
+    (await takePendingNip47Authorization(bound.pendingId, Date.now(), {
+      when: (entry) => Boolean(entry.claimed) && claimLeftByRestart(entry.pendingId),
+    }))
+  ) {
     await closePopupWindow(bound.popup.windowId);
     return { success: true, data: 'closed' };
   }
@@ -769,7 +775,7 @@ export async function handleNip47AuthorizationCancel(
     // Removed only while still unclaimed, in one step: one a settling path claimed meanwhile is
     // left to it and handled below.
     const taken = await takePendingNip47Authorization(bound.pendingId, Date.now(), {
-      unclaimedOnly: true,
+      when: (entry) => !entry.claimed,
     });
     if (taken || bound.expiresAt <= Date.now()) {
       await closePopupWindow(bound.popup.windowId);

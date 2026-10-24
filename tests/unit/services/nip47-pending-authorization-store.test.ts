@@ -98,6 +98,25 @@ describe('nip47 pending authorization store', () => {
     ]);
   });
 
+  it('never pushes out an entry that is being settled (workspace#85)', async () => {
+    const onEvicted = vi.fn();
+    for (const id of ['1', '2', '3', '4', '5']) {
+      await savePendingNip47Authorization(entry(id), NOW);
+    }
+    await claimPendingNip47Authorization('1', NOW);
+
+    await savePendingNip47Authorization(entry('6'), NOW, onEvicted);
+
+    expect(onEvicted.mock.calls[0]![0]).toEqual([expect.objectContaining({ pendingId: '2' })]);
+    expect((session.value as Array<{ pendingId: string }>).map((item) => item.pendingId)).toEqual([
+      '1',
+      '3',
+      '4',
+      '5',
+      '6',
+    ]);
+  });
+
   it('says which unexpired entries it pushed out, and none when there was room (workspace#85)', async () => {
     const onEvicted = vi.fn();
     await savePendingNip47Authorization(entry('old'), NOW - PENDING_AUTHORIZATION_TTL_MS - 1);
@@ -190,7 +209,9 @@ describe('nip47 pending authorization store', () => {
       await savePendingNip47Authorization(entry('a'), NOW);
       await claimPendingNip47Authorization('a', NOW);
 
-      expect(await takePendingNip47Authorization('a', NOW, { unclaimedOnly: true })).toBeNull();
+      expect(
+        await takePendingNip47Authorization('a', NOW, { when: (item) => !item.claimed }),
+      ).toBeNull();
       // Still there for the path settling it.
       expect(await takePendingNip47Authorization('a', NOW)).toMatchObject({ claimed: true });
     });

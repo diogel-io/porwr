@@ -1507,7 +1507,7 @@ describe('a wallet popup the background owns (workspace#85)', () => {
         { includeExpired: true },
       );
       expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1', expect.any(Number), {
-        unclaimedOnly: true,
+        when: expect.any(Function) as unknown,
       });
       expect(remove).toHaveBeenCalledWith(7);
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
@@ -1515,12 +1515,21 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
     it('closes the popup of an authorization a restarted background had claimed', async () => {
       vi.mocked(findPendingNip47AuthorizationByPopup).mockResolvedValue(pending({ claimed: true }));
+      vi.mocked(takePendingNip47Authorization).mockImplementation((_id, _now, options) =>
+        Promise.resolve(
+          !options?.when || options.when(pending({ claimed: true }))
+            ? pending({ claimed: true })
+            : null,
+        ),
+      );
 
       await expect(handleNip47AuthorizationCancel({ requestId: 'req-1' })).resolves.toEqual({
         success: true,
         data: 'closed',
       });
-      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1');
+      expect(takePendingNip47Authorization).toHaveBeenCalledWith('pending-1', expect.any(Number), {
+        when: expect.any(Function) as unknown,
+      });
       expect(remove).toHaveBeenCalledWith(7);
     });
 

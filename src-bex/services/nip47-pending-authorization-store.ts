@@ -120,9 +120,12 @@ export async function savePendingNip47Authorization(
     const others = dropExpired(await readPending(), now).filter(
       (item) => item.pendingId !== entry.pendingId,
     );
+    // Room is made from the oldest unclaimed entries only: a claimed one is being settled, and is
+    // removed once its result is final (workspace#85).
     const keep = MAX_PENDING_AUTHORIZATIONS - 1;
-    const evicted = others.length > keep ? others.slice(0, others.length - keep) : [];
-    await writePending([...others.slice(-keep), pending]);
+    const evictable = others.filter((item) => !item.claimed);
+    const evicted = evictable.slice(0, Math.max(0, others.length - keep));
+    await writePending([...others.filter((item) => !evicted.includes(item)), pending]);
     if (evicted.length > 0) {
       onEvicted?.(evicted);
     }
@@ -134,20 +137,21 @@ export async function savePendingNip47Authorization(
  * Removes and returns a pending authorization. It is single use: whatever happens next, a second
  * completion for the same id finds nothing.
  *
- * `unclaimedOnly` leaves a claimed entry in place and returns `null` for it, in the same serialized
- * step, so a cancel cannot remove an entry a settling path claimed a moment before (workspace#85).
+ * `when` is checked against the stored entry in the same serialized step; an entry it rejects is
+ * left in place and `null` returned. A cancel uses it so it cannot remove an entry whose claim
+ * changed a moment before (workspace#85).
  *
  * @returns The entry, or `null` when it does not exist or has expired.
  */
 export async function takePendingNip47Authorization(
   pendingId: string,
   now: number = Date.now(),
-  { unclaimedOnly = false }: { unclaimedOnly?: boolean } = {},
+  { when }: { when?: (entry: PendingNip47Authorization) => boolean } = {},
 ): Promise<PendingNip47Authorization | null> {
   return serialized(async () => {
     const entries = await readPending();
     const match = entries.find((entry) => entry.pendingId === pendingId);
-    if (unclaimedOnly && match?.claimed) {
+    if (match && when && !when(match)) {
       return null;
     }
     await writePending(dropExpired(entries, now).filter((entry) => entry.pendingId !== pendingId));
