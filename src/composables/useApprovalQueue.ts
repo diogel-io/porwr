@@ -40,6 +40,7 @@ export interface UseApprovalQueueResult {
   refresh: () => Promise<void>;
   decide: (id: string, approved: boolean, duration: ApprovalDuration) => Promise<DecisionResult>;
   dismiss: (id: string) => Promise<boolean>;
+  present: (id: string) => Promise<void>;
 }
 
 /** Past `expiresAt`, so the read lands after the background would call the request expired. */
@@ -128,6 +129,18 @@ const dismiss = async (id: string): Promise<boolean> => {
 };
 
 /**
+ * Show another waiting request, as chosen from the pending list.
+ *
+ * The background decides what is current (ADR D1), so the choice is sent there and then re-read.
+ * Setting `current` here as well would be overwritten by that read whenever the background
+ * disagreed, and the panel would flick to the choice and back (porwr#334).
+ */
+const present = async (id: string): Promise<void> => {
+  await sendBexMessage('nostr.requests.present', { requestId: id });
+  await refresh();
+};
+
+/**
  * Discards the shared queue state and stops the poller.
  *
  * Module-scoped state outlives a component, which is the point in the panel and a hazard in tests.
@@ -182,5 +195,5 @@ export function useApprovalQueue(): UseApprovalQueueResult {
     });
   });
 
-  return { pending, current, content, pendingCount, loading, refresh, decide, dismiss };
+  return { pending, current, content, pendingCount, loading, refresh, decide, dismiss, present };
 }

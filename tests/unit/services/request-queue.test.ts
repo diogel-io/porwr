@@ -353,6 +353,60 @@ describe('request queue', () => {
     });
   });
 
+  describe('choosing another request (porwr#334)', () => {
+    const now = 1_000_000;
+
+    const enqueueTwo = async () => {
+      const { record: first } = await enqueueRequest(baseInput, { allowRemember: true }, now);
+      const { record: second } = await enqueueRequest(
+        { ...baseInput, origin: 'https://other.example' },
+        { allowRemember: true },
+        now + 60_000,
+      );
+      return { first, second };
+    };
+
+    it('makes the chosen request current and returns the other to the queue', async () => {
+      const { first, second } = await enqueueTwo();
+      await markPresented(first.id, now + 60_000);
+
+      await markPresented(second.id, now + 60_000);
+
+      expect(readStored().find((item) => item.id === first.id)?.state).toBe('queued');
+      expect(readStored().find((item) => item.id === second.id)?.state).toBe('presented');
+      expect(await getCurrentRequest(now + 60_000)).toMatchObject({ id: second.id });
+    });
+
+    it('moves neither expiry', async () => {
+      const { first, second } = await enqueueTwo();
+      await markPresented(first.id, now + 60_000);
+      await markPresented(second.id, now + 60_000);
+
+      expect(readStored().find((item) => item.id === first.id)?.expiresAt).toBe(first.expiresAt);
+      expect(readStored().find((item) => item.id === second.id)?.expiresAt).toBe(second.expiresAt);
+    });
+
+    it('raises no notice for the request moved away from when it expires', async () => {
+      const { first, second } = await enqueueTwo();
+      await markPresented(first.id, now + 60_000);
+      await markPresented(second.id, now + 60_000);
+
+      // The first has expired; the second, created a minute later, has not.
+      const current = await getCurrentRequest(first.expiresAt + 1);
+
+      expect(current).toMatchObject({ id: second.id, state: 'presented' });
+    });
+
+    it('still refuses a terminal request and leaves the presented one alone', async () => {
+      const { first, second } = await enqueueTwo();
+      await markPresented(first.id, now + 60_000);
+      await submitDecision(second.id, { approved: false, duration: 'once' }, now + 60_000);
+
+      expect(await markPresented(second.id, now + 60_000)).toBeNull();
+      expect(readStored().find((item) => item.id === first.id)?.state).toBe('presented');
+    });
+  });
+
   describe('page gone (#113)', () => {
     it('interrupts every live request for the origin', async () => {
       const { record } = await enqueueRequest(baseInput);

@@ -28,7 +28,7 @@ const NEXT = { ...NOTICE, id: 'req-2', state: 'queued', createdAt: 3, expiresAt:
 const mocks = vi.hoisted(() => ({
   decide: vi.fn(),
   dismiss: vi.fn(),
-  refresh: vi.fn(),
+  present: vi.fn(),
   order: [] as string[],
   vault: { vaultExists: true, isUnlocked: true },
 }));
@@ -54,7 +54,7 @@ vi.mock('@/composables/useApprovalQueue', () => ({
     content: ref(null),
     decide: mocks.decide,
     dismiss: mocks.dismiss,
-    refresh: mocks.refresh,
+    present: mocks.present,
   }),
 }));
 
@@ -111,8 +111,8 @@ beforeEach(() => {
     mocks.order.push('dismiss');
     return true;
   });
-  mocks.refresh.mockImplementation(async () => {
-    mocks.order.push('refresh');
+  mocks.present.mockImplementation(async () => {
+    mocks.order.push('present');
   });
 });
 
@@ -134,7 +134,8 @@ describe('the expired or interrupted notice', () => {
     await flushPromises();
 
     expect(mocks.dismiss).toHaveBeenCalledWith('req-1');
-    expect(mocks.order).toEqual(['dismiss', 'refresh']);
+    expect(mocks.order).toEqual(['dismiss', 'present']);
+    expect(mocks.present).toHaveBeenCalledWith(NEXT.id);
   });
 
   it('is never handed to the unlock view, whose Reject it cannot take', async () => {
