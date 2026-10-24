@@ -68,10 +68,16 @@ function unexpired(entries: PendingNip47Authorization[], now: number): PendingNi
   return entries.filter((entry) => entry.expiresAt > now);
 }
 
-/** Records a new pending authorization, dropping expired ones and keeping only the newest few. */
+/**
+ * Records a new pending authorization, dropping expired ones and keeping only the newest few.
+ *
+ * `onEvicted` is given the unexpired entries pushed out to make room, so a popup the background
+ * opened for one of them can be closed and its outcome reported rather than left open (workspace#85).
+ */
 export async function savePendingNip47Authorization(
   entry: Omit<PendingNip47Authorization, 'createdAt' | 'expiresAt'>,
   now: number = Date.now(),
+  onEvicted?: (evicted: PendingNip47Authorization[]) => void,
 ): Promise<PendingNip47Authorization> {
   return serialized(async () => {
     const pending: PendingNip47Authorization = {
@@ -79,10 +85,15 @@ export async function savePendingNip47Authorization(
       createdAt: now,
       expiresAt: now + PENDING_AUTHORIZATION_TTL_MS,
     };
-    const kept = unexpired(await readPending(), now)
-      .filter((item) => item.pendingId !== entry.pendingId)
-      .slice(-(MAX_PENDING_AUTHORIZATIONS - 1));
-    await writePending([...kept, pending]);
+    const others = unexpired(await readPending(), now).filter(
+      (item) => item.pendingId !== entry.pendingId,
+    );
+    const keep = MAX_PENDING_AUTHORIZATIONS - 1;
+    const evicted = others.length > keep ? others.slice(0, others.length - keep) : [];
+    await writePending([...others.slice(-keep), pending]);
+    if (evicted.length > 0) {
+      onEvicted?.(evicted);
+    }
     return pending;
   });
 }

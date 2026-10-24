@@ -95,6 +95,21 @@ describe('nip47 pending authorization store', () => {
     ]);
   });
 
+  it('says which unexpired entries it pushed out, and none when there was room (workspace#85)', async () => {
+    const onEvicted = vi.fn();
+    await savePendingNip47Authorization(entry('old'), NOW - PENDING_AUTHORIZATION_TTL_MS - 1);
+    for (const id of ['1', '2', '3', '4', '5']) {
+      await savePendingNip47Authorization(entry(id), NOW, onEvicted);
+    }
+    // The expired entry was dropped, not evicted.
+    expect(onEvicted).not.toHaveBeenCalled();
+
+    await savePendingNip47Authorization(entry('6'), NOW, onEvicted);
+
+    expect(onEvicted).toHaveBeenCalledOnce();
+    expect(onEvicted.mock.calls[0]![0]).toEqual([expect.objectContaining({ pendingId: '1' })]);
+  });
+
   it('treats unreadable storage as empty', async () => {
     session.value = 'corrupt';
 

@@ -73,6 +73,8 @@ let vaultLocks = 0;
 const LOCKED_DURING_AUTHORIZATION =
   'The vault locked while the wallet connection was being set up. Unlock and try again.';
 const CANCELLED_AUTHORIZATION = 'The wallet connection was cancelled.';
+const EVICTED_AUTHORIZATION =
+  'Too many wallet connections were started at once, so this one was stopped. Try again.';
 const notCancelled = (): boolean => false;
 
 /**
@@ -86,14 +88,17 @@ onVaultLocked(() => {
   void clearPendingNip47Authorizations().then(closeAbandonedPopups);
 });
 
-/** Closes the wallet popups the background opened for authorizations a lock abandoned (workspace#85). */
-async function closeAbandonedPopups(abandoned: PendingNip47Authorization[]): Promise<void> {
+/**
+ * Closes the wallet popups the background opened for authorizations that were abandoned, by a lock
+ * or by too many starting at once, and reports why (workspace#85).
+ */
+async function closeAbandonedPopups(
+  abandoned: PendingNip47Authorization[],
+  message: string = LOCKED_DURING_AUTHORIZATION,
+): Promise<void> {
   for (const { popup } of abandoned) {
     if (popup) {
-      postWalletConnectOutcome(popup.requestId, {
-        status: 'error',
-        message: LOCKED_DURING_AUTHORIZATION,
-      });
+      postWalletConnectOutcome(popup.requestId, { status: 'error', message });
       await closePopupWindow(popup.windowId);
     }
   }
@@ -473,14 +478,24 @@ export async function handleNip47AuthorizationBegin(
   const locksBefore = vaultLocks;
   const clientSecret = bytesToHex(generateSecretKey());
   const clientPubkey = getPublicKey(hexToBytes(clientSecret));
-  const pending = await savePendingNip47Authorization({
-    pendingId: crypto.randomUUID(),
-    accountPubkey,
-    providerId,
-    origin,
-    clientSecret,
-    clientPubkey,
-  });
+  let evicted: PendingNip47Authorization[] = [];
+  const pending = await savePendingNip47Authorization(
+    {
+      pendingId: crypto.randomUUID(),
+      accountPubkey,
+      providerId,
+      origin,
+      clientSecret,
+      clientPubkey,
+    },
+    Date.now(),
+    (dropped) => {
+      evicted = dropped;
+    },
+  );
+  // Pushed out to make room: close any popup the background opened for one, and say so, rather
+  // than leave it open with nothing able to settle it (workspace#85).
+  await closeAbandonedPopups(evicted, EVICTED_AUTHORIZATION);
   // The vault locked while this was being saved: the lock's clear-out may have run first, so this
   // entry is removed here, and no popup opens for an approval the lock abandoned.
   if (vaultLocks !== locksBefore) {

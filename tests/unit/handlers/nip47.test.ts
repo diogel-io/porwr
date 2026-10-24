@@ -1373,6 +1373,27 @@ describe('a wallet popup the background owns (workspace#85)', () => {
       );
     });
 
+    it('closes and reports a popup an older authorization owned when it is pushed out', async () => {
+      vi.mocked(savePendingNip47Authorization).mockImplementationOnce((entry, _now, onEvicted) => {
+        onEvicted?.([
+          pending({ pendingId: 'oldest', popup: { ...POPUP, windowId: 3, requestId: 'req-0' } }),
+        ]);
+        return Promise.resolve({ ...entry, createdAt: 0, expiresAt: 1 });
+      });
+
+      await handleNip47AuthorizationOpen({
+        accountPubkey: ACCOUNT,
+        provider: 'coinos',
+        requestId: 'req-1',
+      });
+
+      expect(remove).toHaveBeenCalledWith(3);
+      expect(postWalletConnectOutcome).toHaveBeenCalledWith('req-0', {
+        status: 'error',
+        message: expect.stringContaining('Too many wallet connections') as string,
+      });
+    });
+
     it('finds the tab when the new window does not list it', async () => {
       create.mockResolvedValue({ id: 7 });
       query.mockResolvedValue([{ id: 70 }]);
