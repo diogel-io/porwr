@@ -499,6 +499,29 @@ describe('origin normalisation', () => {
       expect(stored).toEqual([]);
     });
 
+    // A NIP-04 direct message is ciphertext the user cannot review when granting (#374).
+    it('refuses to write an always grant for an encrypted direct message', async () => {
+      await expect(grantPermission(ORIGIN, ALICE, 'sign_event', 4, 'always')).rejects.toThrow(
+        /not allowed/,
+      );
+    });
+
+    it('still writes an 8h grant for an encrypted direct message', async () => {
+      await grantPermission(ORIGIN, ALICE, 'sign_event', 4, '8h');
+
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 4)).toEqual({
+        granted: true,
+        always: false,
+      });
+    });
+
+    it('no longer honours an always direct message grant written before kind 4 became elevated', async () => {
+      seed([fullyKeyed({ eventKind: 4 }), fullyKeyed({ eventKind: 1 })]);
+
+      expect(await checkPermission(ORIGIN, ALICE, 'sign_event', 4)).toEqual({ granted: false });
+      expect(stored).toEqual([fullyKeyed({ eventKind: 1 })]);
+    });
+
     it('drops an expired grant from storage rather than keeping it', async () => {
       seed([fullyKeyed({ expiry: Date.now() - 1_000 }), fullyKeyed({ eventKind: 7 })]);
 
