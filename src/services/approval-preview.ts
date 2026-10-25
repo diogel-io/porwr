@@ -72,6 +72,9 @@ export const NOSTR_KIND_LABELS: Readonly<Record<number, string>> = {
  */
 export const ELEVATED_EVENT_KINDS: readonly number[] = [
   3,
+  // A NIP-04 direct message speaks for you, and its content is ciphertext the user cannot review
+  // when granting, so a site never sends them unprompted for good (#374).
+  4,
   5,
   9734,
   10002,
@@ -91,6 +94,7 @@ const ELEVATED_REQUEST_TYPES: readonly string[] = ['nip04_decrypt', 'nip44_decry
 /** Effects named in the warning, so the user is told what the kind actually does. */
 const ELEVATED_KIND_EFFECTS: Readonly<Record<number, string>> = {
   3: 'replace the list of accounts you follow',
+  4: 'send encrypted direct messages as you',
   5: 'request deletion of events you previously published',
   // Signing a zap request attributes the zap to you; paying it is a separate WebLN approval (#270).
   9734: 'attach your identity to a Lightning zap',

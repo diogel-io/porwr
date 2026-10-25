@@ -270,8 +270,8 @@ public issue or pull request.
 - A request whose page callback is lost, for example after a service-worker restart, can never be
   signed (D7). Expiry is an absolute cap from creation, bounded in settings and clamped by the
   background (D8).
-- Event kinds are risk-classified in `src/services/approval-preview.ts`. Elevated kinds, kind
-  10050 among them, and NIP-04/NIP-44 decrypt requests can be granted for `once` or `8h` only;
+- Event kinds are risk-classified in `src/services/approval-preview.ts`. Elevated kinds, kinds
+  4 and 10050 among them, and NIP-04/NIP-44 decrypt requests can be granted for `once` or `8h` only;
   unknown kinds and payments are always `once` (D11, D12). The background enforces these limits
   (`submitDecision`, `grantPermission`, `checkPermission`); the panel only offers them. A site's
   event kind must be a whole number from 0 to 65535.

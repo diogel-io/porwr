@@ -392,6 +392,25 @@ describe('approval preview rules', () => {
     });
   });
 
+  describe('encrypted direct message (kind 4, #374)', () => {
+    it('is recognised, labelled and elevated, so it is never an unrecognised kind', () => {
+      expect(getEventKindLabel(4)).toBe('Encrypted direct message (4)');
+      expect(classifyRequest('sign_event', 4)).toBe('elevated');
+      expect(getRiskWarning('elevated', 4)).toBe(
+        'Approving this lets the site send encrypted direct messages as you.',
+      );
+      expect(shouldDefaultToFullEvent('elevated')).toBe(false);
+    });
+
+    it('is never offered always, as an elevated kind', () => {
+      expect(getAllowedDurations(classifyRequest('sign_event', 4), true)).toEqual(['once', '8h']);
+    });
+
+    it('leaves NIP-04 encryption standard, since encrypting publishes nothing', () => {
+      expect(classifyRequest('nip04_encrypt', -1)).toBe('standard');
+    });
+  });
+
   describe('DM relay list (kind 10050, #322)', () => {
     it('is recognised, labelled and elevated, so it is never an unrecognised kind', () => {
       expect(getEventKindLabel(10050)).toBe('DM relay list (10050)');
