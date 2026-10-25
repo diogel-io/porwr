@@ -49,10 +49,25 @@ const EXPIRY_GRACE_MS = 250;
 const pending = ref<ApprovalRequestRecord[]>([]);
 const current = ref<ApprovalRequestRecord | null>(null);
 const content = ref<ApprovalRequestContent | null>(null);
+/**
+ * True until this panel has read the queue successfully.
+ *
+ * Until then `current` is null whether or not a request is waiting, so the panel cannot tell its
+ * idle view from a request it has not read yet. The idle view looks up the profile on the user's
+ * relays and may load remote images, and running that while a request waits breaks D13 (T7,
+ * porwr#371). A failed read leaves this true: if the queue cannot be read, the panel does not
+ * assume it is empty, and the next push or reconnect reads again.
+ */
 const loading = ref(true);
 const pendingCount = computed(() => pending.value.length);
 
 let consumers = 0;
+/**
+ * Advanced when the last consumer leaves. A read that began for an earlier panel can still be in
+ * flight then, and must not end the next panel's loading view before that panel has read its own
+ * queue (porwr#371).
+ */
+let panelGeneration = 0;
 let panelPort: PanelPortHandle | undefined;
 let expiryTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -72,20 +87,26 @@ const armExpiryTimer = (record: ApprovalRequestRecord | null): void => {
   }, delay);
 };
 
-const loadContent = async (id: string | undefined): Promise<void> => {
-  if (!id) {
-    content.value = null;
-    return;
-  }
-  content.value = (await sendBexMessage('nostr.requests.content', { requestId: id })) ?? null;
+/** Content for one request, written only while the panel that asked for it is still open. */
+const loadContent = async (id: string | undefined, generation: number): Promise<void> => {
+  const loaded = id
+    ? ((await sendBexMessage('nostr.requests.content', { requestId: id })) ?? null)
+    : null;
+  if (generation === panelGeneration) content.value = loaded;
 };
 
 const refresh = async (): Promise<void> => {
+  const generation = panelGeneration;
   try {
-    const records = (await sendBexMessage('nostr.requests.list')) ?? [];
+    const records = await sendBexMessage('nostr.requests.list');
+    // The background always answers with a list, so no answer is a failed read, not an empty
+    // queue. `current` is different: no request is a valid answer, and arrives as nothing.
+    if (!Array.isArray(records)) throw new Error('No answer when reading the request queue');
+    if (generation !== panelGeneration) return;
     pending.value = records;
 
     const next = (await sendBexMessage('nostr.requests.current')) ?? null;
+    if (generation !== panelGeneration) return;
     const changed = next?.id !== current.value?.id;
     current.value = next;
     armExpiryTimer(next);
@@ -93,16 +114,16 @@ const refresh = async (): Promise<void> => {
     // Only a waiting request is presented. A notice is already terminal and stays as it is.
     if (next && next.state === 'queued') {
       await sendBexMessage('nostr.requests.present', { requestId: next.id });
+      if (generation !== panelGeneration) return;
     }
     if (changed) {
-      await loadContent(next?.id);
+      await loadContent(next?.id, generation);
     }
+    if (generation === panelGeneration) loading.value = false;
   } catch (error: unknown) {
     logService.log(LogLevel.DEBUG, '[Panel] Failed to refresh request queue', {
       error: error instanceof Error ? error.message : String(error),
     });
-  } finally {
-    loading.value = false;
   }
 };
 
@@ -186,6 +207,13 @@ export function useApprovalQueue(): UseApprovalQueueResult {
     panelPort?.disconnect();
     panelPort = undefined;
     clearExpiryTimer();
+    // What was read belongs to this panel; the next one waits for its own first read, and never
+    // shows this one's request in the meantime.
+    panelGeneration += 1;
+    loading.value = true;
+    pending.value = [];
+    current.value = null;
+    content.value = null;
 
     // Closing the panel is never a decision: hand the request back to the queue (FR-6). This runs
     // only once the last consumer has gone, so navigating within the panel does not requeue. The

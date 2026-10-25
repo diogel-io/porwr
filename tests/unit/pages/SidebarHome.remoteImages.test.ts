@@ -48,6 +48,8 @@ vi.mock('@/composables/useApprovalQueue', () => ({
   useApprovalQueue: () => ({
     pending: ref([]),
     current,
+    // The queue has been read; the panel is past its loading view (porwr#371).
+    loading: ref(false),
     content: ref(null),
     decide: vi.fn(),
     refresh: vi.fn(),
