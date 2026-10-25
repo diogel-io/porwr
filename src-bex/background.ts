@@ -31,6 +31,7 @@ import { refreshAttention } from './services/attention-badge';
 import {
   identifyWaitingRequests,
   requestApproval,
+  requestApprovalDecision,
   trimApprovalContentDescription,
 } from './services/approval-flow';
 import type { ApprovalRequestDetails } from './services/approval-flow';
@@ -66,6 +67,7 @@ import { onVaultUnlocked } from './vault';
 import { refreshActiveAccountContacts } from './handlers/contacts';
 import {} from './handlers/permission-handler';
 import { handleGetPublicKey, handleSignEvent } from './handlers/nip07';
+import { handleWebLnEnable } from './handlers/webln';
 import { loadSeedRelays } from '@/services/relay-catalog';
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import { dispatchMessage } from './dispatcher';
@@ -546,7 +548,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'webln.enable': async (_payload, origin, page) => {
-    const approved = await requestApproval(origin, -1, {
+    const { approved, duration } = await requestApprovalDecision(origin, -1, {
       signal: page.signal,
       requestType: 'webln_enable',
       contentDescription:
@@ -557,11 +559,19 @@ const pageActionHandlers: PageActionHandlers = {
     if (!approved) {
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected WebLN access');
     }
-    return await dispatchMessage(
-      'webln.enable',
-      createBridgeRequest('webln.enable', { origin, approved: true }),
-      origin,
-    );
+    // Called directly rather than through the dispatcher, as `signEvent` calls its handler: the
+    // grant for "just this once" lasts while this page is open, so the handler needs its signal,
+    // which is not something a bridge payload can carry (porwr#369). The duration comes from the
+    // user's decision, never from the site.
+    try {
+      const result = await handleWebLnEnable(
+        createBridgeRequest('webln.enable', { origin, approved: true, duration }),
+        page.signal,
+      );
+      return result.success ? result.data : { success: false, error: result.error };
+    } catch (error: unknown) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   },
 
   'webln.getInfo': async (_payload, origin) =>

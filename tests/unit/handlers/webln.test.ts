@@ -10,12 +10,15 @@ import { handleNip47PayInvoice } from '@/../src-bex/handlers/nip47';
 import { resolveSigningAccount } from '@/../src-bex/services/signing-account';
 import type { StoredKey, VaultData } from '@/types/bridge';
 import type { Nip47Connection } from '@/types/nip47';
+import type { WebLnMethod } from '@/types/webln';
+import { clearWebLnPageGrants } from '@/../src-bex/services/webln-session-grants';
 import { ErrorCode } from '@/types/error-codes.d';
 
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(),
   updateVaultData: vi.fn(),
   isVaultUnlocked: vi.fn(() => true),
+  onVaultLocked: vi.fn(),
 }));
 
 vi.mock('@/../src-bex/services/signing-account', () => ({
@@ -74,7 +77,11 @@ describe('WebLN handlers', () => {
   it('enables WebLN access for the active NIP-47 connection', async () => {
     mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
-    const result = await handleWebLnEnable({ origin: 'https://jumble.social', approved: true });
+    const result = await handleWebLnEnable({
+      origin: 'https://jumble.social',
+      approved: true,
+      duration: 'always',
+    });
 
     expect(result).toEqual({ success: true, data: true });
     expect(updateVaultData).toHaveBeenCalledTimes(1);
@@ -236,7 +243,11 @@ describe('WebLN handlers', () => {
         }),
       ).rejects.toThrow('has not been enabled');
 
-      await handleWebLnEnable({ origin: 'https://jumble.social', approved: true });
+      await handleWebLnEnable({
+        origin: 'https://jumble.social',
+        approved: true,
+        duration: 'always',
+      });
       const saved = vi.mocked(updateVaultData).mock.calls.at(-1)?.[0] as VaultData;
       expect(saved.webLnPermissions?.map((grant) => grant.connectionId)).toEqual([
         'alice-wallet',
@@ -276,6 +287,112 @@ describe('WebLN handlers', () => {
         'Vault is locked',
       );
       expect(resolveSigningAccount).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the duration the user chose (porwr#369)', () => {
+    const ORIGIN = 'https://jumble.social';
+    const storedGrant = {
+      origin: ORIGIN,
+      connectionId: 'wallet-a',
+      methods: ['enable', 'getInfo'] as WebLnMethod[],
+      createdAt: '2026-06-23T00:00:00.000Z',
+    };
+    const lastSaved = (): VaultData | undefined =>
+      vi.mocked(updateVaultData).mock.calls.at(-1)?.[0] as VaultData | undefined;
+
+    beforeEach(() => {
+      clearWebLnPageGrants();
+    });
+
+    it('stores an "always" grant with no expiry', async () => {
+      mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
+
+      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'always' });
+
+      expect(lastSaved()?.webLnPermissions?.[0]?.expiresAt).toBeUndefined();
+    });
+
+    it('stores an "8h" grant that expires eight hours from now', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-25T12:00:00.000Z'));
+      try {
+        mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
+
+        await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: '8h' });
+
+        expect(lastSaved()?.webLnPermissions?.[0]?.expiresAt).toBe('2026-10-25T20:00:00.000Z');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('stores nothing for "once", and drops a grant the site held before', async () => {
+      mockVault({
+        accounts: ACCOUNTS,
+        nip47Connections: [buildConnection()],
+        webLnPermissions: [storedGrant],
+      });
+
+      await handleWebLnEnable(
+        { origin: ORIGIN, approved: true, duration: 'once' },
+        new AbortController().signal,
+      );
+
+      expect(lastSaved()?.webLnPermissions ?? []).toEqual([]);
+    });
+
+    it('treats a missing duration as "once"', async () => {
+      mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
+
+      await handleWebLnEnable({ origin: ORIGIN, approved: true });
+
+      expect(lastSaved()?.webLnPermissions ?? []).toEqual([]);
+    });
+
+    it('allows getInfo and payments while the page that chose "once" is open, and not after', async () => {
+      mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
+      vi.mocked(handleNip47PayInvoice).mockResolvedValue({
+        success: true,
+        data: { preimage: 'p'.repeat(64) },
+      } as never);
+      const page = new AbortController();
+
+      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'once' }, page.signal);
+
+      await expect(handleWebLnGetInfo({ origin: ORIGIN })).resolves.toMatchObject({
+        success: true,
+      });
+      await expect(
+        handleWebLnSendPayment({ origin: ORIGIN, paymentRequest: 'lnbc1u1pjqxyz', approved: true }),
+      ).resolves.toMatchObject({ success: true });
+
+      page.abort();
+
+      await expect(handleWebLnGetInfo({ origin: ORIGIN })).rejects.toThrow('has not been enabled');
+      await expect(
+        handleWebLnSendPayment({ origin: ORIGIN, paymentRequest: 'lnbc1u1pjqxyz', approved: true }),
+      ).rejects.toThrow('has not been enabled');
+    });
+
+    it('grants nothing for "once" when there is no page to tie it to', async () => {
+      mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
+
+      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'once' });
+
+      await expect(handleWebLnGetInfo({ origin: ORIGIN })).rejects.toThrow('has not been enabled');
+    });
+
+    it('ends a visit grant when the site is later allowed for longer and then disconnected', async () => {
+      mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
+      const page = new AbortController();
+      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'once' }, page.signal);
+
+      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'always' });
+      // The stored grant is what now answers, so disconnecting the site, which removes it, ends access.
+      mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
+
+      await expect(handleWebLnGetInfo({ origin: ORIGIN })).rejects.toThrow('has not been enabled');
     });
   });
 });

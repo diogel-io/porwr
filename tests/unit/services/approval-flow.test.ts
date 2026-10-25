@@ -38,6 +38,7 @@ import { RequestQueueFullError } from '@/../src-bex/services/request-limits';
 import {
   identifyWaitingRequests,
   requestApproval,
+  requestApprovalDecision,
   toPermissionKind,
   trimApprovalContentDescription,
 } from '@/../src-bex/services/approval-flow';
@@ -498,5 +499,43 @@ describe('a full queue (D18, #372)', () => {
     expect(mocks.grantPermission).not.toHaveBeenCalled();
     expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
     expect(mocks.logApproval).not.toHaveBeenCalled();
+  });
+});
+
+describe('the decision with its duration (porwr#369)', () => {
+  it('reports the duration the user chose', async () => {
+    enqueueResolving({ approved: true, duration: '8h' });
+
+    await expect(
+      requestApprovalDecision(ORIGIN, -1, {
+        requestType: 'webln_enable',
+        skipPermissionCheck: true,
+      }),
+    ).resolves.toEqual({ approved: true, duration: '8h' });
+  });
+
+  it('reports "once" for a refusal, whatever was selected', async () => {
+    enqueueResolving({ approved: false, duration: 'always' });
+
+    await expect(
+      requestApprovalDecision(ORIGIN, -1, {
+        requestType: 'webln_enable',
+        skipPermissionCheck: true,
+      }),
+    ).resolves.toEqual({ approved: false, duration: 'once' });
+  });
+
+  it('reports "once" for a request an earlier grant answered, since nobody was asked', async () => {
+    mocks.checkPermission.mockResolvedValue({ granted: true });
+
+    await expect(
+      requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' }),
+    ).resolves.toEqual({ approved: true, duration: 'once' });
+  });
+
+  it('still answers requestApproval with a plain yes or no', async () => {
+    enqueueResolving({ approved: true, duration: 'always' });
+
+    await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(true);
   });
 });

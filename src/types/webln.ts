@@ -1,3 +1,5 @@
+import type { ApprovalDuration } from '@/../src-bex/types/background';
+
 export type WebLnMethod = 'enable' | 'getInfo' | 'sendPayment';
 
 export type WebLnErrorCode =
@@ -32,6 +34,8 @@ export interface WebLnPermissionGrant {
 export interface WebLnEnableRequest {
   origin: string;
   approved?: boolean;
+  /** How long the user allowed it. Set by the background from the decision, never by the site. */
+  duration?: ApprovalDuration;
 }
 
 export interface WebLnGetInfoRequest {

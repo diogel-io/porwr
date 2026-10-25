@@ -360,9 +360,12 @@ None at present.
 - **The NWC URI in the dashboard page (T22).** The user pastes a connection URI, secret included, into
   the dashboard. Parsing it only in the background would not keep the secret out of that page, which
   already holds what the user typed; the page validates it, sends it once, and clears the field.
-- **WebLN `enable` without expiry (T22).** Once a site is allowed WebLN, it can call `getInfo`
-  without a prompt until the user disconnects it. `getInfo` returns only the connection's label and
-  supported methods; every payment still needs its own `once` approval (D11).
+- **WebLN `enable` for as long as the user chose (T22, porwr#369).** Once a site is allowed WebLN,
+  it can call `getInfo` without a prompt for the duration the user picked: while the page that asked
+  stays open for "just this once" (held in background memory, `src-bex/services/webln-session-grants.ts`,
+  and cleared on lock), eight hours, or until the user disconnects the site for "always". `getInfo`
+  returns only the connection's label and supported methods; every payment still needs its own `once`
+  approval (D11).
 - **User-disabled auto-lock.** A user may set auto-lock to 0; the protection is then the browser
   session alone.
 
@@ -411,6 +414,7 @@ Each control below must be covered by an automated test, not by review alone.
 | A Blossom upload signs one BUD-11 token, scoped to the server and expiring, and only to an `https:` server                                                                                  | T21      | `tests/unit/handlers/blossom-handler.test.ts`, `tests/unit/stores/settings-store.test.ts`, `tests/unit/pages/MediaManagementPage.test.ts`                                                                                 |
 | NIP-47 uses NIP-44 when the wallet advertises it                                                                                                                                            | T22      | `tests/unit/services/nip47-client.test.ts`, `tests/unit/handlers/nip47.test.ts`                                                                                                                                           |
 | Pending wallet authorisations are cleared on lock                                                                                                                                           | T22      | `tests/unit/services/nip47-pending-authorization-store.test.ts`, `tests/unit/handlers/nip47.test.ts`                                                                                                                      |
+| A WebLN `enable` grant lasts as long as the user chose: the page visit for `once`, eight hours, or until disconnected                                                                       | T22      | `tests/unit/handlers/webln.test.ts`, `tests/unit/services/webln-session-grants.test.ts`, `tests/unit/services/approval-flow.test.ts`                                                                                      |
 | Wallet relay connections are closed on lock, and reopened by the next request                                                                                                               | T22      | `tests/unit/services/nip47-client.test.ts`, `tests/unit/handlers/nip47.test.ts`                                                                                                                                           |
 | A malformed NIP-04 or NIP-44 counterparty gets a fixed error and touches no key                                                                                                             | T31      | `tests/unit/services/pubkey.test.ts`, `tests/unit/handlers/nip04.test.ts`, `tests/unit/handlers/nip44.test.ts`                                                                                                            |
 | A profile website is a link only when it is `https:`, and text otherwise                                                                                                                    | T37      | `tests/unit/utils/profile-format.test.ts`, `tests/unit/components/ProfileView.test.ts`                                                                                                                                    |

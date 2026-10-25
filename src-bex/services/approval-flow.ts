@@ -61,11 +61,24 @@ export const toPermissionKind = (eventKind: number): number | null =>
 const approvalLogKind = (eventKind: number, details: ApprovalRequestDetails): number | string =>
   eventKind === -1 ? details.requestType : eventKind;
 
-export async function requestApproval(
+/** What the user decided, and for how long. */
+export interface ApprovalOutcome {
+  approved: boolean;
+  duration: ApprovalDuration;
+}
+
+/**
+ * Ask for approval and report the duration chosen with it.
+ *
+ * For a caller that writes its own grant, such as WebLN `enable`, which skips the permission store
+ * and so must honour the user's choice itself (porwr#369). A request an earlier grant answered was
+ * not asked, so it reports `once`, as does every refusal.
+ */
+export async function requestApprovalDecision(
   origin: string,
   eventKind: number,
   details: ApprovalRequestDetails,
-): Promise<boolean> {
+): Promise<ApprovalOutcome> {
   const permissionKind = toPermissionKind(eventKind);
 
   // The account that will act for this site, which is the one a grant belongs to. Resolved before
@@ -84,7 +97,8 @@ export async function requestApproval(
       // A grant is an earlier approval for this account, so the site is bound to it if it is not
       // already (#139). A binding to another account means the grant is for an identity the site
       // no longer acts as, so it does not answer.
-      if ((await bindSiteToAccount(origin, actingAccount.id)) !== actingAccount.id) return false;
+      if ((await bindSiteToAccount(origin, actingAccount.id)) !== actingAccount.id)
+        return { approved: false, duration: 'once' };
       // Answered by a grant the user gave earlier, so still an approval, and logged as one (#37).
       void logService.logApproval(
         approvalLogKind(eventKind, details),
@@ -92,7 +106,7 @@ export async function requestApproval(
         actingAccount.alias,
         'approved',
       );
-      return true;
+      return { approved: true, duration: 'once' };
     }
   }
 
@@ -166,7 +180,7 @@ export async function requestApproval(
         decided.accountAlias,
         'rejected',
       );
-      return false;
+      return { approved: false, duration: 'once' };
     }
   }
 
@@ -202,7 +216,15 @@ export async function requestApproval(
     outcome.ending ?? (approved ? 'approved' : 'rejected'),
   );
 
-  return approved;
+  return { approved, duration: approved ? durationLabel : 'once' };
+}
+
+export async function requestApproval(
+  origin: string,
+  eventKind: number,
+  details: ApprovalRequestDetails,
+): Promise<boolean> {
+  return (await requestApprovalDecision(origin, eventKind, details)).approved;
 }
 
 /**

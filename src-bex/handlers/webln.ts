@@ -4,6 +4,7 @@ import type {
   WebLnEnableRequest,
   WebLnGetInfoRequest,
   WebLnGetInfoResponse,
+  WebLnMethod,
   WebLnSendPaymentRequest,
   WebLnSendPaymentResponse,
 } from '@/types/webln';
@@ -14,7 +15,16 @@ import { resolveSigningAccount } from '../services/signing-account';
 import { mutateVault } from '../services/vault-mutation';
 import { handleNip47PayInvoice } from './nip47';
 import { readWalletVault } from '../services/wallet-vault';
-import { hasWebLnPermission, upsertWebLnPermission } from '../services/webln-permission-store';
+import {
+  hasWebLnPermission,
+  removeWebLnPermissionsForOrigin,
+  upsertWebLnPermission,
+} from '../services/webln-permission-store';
+import {
+  grantWebLnForPage,
+  hasWebLnPageGrant,
+  revokeWebLnPageGrants,
+} from '../services/webln-session-grants';
 
 export const NO_WALLET_FOR_ACCOUNT = 'No wallet is configured for this account.';
 
@@ -68,23 +78,64 @@ function normalizeInvoice(paymentRequest: string): string {
   return invoice;
 }
 
-export async function handleWebLnEnable(payload: WebLnEnableRequest): Promise<HandlerResult<true>> {
+const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
+
+/**
+ * Whether a site may use WebLN with this connection: a stored grant, or one allowed for the visit
+ * of a page that is still open.
+ */
+function isWebLnAllowed(
+  vaultData: VaultData,
+  origin: string,
+  connectionId: string,
+  method: WebLnMethod,
+): boolean {
+  return (
+    hasWebLnPermission(vaultData, { origin, connectionId, method }) ||
+    hasWebLnPageGrant(origin, connectionId)
+  );
+}
+
+/**
+ * Allow WebLN for a site for as long as the user chose (porwr#369).
+ *
+ * `always` is stored with no expiry and `8h` with one. `once` is this visit: nothing is stored, and
+ * the access ends when `page` aborts. Without a page to tie it to there is nothing to grant, so the
+ * site has to ask again. The newest decision replaces whatever the site held for this connection,
+ * because `enable` asks the user every time.
+ */
+export async function handleWebLnEnable(
+  payload: WebLnEnableRequest,
+  page?: AbortSignal,
+): Promise<HandlerResult<true>> {
   if (!payload.approved) {
     throw new Error('WebLN access was rejected by the user.');
   }
   const { connection } = await resolveWebLnWallet(payload.origin);
   assertPayInvoiceSupport(connection);
 
+  const duration = payload.duration ?? 'once';
+  const now = Date.now();
+  revokeWebLnPageGrants(payload.origin, connection.id);
+
   // On the shared queue, against the vault as it is now, not the copy read above.
   await mutateVault((vault) => ({
-    vault: upsertWebLnPermission(vault, {
-      origin: payload.origin,
-      connectionId: connection.id,
-      methods: ['enable', 'getInfo'],
-      createdAt: new Date().toISOString(),
-    }),
+    vault:
+      duration === 'once'
+        ? removeWebLnPermissionsForOrigin(vault, payload.origin, new Set([connection.id]))
+        : upsertWebLnPermission(vault, {
+            origin: payload.origin,
+            connectionId: connection.id,
+            methods: ['enable', 'getInfo'],
+            createdAt: new Date(now).toISOString(),
+            ...(duration === '8h'
+              ? { expiresAt: new Date(now + EIGHT_HOURS_MS).toISOString() }
+              : {}),
+          }),
     result: undefined,
   }));
+
+  if (duration === 'once' && page) grantWebLnForPage(payload.origin, connection.id, page);
   return { success: true, data: true };
 }
 
@@ -92,13 +143,7 @@ export async function handleWebLnGetInfo(
   payload: WebLnGetInfoRequest,
 ): Promise<HandlerResult<WebLnGetInfoResponse>> {
   const { vaultData, connection } = await resolveWebLnWallet(payload.origin);
-  if (
-    !hasWebLnPermission(vaultData, {
-      origin: payload.origin,
-      connectionId: connection.id,
-      method: 'getInfo',
-    })
-  ) {
+  if (!isWebLnAllowed(vaultData, payload.origin, connection.id, 'getInfo')) {
     throw new Error('WebLN access has not been enabled for this site.');
   }
 
@@ -122,13 +167,7 @@ export async function handleWebLnSendPayment(
   const invoice = normalizeInvoice(payload.paymentRequest);
   const { vaultData, connection } = await resolveWebLnWallet(payload.origin);
   assertPayInvoiceSupport(connection);
-  if (
-    !hasWebLnPermission(vaultData, {
-      origin: payload.origin,
-      connectionId: connection.id,
-      method: 'enable',
-    })
-  ) {
+  if (!isWebLnAllowed(vaultData, payload.origin, connection.id, 'enable')) {
     throw new Error('WebLN access has not been enabled for this site.');
   }
 
