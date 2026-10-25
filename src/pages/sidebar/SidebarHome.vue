@@ -26,13 +26,14 @@ const { t } = useI18n();
 const accountStore = useAccountStore();
 const { activeOrigin } = useActiveTab();
 const vaultStore = useVaultStore();
-const { pending, current, content, decide, dismiss, present } = useApprovalQueue();
+const { pending, current, content, loading, decide, dismiss, present } = useApprovalQueue();
 
 const busy = ref(false);
 
 /**
  * Body precedence from the interaction specification §3: unlock, then the current request, then
- * the pending list, then the idle view.
+ * the pending list, then the idle view. Until the queue has been read the idle view waits, because
+ * it looks up the profile and may load images, and a request may be waiting (D13, porwr#371).
  */
 /**
  * A vault that does not exist cannot be unlocked.
@@ -123,7 +124,8 @@ const waitingRequest = computed(() => (isNotice(current.value) ? null : current.
 const viewKey = computed(() => {
   if (showSetup.value) return 'setup';
   if (showUnlock.value) return 'unlock';
-  return current.value ? `request:${current.value.id}` : 'idle';
+  if (current.value) return `request:${current.value.id}`;
+  return loading.value ? 'loading' : 'idle';
 });
 
 const page = ref<{ $el: HTMLElement } | null>(null);
@@ -191,6 +193,15 @@ onMounted(async () => {
       />
       <PendingRequestList :requests="pending" :current-id="current.id" @select="onSelect" />
     </template>
+
+    <!--
+      The queue has not been read, so whether a request is waiting is not known yet. Nothing below
+      may mount until it is: the idle view contacts relays and image hosts (D13, porwr#371).
+    -->
+    <div v-else-if="loading" class="sidebar-home__empty" role="status">
+      <q-spinner color="grey-5" size="2em" />
+      <div class="text-subtitle1 text-grey-7 q-mt-sm">{{ t('sidebar.queueLoading') }}</div>
+    </div>
 
     <template v-else>
       <!-- Idle view: shown only when the vault is unlocked and nothing is waiting. -->

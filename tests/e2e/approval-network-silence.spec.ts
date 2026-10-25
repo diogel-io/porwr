@@ -14,8 +14,10 @@ import { createVault, requestSignatureFromPage, seedAccount } from './fixtures/v
  * panel's behalf is seen as well as one made by the panel. The site's own page is left out: its
  * traffic is the site's business. Two rules follow. The panel loads nothing from outside the
  * extension. And nothing else Porwr does while the request is shown, including the service
- * worker, names the requesting site. The worker may still talk to relays it already uses; WebSocket
- * traffic is not visible here.
+ * worker, names the requesting site. The worker may still talk to relays it already uses; its
+ * WebSocket traffic is not visible here. The panel's own sockets are: it opens none while the
+ * request is shown, which it used to do when the idle view mounted before the queue had been read
+ * and looked up the profile on the user's relays (porwr#371).
  *
  * Firefox runs through WebDriver, which cannot observe requests, so the static guard in
  * `tests/unit/no-remote-resources.test.ts` covers both builds' source.
@@ -58,6 +60,8 @@ test('the panel loads nothing from outside the extension while a request is show
   // Created by hand rather than through `openPanel`, so it is known to the listener before its
   // first request: a stylesheet font is fetched as the page loads.
   panel = await context.newPage();
+  const panelSockets: string[] = [];
+  panel.on('websocket', (socket) => panelSockets.push(socket.url()));
   await panel.goto(`chrome-extension://${extensionId}/www/index.html#/sidebar`);
 
   await panel.locator('.current-request').waitFor({ state: 'visible', timeout: 30_000 });
@@ -67,6 +71,8 @@ test('the panel loads nothing from outside the extension while a request is show
   // Without this the test could pass having watched nothing.
   expect(fromPanel.some((url) => LOCAL.test(url))).toBe(true);
   expect(fromPanel.filter((url) => !LOCAL.test(url))).toEqual([]);
+  // No relay connection from the panel, not even in the frames before the queue was read (#371).
+  expect(panelSockets).toEqual([]);
   // Nothing Porwr requested, from any page or the worker, names the site that is asking.
   expect(fromPorwr.filter((url) => !LOCAL.test(url) && url.includes(SITE_HOST))).toEqual([]);
 

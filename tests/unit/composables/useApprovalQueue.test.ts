@@ -195,6 +195,61 @@ describe('useApprovalQueue', () => {
     });
   });
 
+  describe('loading until the first read (D13, porwr#371)', () => {
+    it('stays loading while the first read is in flight', async () => {
+      let answer: (records: unknown[]) => void = () => undefined;
+      sendBexMessage.mockImplementation(
+        () => new Promise((resolve) => (answer = resolve as (records: unknown[]) => void)),
+      );
+
+      const wrapper = mount(Consumer);
+      await flush();
+      expect(wrapper.vm.loading).toBe(true);
+
+      answer([]);
+      wrapper.unmount();
+    });
+
+    it('stops loading once the queue has been read', async () => {
+      sendBexMessage.mockResolvedValue(null);
+
+      const wrapper = mount(Consumer);
+      await vi.waitFor(() => expect(wrapper.vm.loading).toBe(false));
+
+      wrapper.unmount();
+    });
+
+    it('keeps loading after a failed read, and stops once a read succeeds', async () => {
+      sendBexMessage.mockRejectedValue(new Error('background unreachable'));
+
+      const wrapper = mount(Consumer);
+      await flush();
+      await vi.waitFor(() => expect(sendBexMessage).toHaveBeenCalledWith('nostr.requests.list'));
+      await Promise.resolve();
+      // An unread queue is not an empty one: the idle view must not mount on a guess.
+      expect(wrapper.vm.loading).toBe(true);
+
+      sendBexMessage.mockResolvedValue(null);
+      portOptions.current?.onReconnect?.();
+      await vi.waitFor(() => expect(wrapper.vm.loading).toBe(false));
+
+      wrapper.unmount();
+    });
+
+    it('loads again for the next panel once the last consumer has gone', async () => {
+      sendBexMessage.mockResolvedValue(null);
+      const first = mount(Consumer);
+      await vi.waitFor(() => expect(first.vm.loading).toBe(false));
+      first.unmount();
+
+      sendBexMessage.mockImplementation(() => new Promise(() => undefined));
+      const next = mount(Consumer);
+      expect(next.vm.loading).toBe(true);
+
+      next.unmount();
+    });
+  });
+
   describe('dismiss', () => {
     it('asks the background to dismiss the notice, then re-reads', async () => {
       answerWith({ id: 'req-1', state: 'interrupted', expiresAt: 0 });

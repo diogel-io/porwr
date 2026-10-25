@@ -823,6 +823,7 @@ export default {
     },
   },
   sidebar: {
+    queueLoading: 'Checking for requests…',
     unlock: {
       ariaLabel: 'Unlock your vault',
       title: 'Unlock Vault',

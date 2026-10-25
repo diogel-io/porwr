@@ -49,6 +49,15 @@ const EXPIRY_GRACE_MS = 250;
 const pending = ref<ApprovalRequestRecord[]>([]);
 const current = ref<ApprovalRequestRecord | null>(null);
 const content = ref<ApprovalRequestContent | null>(null);
+/**
+ * True until this panel has read the queue successfully.
+ *
+ * Until then `current` is null whether or not a request is waiting, so the panel cannot tell its
+ * idle view from a request it has not read yet. The idle view looks up the profile on the user's
+ * relays and may load remote images, and running that while a request waits breaks D13 (T7,
+ * porwr#371). A failed read leaves this true: if the queue cannot be read, the panel does not
+ * assume it is empty, and the next push or reconnect reads again.
+ */
 const loading = ref(true);
 const pendingCount = computed(() => pending.value.length);
 
@@ -97,12 +106,11 @@ const refresh = async (): Promise<void> => {
     if (changed) {
       await loadContent(next?.id);
     }
+    loading.value = false;
   } catch (error: unknown) {
     logService.log(LogLevel.DEBUG, '[Panel] Failed to refresh request queue', {
       error: error instanceof Error ? error.message : String(error),
     });
-  } finally {
-    loading.value = false;
   }
 };
 
@@ -186,6 +194,8 @@ export function useApprovalQueue(): UseApprovalQueueResult {
     panelPort?.disconnect();
     panelPort = undefined;
     clearExpiryTimer();
+    // What was read belongs to this panel; the next one waits for its own first read.
+    loading.value = true;
 
     // Closing the panel is never a decision: hand the request back to the queue (FR-6). This runs
     // only once the last consumer has gone, so navigating within the panel does not requeue. The
