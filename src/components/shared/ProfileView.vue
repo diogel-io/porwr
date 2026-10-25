@@ -59,6 +59,11 @@ async function copyNpub() {
 
 const birthdayText = computed(() => formatBirthday(profile.value.birthday));
 
+// Undefined for anything that is not a plain https: link, which is then shown as text (#373).
+const websiteHref = computed(() =>
+  profile.value.website ? normalizeWebsiteUrl(profile.value.website) : undefined,
+);
+
 /**
  * Whether anything beyond the name and picture has been published.
  *
@@ -206,13 +211,15 @@ watch(
             <div v-if="profile.website" class="profile-detail__row">
               <q-icon name="language" size="16px" />
               <a
-                :href="normalizeWebsiteUrl(profile.website)"
+                v-if="websiteHref"
+                :href="websiteHref"
                 class="website-link profile-detail__value"
                 rel="noopener noreferrer"
                 target="_blank"
               >
                 {{ profile.website }}
               </a>
+              <span v-else class="profile-detail__value">{{ profile.website }}</span>
             </div>
 
             <div v-if="profile.nip05" class="profile-detail__row">
