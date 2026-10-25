@@ -261,3 +261,34 @@ describe('Nip47Client.getInfo (diogel-io/workspace#142)', () => {
     );
   });
 });
+
+// Locking the vault closes the wallet relay connections (#373).
+describe('Nip47Client.close', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('opens no pool until a request needs one, so closing an unused client does nothing', async () => {
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    const { SimplePool } = await import('nostr-tools');
+
+    new Nip47Client().close();
+
+    expect(SimplePool).not.toHaveBeenCalled();
+    expect(mockPoolInstance.destroy).not.toHaveBeenCalled();
+  });
+
+  it('destroys the pool, and opens a fresh one for the next request', async () => {
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    const { SimplePool } = await import('nostr-tools');
+    mockPoolInstance.querySync.mockResolvedValue([]);
+    const client = new Nip47Client();
+
+    await client.getInfo(buildConnection()).catch(() => undefined);
+    client.close();
+    await client.getInfo(buildConnection()).catch(() => undefined);
+
+    expect(mockPoolInstance.destroy).toHaveBeenCalledTimes(1);
+    expect(SimplePool).toHaveBeenCalledTimes(2);
+  });
+});

@@ -65,6 +65,7 @@ vi.mock('@/../src-bex/services/nip47-client', async (importOriginal) => ({
     getInfo: vi.fn(),
     getBalance: vi.fn(),
     sendRequest: vi.fn(),
+    close: vi.fn(),
   },
 }));
 
@@ -1262,6 +1263,14 @@ describe('vault lock (diogel-io/workspace#142, T22)', () => {
     for (const listener of lockListeners) listener();
 
     expect(clearPendingNip47Authorizations).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the wallet relay connections when the vault locks (#373)', () => {
+    vi.mocked(nip47Client.close).mockClear();
+
+    for (const listener of lockListeners) listener();
+
+    expect(nip47Client.close).toHaveBeenCalledTimes(1);
   });
 
   it('closes a wallet popup the background opened, and says why (workspace#85)', async () => {
