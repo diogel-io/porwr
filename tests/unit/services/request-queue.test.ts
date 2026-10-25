@@ -842,6 +842,36 @@ describe('request queue', () => {
       expect(await getPendingCount(later)).toBe(1);
     });
 
+    it('keeps a new record when a sweep of expired requests read the queue before it was written', async () => {
+      const now = 1_000_000;
+      await fill('https://flood.example', MAX_PENDING_PER_ORIGIN, now);
+      const later = now + 60 * 60 * 1000;
+
+      // Hold the first sweep's read of the queue, which still holds the expired requests, until the
+      // second request has had every chance to write its own record.
+      let releaseRead: () => void = () => undefined;
+      const stale = structuredClone(readStored());
+      vi.mocked(storageService.get).mockImplementationOnce(
+        () => new Promise((resolve) => (releaseRead = () => resolve(stale))),
+      );
+
+      const first = enqueueRequest(
+        { ...baseInput, origin: 'https://flood.example' },
+        undefined,
+        later,
+      );
+      const second = enqueueRequest(
+        { ...baseInput, origin: 'https://flood.example' },
+        undefined,
+        later,
+      );
+      for (let tick = 0; tick < 20; tick += 1) await new Promise((resolve) => setTimeout(resolve));
+      releaseRead();
+      await Promise.all([first, second]);
+
+      expect(await getPendingCount(later)).toBe(2);
+    });
+
     it('frees a slot when its page goes away', async () => {
       const [first] = await fill('https://flood.example', MAX_PENDING_PER_ORIGIN);
       await interruptRequest(first!.record.id);

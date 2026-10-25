@@ -363,8 +363,9 @@ export const enqueueRequest = async (
   // Before the first await: see `liveRequests`.
   if (tryClaimSlot(id, input.origin)) {
     // Expiry is applied on read, not timed, so requests that have already expired may still hold
-    // slots. Apply it once, which releases them, and try again.
-    await loadQueue(now);
+    // slots. Apply it once, which releases them, and try again. The sweep writes the queue, so it
+    // runs in the enqueue chain: a sweep from a stale read could otherwise drop a new record.
+    await serialiseEnqueue(() => loadQueue(now));
     const scope = tryClaimSlot(id, input.origin);
     if (scope) {
       logService.log(LogLevel.WARN, '[Queue] Refused a request because the queue is full', {

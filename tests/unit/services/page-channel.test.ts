@@ -352,6 +352,52 @@ describe('page payload ceilings (D18, #372)', () => {
     expect(replies).toEqual([{ id: '1', error: PAYLOAD_INVALID_MESSAGE }]);
   });
 
+  it.each([
+    ['a string', 'payload'],
+    ['an array', [{ event: event({ content: '' }) }]],
+    ['null', null],
+    ['a Map', new Map([['event', event({ content: '' })]])],
+  ])('refuses %s in place of a payload object', async (_name, payload) => {
+    const { handlers, replies, send } = serve();
+
+    send({ id: '1', action: 'nostr.getPublicKey', payload });
+    await settle();
+
+    expect(handlers['nostr.getPublicKey']).not.toHaveBeenCalled();
+    expect(replies).toEqual([{ id: '1', error: PAYLOAD_INVALID_MESSAGE }]);
+  });
+
+  it('accepts a request with no payload', async () => {
+    const { handlers, replies, send } = serve();
+
+    send({ id: '1', action: 'nostr.getPublicKey' });
+    await settle();
+
+    expect(handlers['nostr.getPublicKey']).toHaveBeenCalledTimes(1);
+    expect(replies).toEqual([{ id: '1', result: 'ok' }]);
+  });
+
+  it.each([
+    ['an ArrayBuffer', new ArrayBuffer(MAX_PAGE_PAYLOAD_LENGTH * 2)],
+    ['a typed array', new Uint8Array(16)],
+    ['a Set', new Set(['x'])],
+  ])(
+    'refuses %s hidden in an event, whose contents the length check cannot see',
+    async (_name, value) => {
+      const { handlers, replies, send } = serve();
+
+      send({
+        id: '1',
+        action: 'nostr.signEvent',
+        payload: { event: event({ content: '', extra: value }) },
+      });
+      await settle();
+
+      expect(handlers['nostr.signEvent']).not.toHaveBeenCalled();
+      expect(replies).toEqual([{ id: '1', error: PAYLOAD_INVALID_MESSAGE }]);
+    },
+  );
+
   it('bounds the whole payload, including keys no handler reads', async () => {
     const { handlers, replies, send } = serve();
 

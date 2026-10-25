@@ -103,12 +103,12 @@ export function servePagePort(
     }
 
     // Refused before any handler runs, so an oversized or malformed request is never queued (D18).
-    const pagePayload = stripPagePayload(payload);
-    const refusal = checkPagePayload(action, pagePayload);
+    const refusal = checkPagePayload(action, payload);
     if (refusal) {
       reply({ id, error: refusal });
       return;
     }
+    const pagePayload = stripPagePayload(payload);
 
     const handler = handlers[action] as (
       payload: unknown,
