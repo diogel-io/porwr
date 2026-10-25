@@ -62,6 +62,12 @@ const loading = ref(true);
 const pendingCount = computed(() => pending.value.length);
 
 let consumers = 0;
+/**
+ * Advanced when the last consumer leaves. A read that began for an earlier panel can still be in
+ * flight then, and must not end the next panel's loading view before that panel has read its own
+ * queue (porwr#371).
+ */
+let panelGeneration = 0;
 let panelPort: PanelPortHandle | undefined;
 let expiryTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -90,11 +96,17 @@ const loadContent = async (id: string | undefined): Promise<void> => {
 };
 
 const refresh = async (): Promise<void> => {
+  const generation = panelGeneration;
   try {
-    const records = (await sendBexMessage('nostr.requests.list')) ?? [];
+    const records = await sendBexMessage('nostr.requests.list');
+    // The background always answers with a list, so no answer is a failed read, not an empty
+    // queue. `current` is different: no request is a valid answer, and arrives as nothing.
+    if (!Array.isArray(records)) throw new Error('No answer when reading the request queue');
+    if (generation !== panelGeneration) return;
     pending.value = records;
 
     const next = (await sendBexMessage('nostr.requests.current')) ?? null;
+    if (generation !== panelGeneration) return;
     const changed = next?.id !== current.value?.id;
     current.value = next;
     armExpiryTimer(next);
@@ -106,7 +118,7 @@ const refresh = async (): Promise<void> => {
     if (changed) {
       await loadContent(next?.id);
     }
-    loading.value = false;
+    if (generation === panelGeneration) loading.value = false;
   } catch (error: unknown) {
     logService.log(LogLevel.DEBUG, '[Panel] Failed to refresh request queue', {
       error: error instanceof Error ? error.message : String(error),
@@ -194,8 +206,13 @@ export function useApprovalQueue(): UseApprovalQueueResult {
     panelPort?.disconnect();
     panelPort = undefined;
     clearExpiryTimer();
-    // What was read belongs to this panel; the next one waits for its own first read.
+    // What was read belongs to this panel; the next one waits for its own first read, and never
+    // shows this one's request in the meantime.
+    panelGeneration += 1;
     loading.value = true;
+    pending.value = [];
+    current.value = null;
+    content.value = null;
 
     // Closing the panel is never a decision: hand the request back to the queue (FR-6). This runs
     // only once the last consumer has gone, so navigating within the panel does not requeue. The

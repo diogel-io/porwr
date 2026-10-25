@@ -210,8 +210,15 @@ describe('useApprovalQueue', () => {
       wrapper.unmount();
     });
 
+    /** An empty queue: a list with nothing in it, and no current request. */
+    const answerEmpty = (): void => {
+      sendBexMessage.mockImplementation((event: string) =>
+        Promise.resolve(event === 'nostr.requests.list' ? [] : undefined),
+      );
+    };
+
     it('stops loading once the queue has been read', async () => {
-      sendBexMessage.mockResolvedValue(null);
+      answerEmpty();
 
       const wrapper = mount(Consumer);
       await vi.waitFor(() => expect(wrapper.vm.loading).toBe(false));
@@ -229,7 +236,7 @@ describe('useApprovalQueue', () => {
       // An unread queue is not an empty one: the idle view must not mount on a guess.
       expect(wrapper.vm.loading).toBe(true);
 
-      sendBexMessage.mockResolvedValue(null);
+      answerEmpty();
       portOptions.current?.onReconnect?.();
       await vi.waitFor(() => expect(wrapper.vm.loading).toBe(false));
 
@@ -237,7 +244,7 @@ describe('useApprovalQueue', () => {
     });
 
     it('loads again for the next panel once the last consumer has gone', async () => {
-      sendBexMessage.mockResolvedValue(null);
+      answerEmpty();
       const first = mount(Consumer);
       await vi.waitFor(() => expect(first.vm.loading).toBe(false));
       first.unmount();
@@ -246,6 +253,55 @@ describe('useApprovalQueue', () => {
       const next = mount(Consumer);
       expect(next.vm.loading).toBe(true);
 
+      next.unmount();
+    });
+
+    it('takes no answer to the list as a failed read, not an empty queue', async () => {
+      sendBexMessage.mockResolvedValue(undefined);
+
+      const wrapper = mount(Consumer);
+      await vi.waitFor(() => expect(sendBexMessage).toHaveBeenCalledWith('nostr.requests.list'));
+      await Promise.resolve();
+
+      expect(wrapper.vm.loading).toBe(true);
+      wrapper.unmount();
+    });
+
+    it('forgets the last panel’s request when its last consumer goes', async () => {
+      answerWith({ id: 'req-1', state: 'presented', expiresAt: Date.now() + 60_000 });
+      const first = mount(Consumer);
+      await vi.waitFor(() => expect(first.vm.current?.id).toBe('req-1'));
+      first.unmount();
+
+      sendBexMessage.mockImplementation(() => new Promise(() => undefined));
+      const next = mount(Consumer);
+
+      expect(next.vm.current).toBeNull();
+      expect(next.vm.pending).toEqual([]);
+      expect(next.vm.loading).toBe(true);
+      next.unmount();
+    });
+
+    it('does not let a read from the last panel end the next panel’s loading', async () => {
+      let answerStale: (records: unknown[]) => void = () => undefined;
+      sendBexMessage.mockImplementationOnce(
+        () => new Promise((resolve) => (answerStale = resolve as (records: unknown[]) => void)),
+      );
+      const first = mount(Consumer);
+      await flush();
+      first.unmount();
+
+      // The next panel's own read of the list never answers; anything else answers at once, so
+      // the first panel's read can run to its end.
+      sendBexMessage.mockImplementation((event: string) =>
+        event === 'nostr.requests.list' ? new Promise(() => undefined) : Promise.resolve(undefined),
+      );
+      const next = mount(Consumer);
+      // The first panel's read lands now, after the next panel opened and before it has read.
+      answerStale([]);
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(next.vm.loading).toBe(true);
       next.unmount();
     });
   });
