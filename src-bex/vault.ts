@@ -460,7 +460,3 @@ export async function importVault(encryptedData: string, password: string) {
     };
   }
 }
-
-export function getVaultKey() {
-  return { key: vaultKey, salt: vaultSalt };
-}

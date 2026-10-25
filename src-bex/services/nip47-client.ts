@@ -120,7 +120,15 @@ function parseRpcResponse(content: string): Nip47RpcResponse {
 }
 
 export class Nip47Client {
-  private readonly pool = new SimplePool();
+  /**
+   * Opened on first use and dropped by `close()`, so locking the vault closes the wallet relay
+   * connections and the next request after unlock opens fresh ones, as the DM pool does (#373).
+   */
+  private activePool: SimplePool | null = null;
+
+  private get pool(): SimplePool {
+    return (this.activePool ??= new SimplePool());
+  }
 
   async getInfo(stored: Nip47Connection): Promise<Nip47InfoResponse> {
     const connection = { ...stored, relays: allowedWalletRelays(stored) };
@@ -259,7 +267,8 @@ export class Nip47Client {
   }
 
   close(): void {
-    this.pool.destroy();
+    this.activePool?.destroy();
+    this.activePool = null;
   }
 
   private waitForResponse(

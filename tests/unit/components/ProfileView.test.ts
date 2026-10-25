@@ -121,6 +121,30 @@ describe('the fields the panel was missing', () => {
   });
 });
 
+// The website is attacker-influenced and lands in a bound href, so only https: becomes a link (#373).
+describe('the website link (#373)', () => {
+  it('links a bare host over https', async () => {
+    state.profile = { name: 'alice', website: 'alice.example' };
+
+    const link = (await mountView()).find('a.website-link');
+
+    expect(link.attributes('href')).toBe('https://alice.example/');
+    expect(link.text()).toBe('alice.example');
+  });
+
+  it.each(['javascript:alert(1)', 'http://alice.example'])(
+    'shows %j as text, with no link',
+    async (website) => {
+      state.profile = { name: 'alice', website };
+
+      const wrapper = await mountView();
+
+      expect(wrapper.find('a.website-link').exists()).toBe(false);
+      expect(wrapper.text()).toContain(website);
+    },
+  );
+});
+
 describe('staying current with saves from another surface', () => {
   it('re-reads when this account’s profile is published elsewhere', async () => {
     state.profile = { name: 'alice' };

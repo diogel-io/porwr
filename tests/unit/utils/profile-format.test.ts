@@ -41,23 +41,38 @@ describe('formatBirthday', () => {
   });
 });
 
-describe('normalizeWebsiteUrl', () => {
-  it('leaves an http or https URL alone', () => {
-    expect(normalizeWebsiteUrl('https://example.com')).toBe('https://example.com');
-    expect(normalizeWebsiteUrl('http://example.com')).toBe('http://example.com');
+describe('normalizeWebsiteUrl (#373)', () => {
+  it('keeps an https URL', () => {
+    expect(normalizeWebsiteUrl('https://example.com/about')).toBe('https://example.com/about');
   });
 
   it('is case-insensitive about the scheme', () => {
-    expect(normalizeWebsiteUrl('HTTPS://example.com')).toBe('HTTPS://example.com');
+    expect(normalizeWebsiteUrl('HTTPS://example.com')).toBe('https://example.com/');
   });
 
   it('adds https to a bare host', () => {
     // Without a scheme the browser resolves it against the extension's own origin, so the link
     // would point back into the extension rather than out to the site.
-    expect(normalizeWebsiteUrl('example.com')).toBe('https://example.com');
+    expect(normalizeWebsiteUrl('example.com')).toBe('https://example.com/');
+    expect(normalizeWebsiteUrl('  example.com:8443/path ')).toBe('https://example.com:8443/path');
   });
 
   it('adds https to something that merely looks schemeless', () => {
-    expect(normalizeWebsiteUrl('ftp.example.com')).toBe('https://ftp.example.com');
+    expect(normalizeWebsiteUrl('ftp.example.com')).toBe('https://ftp.example.com/');
+  });
+
+  it.each([
+    'http://example.com',
+    'javascript:alert(1)',
+    'JavaScript://%0aalert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'ftp://example.com',
+    'mailto:someone@example.com',
+    'https://bank.example@evil.example',
+    'https://',
+    '',
+    '   ',
+  ])('gives no link for %j', (website) => {
+    expect(normalizeWebsiteUrl(website)).toBeUndefined();
   });
 });

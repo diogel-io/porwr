@@ -44,6 +44,9 @@ vi.mock('@noble/hashes/utils', () => ({
 
 const ORIGIN = 'https://example.com';
 
+const RECIPIENT = 'b'.repeat(64);
+const SENDER = 'c'.repeat(64);
+
 describe('Nip04Handler', () => {
   const mockAccount = {
     id: 'test-pubkey',
@@ -70,10 +73,7 @@ describe('Nip04Handler', () => {
       });
       vi.mocked(nip04.encrypt).mockReturnValue('ciphertext');
 
-      const result = await handleNip04Encrypt(
-        { pubkey: 'recipient-pubkey', plaintext: 'hello' },
-        ORIGIN,
-      );
+      const result = await handleNip04Encrypt({ pubkey: RECIPIENT, plaintext: 'hello' }, ORIGIN);
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -85,10 +85,7 @@ describe('Nip04Handler', () => {
     it('should return error when vault is locked', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(false);
 
-      const result = await handleNip04Encrypt(
-        { pubkey: 'recipient-pubkey', plaintext: 'hello' },
-        ORIGIN,
-      );
+      const result = await handleNip04Encrypt({ pubkey: RECIPIENT, plaintext: 'hello' }, ORIGIN);
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -100,10 +97,7 @@ describe('Nip04Handler', () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
       vi.mocked(storageService['get']).mockResolvedValue(null);
 
-      const result = await handleNip04Encrypt(
-        { pubkey: 'recipient-pubkey', plaintext: 'hello' },
-        ORIGIN,
-      );
+      const result = await handleNip04Encrypt({ pubkey: RECIPIENT, plaintext: 'hello' }, ORIGIN);
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -122,10 +116,7 @@ describe('Nip04Handler', () => {
       });
       vi.mocked(nip04.decrypt).mockReturnValue('plaintext');
 
-      const result = await handleNip04Decrypt(
-        { pubkey: 'sender-pubkey', ciphertext: 'ciphertext' },
-        ORIGIN,
-      );
+      const result = await handleNip04Decrypt({ pubkey: SENDER, ciphertext: 'ciphertext' }, ORIGIN);
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -145,10 +136,7 @@ describe('Nip04Handler', () => {
         throw new Error('Decryption failed');
       });
 
-      const result = await handleNip04Decrypt(
-        { pubkey: 'sender-pubkey', ciphertext: 'ciphertext' },
-        ORIGIN,
-      );
+      const result = await handleNip04Decrypt({ pubkey: SENDER, ciphertext: 'ciphertext' }, ORIGIN);
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -156,4 +144,29 @@ describe('Nip04Handler', () => {
       }
     });
   });
+});
+
+// A malformed counterparty gets a fixed error, never nostr-tools' own message (#373).
+describe('nip04 counterparty public key', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each(['not-hex', 'B'.repeat(64), 'b'.repeat(63), 'b'.repeat(66), ''])(
+    'refuses %j without touching the key',
+    async (pubkey) => {
+      const encrypted = await handleNip04Encrypt({ pubkey, plaintext: 'hello' }, ORIGIN);
+      const decrypted = await handleNip04Decrypt({ pubkey, ciphertext: 'x' }, ORIGIN);
+
+      expect(encrypted).toEqual({
+        success: false,
+        error: 'Public key must be 64 lowercase hex characters',
+      });
+      expect(decrypted).toEqual({
+        success: false,
+        error: 'Public key must be 64 lowercase hex characters',
+      });
+      expect(getVaultData).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -115,6 +115,8 @@ function rememberCancelledRequest(requestId: string): void {
 }
 onVaultLocked(() => {
   vaultLocks += 1;
+  // No wallet relay connection outlives the key, as the DM pool does not (#373).
+  nip47Client.close();
   void clearPendingNip47Authorizations().then((abandoned) => closeAbandonedPopups(abandoned));
 });
 // A popup that outlived its authorization's expiry is closed when the store drops the entry.

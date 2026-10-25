@@ -49,6 +49,9 @@ vi.mock('@/../src-bex/services/auto-lock', () => ({
 
 const ORIGIN = 'https://example.com';
 
+const RECIPIENT = 'b'.repeat(64);
+const SENDER = 'c'.repeat(64);
+
 describe('Nip44Handler', () => {
   const mockAccount = {
     id: 'test-pubkey',
@@ -79,16 +82,13 @@ describe('Nip44Handler', () => {
     vi.mocked(nip44.getConversationKey).mockReturnValue(Uint8Array.from([1, 2, 3]));
     vi.mocked(nip44.encrypt).mockReturnValue('nip44-ciphertext');
 
-    const result = await handleNip44Encrypt(
-      { pubkey: 'recipient-pubkey', plaintext: 'hello' },
-      ORIGIN,
-    );
+    const result = await handleNip44Encrypt({ pubkey: RECIPIENT, plaintext: 'hello' }, ORIGIN);
 
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data).toBe('nip44-ciphertext');
     }
-    expect(nip44.getConversationKey).toHaveBeenCalledWith(expect.any(Buffer), 'recipient-pubkey');
+    expect(nip44.getConversationKey).toHaveBeenCalledWith(expect.any(Buffer), RECIPIENT);
     expect(nip44.encrypt).toHaveBeenCalledWith('hello', Uint8Array.from([1, 2, 3]));
     // ADR D15: site-initiated requests must not extend the unlocked window (finding F2).
     expect(resetAutoLockTimer).not.toHaveBeenCalled();
@@ -100,7 +100,7 @@ describe('Nip44Handler', () => {
     vi.mocked(nip44.decrypt).mockReturnValue('hello');
 
     const result = await handleNip44Decrypt(
-      { pubkey: 'sender-pubkey', ciphertext: 'nip44-ciphertext' },
+      { pubkey: SENDER, ciphertext: 'nip44-ciphertext' },
       ORIGIN,
     );
 
@@ -108,7 +108,7 @@ describe('Nip44Handler', () => {
     if (result.success) {
       expect(result.data).toBe('hello');
     }
-    expect(nip44.getConversationKey).toHaveBeenCalledWith(expect.any(Buffer), 'sender-pubkey');
+    expect(nip44.getConversationKey).toHaveBeenCalledWith(expect.any(Buffer), SENDER);
     expect(nip44.decrypt).toHaveBeenCalledWith('nip44-ciphertext', Uint8Array.from([4, 5, 6]));
     // ADR D15: site-initiated requests must not extend the unlocked window (finding F2).
     expect(resetAutoLockTimer).not.toHaveBeenCalled();
@@ -117,10 +117,7 @@ describe('Nip44Handler', () => {
   it('returns error when vault is locked', async () => {
     vi.mocked(isVaultUnlocked).mockReturnValue(false);
 
-    const result = await handleNip44Encrypt(
-      { pubkey: 'recipient-pubkey', plaintext: 'hello' },
-      ORIGIN,
-    );
+    const result = await handleNip44Encrypt({ pubkey: RECIPIENT, plaintext: 'hello' }, ORIGIN);
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -133,7 +130,7 @@ describe('Nip44Handler', () => {
     vi.mocked(storageService.get).mockResolvedValue(null);
 
     const result = await handleNip44Decrypt(
-      { pubkey: 'sender-pubkey', ciphertext: 'nip44-ciphertext' },
+      { pubkey: SENDER, ciphertext: 'nip44-ciphertext' },
       ORIGIN,
     );
 
@@ -151,7 +148,7 @@ describe('Nip44Handler', () => {
     });
 
     const result = await handleNip44Decrypt(
-      { pubkey: 'sender-pubkey', ciphertext: 'bad-ciphertext' },
+      { pubkey: SENDER, ciphertext: 'bad-ciphertext' },
       ORIGIN,
     );
 
@@ -160,4 +157,29 @@ describe('Nip44Handler', () => {
       expect(result.error).toBe('invalid MAC');
     }
   });
+});
+
+// A malformed counterparty gets a fixed error, never nostr-tools' own message (#373).
+describe('nip44 counterparty public key', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each(['not-hex', 'B'.repeat(64), 'b'.repeat(63), 'b'.repeat(66), ''])(
+    'refuses %j without touching the key',
+    async (pubkey) => {
+      const encrypted = await handleNip44Encrypt({ pubkey, plaintext: 'hello' }, ORIGIN);
+      const decrypted = await handleNip44Decrypt({ pubkey, ciphertext: 'x' }, ORIGIN);
+
+      expect(encrypted).toEqual({
+        success: false,
+        error: 'Public key must be 64 lowercase hex characters',
+      });
+      expect(decrypted).toEqual({
+        success: false,
+        error: 'Public key must be 64 lowercase hex characters',
+      });
+      expect(getVaultData).not.toHaveBeenCalled();
+    },
+  );
 });
