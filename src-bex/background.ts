@@ -563,15 +563,23 @@ const pageActionHandlers: PageActionHandlers = {
     // grant for "just this once" lasts while this page is open, so the handler needs its signal,
     // which is not something a bridge payload can carry (porwr#369). The duration comes from the
     // user's decision, never from the site.
+    //
+    // A failure is thrown, so `webln.enable()` rejects. Returned, it reached the page as a result,
+    // and a site with no wallet behind it was told it had been enabled.
+    let result: Awaited<ReturnType<typeof handleWebLnEnable>>;
     try {
-      const result = await handleWebLnEnable(
+      result = await handleWebLnEnable(
         createBridgeRequest('webln.enable', { origin, approved: true, duration }),
         page.signal,
       );
-      return result.success ? result.data : { success: false, error: result.error };
     } catch (error: unknown) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      throw new BackgroundBridgeError(
+        'WEBLN_UNAVAILABLE',
+        error instanceof Error ? error.message : String(error),
+      );
     }
+    if (!result.success) throw new BackgroundBridgeError('WEBLN_UNAVAILABLE', result.error);
+    return result.data;
   },
 
   'webln.getInfo': async (_payload, origin) =>
