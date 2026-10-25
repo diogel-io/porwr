@@ -95,6 +95,32 @@ describe('openGiftWrap', () => {
     expect(openGiftWrap(wrap, bob)).toBeNull();
   });
 
+  // NIP-17 and NIP-59 say the seal's created_at SHOULD be randomised up to two days back; only the
+  // rumor's is real. Requiring the two to match would refuse nearly every real message (#373).
+  it("opens a wrap whose seal created_at differs from the rumor's", () => {
+    const rumor = {
+      kind: 14,
+      created_at: 1_700_000_000,
+      tags: [['p', BOB]],
+      content: 'hi',
+      pubkey: ALICE,
+    };
+    const seal = finalizeEvent(
+      {
+        kind: 13,
+        created_at: 1_699_900_000,
+        tags: [],
+        content: nip44.encrypt(
+          JSON.stringify({ ...rumor, id: getEventHash(rumor) }),
+          nip44.getConversationKey(alice, BOB),
+        ),
+      },
+      alice,
+    );
+
+    expect(openGiftWrap(nip59.createWrap(seal, BOB), bob)?.content).toBe('hi');
+  });
+
   it('ignores anything that is not a kind 14 chat message', () => {
     const [, toBob] = nip59.wrapManyEvents(
       { kind: 7, created_at: 1, tags: [['p', BOB]], content: '+' },
