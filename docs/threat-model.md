@@ -36,6 +36,10 @@ diogel-io/workspace#148 added the "Load remote images" setting, kept in the prot
 off, Porwr's pages load no profile picture, banner, or relay icon until the user asks for one. The
 rows for T29 and T32 and sections 7 and 8 describe the code after that change.
 
+diogel-io/porwr#375 (diogel-io/porwr#374) made signing a NIP-04 direct message (kind 4) an elevated
+kind, so its grants are `once` or `8h` only, and dropped `always` kind 4 grants stored before that.
+The row for T10 describes the code after that change.
+
 Tracking issue: diogel-io/workspace#135
 
 This is the threat model for the whole Porwr extension. It supersedes the workspace approval threat
