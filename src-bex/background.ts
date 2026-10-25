@@ -43,6 +43,7 @@ import { observeWalletConnectPopups } from './services/wallet-connect-popup';
 import { lockDownSessionStorage } from './services/session-storage-lock';
 import { migrateProtectedStorage } from './services/protected-storage-migration';
 import { isSignableEventKind, MAX_EVENT_KIND } from './services/event-kind';
+import { INVALID_PUBKEY_MESSAGE, isHexPubkey } from './services/pubkey';
 import { reconcileAbandonedRequests } from './services/page-reconciliation';
 import {
   observePageConnections,
@@ -78,6 +79,12 @@ class BackgroundBridgeError extends Error implements BridgeError {
     this.name = 'BackgroundBridgeError';
     this.code = code;
   }
+}
+
+/** Refuses a malformed counterparty before a request is queued, as `signEvent` does a bad kind. */
+function requireCounterpartyPubkey(pubkey: unknown): void {
+  if (!isHexPubkey(pubkey))
+    throw new BackgroundBridgeError('INVALID_PUBKEY', INVALID_PUBKEY_MESSAGE);
 }
 
 async function getActiveAlias(): Promise<string | null> {
@@ -447,6 +454,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.nip04.encrypt': async (payload, origin, page) => {
+    requireCounterpartyPubkey(payload?.pubkey);
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
       signal: page.signal,
@@ -469,6 +477,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.nip04.decrypt': async (payload, origin, page) => {
+    requireCounterpartyPubkey(payload?.pubkey);
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
       signal: page.signal,
@@ -491,6 +500,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.nip44.encrypt': async (payload, origin, page) => {
+    requireCounterpartyPubkey(payload?.pubkey);
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
       signal: page.signal,
@@ -513,6 +523,7 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'nostr.nip44.decrypt': async (payload, origin, page) => {
+    requireCounterpartyPubkey(payload?.pubkey);
     await getActiveStoredKey();
     const approved = await requestApproval(origin, -1, {
       signal: page.signal,
