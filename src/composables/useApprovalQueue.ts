@@ -87,12 +87,12 @@ const armExpiryTimer = (record: ApprovalRequestRecord | null): void => {
   }, delay);
 };
 
-const loadContent = async (id: string | undefined): Promise<void> => {
-  if (!id) {
-    content.value = null;
-    return;
-  }
-  content.value = (await sendBexMessage('nostr.requests.content', { requestId: id })) ?? null;
+/** Content for one request, written only while the panel that asked for it is still open. */
+const loadContent = async (id: string | undefined, generation: number): Promise<void> => {
+  const loaded = id
+    ? ((await sendBexMessage('nostr.requests.content', { requestId: id })) ?? null)
+    : null;
+  if (generation === panelGeneration) content.value = loaded;
 };
 
 const refresh = async (): Promise<void> => {
@@ -114,9 +114,10 @@ const refresh = async (): Promise<void> => {
     // Only a waiting request is presented. A notice is already terminal and stays as it is.
     if (next && next.state === 'queued') {
       await sendBexMessage('nostr.requests.present', { requestId: next.id });
+      if (generation !== panelGeneration) return;
     }
     if (changed) {
-      await loadContent(next?.id);
+      await loadContent(next?.id, generation);
     }
     if (generation === panelGeneration) loading.value = false;
   } catch (error: unknown) {

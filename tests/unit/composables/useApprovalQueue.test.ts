@@ -282,6 +282,34 @@ describe('useApprovalQueue', () => {
       next.unmount();
     });
 
+    it('does not let the last panel’s request content reach the next panel', async () => {
+      const record = { id: 'req-1', state: 'presented', expiresAt: Date.now() + 60_000 };
+      let answerContent: (content: unknown) => void = () => undefined;
+      sendBexMessage.mockImplementation((event: string) => {
+        if (event === 'nostr.requests.list') return Promise.resolve([record]);
+        if (event === 'nostr.requests.current') return Promise.resolve(record);
+        if (event === 'nostr.requests.content') {
+          return new Promise((resolve) => (answerContent = resolve));
+        }
+        return Promise.resolve(undefined);
+      });
+      const first = mount(Consumer);
+      await vi.waitFor(() =>
+        expect(sendBexMessage).toHaveBeenCalledWith('nostr.requests.content', {
+          requestId: 'req-1',
+        }),
+      );
+      first.unmount();
+
+      sendBexMessage.mockImplementation(() => new Promise(() => undefined));
+      const next = mount(Consumer);
+      answerContent({ allowRemember: true, contentDescription: 'the last panel’s request' });
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(next.vm.content).toBeNull();
+      next.unmount();
+    });
+
     it('does not let a read from the last panel end the next panel’s loading', async () => {
       let answerStale: (records: unknown[]) => void = () => undefined;
       sendBexMessage.mockImplementationOnce(
