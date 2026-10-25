@@ -15,6 +15,7 @@ import { clampRequestExpiryMinutes } from '@/services/request-expiry';
 import { REQUEST_EXPIRY_MINUTES } from '@/services/storage-service';
 import { LogLevel, logService } from '@/services/log-service';
 import { classifyRequest, getAllowedDurations } from '@/services/approval-preview';
+import { MAX_PENDING_PER_ORIGIN, MAX_PENDING_TOTAL, RequestQueueFullError } from './request-limits';
 import {
   TERMINAL_REQUEST_STATES,
   type ApprovalRequestContent,
@@ -64,9 +65,50 @@ const requestContent = new Map<string, ApprovalRequestContent>();
  */
 const deciding = new Set<string>();
 
+/**
+ * The origin of every live request, keyed by request id: the count the queue caps are taken from
+ * (D18, #372).
+ *
+ * Held in memory, not read from session storage, and claimed before `enqueueRequest`'s first
+ * `await`, so a burst of parallel requests cannot all pass a count taken before any of them was
+ * written. Released with the request's callback and content in `forgetRequest`.
+ */
+const liveRequests = new Map<string, string>();
+
 const forgetRequest = (id: string): void => {
   liveCallbacks.delete(id);
   requestContent.delete(id);
+  liveRequests.delete(id);
+};
+
+/** Which cap a new request from this origin would exceed, or null when it fits. */
+const fullScope = (origin: string): 'origin' | 'global' | null => {
+  let fromOrigin = 0;
+  for (const liveOrigin of liveRequests.values()) if (liveOrigin === origin) fromOrigin += 1;
+  if (fromOrigin >= MAX_PENDING_PER_ORIGIN) return 'origin';
+  return liveRequests.size >= MAX_PENDING_TOTAL ? 'global' : null;
+};
+
+/** Claim a slot when one is free. Synchronous, so nothing can claim in between check and set. */
+const tryClaimSlot = (id: string, origin: string): 'origin' | 'global' | null => {
+  const scope = fullScope(origin);
+  if (!scope) liveRequests.set(id, origin);
+  return scope;
+};
+
+/**
+ * Enqueue writes, one at a time.
+ *
+ * Each write reads the session queue and writes it back, so two at once could each drop the
+ * other's record. A record missing from the queue can never expire or be interrupted, and would
+ * hold its slot until the worker restarts; a parallel flood is exactly when that would happen.
+ */
+let enqueueTail: Promise<unknown> = Promise.resolve();
+
+const serialiseEnqueue = <T>(task: () => Promise<T>): Promise<T> => {
+  const run = enqueueTail.then(task, task);
+  enqueueTail = run.catch(() => undefined);
+  return run;
 };
 
 /** Reviewable detail for a request, or null once it has been resolved or the worker restarted. */
@@ -309,15 +351,47 @@ export const requeuePresented = async (now: number = Date.now()): Promise<void> 
  * Enqueue a request and wait for its terminal outcome.
  *
  * The returned promise settles exactly once: on a user decision, on expiry, or on interruption.
+ * Rejects with `RequestQueueFullError`, and queues nothing, when the origin or the queue is already
+ * at its cap (D18).
  */
 export const enqueueRequest = async (
   input: EnqueueRequestInput,
   content: ApprovalRequestContent = { allowRemember: true },
   now: number = Date.now(),
 ): Promise<{ record: ApprovalRequestRecord; decision: Promise<ApprovalDecision> }> => {
+  const id = newRequestId();
+  // Before the first await: see `liveRequests`.
+  if (tryClaimSlot(id, input.origin)) {
+    // Expiry is applied on read, not timed, so requests that have already expired may still hold
+    // slots. Apply it once, which releases them, and try again.
+    await loadQueue(now);
+    const scope = tryClaimSlot(id, input.origin);
+    if (scope) {
+      logService.log(LogLevel.WARN, '[Queue] Refused a request because the queue is full', {
+        origin: input.origin,
+        scope,
+      });
+      throw new RequestQueueFullError(scope);
+    }
+  }
+  try {
+    return await serialiseEnqueue(() => writeNewRequest(id, input, content, now));
+  } catch (error) {
+    // A request that never reached the queue must not hold its slot.
+    forgetRequest(id);
+    throw error;
+  }
+};
+
+const writeNewRequest = async (
+  id: string,
+  input: EnqueueRequestInput,
+  content: ApprovalRequestContent,
+  now: number,
+): Promise<{ record: ApprovalRequestRecord; decision: Promise<ApprovalDecision> }> => {
   const expiryMinutes = await resolveExpiryMinutes();
   const record: ApprovalRequestRecord = {
-    id: newRequestId(),
+    id,
     origin: input.origin,
     requestType: input.requestType,
     eventKind: input.eventKind,
@@ -598,5 +672,6 @@ const interruptMatching = async (
 export const __resetLiveCallbacksForTests = (): void => {
   liveCallbacks.clear();
   requestContent.clear();
+  liveRequests.clear();
   queueChangeListeners.clear();
 };

@@ -5,6 +5,7 @@ import {
   type PagePayload,
   type PageReplyMessage,
 } from '../page-actions';
+import { checkPagePayload } from './request-limits';
 import { pageOriginOf, type PageSenderLike } from './sender-policy';
 
 /**
@@ -101,12 +102,20 @@ export function servePagePort(
       return;
     }
 
+    // Refused before any handler runs, so an oversized or malformed request is never queued (D18).
+    const pagePayload = stripPagePayload(payload);
+    const refusal = checkPagePayload(action, pagePayload);
+    if (refusal) {
+      reply({ id, error: refusal });
+      return;
+    }
+
     const handler = handlers[action] as (
       payload: unknown,
       origin: string,
       page: PageContext,
     ) => Promise<unknown>;
-    handler(stripPagePayload(payload), origin, { signal: gone.signal }).then(
+    handler(pagePayload, origin, { signal: gone.signal }).then(
       (result) => reply({ id, result }),
       (error: unknown) => reply({ id, error: errorMessage(error) }),
     );

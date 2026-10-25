@@ -34,6 +34,7 @@ vi.mock('@/services/log-service', () => ({
   logService: { log: mocks.log, logApproval: mocks.logApproval },
 }));
 
+import { RequestQueueFullError } from '@/../src-bex/services/request-limits';
 import {
   identifyWaitingRequests,
   requestApproval,
@@ -483,5 +484,19 @@ describe('an approval for an account the site is no longer bound to', () => {
     mocks.bindSiteToAccount.mockResolvedValue(BOB.id);
 
     await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(false);
+  });
+});
+
+describe('a full queue (D18, #372)', () => {
+  it('refuses the request with nothing granted, bound, or logged as an approval', async () => {
+    mocks.enqueueRequest.mockRejectedValue(new RequestQueueFullError('origin'));
+
+    await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).rejects.toBeInstanceOf(
+      RequestQueueFullError,
+    );
+
+    expect(mocks.grantPermission).not.toHaveBeenCalled();
+    expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
+    expect(mocks.logApproval).not.toHaveBeenCalled();
   });
 });
