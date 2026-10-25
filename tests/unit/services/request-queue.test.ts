@@ -21,6 +21,13 @@ import {
   __resetLiveCallbacksForTests,
 } from '@/../src-bex/services/request-queue';
 import {
+  MAX_PENDING_PER_ORIGIN,
+  MAX_PENDING_TOTAL,
+  QUEUE_FULL_MESSAGE,
+  RequestQueueFullError,
+} from '@/../src-bex/services/request-limits';
+import { storageService } from '@/services/storage-service';
+import {
   REQUEST_EXPIRY_MINUTES,
   REQUEST_NOTICE_KEY,
   REQUEST_QUEUE_KEY,
@@ -752,6 +759,147 @@ describe('request queue', () => {
       await pruneResolvedRequests();
 
       expect(readStored()).toHaveLength(0);
+    });
+  });
+
+  describe('queue caps (D18, #372)', () => {
+    const fill = (origin: string, count: number, now?: number) =>
+      Promise.all(
+        Array.from({ length: count }, () =>
+          enqueueRequest({ ...baseInput, origin }, { allowRemember: true }, now),
+        ),
+      );
+
+    it('refuses a request beyond the per-origin cap, and another origin still queues', async () => {
+      await fill('https://flood.example', MAX_PENDING_PER_ORIGIN);
+
+      const refused = enqueueRequest({ ...baseInput, origin: 'https://flood.example' });
+      await expect(refused).rejects.toBeInstanceOf(RequestQueueFullError);
+      await expect(refused).rejects.toMatchObject({ scope: 'origin', message: QUEUE_FULL_MESSAGE });
+
+      await expect(
+        enqueueRequest({ ...baseInput, origin: 'https://legit.example' }),
+      ).resolves.toBeDefined();
+      expect(await getPendingCount()).toBe(MAX_PENDING_PER_ORIGIN + 1);
+    });
+
+    it('refuses a request beyond the global cap with the same message', async () => {
+      const origins = Math.ceil(MAX_PENDING_TOTAL / MAX_PENDING_PER_ORIGIN);
+      for (let index = 0; index < origins; index += 1) {
+        await fill(`https://site-${index}.example`, MAX_PENDING_PER_ORIGIN);
+      }
+      expect(await getPendingCount()).toBe(MAX_PENDING_TOTAL);
+
+      const refused = enqueueRequest({ ...baseInput, origin: 'https://new.example' });
+      await expect(refused).rejects.toMatchObject({ scope: 'global', message: QUEUE_FULL_MESSAGE });
+    });
+
+    it('holds the cap against a parallel burst', async () => {
+      const results = await Promise.allSettled(
+        Array.from({ length: MAX_PENDING_PER_ORIGIN * 4 }, () =>
+          enqueueRequest({ ...baseInput, origin: 'https://flood.example' }),
+        ),
+      );
+
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(
+        MAX_PENDING_PER_ORIGIN,
+      );
+      expect(readStored()).toHaveLength(MAX_PENDING_PER_ORIGIN);
+    });
+
+    it('stores nothing for a refused request', async () => {
+      await fill('https://flood.example', MAX_PENDING_PER_ORIGIN);
+      const before = JSON.stringify(readStored());
+
+      await expect(
+        enqueueRequest(
+          { ...baseInput, origin: 'https://flood.example' },
+          { allowRemember: true, contentDescription: 'refused secret' },
+        ),
+      ).rejects.toBeInstanceOf(RequestQueueFullError);
+
+      expect(JSON.stringify(readStored())).toBe(before);
+      expect(JSON.stringify(readStored())).not.toContain('refused secret');
+    });
+
+    it('frees a slot when a request is decided', async () => {
+      const [first] = await fill('https://flood.example', MAX_PENDING_PER_ORIGIN);
+      await submitDecision(first!.record.id, { approved: false, duration: 'once' });
+
+      await expect(
+        enqueueRequest({ ...baseInput, origin: 'https://flood.example' }),
+      ).resolves.toBeDefined();
+    });
+
+    it('frees slots held by requests that have expired', async () => {
+      const now = 1_000_000;
+      await fill('https://flood.example', MAX_PENDING_PER_ORIGIN, now);
+
+      const later = now + 60 * 60 * 1000;
+      await expect(
+        enqueueRequest({ ...baseInput, origin: 'https://flood.example' }, undefined, later),
+      ).resolves.toBeDefined();
+      expect(await getPendingCount(later)).toBe(1);
+    });
+
+    it('keeps a new record when a sweep of expired requests read the queue before it was written', async () => {
+      const now = 1_000_000;
+      await fill('https://flood.example', MAX_PENDING_PER_ORIGIN, now);
+      const later = now + 60 * 60 * 1000;
+
+      // Hold the first sweep's read of the queue, which still holds the expired requests, until the
+      // second request has had every chance to write its own record.
+      let releaseRead: () => void = () => undefined;
+      const stale = structuredClone(readStored());
+      vi.mocked(storageService.get).mockImplementationOnce(
+        () => new Promise((resolve) => (releaseRead = () => resolve(stale))),
+      );
+
+      const first = enqueueRequest(
+        { ...baseInput, origin: 'https://flood.example' },
+        undefined,
+        later,
+      );
+      const second = enqueueRequest(
+        { ...baseInput, origin: 'https://flood.example' },
+        undefined,
+        later,
+      );
+      for (let tick = 0; tick < 20; tick += 1) await new Promise((resolve) => setTimeout(resolve));
+      releaseRead();
+      await Promise.all([first, second]);
+
+      expect(await getPendingCount(later)).toBe(2);
+    });
+
+    it('frees a slot when its page goes away', async () => {
+      const [first] = await fill('https://flood.example', MAX_PENDING_PER_ORIGIN);
+      await interruptRequest(first!.record.id);
+
+      await expect(
+        enqueueRequest({ ...baseInput, origin: 'https://flood.example' }),
+      ).resolves.toBeDefined();
+    });
+
+    it('frees every slot for an origin whose last tab closed', async () => {
+      await fill('https://flood.example', MAX_PENDING_PER_ORIGIN);
+      await interruptRequestsForOrigin('https://flood.example');
+
+      await expect(fill('https://flood.example', MAX_PENDING_PER_ORIGIN)).resolves.toHaveLength(
+        MAX_PENDING_PER_ORIGIN,
+      );
+    });
+
+    it('frees the slot of a request whose write failed', async () => {
+      await fill('https://flood.example', MAX_PENDING_PER_ORIGIN - 1);
+      vi.mocked(storageService.set).mockRejectedValueOnce(new Error('quota'));
+
+      await expect(
+        enqueueRequest({ ...baseInput, origin: 'https://flood.example' }),
+      ).rejects.toThrow('quota');
+      await expect(
+        enqueueRequest({ ...baseInput, origin: 'https://flood.example' }),
+      ).resolves.toBeDefined();
     });
   });
 });

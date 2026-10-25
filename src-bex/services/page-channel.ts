@@ -5,6 +5,7 @@ import {
   type PagePayload,
   type PageReplyMessage,
 } from '../page-actions';
+import { checkPagePayload } from './request-limits';
 import { pageOriginOf, type PageSenderLike } from './sender-policy';
 
 /**
@@ -64,6 +65,7 @@ export function servePagePort(
   handlers: PageActionHandlers,
   extensionId: string,
   extensionOrigin: string,
+  ready: Promise<unknown> = Promise.resolve(),
 ): void {
   const origin = pageOriginOf(port.sender, extensionId, extensionOrigin);
   let connected = true;
@@ -101,15 +103,28 @@ export function servePagePort(
       return;
     }
 
+    // Refused before any handler runs, so an oversized or malformed request is never queued (D18).
+    const refusal = checkPagePayload(action, payload);
+    if (refusal) {
+      reply({ id, error: refusal });
+      return;
+    }
+    const pagePayload = stripPagePayload(payload);
+
     const handler = handlers[action] as (
       payload: unknown,
       origin: string,
       page: PageContext,
     ) => Promise<unknown>;
-    handler(stripPagePayload(payload), origin, { signal: gone.signal }).then(
-      (result) => reply({ id, result }),
-      (error: unknown) => reply({ id, error: errorMessage(error) }),
-    );
+    // A page message is what wakes a stopped worker, so a request can arrive while start-up is
+    // still reconciling the queue. That writes a snapshot read earlier, which would drop a record
+    // enqueued meanwhile and leave its slot held (D7, D18).
+    ready
+      .then(() => handler(pagePayload, origin, { signal: gone.signal }))
+      .then(
+        (result) => reply({ id, result }),
+        (error: unknown) => reply({ id, error: errorMessage(error) }),
+      );
   });
 }
 
@@ -118,9 +133,10 @@ export function observePageRequests(
   handlers: PageActionHandlers,
   extensionId: string,
   extensionOrigin: string,
+  ready?: Promise<unknown>,
 ): void {
   chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== PAGE_PORT_NAME) return;
-    servePagePort(port, handlers, extensionId, extensionOrigin);
+    servePagePort(port, handlers, extensionId, extensionOrigin, ready);
   });
 }
