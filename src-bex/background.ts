@@ -593,7 +593,8 @@ const pageActionHandlers: PageActionHandlers = {
   },
 };
 
-observePageRequests(pageActionHandlers, chrome.runtime.id, EXTENSION_ORIGIN);
+// Handlers wait for start-up, so a request cannot be queued while the queue is being reconciled.
+observePageRequests(pageActionHandlers, chrome.runtime.id, EXTENSION_ORIGIN, initialized);
 
 // Wallet popups the background opened itself, in Firefox (workspace#85).
 observeWalletConnectPopups(chrome.runtime.id, initialized);

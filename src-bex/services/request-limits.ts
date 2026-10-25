@@ -80,12 +80,19 @@ const refuseOpaqueValues = (_key: string, value: unknown): unknown => {
 };
 
 /**
+ * A property whose value is `undefined` is counted as `null`. JSON would leave out the key too,
+ * and Firefox's structured clone keeps it, so a megabyte key would otherwise go unmeasured.
+ */
+const measureValue = (key: string, value: unknown): unknown =>
+  value === undefined ? null : refuseOpaqueValues(key, value);
+
+/**
  * Serialised length, or null for a value whose size JSON cannot account for: a cycle, a BigInt, or
  * anything other than plain objects, arrays and primitives.
  */
 const serialisedLength = (value: unknown): number | null => {
   try {
-    return JSON.stringify(value, refuseOpaqueValues)?.length ?? 0;
+    return JSON.stringify(value, measureValue)?.length ?? 0;
   } catch {
     return null;
   }
@@ -127,7 +134,8 @@ const fieldChecks: Partial<
  * payload is bounded first, which also covers keys no handler reads.
  */
 export const checkPagePayload = (action: PageAction, payload: unknown): string | null => {
-  if (payload === undefined) return null;
+  // No payload is an empty one: an action that needs fields still refuses it.
+  if (payload === undefined) return fieldChecks[action]?.({}) ?? null;
   if (!isRecord(payload)) return PAYLOAD_INVALID_MESSAGE;
   const length = serialisedLength(payload);
   if (length === null) return PAYLOAD_INVALID_MESSAGE;

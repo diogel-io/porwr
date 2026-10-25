@@ -398,6 +398,33 @@ describe('page payload ceilings (D18, #372)', () => {
     },
   );
 
+  it.each(['nostr.signEvent', 'nostr.nip04.encrypt', 'nostr.nip44.decrypt', 'webln.sendPayment'])(
+    'refuses a %s request with no payload',
+    async (action) => {
+      const { handlers, replies, send } = serve();
+
+      send({ id: '1', action });
+      await settle();
+
+      expect(handlers[action]).not.toHaveBeenCalled();
+      expect(replies).toEqual([{ id: '1', error: PAYLOAD_INVALID_MESSAGE }]);
+    },
+  );
+
+  it('counts a key whose value is undefined, which JSON would leave out', async () => {
+    const { handlers, replies, send } = serve();
+
+    send({
+      id: '1',
+      action: 'nostr.getPublicKey',
+      payload: { [over(MAX_PAGE_PAYLOAD_LENGTH)]: undefined },
+    });
+    await settle();
+
+    expect(handlers['nostr.getPublicKey']).not.toHaveBeenCalled();
+    expect(replies).toEqual([{ id: '1', error: PAYLOAD_TOO_LARGE_MESSAGE }]);
+  });
+
   it('bounds the whole payload, including keys no handler reads', async () => {
     const { handlers, replies, send } = serve();
 
@@ -410,5 +437,24 @@ describe('page payload ceilings (D18, #372)', () => {
 
     expect(handlers['nostr.getPublicKey']).not.toHaveBeenCalled();
     expect(replies).toEqual([{ id: '1', error: PAYLOAD_TOO_LARGE_MESSAGE }]);
+  });
+});
+
+describe('requests that arrive during start-up (D7, D18)', () => {
+  it('waits for start-up before any handler runs', async () => {
+    const handlers = handlersWith(() => Promise.resolve('npub'));
+    const { port, replies, send } = fakePort(SITE);
+    let started: () => void = () => undefined;
+    const ready = new Promise<void>((resolve) => (started = resolve));
+    servePagePort(port, handlers, ID, EXTENSION, ready);
+
+    send({ id: '1', action: 'nostr.getPublicKey', payload: {} });
+    await settle();
+    expect(handlers['nostr.getPublicKey']).not.toHaveBeenCalled();
+
+    started();
+    await settle();
+    expect(handlers['nostr.getPublicKey']).toHaveBeenCalledTimes(1);
+    expect(replies).toEqual([{ id: '1', result: 'npub' }]);
   });
 });
