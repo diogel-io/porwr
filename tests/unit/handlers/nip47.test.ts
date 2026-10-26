@@ -20,13 +20,18 @@ import {
   WALLET_INFO_MAX_AGE_MS,
   WALLET_INFO_UNAVAILABLE,
   handleNip47PaymentHistoryList,
+  __resetHeldPaymentHistoryForTests,
 } from '@/../src-bex/handlers/nip47';
-import { getVaultData, updateVaultData } from '@/../src-bex/vault';
+import { getVaultData, isVaultUnlocked, updateVaultData } from '@/../src-bex/vault';
 import { NIP47_NO_ALLOWED_RELAYS, nip47Client } from '@/../src-bex/services/nip47-client';
 import { parseNwcUri, buildNip47ConnectionId } from '@/services/nip47-uri';
 import { listNip47PaymentHistory } from '@/../src-bex/services/nip47-payment-history-store';
 import type { StoredKey, VaultData } from '@/types/bridge';
-import type { Nip47Connection } from '@/types/nip47';
+import type {
+  Nip47Connection,
+  Nip47PayInvoiceResponse,
+  Nip47PaymentHistoryEntry,
+} from '@/types/nip47';
 import type { HandlerResult } from '@/../src-bex/types/background';
 import { ErrorCode } from '@/types/error-codes.d';
 import {
@@ -42,6 +47,7 @@ import { armWalletRelay } from '@/../src-bex/services/wallet-relay-arm';
 import { postWalletConnectOutcome } from '@/services/wallet-connect-channel';
 
 const lockListeners = vi.hoisted(() => [] as (() => void)[]);
+const unlockListeners = vi.hoisted(() => [] as (() => void)[]);
 const expiredPopupListeners = vi.hoisted(
   () =>
     [] as ((
@@ -56,6 +62,11 @@ vi.mock('@/../src-bex/vault', () => ({
     lockListeners.push(listener);
     return () => undefined;
   },
+  onVaultUnlocked: (listener: () => void) => {
+    unlockListeners.push(listener);
+    return () => undefined;
+  },
+  isVaultUnlocked: vi.fn(() => true),
 }));
 
 vi.mock('@/../src-bex/services/nip47-client', async (importOriginal) => ({
@@ -1837,5 +1848,114 @@ describe('a wallet popup the background owns (workspace#85)', () => {
 
       expect(postWalletConnectOutcome).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('a payment and the vault locking (porwr#368)', () => {
+  const PAY = { accountPubkey: ACCOUNT, connectionId: 'wallet-a', invoice: INVOICE };
+  const INFO = {
+    capabilities: ['pay_invoice'],
+    encryption: ['nip44_v2', 'nip04'],
+    checkedAt: '2026-10-21T00:00:00.000Z',
+  } as never;
+
+  const lock = (): void => {
+    vi.mocked(isVaultUnlocked).mockReturnValue(false);
+    for (const listener of lockListeners) listener();
+  };
+  const unlock = (): void => {
+    vi.mocked(isVaultUnlocked).mockReturnValue(true);
+    for (const listener of unlockListeners) listener();
+  };
+  const historyWritten = (): Nip47PaymentHistoryEntry[] =>
+    vi
+      .mocked(updateVaultData)
+      .mock.calls.flatMap(([saved]) => (saved as VaultData).nip47PaymentHistory ?? []);
+
+  /** The client, with the real publish step: the hook runs, and only then is anything "sent". */
+  const sends = vi.fn();
+  const payThroughHook = (result: () => Promise<Nip47PayInvoiceResponse>): void => {
+    vi.mocked(nip47Client.payInvoice).mockImplementation(async (_connection, _invoice, options) => {
+      options?.beforePublish?.();
+      sends();
+      return result();
+    });
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    __resetHeldPaymentHistoryForTests();
+    globalThis.crypto.randomUUID = vi.fn(
+      () => 'history-entry-id',
+    ) as () => `${string}-${string}-${string}-${string}-${string}`;
+    vi.mocked(isVaultUnlocked).mockReturnValue(true);
+    vi.mocked(updateVaultData).mockResolvedValue({ success: true });
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [MAIN_ACCOUNT], nip47Connections: [buildConnection()] },
+    });
+  });
+
+  it('sends nothing when the vault locks while the wallet is being asked what it supports', async () => {
+    const { encryption: _unread, ...imported } = buildConnection();
+    void _unread;
+    vi.mocked(getVaultData).mockResolvedValue({
+      success: true,
+      vaultData: { accounts: [MAIN_ACCOUNT], nip47Connections: [imported] },
+    });
+    vi.mocked(nip47Client.getInfo).mockImplementation(async () => {
+      lock();
+      return INFO;
+    });
+    payThroughHook(async () => ({ preimage: 'preimage', raw: {} }));
+
+    await expect(handleNip47PayInvoice(PAY)).rejects.toThrow('vault locked before the payment');
+
+    expect(sends).not.toHaveBeenCalled();
+    expect(historyWritten()).toEqual([]);
+  });
+
+  it('reports a payment the wallet made as made, though the vault locked before it was recorded', async () => {
+    payThroughHook(async () => {
+      lock();
+      return { preimage: 'preimage', paymentHash: 'hash', raw: {} };
+    });
+    vi.mocked(updateVaultData).mockRejectedValue(new Error('Vault is locked'));
+
+    await expect(handleNip47PayInvoice(PAY)).resolves.toMatchObject({
+      success: true,
+      data: { preimage: 'preimage' },
+    });
+  });
+
+  it('records a payment made across a lock once the vault opens again', async () => {
+    payThroughHook(async () => {
+      lock();
+      return { preimage: 'preimage', paymentHash: 'hash', raw: {} };
+    });
+    vi.mocked(updateVaultData).mockRejectedValue(new Error('Vault is locked'));
+    await handleNip47PayInvoice(PAY);
+
+    // From here, only writes made once the vault is open again are counted.
+    vi.mocked(updateVaultData).mockReset().mockResolvedValue({ success: true });
+    unlock();
+    await vi.waitFor(() => expect(historyWritten()).toHaveLength(1));
+    expect(historyWritten()[0]).toMatchObject({ status: 'succeeded', paymentHash: 'hash' });
+
+    // Written once: a second unlock has nothing left to write.
+    unlock();
+    await Promise.resolve();
+    expect(historyWritten()).toHaveLength(1);
+  });
+
+  it('throws the wallet’s error, not the history’s, when both fail', async () => {
+    payThroughHook(async () => {
+      throw new Error('PAYMENT_FAILED: insufficient balance');
+    });
+    vi.mocked(updateVaultData).mockRejectedValue(new Error('history write failed'));
+
+    await expect(handleNip47PayInvoice(PAY)).rejects.toThrow(
+      'PAYMENT_FAILED: insufficient balance',
+    );
   });
 });

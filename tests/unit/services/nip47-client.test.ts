@@ -74,6 +74,51 @@ describe('Nip47Client.sendRequest', () => {
     expect(closeSpy).toHaveBeenCalled();
   });
 
+  it('publishes nothing when the caller refuses just before publishing (porwr#368)', async () => {
+    const closeSpy = vi.fn();
+    mockPoolInstance.subscribe.mockReturnValue({ close: closeSpy });
+
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    const client = new Nip47Client();
+
+    await expect(
+      client.payInvoice(buildConnection(), 'lnbc1', {
+        beforePublish: () => {
+          throw new Error('vault locked');
+        },
+      }),
+    ).rejects.toThrow('vault locked');
+
+    expect(mockPoolInstance.publish).not.toHaveBeenCalled();
+    expect(closeSpy).toHaveBeenCalled();
+  });
+
+  it('asks the caller immediately before publishing, after the request is built', async () => {
+    const order: string[] = [];
+    vi.mocked(finalizeEvent).mockImplementationOnce(() => {
+      order.push('signed');
+      return { id: 'event-id', pubkey: 'client-pubkey', sig: 'sig' } as never;
+    });
+    mockPoolInstance.subscribe.mockReturnValue({ close: vi.fn() });
+    mockPoolInstance.publish.mockImplementation(() => {
+      order.push('published');
+      const failure = Promise.reject(new Error('relay unreachable'));
+      failure.catch(() => undefined);
+      return [failure];
+    });
+
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    await new Nip47Client()
+      .sendRequest(
+        buildConnection(),
+        { method: 'get_balance', params: {} },
+        { beforePublish: () => order.push('checked') },
+      )
+      .catch(() => undefined);
+
+    expect(order).toEqual(['signed', 'checked', 'published']);
+  });
+
   it('resolves with the wallet response once a matching relay event is published successfully', async () => {
     let onEvent:
       ((event: { pubkey: string; tags: string[][]; content: string }) => void) | undefined;
