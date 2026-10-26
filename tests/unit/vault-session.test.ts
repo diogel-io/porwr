@@ -339,6 +339,21 @@ describe('keeping the vault unlocked (#245)', () => {
     expect(state.session.size).toBe(1);
   });
 
+  it('stays locked when the vault locks while a restarted worker restores it (porwr#367)', async () => {
+    const before = await freshWorker();
+    await before.createNewVault(PASSWORD, DATA);
+
+    const vault = await freshWorker();
+    const restoring = vault.restoreVaultState();
+    await vault.lockVault();
+
+    await expect(restoring).resolves.toBe(false);
+    expect(vault.isVaultUnlocked()).toBe(false);
+    // An unlock that was waiting on the restore, and then fails, does not leave it open either.
+    await expect(vault.unlockVault('wrong password')).resolves.toMatchObject({ success: false });
+    expect(vault.isVaultUnlocked()).toBe(false);
+  });
+
   it('writes no session at all when the vault locks while the key is derived (porwr#367)', async () => {
     const vault = await freshWorker();
     await vault.createNewVault(PASSWORD, DATA);

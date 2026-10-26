@@ -88,6 +88,9 @@ export function restoreVaultState(
 }
 
 async function restoreVaultStateNow(isOverdue: () => Promise<boolean>): Promise<boolean> {
+  // A lock while this reads the session wins, as it does over an unlock (porwr#367): the lock has
+  // already cleared the session and told its listeners, and installing the key now would undo it.
+  const locksBefore = lockCount;
   try {
     const items = await storageService.getMultiple(
       [VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS],
@@ -121,6 +124,8 @@ async function restoreVaultStateNow(isOverdue: () => Promise<boolean>): Promise<
       await startLocked();
       return false;
     }
+
+    if (lockCount !== locksBefore) return false;
 
     vaultKey = session.key;
     vaultSalt = session.salt;
