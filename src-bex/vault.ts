@@ -13,6 +13,12 @@ let vaultKey: CryptoKey | null = null;
 let vaultSalt: Uint8Array | null = null;
 
 /**
+ * How many times the vault has been locked, for work that must notice a lock while it awaits
+ * (porwr#367). A key check cannot: during an unlock the key is null before and after a lock alike.
+ */
+let lockCount = 0;
+
+/**
  * Keeping the vault unlocked across MV3 service-worker restarts (#245).
  *
  * The key is a non-extractable `CryptoKey` and is kept as that object in IndexedDB (`vaultSession`),
@@ -82,6 +88,9 @@ export function restoreVaultState(
 }
 
 async function restoreVaultStateNow(isOverdue: () => Promise<boolean>): Promise<boolean> {
+  // A lock while this reads the session wins, as it does over an unlock (porwr#367): the lock has
+  // already cleared the session and told its listeners, and installing the key now would undo it.
+  const locksBefore = lockCount;
   try {
     const items = await storageService.getMultiple(
       [VAULT_UNLOCKED, ...LEGACY_SESSION_KEYS],
@@ -115,6 +124,8 @@ async function restoreVaultStateNow(isOverdue: () => Promise<boolean>): Promise<
       await startLocked();
       return false;
     }
+
+    if (lockCount !== locksBefore) return false;
 
     vaultKey = session.key;
     vaultSalt = session.salt;
@@ -151,45 +162,91 @@ export function onVaultUnlocked(listener: () => void): () => void {
   return () => unlockListeners.delete(listener);
 }
 
+/** What an unlock that a lock overtook returns: the lock stands. */
+const lockedDuringUnlock = () => ({
+  success: false,
+  error: 'Vault is locked',
+  errorCode: ErrorCode.VLT_LOCKED,
+});
+
+/**
+ * Unlock the vault with its password.
+ *
+ * A lock requested while this runs wins (porwr#367): the derivation takes long enough for a manual
+ * lock, auto-lock or an import to complete meanwhile, and setting the key afterwards would undo it,
+ * or leave the vault open with a key that no longer fits it. A failed attempt leaves an unlocked
+ * vault as it was: a wrong password typed while it is open does not lock it.
+ */
 export async function unlockVault(password: string) {
+  // Taken before the first await, so a lock requested after this call began is seen.
+  const locksBefore = lockCount;
   // A restore still running at worker start-up finishes first (see `restoring`).
   await restoring;
+
+  let vault: { encryptedData: string } | undefined;
   try {
-    const vault = await db.vaults.get('master');
+    vault = await db.vaults.get('master');
+  } catch (error: unknown) {
+    logService.log(LogLevel.ERROR, '[Vault] Failed to read the vault to unlock it', {
+      error: describeError(error),
+    });
+    return {
+      success: false,
+      error: 'Failed to unlock the vault',
+      errorCode: ErrorCode.GEN_UNKNOWN,
+    };
+  }
 
-    if (!vault) {
-      return {
-        success: false,
-        error: 'No vault found',
-        errorCode: ErrorCode.VLT_NOT_CREATED,
-      };
-    }
+  if (!vault) {
+    return {
+      success: false,
+      error: 'No vault found',
+      errorCode: ErrorCode.VLT_NOT_CREATED,
+    };
+  }
 
-    const { key, salt } = await deriveKeyFromEncryptedVault(password, vault.encryptedData);
-    const vaultData = await decryptWithKey(vault.encryptedData, key);
-
-    // Only set the key and save the session if decryption succeeded
-    vaultKey = key;
-    vaultSalt = salt;
-    await saveKeyToSession();
-    for (const listener of unlockListeners) {
-      try {
-        listener();
-      } catch {
-        // A listener's failure must not reach the catch below, which would lock the vault again.
-      }
-    }
-
-    return { success: true, vaultData };
+  let key: CryptoKey;
+  let salt: Uint8Array;
+  let vaultData: unknown;
+  try {
+    ({ key, salt } = await deriveKeyFromEncryptedVault(password, vault.encryptedData));
+    vaultData = await decryptWithKey(vault.encryptedData, key);
   } catch {
-    clearVaultKey();
-    await clearSession();
+    // Nothing was set, so nothing is cleared: an open vault stays open.
     return {
       success: false,
       error: 'Invalid password',
       errorCode: ErrorCode.VLT_INVALID_PASSWORD,
     };
   }
+
+  if (lockCount !== locksBefore) return lockedDuringUnlock();
+
+  // Already open: keep the key in use. A write encrypting with it compares keys when it finishes,
+  // and swapping in an equal but different key would make it refuse as if the vault had locked.
+  if (!isVaultUnlocked()) {
+    vaultKey = key;
+    vaultSalt = salt;
+    await saveKeyToSession();
+
+    // Locked while the session was written: that lock's cleanup may have run before the write landed,
+    // which would leave a key a restarted worker restores without the password.
+    if (lockCount !== locksBefore) {
+      clearVaultKey();
+      await clearSession();
+      return lockedDuringUnlock();
+    }
+  }
+
+  for (const listener of unlockListeners) {
+    try {
+      listener();
+    } catch {
+      // A listener's failure must not undo the unlock.
+    }
+  }
+
+  return { success: true, vaultData };
 }
 
 const lockListeners = new Set<() => void>();
@@ -209,6 +266,7 @@ function notifyLocked(): void {
 }
 
 export async function lockVault() {
+  lockCount += 1;
   clearVaultKey();
   try {
     await clearSession();
