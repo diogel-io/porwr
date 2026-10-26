@@ -75,9 +75,6 @@ describe('Nip47Client.sendRequest', () => {
   });
 
   it('publishes nothing when the caller refuses just before publishing (porwr#368)', async () => {
-    const closeSpy = vi.fn();
-    mockPoolInstance.subscribe.mockReturnValue({ close: closeSpy });
-
     const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
     const client = new Nip47Client();
 
@@ -89,17 +86,21 @@ describe('Nip47Client.sendRequest', () => {
       }),
     ).rejects.toThrow('vault locked');
 
+    // Nothing reaches a relay: no request, and no subscription waiting for an answer.
     expect(mockPoolInstance.publish).not.toHaveBeenCalled();
-    expect(closeSpy).toHaveBeenCalled();
+    expect(mockPoolInstance.subscribe).not.toHaveBeenCalled();
   });
 
-  it('asks the caller immediately before publishing, after the request is built', async () => {
+  it('asks the caller after the request is built, before it subscribes or publishes', async () => {
     const order: string[] = [];
     vi.mocked(finalizeEvent).mockImplementationOnce(() => {
       order.push('signed');
       return { id: 'event-id', pubkey: 'client-pubkey', sig: 'sig' } as never;
     });
-    mockPoolInstance.subscribe.mockReturnValue({ close: vi.fn() });
+    mockPoolInstance.subscribe.mockImplementation(() => {
+      order.push('subscribed');
+      return { close: vi.fn() };
+    });
     mockPoolInstance.publish.mockImplementation(() => {
       order.push('published');
       const failure = Promise.reject(new Error('relay unreachable'));
@@ -116,7 +117,7 @@ describe('Nip47Client.sendRequest', () => {
       )
       .catch(() => undefined);
 
-    expect(order).toEqual(['signed', 'checked', 'published']);
+    expect(order).toEqual(['signed', 'checked', 'subscribed', 'published']);
   });
 
   it('resolves with the wallet response once a matching relay event is published successfully', async () => {

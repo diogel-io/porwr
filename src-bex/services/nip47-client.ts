@@ -258,6 +258,11 @@ export class Nip47Client {
       },
       clientSecretBytes,
     );
+    // The last word before anything leaves the device, in the same tick as the publish: nothing is
+    // awaited between here and `publish`, so a caller's check cannot be overtaken (porwr#368). Asked
+    // before the response subscription too, which would otherwise open a relay pool of its own.
+    options.beforePublish?.();
+
     const pending = this.waitForResponse(
       connection,
       clientPubkey,
@@ -266,16 +271,6 @@ export class Nip47Client {
       clientSecretBytes,
       scheme,
     );
-
-    // The last word before anything leaves the device, in the same tick as the publish: nothing is
-    // awaited between here and `publish`, so a caller's check cannot be overtaken (porwr#368).
-    try {
-      options.beforePublish?.();
-    } catch (error: unknown) {
-      pending.cancel();
-      void pending.promise.catch(() => undefined);
-      throw error;
-    }
 
     try {
       await Promise.any(this.pool.publish(connection.relays, event, { maxWait: 5000 }));
