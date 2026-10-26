@@ -42,3 +42,30 @@ test('enabling WebLN with no wallet rejects, even once the user has approved', a
 
   await site.close();
 });
+
+/**
+ * A WebLN call that fails rejects, rather than resolving with a failure object (porwr#370).
+ *
+ * `getInfo` needs no approval, so it reaches the page handler's failure path with no wallet and no
+ * panel: the site has not enabled WebLN and the account has no wallet.
+ */
+test('getInfo for a site that has not enabled WebLN rejects', async ({ openPage, context }) => {
+  const setup = await openPage('/login');
+  await createVault(setup);
+  await seedAccount(setup);
+
+  const site = await context.newPage();
+  await site.goto('https://example.com');
+  const outcome = await site.evaluate(async () => {
+    const webln = (window as unknown as { webln?: { getInfo: () => Promise<unknown> } }).webln;
+    if (!webln) throw new Error('window.webln was not injected into the page');
+    return webln.getInfo().then(
+      (value: unknown) => ({ resolved: value }),
+      (error: unknown) => ({ rejected: String(error) }),
+    );
+  });
+
+  expect(outcome).toEqual({ rejected: expect.any(String) });
+
+  await site.close();
+});

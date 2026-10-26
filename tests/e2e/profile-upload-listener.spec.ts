@@ -26,13 +26,14 @@ test('an upload status after several Profile visits is handled once', async ({ o
   }
 
   await page.evaluate(() =>
-    chrome.storage.local.set({ 'blossom:upload_status:avatar': { error: 'e2e upload failed' } }),
+    // A code, as the background stores it: the status never holds a server's own text (porwr#370).
+    chrome.storage.local.set({ 'blossom:upload_status:avatar': { error: 'too_large' } }),
   );
 
   // Quasar folds identical notifications into one and counts the repeats in a badge, so a single
   // notification is not enough: it must also carry no repeat count. Read once rather than with a
   // retrying assertion, which would pass as soon as the notification timed out and took its badge.
-  const notices = page.locator('.q-notification', { hasText: 'e2e upload failed' });
+  const notices = page.locator('.q-notification', { hasText: 'refused the image as too large' });
   await expect(notices).toHaveCount(1);
   // Long enough for any listener left behind by an earlier visit to have shown its own.
   await page.waitForTimeout(1_000);

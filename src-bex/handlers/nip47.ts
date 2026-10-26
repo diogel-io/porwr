@@ -80,7 +80,8 @@ const EXPIRED_AUTHORIZATION = 'This wallet connection request has expired. Start
 const EVICTED_AUTHORIZATION =
   'Too many wallet connections were started at once, so this one was stopped. Try again.';
 const notCancelled = (): boolean => false;
-const LOCKED_BEFORE_PAYMENT = 'The vault locked before the payment was sent. Unlock and try again.';
+export const LOCKED_BEFORE_PAYMENT =
+  'The vault locked before the payment was sent. Unlock and try again.';
 
 /**
  * Payment history the locked vault could not take (porwr#368).

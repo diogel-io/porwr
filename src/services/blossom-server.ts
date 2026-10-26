@@ -43,3 +43,28 @@ export function normalizeBlossomServer(input: string | null | undefined): Blosso
 
   return { valid: true, url: url.toString(), hostname: url.hostname.toLowerCase() };
 }
+
+/**
+ * Why a Blossom upload failed, as recorded in upload status (porwr#370).
+ *
+ * The status lives in `chrome.storage.local`, which content scripts can read, so it holds one of
+ * these and never the server's own words. The page that shows it turns the code into a message.
+ */
+export type BlossomUploadErrorCode = 'too_large' | 'unauthorized' | 'not_https' | 'failed';
+
+const BLOSSOM_UPLOAD_ERROR_CODES: ReadonlySet<string> = new Set<BlossomUploadErrorCode>([
+  'too_large',
+  'unauthorized',
+  'not_https',
+  'failed',
+]);
+
+export const isBlossomUploadErrorCode = (value: unknown): value is BlossomUploadErrorCode =>
+  typeof value === 'string' && BLOSSOM_UPLOAD_ERROR_CODES.has(value);
+
+/** The code for a server's HTTP refusal. */
+export const blossomUploadErrorForStatus = (status: number): BlossomUploadErrorCode => {
+  if (status === 413) return 'too_large';
+  if (status === 401 || status === 403) return 'unauthorized';
+  return 'failed';
+};

@@ -207,6 +207,12 @@ export default {
     uploading: 'Uploading image...',
     uploadSuccess: 'Image uploaded successfully',
     uploadError: 'Failed to upload image',
+    uploadErrors: {
+      too_large: 'The Blossom server refused the image as too large.',
+      unauthorized: 'The Blossom server refused the upload.',
+      not_https: 'The Blossom server returned an image address that is not https://.',
+      failed: 'Failed to upload image',
+    },
     blossomServer: 'Blossom Server URL',
     blossomServerCaption: 'URL of the Blossom server for image uploads',
     theme: 'Theme',

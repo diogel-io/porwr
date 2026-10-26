@@ -120,6 +120,26 @@ describe('Nip47Client.sendRequest', () => {
     expect(order).toEqual(['signed', 'checked', 'subscribed', 'published']);
   });
 
+  it('rejects with a typed timeout when the wallet never answers (porwr#370)', async () => {
+    vi.useFakeTimers();
+    try {
+      mockPoolInstance.subscribe.mockReturnValue({ close: vi.fn() });
+      mockPoolInstance.publish.mockReturnValue([Promise.resolve('ok')]);
+
+      const { Nip47Client, Nip47ResponseTimeoutError } =
+        await import('@/../src-bex/services/nip47-client');
+      const answer = new Nip47Client()
+        .sendRequest(buildConnection(), { method: 'get_balance', params: {} })
+        .catch((error: unknown) => error);
+
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      expect(await answer).toBeInstanceOf(Nip47ResponseTimeoutError);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('resolves with the wallet response once a matching relay event is published successfully', async () => {
     let onEvent:
       ((event: { pubkey: string; tags: string[][]; content: string }) => void) | undefined;

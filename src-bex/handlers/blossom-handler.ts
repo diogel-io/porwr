@@ -2,8 +2,12 @@ import { finalizeEvent } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { storageService, NOSTR_ACTIVE, BLOSSOM_UPLOAD_STATUS } from '@/services/storage-service';
-import { LogLevel, logService } from '@/services/log-service';
-import { normalizeBlossomServer } from '@/services/blossom-server';
+import { describeError, LogLevel, logService } from '@/services/log-service';
+import {
+  blossomUploadErrorForStatus,
+  normalizeBlossomServer,
+  type BlossomUploadErrorCode,
+} from '@/services/blossom-server';
 import type { VaultData, StoredKey } from '@/types/bridge';
 import type { HandlerResult } from '../types/background';
 import { handleVaultGetData, handleVaultIsUnlocked } from './vault-handler';
@@ -44,6 +48,9 @@ export async function handleBlossomUpload(
     error: null,
     url: null,
   });
+
+  // What the stored status may say about a failure: a code, never the server's text (porwr#370).
+  let failure: BlossomUploadErrorCode = 'failed';
 
   try {
     const storedKey = await getActiveStoredKey();
@@ -148,6 +155,7 @@ export async function handleBlossomUpload(
           }
         } else {
           const errorText = await response.text().catch(() => '');
+          failure = blossomUploadErrorForStatus(response.status);
           lastError = new Error(
             `HTTP Error ${response.status}: ${response.statusText}. ${errorText.substring(0, 100)}`,
           );
@@ -157,6 +165,7 @@ export async function handleBlossomUpload(
           }
         }
       } catch (error: unknown) {
+        failure = 'failed';
         lastError = error instanceof Error ? error : new Error(String(error));
       }
     }
@@ -167,6 +176,7 @@ export async function handleBlossomUpload(
     // The extension shows images over https only (T32): a plaintext media URL would be reported as
     // uploaded and then never display.
     if (!isHttpsUrl(uploadResultUrl)) {
+      failure = 'not_https';
       throw new Error('The Blossom server returned a media URL that is not https://');
     }
 
@@ -179,7 +189,7 @@ export async function handleBlossomUpload(
   } catch (error: unknown) {
     const finalError = error instanceof Error ? error : new Error(String(error));
     logService.log(LogLevel.ERROR, '[BEX] Error in blossom.upload', {
-      error: finalError.message,
+      error: describeError(finalError),
     });
 
     const activeAlias = await storageService.get<string>(NOSTR_ACTIVE);
@@ -190,9 +200,11 @@ export async function handleBlossomUpload(
       'background',
     );
 
+    // Local storage is readable by content scripts, so only the code is kept there. The reply goes
+    // to Porwr's own page, which the user is looking at, and keeps the detail.
     await storageService.set(uploadStatusKey, {
       uploading: false,
-      error: finalError.message,
+      error: failure,
       url: null,
     });
 
