@@ -119,6 +119,14 @@ function parseRpcResponse(content: string): Nip47RpcResponse {
   };
 }
 
+export interface Nip47SendOptions {
+  /**
+   * Called immediately before the request is published. Throwing stops it: nothing is sent and the
+   * wait for a response is cancelled. A payment uses it to refuse once the vault has locked.
+   */
+  beforePublish?: () => void;
+}
+
 export class Nip47Client {
   /**
    * Opened on first use and dropped by `close()`, so locking the vault closes the wallet relay
@@ -180,16 +188,21 @@ export class Nip47Client {
     };
   }
 
-  async payInvoice(connection: Nip47Connection, invoice: string): Promise<Nip47PayInvoiceResponse> {
+  async payInvoice(
+    connection: Nip47Connection,
+    invoice: string,
+    options: Nip47SendOptions = {},
+  ): Promise<Nip47PayInvoiceResponse> {
     const trimmedInvoice = invoice.trim();
     if (!trimmedInvoice) {
       throw new Error('Lightning invoice is required');
     }
 
-    const response = await this.sendRequest(connection, {
-      method: 'pay_invoice',
-      params: { invoice: trimmedInvoice },
-    });
+    const response = await this.sendRequest(
+      connection,
+      { method: 'pay_invoice', params: { invoice: trimmedInvoice } },
+      options,
+    );
     if (response.error) {
       throw new Error(`${response.error.code}: ${response.error.message}`);
     }
@@ -211,7 +224,11 @@ export class Nip47Client {
     };
   }
 
-  async sendRequest(stored: Nip47Connection, request: Nip47RpcRequest): Promise<Nip47RpcResponse> {
+  async sendRequest(
+    stored: Nip47Connection,
+    request: Nip47RpcRequest,
+    options: Nip47SendOptions = {},
+  ): Promise<Nip47RpcResponse> {
     const connection = { ...stored, relays: allowedWalletRelays(stored) };
     const clientSecretBytes = hexToBytes(connection.clientSecret);
     const clientPubkey = getPublicKey(clientSecretBytes);
@@ -241,6 +258,11 @@ export class Nip47Client {
       },
       clientSecretBytes,
     );
+    // The last word before anything leaves the device, in the same tick as the publish: nothing is
+    // awaited between here and `publish`, so a caller's check cannot be overtaken (porwr#368). Asked
+    // before the response subscription too, which would otherwise open a relay pool of its own.
+    options.beforePublish?.();
+
     const pending = this.waitForResponse(
       connection,
       clientPubkey,

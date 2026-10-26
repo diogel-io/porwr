@@ -74,6 +74,52 @@ describe('Nip47Client.sendRequest', () => {
     expect(closeSpy).toHaveBeenCalled();
   });
 
+  it('publishes nothing when the caller refuses just before publishing (porwr#368)', async () => {
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    const client = new Nip47Client();
+
+    await expect(
+      client.payInvoice(buildConnection(), 'lnbc1', {
+        beforePublish: () => {
+          throw new Error('vault locked');
+        },
+      }),
+    ).rejects.toThrow('vault locked');
+
+    // Nothing reaches a relay: no request, and no subscription waiting for an answer.
+    expect(mockPoolInstance.publish).not.toHaveBeenCalled();
+    expect(mockPoolInstance.subscribe).not.toHaveBeenCalled();
+  });
+
+  it('asks the caller after the request is built, before it subscribes or publishes', async () => {
+    const order: string[] = [];
+    vi.mocked(finalizeEvent).mockImplementationOnce(() => {
+      order.push('signed');
+      return { id: 'event-id', pubkey: 'client-pubkey', sig: 'sig' } as never;
+    });
+    mockPoolInstance.subscribe.mockImplementation(() => {
+      order.push('subscribed');
+      return { close: vi.fn() };
+    });
+    mockPoolInstance.publish.mockImplementation(() => {
+      order.push('published');
+      const failure = Promise.reject(new Error('relay unreachable'));
+      failure.catch(() => undefined);
+      return [failure];
+    });
+
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    await new Nip47Client()
+      .sendRequest(
+        buildConnection(),
+        { method: 'get_balance', params: {} },
+        { beforePublish: () => order.push('checked') },
+      )
+      .catch(() => undefined);
+
+    expect(order).toEqual(['signed', 'checked', 'subscribed', 'published']);
+  });
+
   it('resolves with the wallet response once a matching relay event is published successfully', async () => {
     let onEvent:
       ((event: { pubkey: string; tags: string[][]; content: string }) => void) | undefined;

@@ -42,6 +42,7 @@ vi.mock('@/../src-bex/vault', () => ({
   unlockVault: vi.fn(() => Promise.resolve({ success: true, vaultData: structuredClone(FIXTURE) })),
   isVaultUnlocked: vi.fn(() => true),
   onVaultLocked: vi.fn(),
+  onVaultUnlocked: vi.fn(),
   lockVault: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/vault-handler', async (importOriginal) => {

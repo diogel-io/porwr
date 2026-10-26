@@ -65,7 +65,7 @@ import {
   takePendingNip47Authorization,
   type PendingNip47Authorization,
 } from '../services/nip47-pending-authorization-store';
-import { onVaultLocked } from '../vault';
+import { isVaultUnlocked, onVaultLocked, onVaultUnlocked } from '../vault';
 import { armWalletRelay } from '../services/wallet-relay-arm';
 import { describeError, LogLevel, logService } from '@/services/log-service';
 
@@ -80,6 +80,61 @@ const EXPIRED_AUTHORIZATION = 'This wallet connection request has expired. Start
 const EVICTED_AUTHORIZATION =
   'Too many wallet connections were started at once, so this one was stopped. Try again.';
 const notCancelled = (): boolean => false;
+const LOCKED_BEFORE_PAYMENT = 'The vault locked before the payment was sent. Unlock and try again.';
+
+/**
+ * Payment history the locked vault could not take (porwr#368).
+ *
+ * A payment published just before the vault locked still completes at the wallet, but its entry
+ * cannot be written until the vault opens again. Held here, in memory only, and written on the next
+ * unlock; a worker restart before then loses it, and the wallet keeps its own record. Entries hold
+ * only what history stores, an invoice preview, never the invoice.
+ */
+const heldPaymentHistory: Nip47PaymentHistoryEntry[] = [];
+
+async function writePaymentHistory(entries: Nip47PaymentHistoryEntry[]): Promise<void> {
+  await mutateWalletVault((latestVaultData) => ({
+    vaultData: entries.reduce(appendNip47PaymentHistory, latestVaultData),
+    data: true,
+  }));
+}
+
+/**
+ * Record a payment, never letting the record decide what the caller is told.
+ *
+ * A failed write is logged, without the invoice, and held for the next unlock when the vault is
+ * locked. A completed payment reported as failed is one the site may try again, and pay twice.
+ */
+async function recordPaymentHistory(entry: Nip47PaymentHistoryEntry): Promise<void> {
+  try {
+    await writePaymentHistory([entry]);
+  } catch (error: unknown) {
+    const locked = !isVaultUnlocked();
+    if (locked) heldPaymentHistory.push(entry);
+    logService.log(LogLevel.WARN, '[NIP47] Could not record a payment in history', {
+      status: entry.status,
+      held: locked,
+      error: describeError(error),
+    });
+  }
+}
+
+onVaultUnlocked(() => {
+  if (heldPaymentHistory.length === 0) return;
+  const entries = heldPaymentHistory.splice(0);
+  void writePaymentHistory(entries).catch((error: unknown) => {
+    heldPaymentHistory.unshift(...entries);
+    logService.log(LogLevel.WARN, '[NIP47] Could not record held payments in history', {
+      count: entries.length,
+      error: describeError(error),
+    });
+  });
+});
+
+/** Test seam: drop any held history. Not used by production code. */
+export function __resetHeldPaymentHistoryForTests(): void {
+  heldPaymentHistory.length = 0;
+}
 
 /**
  * Background-owned authorizations being settled right now, by `pendingId` (workspace#85). Settling
@@ -416,6 +471,10 @@ export async function handleNip47GetBalance(
 export async function handleNip47PayInvoice(
   payload: Nip47PayInvoiceRequest,
 ): Promise<HandlerResult<Nip47PayInvoiceResponse>> {
+  // Taken before the first await. Negotiating encryption can read the wallet's info event over the
+  // network, and a lock meanwhile must stop the payment: the client secret is already in memory, and
+  // a new relay pool would carry it to the wallet regardless (porwr#368).
+  const locksBefore = vaultLocks;
   const vaultData = await readWalletVault();
   const accountPubkey = requireWalletAccount(vaultData, payload);
   const stored = requireUsableConnection(vaultData, accountPubkey, payload.connectionId);
@@ -438,38 +497,42 @@ export async function handleNip47PayInvoice(
     throw new Error('This wallet connection does not advertise pay_invoice support.');
   }
 
+  let notSent = false;
+  let payment: Nip47PayInvoiceResponse;
   try {
-    const payment = await nip47Client.payInvoice(connection, invoice);
-    await mutateWalletVault((latestVaultData) => ({
-      vaultData: appendNip47PaymentHistory(
-        latestVaultData,
-        buildPaymentHistoryEntry({
-          connection,
-          invoice,
-          status: 'succeeded',
-          ...(payment.paymentHash ? { paymentHash: payment.paymentHash } : {}),
-          ...(payment.feesPaidMsat !== undefined ? { feesPaidMsat: payment.feesPaidMsat } : {}),
-        }),
-      ),
-      data: true,
-    }));
-    return { success: true, data: payment };
+    payment = await nip47Client.payInvoice(connection, invoice, {
+      beforePublish: () => {
+        if (vaultLocks !== locksBefore) {
+          notSent = true;
+          throw new Error(LOCKED_BEFORE_PAYMENT);
+        }
+      },
+    });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    await mutateWalletVault((latestVaultData) => ({
-      vaultData: appendNip47PaymentHistory(
-        latestVaultData,
+    // A payment refused before it was sent is not a payment, and the vault is locked anyway.
+    if (!notSent) {
+      await recordPaymentHistory(
         buildPaymentHistoryEntry({
           connection,
           invoice,
           status: 'failed',
-          error: message,
+          error: error instanceof Error ? error.message : String(error),
         }),
-      ),
-      data: true,
-    }));
+      );
+    }
     throw error;
   }
+
+  await recordPaymentHistory(
+    buildPaymentHistoryEntry({
+      connection,
+      invoice,
+      status: 'succeeded',
+      ...(payment.paymentHash ? { paymentHash: payment.paymentHash } : {}),
+      ...(payment.feesPaidMsat !== undefined ? { feesPaidMsat: payment.feesPaidMsat } : {}),
+    }),
+  );
+  return { success: true, data: payment };
 }
 
 export async function handleNip47PaymentHistoryList(
