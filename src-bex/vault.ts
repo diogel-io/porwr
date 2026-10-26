@@ -293,17 +293,34 @@ async function startLocked(): Promise<void> {
   }
 }
 
+/**
+ * Create the vault and leave it unlocked.
+ *
+ * A lock requested while this runs wins, as it does for an unlock (porwr#385): the vault is still
+ * written, since the user did create it and it opens with their password, but it is left locked.
+ */
 export async function createNewVault(password: string, vaultData: unknown) {
+  // Taken before the first await, so a lock requested after this call began is seen.
+  const locksBefore = lockCount;
   // A restore still running at worker start-up finishes first (see `restoring`).
   await restoring;
   try {
     const { key, salt } = await deriveNewKey(password);
     const encryptedVault = await encryptWithKey(vaultData, key, salt);
 
-    // Only set the key, save the session, and update the DB if encryption succeeded
-    vaultKey = key;
-    vaultSalt = salt;
-    await saveKeyToSession();
+    // Encryption succeeded, so the vault is written; it is opened only if no lock came in meanwhile.
+    if (lockCount === locksBefore) {
+      vaultKey = key;
+      vaultSalt = salt;
+      await saveKeyToSession();
+
+      // Locked while the session was written: that lock's cleanup may have run before the write
+      // landed, which would leave a key a restarted worker restores without the password.
+      if (lockCount !== locksBefore) {
+        clearVaultKey();
+        await clearSession();
+      }
+    }
 
     await db.vaults.put({
       id: 'master',
