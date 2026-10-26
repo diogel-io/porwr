@@ -47,6 +47,7 @@ import {
   unlockVault,
   lockVault,
   onVaultLocked,
+  onVaultUnlocked,
   isVaultUnlocked,
   updateVaultData,
   getVaultData,
@@ -60,6 +61,7 @@ import {
   deriveKeyFromEncryptedVault,
 } from '@/services/crypto';
 import type { VaultData } from '@/types/bridge';
+import { db } from '@/services/database';
 
 // Mock chrome storage
 const chromeMock = {
@@ -397,6 +399,108 @@ describe('Vault', () => {
       expect(onLocked).toHaveBeenCalledTimes(1);
       expect((await unlockVault(TEST_PASSWORD)).success).toBe(false);
       expect((await unlockVault(BACKUP_PASSWORD)).vaultData).toEqual(BACKUP_DATA);
+    });
+  });
+
+  describe('unlocking against a lock (porwr#367)', () => {
+    const BACKUP_PASSWORD = 'backup-password';
+    const BACKUP_DATA: VaultData = { accounts: [] };
+
+    const deferred = () => {
+      let resolve: () => void = () => undefined;
+      const promise = new Promise<void>((done) => (resolve = done));
+      return { promise, resolve };
+    };
+
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      mockVaultsTable.clear();
+      await lockVault();
+      await createNewVault(TEST_PASSWORD, TEST_DATA);
+    });
+
+    it('lets a lock made during the unlock win', async () => {
+      await lockVault();
+      const unlocked = vi.fn();
+      const stopListening = onVaultUnlocked(unlocked);
+
+      const unlocking = unlockVault(TEST_PASSWORD);
+      await lockVault();
+
+      await expect(unlocking).resolves.toMatchObject({ success: false, error: 'Vault is locked' });
+      expect(isVaultUnlocked()).toBe(false);
+      expect(unlocked).not.toHaveBeenCalled();
+      stopListening();
+    });
+
+    it('ends locked when a backup is imported while the old vault unlocks, and the backup then opens', async () => {
+      await lockVault();
+      const { key, salt } = await deriveNewKey(BACKUP_PASSWORD);
+      const backup = await encryptWithKey(BACKUP_DATA, key, salt);
+
+      // The unlock reads the old vault, then waits until the import has replaced it and locked.
+      const imported = deferred();
+      // Dexie's overloaded `get` type does not fit the table mock, hence the cast.
+      vi.mocked(db.vaults.get).mockImplementationOnce((async (id: string) => {
+        const old = mockVaultsTable.get(id);
+        await imported.promise;
+        return old;
+      }) as never);
+
+      const unlocking = unlockVault(TEST_PASSWORD);
+      await expect(importVault(backup, BACKUP_PASSWORD)).resolves.toMatchObject({ success: true });
+      imported.resolve();
+
+      await expect(unlocking).resolves.toMatchObject({ success: false, error: 'Vault is locked' });
+      // Not open with the old key, which could not read the imported vault.
+      expect(isVaultUnlocked()).toBe(false);
+      await expect(unlockVault(BACKUP_PASSWORD)).resolves.toMatchObject({
+        success: true,
+        vaultData: BACKUP_DATA,
+      });
+    });
+
+    it('keeps an open vault open, and readable, after a wrong password', async () => {
+      await expect(unlockVault(`${TEST_PASSWORD}x`)).resolves.toMatchObject({
+        success: false,
+        error: 'Invalid password',
+      });
+
+      expect(isVaultUnlocked()).toBe(true);
+      await expect(getVaultData()).resolves.toMatchObject({ vaultData: TEST_DATA });
+    });
+
+    it('reports a storage failure as one, not as a wrong password, and keeps the vault open', async () => {
+      vi.mocked(db.vaults.get).mockRejectedValueOnce(new Error('IndexedDB internal error'));
+
+      await expect(unlockVault(TEST_PASSWORD)).resolves.toMatchObject({
+        success: false,
+        error: 'Failed to unlock the vault',
+      });
+      expect(isVaultUnlocked()).toBe(true);
+    });
+
+    it('does not swap the key when the right password is entered again, so a write in flight lands', async () => {
+      // The write's encryption is held until the second unlock has finished.
+      const real = crypto.subtle;
+      const encrypted = deferred();
+      const subtle = vi.spyOn(globalThis.crypto, 'subtle', 'get').mockReturnValue({
+        ...real,
+        encrypt: async (...args: Parameters<SubtleCrypto['encrypt']>) => {
+          await encrypted.promise;
+          return real.encrypt(...args);
+        },
+      } as SubtleCrypto);
+
+      try {
+        const writing = updateVaultData({ ...TEST_DATA, later: true });
+        await expect(unlockVault(TEST_PASSWORD)).resolves.toMatchObject({ success: true });
+        encrypted.resolve();
+
+        await expect(writing).resolves.toMatchObject({ success: true });
+      } finally {
+        subtle.mockRestore();
+      }
     });
   });
 });

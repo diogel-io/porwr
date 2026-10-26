@@ -25,6 +25,8 @@ const state = vi.hoisted(() => ({
   session: new Map<string, unknown>(),
   vaults: new Map<string, { id: string; encryptedData: string; createdAt: string }>(),
   vaultSession: new Map<string, { id: string; key: CryptoKey; salt: Uint8Array }>(),
+  /** Runs before a session row is written, for a test that needs something to happen meanwhile. */
+  beforeSessionPut: null as null | (() => Promise<unknown>),
 }));
 
 vi.mock('@/services/database', () => ({
@@ -38,9 +40,12 @@ vi.mock('@/services/database', () => ({
     },
     vaultSession: {
       get: (id: string) => Promise.resolve(state.vaultSession.get(id)),
-      put: (row: { id: string; key: CryptoKey; salt: Uint8Array }) => {
+      put: async (row: { id: string; key: CryptoKey; salt: Uint8Array }) => {
+        const before = state.beforeSessionPut;
+        state.beforeSessionPut = null;
+        await before?.();
         state.vaultSession.set(row.id, row);
-        return Promise.resolve(row.id);
+        return row.id;
       },
       delete: (id: string) => {
         state.vaultSession.delete(id);
@@ -81,6 +86,7 @@ beforeEach(() => {
   state.session.clear();
   state.vaults.clear();
   state.vaultSession.clear();
+  state.beforeSessionPut = null;
 });
 
 /** Any 32-byte value written as base64: what a raw AES-256 key looked like before #245. */
@@ -306,7 +312,7 @@ describe('keeping the vault unlocked (#245)', () => {
     await expect((await freshWorker()).restoreVaultState()).resolves.toBe(false);
   });
 
-  it('is cleared by importing a vault, and by a wrong password', async () => {
+  it('is cleared by importing a vault', async () => {
     const vault = await freshWorker();
     const { encryptedVault } = (await vault.createNewVault(PASSWORD, DATA)) as {
       encryptedVault: string;
@@ -315,10 +321,53 @@ describe('keeping the vault unlocked (#245)', () => {
     await vault.importVault(encryptedVault, PASSWORD);
     expect(state.vaultSession.size).toBe(0);
     expect(state.session.size).toBe(0);
+  });
 
-    await vault.unlockVault(PASSWORD);
+  it('survives a wrong password typed while the vault is open (porwr#367)', async () => {
+    const vault = await freshWorker();
+    await vault.createNewVault(PASSWORD, DATA);
     expect(state.vaultSession.size).toBe(1);
-    await vault.unlockVault('wrong password');
+
+    await expect(vault.unlockVault('wrong password')).resolves.toMatchObject({
+      success: false,
+      error: 'Invalid password',
+    });
+
+    // One bad attempt does not lock an open vault, or delete what keeps it open across restarts.
+    expect(vault.isVaultUnlocked()).toBe(true);
+    expect(state.vaultSession.size).toBe(1);
+    expect(state.session.size).toBe(1);
+  });
+
+  it('writes no session at all when the vault locks while the key is derived (porwr#367)', async () => {
+    const vault = await freshWorker();
+    await vault.createNewVault(PASSWORD, DATA);
+    await vault.lockVault();
+    let written = false;
+    state.beforeSessionPut = () => Promise.resolve((written = true));
+
+    const unlocking = vault.unlockVault(PASSWORD);
+    await vault.lockVault();
+
+    await expect(unlocking).resolves.toMatchObject({ success: false, error: 'Vault is locked' });
+    // The overtaken unlock never opened the vault, even for a moment.
+    expect(written).toBe(false);
+    expect(state.vaultSession.size).toBe(0);
+  });
+
+  it('leaves nothing behind when the vault locks while the unlock writes its session (porwr#367)', async () => {
+    const vault = await freshWorker();
+    await vault.createNewVault(PASSWORD, DATA);
+    await vault.lockVault();
+
+    // The lock lands between the unlock deciding to write the session and the write finishing.
+    state.beforeSessionPut = () => vault.lockVault();
+
+    await expect(vault.unlockVault(PASSWORD)).resolves.toMatchObject({
+      success: false,
+      error: 'Vault is locked',
+    });
+    expect(vault.isVaultUnlocked()).toBe(false);
     expect(state.vaultSession.size).toBe(0);
     expect(state.session.size).toBe(0);
   });
