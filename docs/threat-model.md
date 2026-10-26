@@ -55,7 +55,7 @@ overtakes: the vault ends locked with no key or session left behind. A failed un
 open vault and its session as they were. The rows for T15 and T18 describe the code after that
 change.
 
-diogel-io/porwr#385 made a lock win over a vault creation that it overtakes in the same way: the new
+diogel-io/porwr#387 (diogel-io/porwr#385) made a lock win over a vault creation that it overtakes in the same way: the new
 vault is still written, since the user created it and it opens with their password, but it is left
 locked with no key or session behind. The rows for T15 and T18 describe the code after that change.
 
