@@ -14,6 +14,7 @@ import {
   MAX_PAGE_PAYLOAD_LENGTH,
   MAX_PAYMENT_REQUEST_LENGTH,
   MAX_PLAINTEXT_LENGTH,
+  NO_INVOICE_MESSAGE,
   PAYLOAD_INVALID_MESSAGE,
   PAYLOAD_TOO_LARGE_MESSAGE,
 } from '@/../src-bex/services/request-limits';
@@ -341,7 +342,6 @@ describe('page payload ceilings (D18, #372)', () => {
     ['nostr.signEvent', { event: event({ content: '', tags: 'not tags' }) }],
     ['nostr.nip04.encrypt', { pubkey: PUBKEY, plaintext: ['x'] }],
     ['nostr.nip44.decrypt', { pubkey: PUBKEY }],
-    ['webln.sendPayment', { paymentRequest: { lnbc: 1 } }],
   ])('refuses a wrong-typed %s payload', async (action, payload) => {
     const { handlers, replies, send } = serve();
 
@@ -398,7 +398,7 @@ describe('page payload ceilings (D18, #372)', () => {
     },
   );
 
-  it.each(['nostr.signEvent', 'nostr.nip04.encrypt', 'nostr.nip44.decrypt', 'webln.sendPayment'])(
+  it.each(['nostr.signEvent', 'nostr.nip04.encrypt', 'nostr.nip44.decrypt'])(
     'refuses a %s request with no payload',
     async (action) => {
       const { handlers, replies, send } = serve();
@@ -410,6 +410,41 @@ describe('page payload ceilings (D18, #372)', () => {
       expect(replies).toEqual([{ id: '1', error: PAYLOAD_INVALID_MESSAGE }]);
     },
   );
+
+  // Plume calls `sendPayment(undefined)` when a recipient's LNURL server returns no invoice (#388).
+  it.each([
+    ['no payload', undefined],
+    ['an undefined invoice', { paymentRequest: undefined }],
+    ['a null invoice', { paymentRequest: null }],
+    ['an object for an invoice', { paymentRequest: { lnbc: 1 } }],
+    ['an empty invoice', { paymentRequest: '' }],
+    ['a blank invoice', { paymentRequest: ' \n\t ' }],
+  ])(
+    'tells a site that sends webln.sendPayment %s that no invoice was given',
+    async (_name, payload) => {
+      const { handlers, replies, send } = serve();
+
+      send({ id: '1', action: 'webln.sendPayment', ...(payload === undefined ? {} : { payload }) });
+      await settle();
+
+      expect(handlers['webln.sendPayment']).not.toHaveBeenCalled();
+      expect(replies).toEqual([{ id: '1', error: NO_INVOICE_MESSAGE }]);
+    },
+  );
+
+  it('still refuses an over-limit blank invoice as too large', async () => {
+    const { handlers, replies, send } = serve();
+
+    send({
+      id: '1',
+      action: 'webln.sendPayment',
+      payload: { paymentRequest: ' '.repeat(MAX_PAYMENT_REQUEST_LENGTH + 1) },
+    });
+    await settle();
+
+    expect(handlers['webln.sendPayment']).not.toHaveBeenCalled();
+    expect(replies).toEqual([{ id: '1', error: PAYLOAD_TOO_LARGE_MESSAGE }]);
+  });
 
   it('counts a key whose value is undefined, which JSON would leave out', async () => {
     const { handlers, replies, send } = serve();

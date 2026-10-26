@@ -17,6 +17,7 @@ import { handleNip47PayInvoice, LOCKED_BEFORE_PAYMENT } from './nip47';
 import { Nip47ResponseTimeoutError } from '../services/nip47-client';
 import { describeError, LogLevel, logService } from '@/services/log-service';
 import { readWalletVault } from '../services/wallet-vault';
+import { NO_INVOICE_MESSAGE } from '../services/request-limits';
 import {
   hasWebLnPermission,
   removeWebLnPermissionsForOrigin,
@@ -29,6 +30,7 @@ import {
 } from '../services/webln-session-grants';
 
 export const NO_WALLET_FOR_ACCOUNT = 'No wallet is configured for this account.';
+export const NOT_A_BOLT11_INVOICE = 'The invoice given is not a BOLT11 Lightning invoice.';
 export const WEBLN_PAYMENT_FAILED = 'The payment failed.';
 export const WEBLN_PAYMENT_UNCONFIRMED =
   'The wallet did not answer in time. The payment may still complete, so check your wallet before trying again.';
@@ -92,9 +94,8 @@ function assertPayInvoiceSupport(connection: {
 
 function normalizeInvoice(paymentRequest: string): string {
   const invoice = paymentRequest.trim();
-  if (!invoice || !/^ln(?:bc|tb|bcrt)[a-z0-9]+$/i.test(invoice)) {
-    throw new Error('WebLN sendPayment requires a BOLT11 invoice.');
-  }
+  if (!invoice) throw new Error(NO_INVOICE_MESSAGE);
+  if (!/^ln(?:bc|tb|bcrt)[a-z0-9]+$/i.test(invoice)) throw new Error(NOT_A_BOLT11_INVOICE);
   return invoice;
 }
 
