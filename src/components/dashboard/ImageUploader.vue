@@ -4,6 +4,7 @@ import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { uploadImageToBlossom } from '@/services/blossom-upload-service';
 import { storageService } from '@/services/storage-service';
+import { isBlossomUploadErrorCode } from '@/services/blossom-server';
 import type { AccountSummary } from '@/types/accounts';
 
 defineOptions({ name: 'ImageUploader' });
@@ -52,6 +53,16 @@ function isUploadStatus(value: unknown): value is StorageUploadStatus {
   const hasValidError = record.error === undefined || typeof record.error === 'string';
 
   return hasValidUploading && hasValidUrl && hasValidError;
+}
+
+/**
+ * The message for an upload status error. The status holds a code, never the server's text
+ * (porwr#370); anything else, such as text stored before that change, gets the general message.
+ */
+function uploadStatusMessage(error: string): string {
+  return isBlossomUploadErrorCode(error)
+    ? t(`profile.uploadErrors.${error}`)
+    : t('profile.uploadError');
 }
 
 const BLOSSOM_UPLOAD_STATUS = props.uploadId
@@ -179,7 +190,7 @@ const storageListener = (
           // (the direct call handles error notification for active uploads)
           $q.notify({
             type: 'negative',
-            message: status.error,
+            message: uploadStatusMessage(status.error),
           });
         }
         // Clear status after processing
@@ -210,7 +221,7 @@ onMounted(async () => {
     } else if (status.error) {
       $q.notify({
         type: 'negative',
-        message: status.error,
+        message: uploadStatusMessage(status.error),
       });
       void storageService.remove(BLOSSOM_UPLOAD_STATUS);
     }

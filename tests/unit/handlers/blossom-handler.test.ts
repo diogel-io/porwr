@@ -129,7 +129,7 @@ describe('BlossomHandler', () => {
       BLOSSOM_UPLOAD_STATUS,
       expect.objectContaining({
         uploading: false,
-        error: 'No active account found',
+        error: 'failed',
       }),
     );
   });
@@ -173,11 +173,60 @@ describe('BlossomHandler', () => {
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(storageService.set).toHaveBeenCalledWith(
       BLOSSOM_UPLOAD_STATUS,
-      expect.objectContaining({
-        uploading: false,
-        error: expect.stringContaining('HTTP Error 500'),
-      }),
+      expect.objectContaining({ uploading: false, error: 'failed' }),
     );
+  });
+
+  describe('the stored status names a failure, never repeats it (porwr#370)', () => {
+    const SERVER_TEXT = 'balance 4200 sats; contact admin@blossom.example.com';
+    const refuse = (status: number) =>
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status,
+        statusText: 'Refused',
+        text: () => Promise.resolve(SERVER_TEXT),
+      });
+    const storedStatus = () =>
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      vi.mocked(storageService.set).mock.calls.at(-1)?.[1] as { error: unknown };
+
+    it.each([
+      [413, 'too_large'],
+      [401, 'unauthorized'],
+      [403, 'unauthorized'],
+      [500, 'failed'],
+    ])('records an HTTP %i refusal as %s, without the server’s text', async (status, code) => {
+      refuse(status);
+
+      const result = await handleBlossomUpload(payload);
+
+      expect(result.success).toBe(false);
+      expect(storedStatus().error).toBe(code);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(JSON.stringify(vi.mocked(storageService.set).mock.calls)).not.toContain('admin@');
+    });
+
+    it('records a media URL that is not https as not_https', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ url: 'http://blossom.example.com/x.png' })),
+      });
+
+      await handleBlossomUpload(payload);
+
+      expect(storedStatus().error).toBe('not_https');
+    });
+
+    it('records a network failure as failed', async () => {
+      mockFetch.mockRejectedValue(new TypeError('connect ECONNREFUSED 10.0.0.7:443'));
+
+      await handleBlossomUpload(payload);
+
+      expect(storedStatus().error).toBe('failed');
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(JSON.stringify(vi.mocked(storageService.set).mock.calls)).not.toContain('10.0.0.7');
+    });
   });
 
   describe('BUD-11 authorisation (diogel-io/workspace#142, T21)', () => {

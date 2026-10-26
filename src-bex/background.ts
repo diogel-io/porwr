@@ -366,6 +366,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
+/**
+ * A WebLN failure rejects the site's promise rather than resolving it (porwr#370).
+ *
+ * The dispatcher answers Porwr's own pages with `{ success: false, error }` as a value. Returned to
+ * a site, that resolved `sendPayment()` for a payment that was never made. The error is already one
+ * of the fixed messages the WebLN handlers give, never a wallet's or relay's own text.
+ */
+function rejectWebLnFailure<T>(result: T): T {
+  if (
+    result !== null &&
+    typeof result === 'object' &&
+    'success' in result &&
+    (result as { success: unknown }).success === false
+  ) {
+    const error = (result as { error?: unknown }).error;
+    throw new BackgroundBridgeError(
+      'WEBLN_UNAVAILABLE',
+      typeof error === 'string' ? error : 'WebLN request failed',
+    );
+  }
+  return result;
+}
+
 // The actions a website may ask for. They arrive over the page channel, which hands each one the
 // requesting site as the browser reports it, from the content script's port, never from anything the
 // page or the content script wrote (#246).
@@ -583,7 +606,13 @@ const pageActionHandlers: PageActionHandlers = {
   },
 
   'webln.getInfo': async (_payload, origin) =>
-    dispatchMessage('webln.getInfo', createBridgeRequest('webln.getInfo', { origin }), origin),
+    rejectWebLnFailure(
+      await dispatchMessage(
+        'webln.getInfo',
+        createBridgeRequest('webln.getInfo', { origin }),
+        origin,
+      ),
+    ),
 
   'webln.sendPayment': async (payload, origin, page) => {
     const amountMsat = parseBolt11AmountMsat(payload.paymentRequest);
@@ -599,14 +628,16 @@ const pageActionHandlers: PageActionHandlers = {
     if (!approved) {
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the WebLN payment');
     }
-    return await dispatchMessage(
-      'webln.sendPayment',
-      createBridgeRequest('webln.sendPayment', {
+    return rejectWebLnFailure(
+      await dispatchMessage(
+        'webln.sendPayment',
+        createBridgeRequest('webln.sendPayment', {
+          origin,
+          paymentRequest: payload.paymentRequest,
+          approved: true,
+        }),
         origin,
-        paymentRequest: payload.paymentRequest,
-        approved: true,
-      }),
-      origin,
+      ),
     );
   },
 };

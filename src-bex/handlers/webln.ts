@@ -13,7 +13,9 @@ import { isVaultUnlocked } from '../vault';
 import { findActiveNip47Connection } from '../services/nip47-connection-store';
 import { resolveSigningAccount } from '../services/signing-account';
 import { mutateVault } from '../services/vault-mutation';
-import { handleNip47PayInvoice } from './nip47';
+import { handleNip47PayInvoice, LOCKED_BEFORE_PAYMENT } from './nip47';
+import { Nip47ResponseTimeoutError } from '../services/nip47-client';
+import { describeError, LogLevel, logService } from '@/services/log-service';
 import { readWalletVault } from '../services/wallet-vault';
 import {
   hasWebLnPermission,
@@ -27,6 +29,24 @@ import {
 } from '../services/webln-session-grants';
 
 export const NO_WALLET_FOR_ACCOUNT = 'No wallet is configured for this account.';
+export const WEBLN_PAYMENT_FAILED = 'The payment failed.';
+export const WEBLN_PAYMENT_UNCONFIRMED =
+  'The wallet did not answer in time. The payment may still complete, so check your wallet before trying again.';
+
+/**
+ * What a site is told when a payment does not complete (porwr#370).
+ *
+ * Never the failure's own text: a wallet's error can hint at its balance or state, and a relay
+ * failure can name the user's wallet relay. Only Porwr's own message for a payment refused before it
+ * was sent is passed on. A timeout is not a failure, since the wallet may still pay, and saying
+ * "failed" would invite the site to pay again.
+ */
+function paymentFailureForSite(error: unknown): string {
+  if (error instanceof Error && error.message === LOCKED_BEFORE_PAYMENT)
+    return LOCKED_BEFORE_PAYMENT;
+  if (error instanceof Nip47ResponseTimeoutError) return WEBLN_PAYMENT_UNCONFIRMED;
+  return WEBLN_PAYMENT_FAILED;
+}
 
 /**
  * The wallet a site's WebLN calls use: the active connection of the account the site is connected
@@ -171,13 +191,21 @@ export async function handleWebLnSendPayment(
     throw new Error('WebLN access has not been enabled for this site.');
   }
 
-  const result = await handleNip47PayInvoice({
-    accountPubkey: connection.accountPubkey,
-    connectionId: connection.id,
-    invoice,
-  });
+  let result: Awaited<ReturnType<typeof handleNip47PayInvoice>>;
+  try {
+    result = await handleNip47PayInvoice({
+      accountPubkey: connection.accountPubkey,
+      connectionId: connection.id,
+      invoice,
+    });
+  } catch (error: unknown) {
+    logService.log(LogLevel.WARN, '[WebLN] Payment did not complete', {
+      error: describeError(error),
+    });
+    throw new Error(paymentFailureForSite(error));
+  }
   if (!result.success) {
-    throw new Error(result.error);
+    throw new Error(WEBLN_PAYMENT_FAILED);
   }
   return { success: true, data: { preimage: result.data.preimage } };
 }

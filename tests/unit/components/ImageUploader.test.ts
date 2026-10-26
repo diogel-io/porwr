@@ -273,4 +273,54 @@ describe('ImageUploader.vue', () => {
       expect(storageMock.onChanged).not.toHaveBeenCalled();
     });
   });
+
+  describe('an upload error left in storage (porwr#370)', () => {
+    const stubs = {
+      qBtn: { template: '<button><slot /></button>' },
+      qTooltip: { template: '<span><slot /></span>' },
+    };
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const mountWithStored = async (error: string) => {
+      storageMock.get.mockResolvedValueOnce({ uploading: false, error });
+      mount(ImageUploader, { props: { storedKey: mockStoredKey }, global: { stubs } });
+      await settle();
+    };
+
+    it.each(['too_large', 'unauthorized', 'not_https', 'failed'])(
+      'shows Porwr’s message for %s',
+      async (code) => {
+        await mountWithStored(code);
+
+        expect(mockNotify).toHaveBeenCalledWith(
+          expect.objectContaining({ type: 'negative', message: `profile.uploadErrors.${code}` }),
+        );
+      },
+    );
+
+    it('never shows text it does not recognise, such as a server’s words stored before codes', async () => {
+      await mountWithStored('HTTP Error 500: Internal. balance 4200 sats');
+
+      expect(mockNotify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'negative', message: 'Upload failed' }),
+      );
+    });
+
+    it('maps a code that arrives while the page is open', async () => {
+      mount(ImageUploader, { props: { storedKey: mockStoredKey }, global: { stubs } });
+      await settle();
+      const listener = storageMock.onChanged.mock.calls.at(-1)?.[0] as (
+        changes: Record<string, { newValue: unknown }>,
+        area: string,
+      ) => void;
+
+      listener(
+        { 'blossom:upload_status': { newValue: { uploading: false, error: 'too_large' } } },
+        'local',
+      );
+
+      expect(mockNotify).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'profile.uploadErrors.too_large' }),
+      );
+    });
+  });
 });

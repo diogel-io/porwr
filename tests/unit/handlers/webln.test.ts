@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Nip47ResponseTimeoutError } from '@/../src-bex/services/nip47-client';
+import { LOCKED_BEFORE_PAYMENT } from '@/../src-bex/handlers/nip47';
 import {
+  WEBLN_PAYMENT_FAILED,
+  WEBLN_PAYMENT_UNCONFIRMED,
   handleWebLnEnable,
   handleWebLnGetInfo,
   handleWebLnSendPayment,
@@ -43,6 +47,7 @@ function siteConnectedAs(pubkey: string): void {
 
 vi.mock('@/../src-bex/handlers/nip47', () => ({
   handleNip47PayInvoice: vi.fn(),
+  LOCKED_BEFORE_PAYMENT: 'The vault locked before the payment was sent. Unlock and try again.',
 }));
 
 function buildConnection(overrides: Partial<Nip47Connection> = {}): Nip47Connection {
@@ -393,6 +398,63 @@ describe('WebLN handlers', () => {
       mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
       await expect(handleWebLnGetInfo({ origin: ORIGIN })).rejects.toThrow('has not been enabled');
+    });
+  });
+
+  describe('what a site is told when a payment does not complete (porwr#370)', () => {
+    const ORIGIN = 'https://jumble.social';
+    const pay = () =>
+      handleWebLnSendPayment({ origin: ORIGIN, paymentRequest: 'lnbc1u1pjqxyz', approved: true });
+
+    beforeEach(() => {
+      mockVault({
+        accounts: ACCOUNTS,
+        nip47Connections: [buildConnection()],
+        webLnPermissions: [
+          {
+            origin: ORIGIN,
+            connectionId: 'wallet-a',
+            methods: ['enable', 'getInfo'],
+            createdAt: '2026-06-23T00:00:00.000Z',
+          },
+        ],
+      });
+    });
+
+    it.each([
+      ['a wallet error', 'INSUFFICIENT_BALANCE: balance is 4200 sats'],
+      [
+        'a relay failure naming the wallet relay',
+        'Failed to publish NIP-47 request to any relay: wss://relay.private-wallet.example',
+      ],
+      ['a missing preimage', 'NIP-47 pay_invoice response did not include a preimage'],
+    ])('says only that the payment failed for %s', async (_name, text) => {
+      vi.mocked(handleNip47PayInvoice).mockRejectedValue(new Error(text));
+
+      const failure = (await pay().catch((error: unknown) => error)) as Error;
+
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure.message).toBe(WEBLN_PAYMENT_FAILED);
+      expect(failure.message).not.toContain(text);
+    });
+
+    it('says the payment may still complete when the wallet did not answer in time', async () => {
+      vi.mocked(handleNip47PayInvoice).mockRejectedValue(new Nip47ResponseTimeoutError());
+
+      await expect(pay()).rejects.toThrow(WEBLN_PAYMENT_UNCONFIRMED);
+    });
+
+    it('passes on Porwr’s own message for a payment refused before it was sent', async () => {
+      vi.mocked(handleNip47PayInvoice).mockRejectedValue(new Error(LOCKED_BEFORE_PAYMENT));
+
+      await expect(pay()).rejects.toThrow(LOCKED_BEFORE_PAYMENT);
+    });
+
+    it('keeps Porwr’s own messages from before the payment', async () => {
+      mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
+
+      await expect(pay()).rejects.toThrow('has not been enabled');
+      expect(handleNip47PayInvoice).not.toHaveBeenCalled();
     });
   });
 });

@@ -119,6 +119,17 @@ function parseRpcResponse(content: string): Nip47RpcResponse {
   };
 }
 
+/**
+ * The wallet did not answer in time. Unlike other failures, the request may still have been acted
+ * on: a payment can complete after Porwr stopped waiting, so callers must not report it as failed.
+ */
+export class Nip47ResponseTimeoutError extends Error {
+  constructor() {
+    super('Timed out waiting for NIP-47 wallet response');
+    this.name = 'Nip47ResponseTimeoutError';
+  }
+}
+
 export interface Nip47SendOptions {
   /**
    * Called immediately before the request is published. Throwing stops it: nothing is sent and the
@@ -307,7 +318,7 @@ export class Nip47Client {
     const promise = new Promise<Nip47RpcResponse>((resolve, reject) => {
       timeout = setTimeout(() => {
         closer.close('nip47 response timeout');
-        reject(new Error('Timed out waiting for NIP-47 wallet response'));
+        reject(new Nip47ResponseTimeoutError());
       }, 15000);
 
       closer = this.pool.subscribe(
