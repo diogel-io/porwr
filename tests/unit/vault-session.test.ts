@@ -404,4 +404,58 @@ describe('keeping the vault unlocked (#245)', () => {
     expect(state.vaultSession.size).toBe(0);
     expect(state.session.size).toBe(0);
   });
+
+  it('writes no session when the vault locks while a new vault is encrypted (porwr#385)', async () => {
+    const vault = await freshWorker();
+    let written = false;
+    state.beforeSessionPut = () => Promise.resolve((written = true));
+
+    const creating = vault.createNewVault(PASSWORD, DATA);
+    await vault.lockVault();
+
+    await expect(creating).resolves.toMatchObject({ success: true });
+    expect(written).toBe(false);
+    expect(vault.isVaultUnlocked()).toBe(false);
+    expect(state.vaults.has('master')).toBe(true);
+    expect(state.vaultSession.size).toBe(0);
+    expect(state.session.size).toBe(0);
+  });
+
+  it('leaves nothing behind when the vault locks while a new vault writes its session (porwr#385)', async () => {
+    const vault = await freshWorker();
+
+    // The lock lands between the create deciding to write the session and the write finishing.
+    state.beforeSessionPut = () => vault.lockVault();
+
+    await expect(vault.createNewVault(PASSWORD, DATA)).resolves.toMatchObject({ success: true });
+    expect(vault.isVaultUnlocked()).toBe(false);
+    expect(state.vaults.has('master')).toBe(true);
+    expect(state.vaultSession.size).toBe(0);
+    expect(state.session.size).toBe(0);
+    // A restarted worker finds nothing to restore, so the vault stays locked.
+    const restarted = await freshWorker();
+    await restarted.restoreVaultState();
+    expect(restarted.isVaultUnlocked()).toBe(false);
+  });
+
+  it('keeps the lock when a create was queued behind a restore it overtook (porwr#385)', async () => {
+    const before = await freshWorker();
+    await before.createNewVault(PASSWORD, DATA);
+
+    // The restore is held at its auto-lock check, so the create below waits on it.
+    let release: () => void = () => undefined;
+    const held = new Promise<boolean>((resolve) => (release = () => resolve(false)));
+    const vault = await freshWorker();
+    const restoring = vault.restoreVaultState(() => held);
+
+    const creating = vault.createNewVault(PASSWORD, DATA);
+    await vault.lockVault();
+    release();
+
+    await expect(restoring).resolves.toBe(false);
+    // The lock was requested after this create began, so the lock stands.
+    await expect(creating).resolves.toMatchObject({ success: true });
+    expect(vault.isVaultUnlocked()).toBe(false);
+    expect(state.vaultSession.size).toBe(0);
+  });
 });

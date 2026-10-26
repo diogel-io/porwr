@@ -503,4 +503,33 @@ describe('Vault', () => {
       }
     });
   });
+
+  describe('creating against a lock (porwr#385)', () => {
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      mockVaultsTable.clear();
+      await lockVault();
+    });
+
+    it('lets a lock made during the create win, but still writes the vault', async () => {
+      const creating = createNewVault(TEST_PASSWORD, TEST_DATA);
+      await lockVault();
+
+      await expect(creating).resolves.toMatchObject({ success: true });
+      expect(isVaultUnlocked()).toBe(false);
+      // The user did create it: it is there, and opens with their password.
+      expect(mockVaultsTable.has('master')).toBe(true);
+      await expect(unlockVault(TEST_PASSWORD)).resolves.toMatchObject({
+        success: true,
+        vaultData: TEST_DATA,
+      });
+    });
+
+    it('leaves the vault open when no lock came in', async () => {
+      await expect(createNewVault(TEST_PASSWORD, TEST_DATA)).resolves.toMatchObject({
+        success: true,
+      });
+      expect(isVaultUnlocked()).toBe(true);
+    });
+  });
 });
