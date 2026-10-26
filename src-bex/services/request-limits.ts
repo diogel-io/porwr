@@ -39,6 +39,13 @@ export const PAYLOAD_TOO_LARGE_MESSAGE = 'Request is too large for Porwr to revi
 
 export const PAYLOAD_INVALID_MESSAGE = 'Request is malformed.';
 
+/**
+ * The message a site gets for `webln.sendPayment` with no invoice, such as `sendPayment(undefined)`
+ * from a site whose LNURL server returned none (#388). It names the missing invoice, so the site's
+ * user is not led to think Porwr is at fault.
+ */
+export const NO_INVOICE_MESSAGE = 'No Lightning invoice was given.';
+
 /** Thrown by the queue when a request would exceed a cap. The page sees only the message. */
 export class RequestQueueFullError extends Error {
   readonly scope: 'origin' | 'global';
@@ -70,6 +77,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const checkString = (value: unknown, max: number): string | null => {
   if (typeof value !== 'string') return PAYLOAD_INVALID_MESSAGE;
   return value.length > max ? PAYLOAD_TOO_LARGE_MESSAGE : null;
+};
+
+/** A payment request: a non-blank string, within its ceiling. */
+const checkPaymentRequest = (value: unknown): string | null => {
+  if (typeof value !== 'string') return NO_INVOICE_MESSAGE;
+  if (value.length > MAX_PAYMENT_REQUEST_LENGTH) return PAYLOAD_TOO_LARGE_MESSAGE;
+  return /\S/.test(value) ? null : NO_INVOICE_MESSAGE;
 };
 
 const refuseOpaqueValues = (_key: string, value: unknown): unknown => {
@@ -123,7 +137,7 @@ const fieldChecks: Partial<
   'nostr.nip44.encrypt': (payload) => checkString(payload.plaintext, MAX_PLAINTEXT_LENGTH),
   'nostr.nip04.decrypt': (payload) => checkString(payload.ciphertext, MAX_CIPHERTEXT_LENGTH),
   'nostr.nip44.decrypt': (payload) => checkString(payload.ciphertext, MAX_CIPHERTEXT_LENGTH),
-  'webln.sendPayment': (payload) => checkString(payload.paymentRequest, MAX_PAYMENT_REQUEST_LENGTH),
+  'webln.sendPayment': (payload) => checkPaymentRequest(payload.paymentRequest),
 };
 
 /**

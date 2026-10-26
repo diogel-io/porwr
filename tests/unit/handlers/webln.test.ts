@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Nip47ResponseTimeoutError } from '@/../src-bex/services/nip47-client';
 import { LOCKED_BEFORE_PAYMENT } from '@/../src-bex/handlers/nip47';
 import {
+  NOT_A_BOLT11_INVOICE,
   WEBLN_PAYMENT_FAILED,
   WEBLN_PAYMENT_UNCONFIRMED,
   handleWebLnEnable,
   handleWebLnGetInfo,
   handleWebLnSendPayment,
 } from '@/../src-bex/handlers/webln';
+import { NO_INVOICE_MESSAGE } from '@/../src-bex/services/request-limits';
 import { getVaultData, isVaultUnlocked, updateVaultData } from '@/../src-bex/vault';
 import { handleNip47PayInvoice } from '@/../src-bex/handlers/nip47';
 import { resolveSigningAccount } from '@/../src-bex/services/signing-account';
@@ -151,6 +153,23 @@ describe('WebLN handlers', () => {
       invoice: 'lnbc1u1pjqxyz',
     });
   });
+
+  it.each(['', '   '])('tells the site no invoice was given for %j', async (paymentRequest) => {
+    await expect(
+      handleWebLnSendPayment({ origin: 'https://jumble.social', paymentRequest, approved: true }),
+    ).rejects.toThrow(NO_INVOICE_MESSAGE);
+    expect(handleNip47PayInvoice).not.toHaveBeenCalled();
+  });
+
+  it.each(['lnurl1dp68gurn8ghj7', 'not an invoice', 'lnbc1u1 pjqxyz'])(
+    'tells the site %j is not a BOLT11 invoice',
+    async (paymentRequest) => {
+      await expect(
+        handleWebLnSendPayment({ origin: 'https://jumble.social', paymentRequest, approved: true }),
+      ).rejects.toThrow(NOT_A_BOLT11_INVOICE);
+      expect(handleNip47PayInvoice).not.toHaveBeenCalled();
+    },
+  );
 
   it('rejects sendPayment when WebLN has not been enabled for the origin', async () => {
     mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
