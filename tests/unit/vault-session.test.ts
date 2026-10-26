@@ -349,9 +349,27 @@ describe('keeping the vault unlocked (#245)', () => {
 
     await expect(restoring).resolves.toBe(false);
     expect(vault.isVaultUnlocked()).toBe(false);
-    // An unlock that was waiting on the restore, and then fails, does not leave it open either.
-    await expect(vault.unlockVault('wrong password')).resolves.toMatchObject({ success: false });
+  });
+
+  it('keeps the lock when an unlock was queued behind a restore it overtook (porwr#367)', async () => {
+    const before = await freshWorker();
+    await before.createNewVault(PASSWORD, DATA);
+
+    // The restore is held at its auto-lock check, so the unlock below waits on it.
+    let release: () => void = () => undefined;
+    const held = new Promise<boolean>((resolve) => (release = () => resolve(false)));
+    const vault = await freshWorker();
+    const restoring = vault.restoreVaultState(() => held);
+
+    const unlocking = vault.unlockVault(PASSWORD);
+    await vault.lockVault();
+    release();
+
+    await expect(restoring).resolves.toBe(false);
+    // The right password, but the lock was requested after this unlock began, so the lock stands.
+    await expect(unlocking).resolves.toMatchObject({ success: false, error: 'Vault is locked' });
     expect(vault.isVaultUnlocked()).toBe(false);
+    expect(state.vaultSession.size).toBe(0);
   });
 
   it('writes no session at all when the vault locks while the key is derived (porwr#367)', async () => {
