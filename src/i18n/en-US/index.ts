@@ -71,6 +71,10 @@ export default {
     title: 'Key Management',
     vaultBackup: {
       title: 'Vault Backup & Restore',
+      backup: 'Backup',
+      backupCaption: 'Create an encrypted backup of your vault',
+      restore: 'Restore',
+      restoreCaption: 'Restore a vault from an encrypted backup',
     },
     vaultExport: {
       title: 'Export Vault',
@@ -649,9 +653,6 @@ export default {
     quickPublishClientTag: 'Tag Quick Publish notes as from Porwr',
     quickPublishClientTagCaption:
       'Adds a NIP-89 client tag so other Nostr clients can show which app published the note. Turn off to leave no trace of the client.',
-    exportVault: 'Export Vault',
-    exportVaultCaption: 'Save an encrypted backup of your entire vault.',
-    importVault: 'Import Vault',
     autoLockVault: 'Auto-lock Vault',
     requestExpiry: 'Approval Request Expiry',
     requestExpiryCaption:
@@ -660,12 +661,10 @@ export default {
       minutes: '{count} minute | {count} minutes',
     },
     autoLockVaultCaption: ' Automatically lock the vault after inactivity. Set to Off to disable.',
-    importVaultCaption: 'Restore your vault from a previously exported backup file.',
     title: 'Extension Settings',
     dashboardCaption:
       'Configure extension preferences and vault locking. Vault backup and restore are on the Keys page.',
     export: 'Export',
-    import: 'Import',
     autoLockOptions: {
       off: 'Off',
       minutes: '{count} minute | {count} minutes',

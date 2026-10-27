@@ -158,11 +158,11 @@ describe('ExtensionSettings: relays', () => {
 });
 
 describe('ExtensionSettings: vault backup', () => {
-  it('no longer shows vault export or import, which moved to the Keys page (#297)', async () => {
+  it('no longer shows vault backup or restore, which moved to the Keys page (#297)', async () => {
     const wrapper = await mountPage();
 
-    expect(wrapper.text()).not.toContain('settings.exportVault');
-    expect(wrapper.text()).not.toContain('settings.importVault');
+    expect(wrapper.text()).not.toContain('keyManagement.vaultBackup.backup');
+    expect(wrapper.text()).not.toContain('keyManagement.vaultBackup.restore');
     expect(wrapper.find('input[type="file"]').exists()).toBe(false);
   });
 });

@@ -26,32 +26,42 @@ describe('VaultBackupCard (#297)', () => {
     expect(mountCard().find('h2').text()).toBe('keyManagement.vaultBackup.title');
   });
 
-  it('puts Import first, on the left, and Export second, on the right', () => {
+  it('puts Backup first, on the left, and Restore second, on the right (#390)', () => {
     const wrapper = mountCard();
     const columns = wrapper.findAll('[data-testid^="vault-backup-"]');
 
     expect(columns.map((column) => column.attributes('data-testid'))).toEqual([
-      'vault-backup-import',
-      'vault-backup-export',
+      'vault-backup-backup',
+      'vault-backup-restore',
     ]);
-    expect(columns[0]!.text()).toContain('settings.importVault');
-    expect(columns[0]!.text()).toContain('settings.importVaultCaption');
-    expect(columns[1]!.text()).toContain('settings.exportVault');
-    expect(columns[1]!.text()).toContain('settings.exportVaultCaption');
-    expect(columns[1]!.classes()).toContain('vault-backup-card__export');
+    expect(columns[0]!.text()).toContain('keyManagement.vaultBackup.backup');
+    expect(columns[0]!.text()).toContain('keyManagement.vaultBackup.backupCaption');
+    expect(columns[1]!.text()).toContain('keyManagement.vaultBackup.restore');
+    expect(columns[1]!.text()).toContain('keyManagement.vaultBackup.restoreCaption');
+    expect(columns[1]!.classes()).toContain('vault-backup-card__restore');
   });
 
-  it('sends Import to the Import vault page rather than opening a file picker (#313)', () => {
+  it('labels the buttons Backup and Restore, with no Import or Export wording (#390)', () => {
     const wrapper = mountCard();
 
-    const importButton = wrapper.get('[data-label="settings.import"]');
-    expect(JSON.parse(importButton.attributes('data-to')!)).toEqual({ name: 'import-vault' });
-    expect(wrapper.find('input[type="file"]').exists()).toBe(false);
+    expect(wrapper.findAll('button').map((button) => button.attributes('data-label'))).toEqual([
+      'keyManagement.vaultBackup.backup',
+      'keyManagement.vaultBackup.restore',
+    ]);
+    expect(wrapper.text()).not.toMatch(/settings\.(import|export)/);
   });
 
-  it('sends Export to the Export vault page rather than downloading straight away (#314)', () => {
-    const exportButton = mountCard().get('[data-label="settings.export"]');
+  it('sends Backup to the vault backup page rather than downloading straight away (#314)', () => {
+    const backupButton = mountCard().get('[data-label="keyManagement.vaultBackup.backup"]');
 
-    expect(JSON.parse(exportButton.attributes('data-to')!)).toEqual({ name: 'export-vault' });
+    expect(JSON.parse(backupButton.attributes('data-to')!)).toEqual({ name: 'export-vault' });
+  });
+
+  it('sends Restore to the vault restore page rather than opening a file picker (#313)', () => {
+    const wrapper = mountCard();
+
+    const restoreButton = wrapper.get('[data-label="keyManagement.vaultBackup.restore"]');
+    expect(JSON.parse(restoreButton.attributes('data-to')!)).toEqual({ name: 'import-vault' });
+    expect(wrapper.find('input[type="file"]').exists()).toBe(false);
   });
 });

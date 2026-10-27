@@ -41,13 +41,13 @@ const backupFile = (encryptedData: string) => ({
   buffer: Buffer.from(JSON.stringify({ version: 1, encryptedData, exportedAt: '2026-10-17' })),
 });
 
-/** From the Keys page to the Import vault page, the way the user gets there. */
+/** From the Keys page to the vault restore page, the way the user gets there. */
 async function openImportPage(page: Page): Promise<void> {
   await goTo(page, '/keys');
   await page
-    .getByTestId('vault-backup-import')
-    .getByRole('link', { name: 'Import' })
-    .or(page.getByTestId('vault-backup-import').getByRole('button', { name: 'Import' }))
+    .getByTestId('vault-backup-restore')
+    .getByRole('link', { name: 'Restore' })
+    .or(page.getByTestId('vault-backup-restore').getByRole('button', { name: 'Restore' }))
     .first()
     .click();
   await expect(page.locator('.import-vault-page')).toBeVisible();
