@@ -50,7 +50,7 @@ const { t } = useI18n();
             icon="upload"
             no-caps
             :label="t('keyManagement.vaultBackup.restore')"
-            :to="{ name: 'import-vault' }"
+            :to="{ name: 'restore-vault' }"
           />
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/** The Import vault page explains the import and only replaces the vault with a proven password (#313). */
+/** The Vault Restore page explains the restore and only replaces the vault with a proven password (#313, #392). */
 
 const testState = vi.hoisted(() => ({
   notify: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock('@/composables/useVaultManagement', () => ({
   }),
 }));
 
-import ImportVaultPage from '@/pages/dashboard/ImportVaultPage.vue';
+import RestoreVaultPage from '@/pages/dashboard/RestoreVaultPage.vue';
 
 // Renders the banner's `action` slot too, so a button put there would show up in these tests.
 const slotStub = (tag = 'div') => ({ template: `<${tag}><slot /><slot name="action" /></${tag}>` });
@@ -34,7 +34,7 @@ const QFileStub = {
 };
 
 const mountPage = () =>
-  mount(ImportVaultPage, {
+  mount(RestoreVaultPage, {
     global: {
       stubs: {
         'q-page': slotStub(),
@@ -42,6 +42,11 @@ const mountPage = () =>
         'q-card-section': slotStub(),
         'q-banner': slotStub(),
         'q-icon': true,
+        // Stands in for vue-i18n's global <i18n-t>: shows the keypath and renders the link slot.
+        'i18n-t': {
+          props: ['keypath', 'tag'],
+          template: '<li :data-keypath="keypath">{{ keypath }} <slot name="link" /></li>',
+        },
         'dashboard-breadcrumbs': {
           props: ['items'],
           template: '<nav class="crumbs-stub" :data-items="JSON.stringify(items)" />',
@@ -72,9 +77,9 @@ const fillIn = async (wrapper: ReturnType<typeof mountPage>, password = 'pw') =>
 };
 
 const confirmButton = (wrapper: ReturnType<typeof mountPage>) =>
-  wrapper.get('[data-testid="vault-import-confirm"]');
+  wrapper.get('[data-testid="vault-restore-confirm"]');
 
-describe('ImportVaultPage (#313)', () => {
+describe('RestoreVaultPage (#313, #392)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -84,25 +89,63 @@ describe('ImportVaultPage (#313)', () => {
 
     expect(JSON.parse(crumb.attributes('data-items')!)).toEqual([
       { label: 'navigation.keys.label', to: { name: 'keys' } },
-      { label: 'keyManagement.vaultImport.title' },
+      { label: 'keyManagement.vaultRestore.title' },
     ]);
   });
 
-  it('says what importing does before anything happens', () => {
-    const warning = mountPage().get('[data-testid="vault-import-warning"]').text();
+  it('is headed Important and lists the five points in order', () => {
+    const warning = mountPage().get('[data-testid="vault-restore-warning"]');
 
-    for (const point of ['replaces', 'erases', 'password', 'exportFirst']) {
-      expect(warning).toContain(`keyManagement.vaultImport.${point}`);
-    }
+    expect(warning.text()).toContain('keyManagement.vaultRestore.warningTitle');
+    expect(warning.findAll('li').map((item) => item.text())).toEqual([
+      'keyManagement.vaultRestore.replaces',
+      'keyManagement.vaultRestore.erases',
+      'keyManagement.vaultRestore.password',
+      'keyManagement.vaultRestore.backupFirst',
+      'keyManagement.vaultRestore.docs keyManagement.vaultRestore.docsLink',
+    ]);
   });
 
-  it('advises exporting first without offering an export action of its own (#317)', () => {
-    const wrapper = mountPage();
-    const warning = wrapper.get('[data-testid="vault-import-warning"]');
+  it('links "the documentation" to the Porwr docs in a new tab', () => {
+    const link = mountPage().get('[data-testid="vault-restore-docs"]');
 
-    expect(warning.text()).toContain('keyManagement.vaultImport.exportFirst');
-    expect(warning.findAll('button, a')).toHaveLength(0);
+    expect(link.text()).toBe('keyManagement.vaultRestore.docsLink');
+    expect(link.attributes('href')).toBe('https://diogel.io/docs/porwr');
+    expect(link.attributes('target')).toBe('_blank');
+    expect(link.attributes('rel')).toBe('noopener noreferrer');
+  });
+
+  it('advises backing up first without offering a backup action of its own (#317)', () => {
+    const wrapper = mountPage();
+    const warning = wrapper.get('[data-testid="vault-restore-warning"]');
+
+    expect(warning.text()).toContain('keyManagement.vaultRestore.backupFirst');
+    expect(warning.findAll('button')).toHaveLength(0);
+    // The documentation is the note's only link.
+    expect(warning.findAll('a').map((link) => link.attributes('href'))).toEqual([
+      'https://diogel.io/docs/porwr',
+    ]);
     expect(wrapper.find('[data-to*="export-vault"]').exists()).toBe(false);
+    expect(wrapper.find('[data-to*="backup-vault"]').exists()).toBe(false);
+  });
+
+  it('labels the confirm button Restore, and says it is checking while a restore runs', async () => {
+    let finish: (value: { success: false; reason: 'wrongPassword' }) => void = () => {};
+    testState.importVaultFromFile.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const wrapper = mountPage();
+    expect(confirmButton(wrapper).text()).toBe('keyManagement.vaultRestore.confirm');
+
+    await fillIn(wrapper);
+    await confirmButton(wrapper).trigger('click');
+    expect(confirmButton(wrapper).text()).toBe('keyManagement.vaultRestore.checking');
+
+    finish({ success: false, reason: 'wrongPassword' });
+    await flushPromises();
+    expect(confirmButton(wrapper).text()).toBe('keyManagement.vaultRestore.confirm');
   });
 
   it('cannot start until a backup file is chosen and a password entered', async () => {
@@ -126,9 +169,9 @@ describe('ImportVaultPage (#313)', () => {
     await flushPromises();
 
     expect(testState.importVaultFromFile).toHaveBeenCalledWith(backup, 'wrong');
-    const error = wrapper.get('[data-testid="vault-import-error"]').text();
-    expect(error).toContain('keyManagement.vaultImport.errors.wrongPassword');
-    expect(error).toContain('keyManagement.vaultImport.unchanged');
+    const error = wrapper.get('[data-testid="vault-restore-error"]').text();
+    expect(error).toContain('keyManagement.vaultRestore.errors.wrongPassword');
+    expect(error).toContain('keyManagement.vaultRestore.unchanged');
     expect((wrapper.get('.password-stub').element as HTMLInputElement).value).toBe('');
     expect(testState.push).not.toHaveBeenCalled();
     expect(testState.notify).not.toHaveBeenCalled();
@@ -142,8 +185,8 @@ describe('ImportVaultPage (#313)', () => {
     await confirmButton(wrapper).trigger('click');
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="vault-import-error"]').text()).toContain(
-      'keyManagement.vaultImport.errors.invalidFile',
+    expect(wrapper.get('[data-testid="vault-restore-error"]').text()).toContain(
+      'keyManagement.vaultRestore.errors.invalidFile',
     );
     expect(testState.push).not.toHaveBeenCalled();
   });
@@ -157,7 +200,7 @@ describe('ImportVaultPage (#313)', () => {
     await flushPromises();
 
     expect(testState.notify).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'positive', message: 'keyManagement.vaultImport.success' }),
+      expect.objectContaining({ type: 'positive', message: 'keyManagement.vaultRestore.success' }),
     );
     expect(testState.push).toHaveBeenCalledWith({ name: 'login' });
   });

@@ -61,7 +61,7 @@ describe('VaultBackupCard (#297)', () => {
     const wrapper = mountCard();
 
     const restoreButton = wrapper.get('[data-label="keyManagement.vaultBackup.restore"]');
-    expect(JSON.parse(restoreButton.attributes('data-to')!)).toEqual({ name: 'import-vault' });
+    expect(JSON.parse(restoreButton.attributes('data-to')!)).toEqual({ name: 'restore-vault' });
     expect(wrapper.find('input[type="file"]').exists()).toBe(false);
   });
 });

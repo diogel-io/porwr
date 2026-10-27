@@ -4,9 +4,9 @@ import { expect, test } from './fixtures/extension';
 import { createVault, lockVault, seedAccount, unlockVault, VAULT_PASSWORD } from './fixtures/vault';
 
 /**
- * Importing a vault explains itself and proves the backup's password before it writes (#313).
+ * Restoring a vault explains itself and proves the backup's password before it writes (#313, #392).
  *
- * Before this, Import opened a file picker and a single confirm, then wrote the backup over the
+ * Before #313, Import opened a file picker and a single confirm, then wrote the backup over the
  * vault without ever trying its password. These drive the real page and check the stored vault in
  * the background, which is the only place that shows whether anything was overwritten.
  */
@@ -34,7 +34,7 @@ async function goTo(page: Page, hash: string): Promise<void> {
   await page.reload();
 }
 
-/** A backup file, in the shape Export writes. */
+/** A backup file, in the shape Backup writes. */
 const backupFile = (encryptedData: string) => ({
   name: 'diogel-vault-backup.json',
   mimeType: 'application/json',
@@ -42,7 +42,7 @@ const backupFile = (encryptedData: string) => ({
 });
 
 /** From the Keys page to the vault restore page, the way the user gets there. */
-async function openImportPage(page: Page): Promise<void> {
+async function openRestorePage(page: Page): Promise<void> {
   await goTo(page, '/keys');
   await page
     .getByTestId('vault-backup-restore')
@@ -50,44 +50,49 @@ async function openImportPage(page: Page): Promise<void> {
     .or(page.getByTestId('vault-backup-restore').getByRole('button', { name: 'Restore' }))
     .first()
     .click();
-  await expect(page.locator('.import-vault-page')).toBeVisible();
+  await expect(page.locator('.restore-vault-page')).toBeVisible();
+  await expect(page).toHaveURL(/#\/keys\/vault\/restore$/);
 }
 
-async function importBackup(page: Page, encryptedData: string, password: string): Promise<void> {
+async function restoreBackup(page: Page, encryptedData: string, password: string): Promise<void> {
   await page
-    .locator('.import-vault-page input[type="file"]')
+    .locator('.restore-vault-page input[type="file"]')
     .setInputFiles(backupFile(encryptedData));
   await page.getByLabel("Backup's password", { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Replace my vault' }).click();
+  await page.getByRole('button', { name: 'Restore', exact: true }).click();
 }
 
-test.describe('Import vault (#313)', () => {
-  test('explains the import, refuses a wrong password, and only then replaces the vault', async ({
+test.describe('Vault Restore (#313, #392)', () => {
+  test('explains the restore, refuses a wrong password, and only then replaces the vault', async ({
     openPage,
     background,
   }) => {
     const page = await openPage('/login');
     await createVault(page);
-    // The backup is the empty vault; the account added next is what the import must replace.
+    // The backup is the empty vault; the account added next is what the restore must replace.
     const backup = await storedVault(background);
     await seedAccount(page);
     const current = await storedVault(background);
     expect(current).not.toBe(backup);
 
-    await openImportPage(page);
-    const warning = page.getByTestId('vault-import-warning');
+    await openRestorePage(page);
+    const warning = page.getByTestId('vault-restore-warning');
     await expect(warning).toContainText('Everything in your current vault is erased');
     await expect(warning).toContainText('the password that was used when the backup was made');
-    // Exporting is left to the Keys page, so the import has only one action on screen (#317).
-    await expect(warning.getByRole('link')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Replace my vault' })).toBeDisabled();
+    // Backing up is left to the Keys page; the note's only link is the documentation (#317, #392).
+    const docs = warning.getByRole('link');
+    await expect(docs).toHaveCount(1);
+    await expect(docs).toHaveText('the documentation');
+    await expect(docs).toHaveAttribute('href', 'https://diogel.io/docs/porwr');
+    await expect(docs).toHaveAttribute('target', '_blank');
+    await expect(page.getByRole('button', { name: 'Restore', exact: true })).toBeDisabled();
 
     // A wrong password is refused in place, and nothing is written.
-    await importBackup(page, backup, `${VAULT_PASSWORD}-wrong`);
-    await expect(page.getByTestId('vault-import-error')).toContainText(
+    await restoreBackup(page, backup, `${VAULT_PASSWORD}-wrong`);
+    await expect(page.getByTestId('vault-restore-error')).toContainText(
       'That password does not open this backup.',
     );
-    await expect(page.locator('.import-vault-page')).toBeVisible();
+    await expect(page.locator('.restore-vault-page')).toBeVisible();
     expect(await storedVault(background)).toBe(current);
 
     // The current vault still opens with its own password.
@@ -96,8 +101,8 @@ test.describe('Import vault (#313)', () => {
     expect(await storedVault(background)).toBe(current);
 
     // The right password replaces the vault and sends the user to unlock it.
-    await openImportPage(page);
-    await importBackup(page, backup, VAULT_PASSWORD);
+    await openRestorePage(page);
+    await restoreBackup(page, backup, VAULT_PASSWORD);
     await expect(page.getByText('Your vault was replaced from the backup.')).toBeVisible();
     await expect(page).toHaveURL(/#\/login/);
     expect(await storedVault(background)).toBe(backup);
@@ -114,10 +119,10 @@ test.describe('Import vault (#313)', () => {
     await createVault(page);
     const current = await storedVault(background);
 
-    await openImportPage(page);
-    await importBackup(page, 'not-a-vault', VAULT_PASSWORD);
+    await openRestorePage(page);
+    await restoreBackup(page, 'not-a-vault', VAULT_PASSWORD);
 
-    await expect(page.getByTestId('vault-import-error')).toContainText(
+    await expect(page.getByTestId('vault-restore-error')).toContainText(
       'This file is not a Porwr vault backup, or it is damaged.',
     );
     expect(await storedVault(background)).toBe(current);
