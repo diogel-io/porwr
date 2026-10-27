@@ -157,9 +157,9 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/dashboard/RestoreVaultPage.vue'),
       },
       {
-        path: 'vault/export',
-        name: 'export-vault',
-        component: () => import('@/pages/dashboard/ExportVaultPage.vue'),
+        path: 'vault/backup',
+        name: 'backup-vault',
+        component: () => import('@/pages/dashboard/BackupVaultPage.vue'),
       },
       {
         path: 'new',

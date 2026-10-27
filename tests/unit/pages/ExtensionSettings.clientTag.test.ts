@@ -161,8 +161,8 @@ describe('ExtensionSettings: vault backup', () => {
   it('no longer shows vault backup or restore, which moved to the Keys page (#297)', async () => {
     const wrapper = await mountPage();
 
-    expect(wrapper.text()).not.toContain('keyManagement.vaultBackup.backup');
-    expect(wrapper.text()).not.toContain('keyManagement.vaultBackup.restore');
+    expect(wrapper.text()).not.toContain('keyManagement.vaultBackupCard.backup');
+    expect(wrapper.text()).not.toContain('keyManagement.vaultBackupCard.restore');
     expect(wrapper.find('input[type="file"]').exists()).toBe(false);
   });
 });

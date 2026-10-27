@@ -17,39 +17,39 @@ const { t } = useI18n();
 <template>
   <q-card class="dashboard-card vault-backup-card">
     <q-card-section>
-      <h2 class="text-subtitle1 q-mb-md">{{ t('keyManagement.vaultBackup.title') }}</h2>
+      <h2 class="text-subtitle1 q-mb-md">{{ t('keyManagement.vaultBackupCard.title') }}</h2>
 
       <div class="row q-col-gutter-lg justify-between">
         <div class="col-12 col-sm-6 vault-backup-card__backup" data-testid="vault-backup-backup">
           <div class="text-body2 text-weight-medium">
-            {{ t('keyManagement.vaultBackup.backup') }}
+            {{ t('keyManagement.vaultBackupCard.backup') }}
           </div>
           <p class="text-caption text-grey-7 q-mt-xs q-mb-sm">
-            {{ t('keyManagement.vaultBackup.backupCaption') }}
+            {{ t('keyManagement.vaultBackupCard.backupCaption') }}
           </p>
           <q-btn
             class="diogel-btn-secondary"
             outline
             icon="download"
             no-caps
-            :label="t('keyManagement.vaultBackup.backup')"
-            :to="{ name: 'export-vault' }"
+            :label="t('keyManagement.vaultBackupCard.backup')"
+            :to="{ name: 'backup-vault' }"
           />
         </div>
 
         <div class="col-12 col-sm-6 vault-backup-card__restore" data-testid="vault-backup-restore">
           <div class="text-body2 text-weight-medium">
-            {{ t('keyManagement.vaultBackup.restore') }}
+            {{ t('keyManagement.vaultBackupCard.restore') }}
           </div>
           <p class="text-caption text-grey-7 q-mt-xs q-mb-sm">
-            {{ t('keyManagement.vaultBackup.restoreCaption') }}
+            {{ t('keyManagement.vaultBackupCard.restoreCaption') }}
           </p>
           <q-btn
             class="diogel-btn-secondary"
             outline
             icon="upload"
             no-caps
-            :label="t('keyManagement.vaultBackup.restore')"
+            :label="t('keyManagement.vaultBackupCard.restore')"
             :to="{ name: 'restore-vault' }"
           />
         </div>

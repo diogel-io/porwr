@@ -4,7 +4,7 @@ import { expect, test } from './fixtures/extension';
 import { createVault } from './fixtures/vault';
 
 /**
- * Export goes through its own page and the browser's Save As dialog (#314).
+ * Backing up goes through the Vault Backup page and the browser's Save As dialog (#314, #391).
  *
  * Playwright cannot drive the browser's native Save As dialog, so `chrome.downloads` is replaced on
  * the page with a recorder that answers the way the browser would. That still proves the real page
@@ -45,7 +45,7 @@ const recorded = (page: Page) =>
     () => (window as unknown as { recordedDownloads: RecordedDownload[] }).recordedDownloads,
   );
 
-async function openExportPage(page: Page): Promise<void> {
+async function openBackupPage(page: Page): Promise<void> {
   await page.goto(page.url().replace(/#.*$/, '#/keys'));
   await page.reload();
   await page
@@ -54,26 +54,38 @@ async function openExportPage(page: Page): Promise<void> {
     .or(page.getByTestId('vault-backup-backup').getByRole('button', { name: 'Backup' }))
     .first()
     .click();
-  await expect(page.locator('.export-vault-page')).toBeVisible();
+  await expect(page.locator('.backup-vault-page')).toBeVisible();
+  await expect(page).toHaveURL(/#\/keys\/vault\/backup$/);
 }
 
-test.describe('Export vault (#314)', () => {
+test.describe('Vault Backup (#314, #391)', () => {
   test('explains the backup, then saves it through a Save As dialog', async ({ openPage }) => {
     const page = await openPage('/login');
     await createVault(page);
-    await openExportPage(page);
+    await openBackupPage(page);
 
-    const info = page.getByTestId('vault-export-info');
-    await expect(info).toContainText('encrypted copy of your whole vault');
-    await expect(info).toContainText('nobody can open the backup');
+    const info = page.getByTestId('vault-backup-info');
+    await expect(info).toContainText('Important');
+    await expect(info).toContainText('encrypted copy of your entire vault');
+    await expect(info).toContainText('can only be restored using its current password');
+    await expect(info).toContainText('nobody will be able to open the backup');
+    await expect(info).toContainText('somewhere safe, ideally offline');
+    await expect(info).toContainText('Never keep your backup in the same place as the password.');
+    // The note's only link is the documentation, opened in a new tab (#391).
+    const docs = info.getByRole('link');
+    await expect(docs).toHaveCount(1);
+    await expect(docs).toHaveText('the documentation');
+    await expect(docs).toHaveAttribute('href', 'https://diogel.io/docs/porwr');
+    await expect(docs).toHaveAttribute('target', '_blank');
+    await expect(page.getByTestId('vault-backup-confirm')).toHaveAccessibleName('Backup');
     // Reaching the page saves nothing by itself.
-    await expect(page.getByTestId('vault-export-outcome')).toHaveCount(0);
+    await expect(page.getByTestId('vault-backup-outcome')).toHaveCount(0);
 
     await recordDownloads(page, 'saved');
-    await page.getByTestId('vault-export-confirm').click();
+    await page.getByTestId('vault-backup-confirm').click();
 
-    await expect(page.getByTestId('vault-export-outcome')).toContainText('Backup saved.');
-    await expect(page.getByTestId('vault-export-outcome')).toContainText(
+    await expect(page.getByTestId('vault-backup-outcome')).toContainText('Backup saved.');
+    await expect(page.getByTestId('vault-backup-outcome')).toContainText(
       '/home/e2e/Backups/vault.json',
     );
     const [download] = await recorded(page);
@@ -89,12 +101,12 @@ test.describe('Export vault (#314)', () => {
   test('says plainly that nothing was saved when the dialog is cancelled', async ({ openPage }) => {
     const page = await openPage('/login');
     await createVault(page);
-    await openExportPage(page);
+    await openBackupPage(page);
 
     await recordDownloads(page, 'cancelled');
-    await page.getByTestId('vault-export-confirm').click();
+    await page.getByTestId('vault-backup-confirm').click();
 
-    const outcome = page.getByTestId('vault-export-outcome');
+    const outcome = page.getByTestId('vault-backup-outcome');
     await expect(outcome).toHaveAttribute('data-status', 'cancelled');
     await expect(outcome).toContainText('Not saved. Nothing was written.');
     await expect(outcome.getByRole('alert')).toHaveCount(0);
