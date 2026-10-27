@@ -94,27 +94,29 @@ export default {
       cancelled: 'Not saved. Nothing was written.',
       failed: 'The backup could not be saved: {error}',
     },
-    vaultImport: {
-      title: 'Import Vault',
-      caption: 'Replace this vault with one restored from a backup file.',
-      warningTitle: 'Importing replaces your current vault',
-      replaces: 'The vault in the backup file takes the place of the vault you are using now.',
+    vaultRestore: {
+      title: 'Vault Restore',
+      caption: 'Restore your vault from a backup',
+      warningTitle: 'Important',
+      replaces:
+        "The vault backup will replace this existing vault. You should backup this vault first before proceeding to ensure you don't lose its contents",
       erases:
-        'Everything in your current vault is erased: its keys, accounts and the settings stored in it.',
+        'Everything in your current vault is erased: its keys, accounts and the settings stored.',
       password:
-        'You need the password that was used when the backup was made, which may not be your current password.',
-      exportFirst:
-        'If you might want your current vault back, export a backup of it from the Keys page before you go on.',
+        'You will need the password that was used when the backup was made, which may not be your current password.',
+      backupFirst: 'Ensure you backup this vault before proceeding with the Restore',
+      docs: 'Refer to {link} for more information',
+      docsLink: 'the documentation',
       fileLabel: 'Backup file',
-      fileHint: 'A .json file exported from Porwr',
+      fileHint: 'A .json vault backup made by Porwr',
       passwordLabel: "Backup's password",
-      confirm: 'Replace my vault',
+      confirm: 'Restore',
       checking: 'Checking the backup…',
       unchanged: 'Your current vault has not been changed.',
       errors: {
         invalidFile: 'This file is not a Porwr vault backup, or it is damaged.',
         wrongPassword: 'That password does not open this backup.',
-        failed: 'The backup could not be imported.',
+        failed: 'The backup could not be restored.',
       },
       success: "Your vault was replaced from the backup. Unlock it with the backup's password.",
     },

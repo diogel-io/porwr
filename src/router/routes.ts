@@ -152,9 +152,9 @@ const routes: RouteRecordRaw[] = [
       },
       {
         // Two segments, so it can never be read as a key's `:alias`.
-        path: 'vault/import',
-        name: 'import-vault',
-        component: () => import('@/pages/dashboard/ImportVaultPage.vue'),
+        path: 'vault/restore',
+        name: 'restore-vault',
+        component: () => import('@/pages/dashboard/RestoreVaultPage.vue'),
       },
       {
         path: 'vault/export',
