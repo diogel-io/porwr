@@ -49,9 +49,9 @@ async function openExportPage(page: Page): Promise<void> {
   await page.goto(page.url().replace(/#.*$/, '#/keys'));
   await page.reload();
   await page
-    .getByTestId('vault-backup-export')
-    .getByRole('link', { name: 'Export' })
-    .or(page.getByTestId('vault-backup-export').getByRole('button', { name: 'Export' }))
+    .getByTestId('vault-backup-backup')
+    .getByRole('link', { name: 'Backup' })
+    .or(page.getByTestId('vault-backup-backup').getByRole('button', { name: 'Backup' }))
     .first()
     .click();
   await expect(page.locator('.export-vault-page')).toBeVisible();
