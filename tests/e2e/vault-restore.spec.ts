@@ -77,8 +77,13 @@ test.describe('Vault Restore (#313, #392)', () => {
 
     await openRestorePage(page);
     const warning = page.getByTestId('vault-restore-warning');
+    await expect(warning).toContainText('Important');
+    await expect(warning).toContainText('The vault backup will replace this existing vault.');
     await expect(warning).toContainText('Everything in your current vault is erased');
     await expect(warning).toContainText('the password that was used when the backup was made');
+    await expect(warning).toContainText(
+      'Ensure you backup this vault before proceeding with the Restore',
+    );
     // Backing up is left to the Keys page; the note's only link is the documentation (#317, #392).
     const docs = warning.getByRole('link');
     await expect(docs).toHaveCount(1);
