@@ -81,7 +81,7 @@ export default {
       caption: 'Create an encrypted backup of your vault',
       infoTitle: 'Important',
       whatItIs:
-        'The backup is an encrypted copy of your entire vault including: keys, accounts & settings.',
+        'The backup is an encrypted copy of your entire vault, including its keys, accounts and any settings stored in it. Extension settings, such as "Load remote images", are not included.',
       password:
         'The vault can only be restored using its current password. It is important that you make a note of this password; there is no mechanism to be reminded of this password.',
       lostPassword:
