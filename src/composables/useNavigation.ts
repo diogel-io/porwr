@@ -2,6 +2,7 @@ import { computed } from 'vue';
 
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { PORWR_DOCS_URL } from '@/data/docs';
 import type { NavigationItem, UseNavigationResult, UtilityLinkItem } from '@/types/navigation';
 
 export function useNavigation(): UseNavigationResult {
@@ -39,7 +40,7 @@ export function useNavigation(): UseNavigationResult {
       icon: 'description',
       label: t('navigation.documentation.label'),
       caption: t('navigation.documentation.caption'),
-      href: 'https://diogel.io/docs/porwr',
+      href: PORWR_DOCS_URL,
     },
     {
       id: 'support',

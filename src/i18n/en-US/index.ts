@@ -69,25 +69,28 @@ export default {
   },
   keyManagement: {
     title: 'Key Management',
-    vaultBackup: {
+    vaultBackupCard: {
       title: 'Vault Backup & Restore',
       backup: 'Backup',
       backupCaption: 'Create an encrypted backup of your vault',
       restore: 'Restore',
       restoreCaption: 'Restore a vault from an encrypted backup',
     },
-    vaultExport: {
-      title: 'Export Vault',
-      caption: 'Save an encrypted backup of your vault to a place you choose.',
-      infoTitle: 'Before you export',
+    vaultBackup: {
+      title: 'Vault Backup',
+      caption: 'Create an encrypted backup of your vault',
+      infoTitle: 'Important',
       whatItIs:
-        'The backup is an encrypted copy of your whole vault: its keys, accounts and the settings stored in it.',
+        'The backup is an encrypted copy of your entire vault including: keys, accounts & settings.',
       password:
-        'It can only be imported with the password your vault has now. Porwr does not keep a copy of it.',
-      lostPassword: 'If that password is lost, nobody can open the backup, Porwr included.',
-      keepSafe:
-        'Keep the file somewhere safe, ideally offline, and never in the same place as the password.',
-      button: 'Export',
+        'The vault can only be restored using its current password. It is important that you make a note of this password; there is no mechanism to be reminded of this password.',
+      lostPassword:
+        'If the password is lost, nobody will be able to open the backup. There is no support available to restore backups without the valid password.',
+      keepSafe: 'Keep your vault backup somewhere safe, ideally offline.',
+      separatePlace: 'Never keep your backup in the same place as the password.',
+      docs: 'Refer to {link} for more information.',
+      docsLink: 'the documentation',
+      button: 'Backup',
       saving: 'Choose where to save…',
       saved: 'Backup saved.',
       savedTo: 'Saved to {path}',

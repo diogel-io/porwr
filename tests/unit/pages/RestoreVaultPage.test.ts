@@ -125,7 +125,6 @@ describe('RestoreVaultPage (#313, #392)', () => {
     expect(warning.findAll('a').map((link) => link.attributes('href'))).toEqual([
       'https://diogel.io/docs/porwr',
     ]);
-    expect(wrapper.find('[data-to*="export-vault"]').exists()).toBe(false);
     expect(wrapper.find('[data-to*="backup-vault"]').exists()).toBe(false);
   });
 

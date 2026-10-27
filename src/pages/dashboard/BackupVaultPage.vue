@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import DashboardBreadcrumbs from '@/components/dashboard/DashboardBreadcrumbs.vue';
 import { useVaultManagement } from '@/composables/useVaultManagement';
+import { PORWR_DOCS_URL } from '@/data/docs';
 import type { VaultBackupSaveResult } from '@/services/vault-backup-download';
 
 /**
@@ -10,9 +11,9 @@ import type { VaultBackupSaveResult } from '@/services/vault-backup-download';
  *
  * Says what the backup is and what is needed to open it again before anything is saved, then hands
  * over to the browser's Save As dialog. Cancelling that dialog is a choice, so it is reported
- * plainly, not as an error.
+ * plainly, not as an error. The note's only link is to the documentation (#391).
  */
-defineOptions({ name: 'ExportVaultPage' });
+defineOptions({ name: 'BackupVaultPage' });
 
 const { t } = useI18n();
 const { exportVaultBackup } = useVaultManagement();
@@ -20,7 +21,7 @@ const { exportVaultBackup } = useVaultManagement();
 const saving = ref(false);
 const outcome = ref<VaultBackupSaveResult | null>(null);
 
-async function onExport(): Promise<void> {
+async function onBackup(): Promise<void> {
   if (saving.value) return;
   saving.value = true;
   outcome.value = null;
@@ -38,33 +39,45 @@ async function onExport(): Promise<void> {
 </script>
 
 <template>
-  <q-page class="dashboard-page dashboard-page--with-breadcrumbs export-vault-page">
+  <q-page class="dashboard-page dashboard-page--with-breadcrumbs backup-vault-page">
     <dashboard-breadcrumbs
       :items="[
         { label: t('navigation.keys.label'), to: { name: 'keys' } },
-        { label: t('keyManagement.vaultExport.title') },
+        { label: t('keyManagement.vaultBackup.title') },
       ]"
     />
 
     <section class="dashboard-hero">
-      <h1 class="dashboard-hero-title">{{ t('keyManagement.vaultExport.title') }}</h1>
-      <p class="dashboard-hero-caption">{{ t('keyManagement.vaultExport.caption') }}</p>
+      <h1 class="dashboard-hero-title">{{ t('keyManagement.vaultBackup.title') }}</h1>
+      <p class="dashboard-hero-caption">{{ t('keyManagement.vaultBackup.caption') }}</p>
     </section>
 
-    <q-card class="dashboard-card export-vault-page__card">
+    <q-card class="dashboard-card backup-vault-page__card">
       <q-card-section>
-        <q-banner rounded class="q-mb-lg" data-testid="vault-export-info">
+        <q-banner rounded class="q-mb-lg" data-testid="vault-backup-info">
           <template #avatar>
             <q-icon name="info" color="primary" />
           </template>
           <div class="text-weight-medium q-mb-sm">
-            {{ t('keyManagement.vaultExport.infoTitle') }}
+            {{ t('keyManagement.vaultBackup.infoTitle') }}
           </div>
           <ul class="q-my-none q-pl-md">
-            <li>{{ t('keyManagement.vaultExport.whatItIs') }}</li>
-            <li>{{ t('keyManagement.vaultExport.password') }}</li>
-            <li>{{ t('keyManagement.vaultExport.lostPassword') }}</li>
-            <li>{{ t('keyManagement.vaultExport.keepSafe') }}</li>
+            <li>{{ t('keyManagement.vaultBackup.whatItIs') }}</li>
+            <li>{{ t('keyManagement.vaultBackup.password') }}</li>
+            <li>{{ t('keyManagement.vaultBackup.lostPassword') }}</li>
+            <li>{{ t('keyManagement.vaultBackup.keepSafe') }}</li>
+            <li>{{ t('keyManagement.vaultBackup.separatePlace') }}</li>
+            <i18n-t keypath="keyManagement.vaultBackup.docs" tag="li" scope="global">
+              <template #link>
+                <a
+                  :href="PORWR_DOCS_URL"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="vault-backup-docs"
+                  >{{ t('keyManagement.vaultBackup.docsLink') }}</a
+                >
+              </template>
+            </i18n-t>
           </ul>
         </q-banner>
 
@@ -72,20 +85,20 @@ async function onExport(): Promise<void> {
           v-if="outcome"
           class="q-mb-md"
           role="status"
-          data-testid="vault-export-outcome"
+          data-testid="vault-backup-outcome"
           :data-status="outcome.status"
         >
           <div v-if="outcome.status === 'saved'" class="text-positive text-weight-medium">
-            {{ t('keyManagement.vaultExport.saved') }}
-            <div class="text-caption text-grey-7 export-vault-page__path">
-              {{ t('keyManagement.vaultExport.savedTo', { path: outcome.path }) }}
+            {{ t('keyManagement.vaultBackup.saved') }}
+            <div class="text-caption text-grey-7 backup-vault-page__path">
+              {{ t('keyManagement.vaultBackup.savedTo', { path: outcome.path }) }}
             </div>
           </div>
           <div v-else-if="outcome.status === 'cancelled'" class="text-grey-8">
-            {{ t('keyManagement.vaultExport.cancelled') }}
+            {{ t('keyManagement.vaultBackup.cancelled') }}
           </div>
           <div v-else class="text-negative text-weight-medium" role="alert">
-            {{ t('keyManagement.vaultExport.failed', { error: outcome.error }) }}
+            {{ t('keyManagement.vaultBackup.failed', { error: outcome.error }) }}
           </div>
         </div>
 
@@ -95,13 +108,13 @@ async function onExport(): Promise<void> {
             unelevated
             no-caps
             icon="download"
-            data-testid="vault-export-confirm"
+            data-testid="vault-backup-confirm"
             :label="
-              saving ? t('keyManagement.vaultExport.saving') : t('keyManagement.vaultExport.button')
+              saving ? t('keyManagement.vaultBackup.saving') : t('keyManagement.vaultBackup.button')
             "
             :loading="saving"
             :disable="saving"
-            @click="onExport"
+            @click="onBackup"
           />
         </div>
       </q-card-section>
@@ -110,15 +123,15 @@ async function onExport(): Promise<void> {
 </template>
 
 <style scoped>
-.export-vault-page {
+.backup-vault-page {
   width: 100%;
 }
 
-.export-vault-page__card {
+.backup-vault-page__card {
   overflow: hidden;
 }
 
-.export-vault-page__path {
+.backup-vault-page__path {
   overflow-wrap: anywhere;
 }
 </style>

@@ -5,6 +5,7 @@ import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import DashboardBreadcrumbs from '@/components/dashboard/DashboardBreadcrumbs.vue';
 import { type VaultImportFailure, useVaultManagement } from '@/composables/useVaultManagement';
+import { PORWR_DOCS_URL } from '@/data/docs';
 
 /**
  * Replaces the vault with one from a backup file (#313).
@@ -14,8 +15,6 @@ import { type VaultImportFailure, useVaultManagement } from '@/composables/useVa
  * current vault as it was. The note's only link is to the documentation (#392).
  */
 defineOptions({ name: 'RestoreVaultPage' });
-
-const DOCS_URL = 'https://diogel.io/docs/porwr';
 
 const { t } = useI18n();
 const $q = useQuasar();
@@ -88,7 +87,7 @@ onBeforeUnmount(() => {
             <i18n-t keypath="keyManagement.vaultRestore.docs" tag="li" scope="global">
               <template #link>
                 <a
-                  :href="DOCS_URL"
+                  :href="PORWR_DOCS_URL"
                   target="_blank"
                   rel="noopener noreferrer"
                   data-testid="vault-restore-docs"
