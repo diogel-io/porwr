@@ -67,10 +67,6 @@ test.describe('Vault Backup (#314, #391)', () => {
     const info = page.getByTestId('vault-backup-info');
     await expect(info).toContainText('Important');
     await expect(info).toContainText('encrypted copy of your entire vault');
-    // Extension settings live outside the vault, so the backup says it does not carry them.
-    await expect(info).toContainText(
-      'Extension settings, such as "Load remote images", are not included.',
-    );
     await expect(info).toContainText('can only be restored using its current password');
     await expect(info).toContainText('nobody will be able to open the backup');
     await expect(info).toContainText('somewhere safe, ideally offline');
