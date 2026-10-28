@@ -107,23 +107,17 @@ export function useAccounts() {
     if (v && v !== accountStore.activeKey) {
       await accountStore.setActiveKey(v);
 
+      // An account-specific page belongs to the old account, so land on the Dashboard rather than
+      // the legacy `/` profile page, which the sidebar now covers (#397).
       const currentPath = router.currentRoute.value.path;
-      const managementPaths = [
-        '/',
-        '/profile',
-        '/settings',
-        '/logs',
-        '/popup',
-        '/sidebar',
-        '/login',
-      ];
+      const managementPaths = ['/profile', '/settings', '/logs', '/popup', '/sidebar', '/login'];
       const isManagementPath =
         managementPaths.includes(currentPath) ||
         currentPath.startsWith('/edit-account') ||
         currentPath.startsWith('/keys');
 
       if (!isManagementPath) {
-        router.push({ path: '/' }).catch(() => {});
+        router.push({ name: 'dashboard' }).catch(() => {});
       }
     }
   });
