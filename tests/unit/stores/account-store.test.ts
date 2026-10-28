@@ -117,14 +117,17 @@ describe('account-store', () => {
 
     it('persists the alias before announcing it, so watchers read the new account (#397)', async () => {
       const store = useAccountStore();
-      let activeWhenPersisting: string | null | undefined;
-      mockSetActive.mockImplementation(async () => {
-        activeWhenPersisting = store.activeKey;
-      });
+      let persisted!: () => void;
+      mockSetActive.mockImplementation(
+        () => new Promise<void>((resolve) => (persisted = () => resolve())),
+      );
 
-      await store.setActiveKey('beta');
+      const switching = store.setActiveKey('beta');
+      await Promise.resolve();
+      expect(store.activeKey).not.toBe('beta');
 
-      expect(activeWhenPersisting).not.toBe('beta');
+      persisted();
+      await switching;
       expect(store.activeKey).toBe('beta');
     });
   });

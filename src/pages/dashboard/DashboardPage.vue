@@ -27,6 +27,7 @@ async function loadDashboardSummary() {
   const load = ++latestLoad;
   loading.value = true;
   error.value = null;
+  summary.value = null;
   try {
     const next = await getDashboardSummary(9);
     if (load === latestLoad) summary.value = next;
