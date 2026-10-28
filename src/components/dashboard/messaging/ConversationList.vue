@@ -71,10 +71,14 @@ const startable = computed(() => {
 
 /**
  * Each tab shows the loading state only while it has nothing to list (#396). Searching cached
- * contacts still works while loading, so a contact can be found before the first fetch finishes.
+ * contacts still works while loading, so a contact can be found before the first fetch finishes; a
+ * search with no results keeps loading rather than saying nothing matched, as more may arrive.
  */
 const chatsLoading = computed(
-  () => Boolean(props.loading) && chats.value.length === 0 && !searching.value,
+  () =>
+    Boolean(props.loading) &&
+    chats.value.length === 0 &&
+    (!searching.value || (visibleChats.value.length === 0 && startable.value.length === 0)),
 );
 const requestsLoading = computed(() => Boolean(props.loading) && requests.value.length === 0);
 
