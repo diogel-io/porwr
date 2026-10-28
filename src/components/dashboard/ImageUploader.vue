@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { uploadImageToBlossom } from '@/services/blossom-upload-service';
@@ -20,12 +20,16 @@ const props = defineProps<{
   uploadId?: string;
 }>();
 
+/**
+ * Each uploaded URL comes with the pubkey of the account it was uploaded for, so it is published to
+ * that account even if the page has since switched to another (#400).
+ */
 const emit = defineEmits<{
-  (e: 'uploaded', url: string): void;
+  (e: 'uploaded', url: string, pubkey: string): void;
   (e: 'uploading', status: boolean): void;
-  (e: 'avatar-uploaded', url: string): void;
+  (e: 'avatar-uploaded', url: string, pubkey: string): void;
   (e: 'avatar-uploading', status: boolean): void;
-  (e: 'banner-uploaded', url: string): void;
+  (e: 'banner-uploaded', url: string, pubkey: string): void;
   (e: 'banner-uploading', status: boolean): void;
 }>();
 
@@ -65,38 +69,35 @@ function uploadStatusMessage(error: string): string {
     : t('profile.uploadError');
 }
 
-const BLOSSOM_UPLOAD_STATUS = props.uploadId
+/**
+ * The id the background names an upload's stored status after. It holds the account as well as the
+ * image, so a finished upload recovered from storage can only ever be applied to its own account
+ * (#400). The background treats it as an opaque name.
+ */
+function scopedUploadId(pubkey: string): string {
+  return `${props.uploadId ?? 'image'}:${pubkey}`;
+}
+
+function statusKey(pubkey: string): string {
+  return `blossom:upload_status:${scopedUploadId(pubkey)}`;
+}
+/** Where statuses went before they named an account. Nothing may apply them, so they are dropped. */
+const LEGACY_UPLOAD_STATUS = props.uploadId
   ? `blossom:upload_status:${props.uploadId}`
   : 'blossom:upload_status';
 
-function emitStatus(type: 'uploading' | 'uploaded', value: boolean | string) {
-  if (type === 'uploading') {
-    emit('uploading', value as boolean);
-  } else {
-    emit('uploaded', value as string);
-  }
-
-  if (props.uploadId) {
-    if (props.uploadId === 'avatar') {
-      if (type === 'uploading') {
-        emit('avatar-uploading', value as boolean);
-      } else {
-        emit('avatar-uploaded', value as string);
-      }
-    } else if (props.uploadId === 'banner') {
-      if (type === 'uploading') {
-        emit('banner-uploading', value as boolean);
-      } else {
-        emit('banner-uploaded', value as string);
-      }
-    }
-  }
+function emitUploading(status: boolean) {
+  emit('uploading', status);
+  if (props.uploadId === 'avatar') emit('avatar-uploading', status);
+  else if (props.uploadId === 'banner') emit('banner-uploading', status);
 }
 
-function emitUploadedOnce(url: string) {
+function emitUploadedOnce(url: string, pubkey: string) {
   if (lastUploadedUrl.value === url) return;
   lastUploadedUrl.value = url;
-  emitStatus('uploaded', url);
+  emit('uploaded', url, pubkey);
+  if (props.uploadId === 'avatar') emit('avatar-uploaded', url, pubkey);
+  else if (props.uploadId === 'banner') emit('banner-uploaded', url, pubkey);
 }
 
 async function handleFileChange(e: Event) {
@@ -129,8 +130,10 @@ function readFileAsBase64(file: File): Promise<string> {
 }
 
 async function uploadImage(file: File) {
+  // Fixed when the upload starts: the page may switch account before it finishes (#400).
+  const pubkey = props.storedKey.id;
   uploading.value = true;
-  emitStatus('uploading', true);
+  emitUploading(true);
 
   try {
     const base64Data = await readFileAsBase64(file);
@@ -138,10 +141,10 @@ async function uploadImage(file: File) {
     const result = await uploadImageToBlossom({
       base64Data,
       fileType: file.type,
-      ...(props.uploadId ? { uploadId: props.uploadId } : {}),
+      uploadId: scopedUploadId(pubkey),
     });
 
-    emitUploadedOnce(result.url);
+    emitUploadedOnce(result.url, pubkey);
     $q.notify({
       type: 'positive',
       message: t('profile.uploadSuccess'),
@@ -164,7 +167,7 @@ async function uploadImage(file: File) {
     });
   } finally {
     uploading.value = false;
-    emitStatus('uploading', false);
+    emitUploading(false);
     if (fileInput.value) {
       fileInput.value.value = '';
     }
@@ -174,17 +177,20 @@ async function uploadImage(file: File) {
 // Storage listener kept as optional recovery for edge cases
 // (e.g. upload completed while popup was closed).
 // The direct response from uploadImageToBlossom is the authoritative success path.
+// Only the shown account's status is read; another account's waits until that account is shown.
 const storageListener = (
   changes: { [key: string]: chrome.storage.StorageChange },
   areaName: string,
 ) => {
-  if (areaName === 'local' && BLOSSOM_UPLOAD_STATUS in changes) {
-    const statusChange = changes[BLOSSOM_UPLOAD_STATUS];
+  const pubkey = props.storedKey.id;
+  const key = statusKey(pubkey);
+  if (areaName === 'local' && key in changes) {
+    const statusChange = changes[key];
     if (statusChange) {
       const status = statusChange.newValue;
       if (isUploadStatus(status)) {
         if (status.url) {
-          emitUploadedOnce(status.url);
+          emitUploadedOnce(status.url, pubkey);
         } else if (status.error && !uploading.value) {
           // Only show storage-sourced errors when we're not actively uploading
           // (the direct call handles error notification for active uploads)
@@ -194,7 +200,7 @@ const storageListener = (
           });
         }
         // Clear status after processing
-        void storageService.remove(BLOSSOM_UPLOAD_STATUS);
+        void storageService.remove(key);
       }
     }
   }
@@ -208,27 +214,43 @@ onBeforeUnmount(() => {
   storageService.removeOnChanged(storageListener);
 });
 
+/** Applies a finished upload stored for `pubkey`, if that account is still the one shown. */
+async function applyStoredStatus(pubkey: string) {
+  const key = statusKey(pubkey);
+  const status = await storageService.get<StorageUploadStatus>(key);
+  if (unmounted || pubkey !== props.storedKey.id || !status) return;
+
+  if (status.url) {
+    emitUploadedOnce(status.url, pubkey);
+    void storageService.remove(key);
+  } else if (status.error) {
+    $q.notify({
+      type: 'negative',
+      message: uploadStatusMessage(status.error),
+    });
+    void storageService.remove(key);
+  }
+}
+
 onMounted(async () => {
+  // A status from before statuses named an account could belong to any account: drop it unread.
+  void storageService.remove(LEGACY_UPLOAD_STATUS);
+
   // Check for completed uploads from a previous session
-  const status = await storageService.get<StorageUploadStatus>(BLOSSOM_UPLOAD_STATUS);
+  await applyStoredStatus(props.storedKey.id);
   // Left before the read came back: listening now would leave a listener nothing removes.
   if (unmounted) return;
 
-  if (status) {
-    if (status.url) {
-      emitUploadedOnce(status.url);
-      void storageService.remove(BLOSSOM_UPLOAD_STATUS);
-    } else if (status.error) {
-      $q.notify({
-        type: 'negative',
-        message: uploadStatusMessage(status.error),
-      });
-      void storageService.remove(BLOSSOM_UPLOAD_STATUS);
-    }
-  }
-
   storageService.onChanged(storageListener);
 });
+
+// The page reuses this uploader when the account changes, so look for the new account's status too.
+watch(
+  () => props.storedKey.id,
+  (pubkey) => {
+    void applyStoredStatus(pubkey);
+  },
+);
 
 function triggerUpload() {
   fileInput.value?.click();

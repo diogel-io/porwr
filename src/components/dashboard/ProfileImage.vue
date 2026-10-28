@@ -59,15 +59,18 @@ async function fetchProfile(quiet = false) {
  * Shown at once, and put back if no relay takes it: a header showing an image that is not on any
  * relay would be telling the user something about their profile that is not true.
  */
-async function saveImage(field: 'picture' | 'banner', url: string) {
+async function saveImage(field: 'picture' | 'banner', url: string, pubkey: string) {
+  // The upload may have started for an account the page has since switched away from (#400). It is
+  // published to that account, and the header only changes if it is the one on show.
+  const shown = () => pubkey === props.storedKey.id;
   const previous = profile.value[field];
-  profile.value = { ...profile.value, [field]: url };
+  if (shown()) profile.value = { ...profile.value, [field]: url };
   try {
-    await profileService.saveProfile(props.storedKey.id, { [field]: url });
+    await profileService.saveProfile(pubkey, { [field]: url });
     $q.notify({ type: 'positive', message: t('profile.saveSuccess') });
   } catch (error) {
     console.error('Error saving profile:', error);
-    profile.value = { ...profile.value, [field]: previous };
+    if (shown()) profile.value = { ...profile.value, [field]: previous };
     $q.notify({ type: 'negative', message: t('profile.saveError') });
   }
 }
@@ -120,7 +123,7 @@ watch(
             :stored-key="storedKey"
             :text="t('profile.bannerTitle')"
             upload-id="banner"
-            @banner-uploaded="(url: string) => saveImage('banner', url)"
+            @banner-uploaded="(url: string, pubkey: string) => saveImage('banner', url, pubkey)"
           />
         </div>
       </div>
@@ -151,7 +154,7 @@ watch(
             :stored-key="storedKey"
             :text="t('profile.avatarTitle')"
             upload-id="avatar"
-            @avatar-uploaded="(url: string) => saveImage('picture', url)"
+            @avatar-uploaded="(url: string, pubkey: string) => saveImage('picture', url, pubkey)"
           />
         </div>
       </div>

@@ -84,7 +84,11 @@ describe('ProfileImage.vue', () => {
   it('publishes an uploaded avatar as that one field, through the profile service', async () => {
     const wrapper = await mountHeader({ name: 'alice', picture: 'https://example.com/old.png' });
 
-    uploader(wrapper, 'avatar').vm.$emit('avatar-uploaded', 'https://example.com/new.png');
+    uploader(wrapper, 'avatar').vm.$emit(
+      'avatar-uploaded',
+      'https://example.com/new.png',
+      'pubkey-1',
+    );
     await flushPromises();
 
     expect(saveProfileMock).toHaveBeenCalledWith('pubkey-1', {
@@ -98,7 +102,11 @@ describe('ProfileImage.vue', () => {
   it('publishes an uploaded banner as that one field', async () => {
     const wrapper = await mountHeader({ name: 'alice' });
 
-    uploader(wrapper, 'banner').vm.$emit('banner-uploaded', 'https://example.com/banner.png');
+    uploader(wrapper, 'banner').vm.$emit(
+      'banner-uploaded',
+      'https://example.com/banner.png',
+      'pubkey-1',
+    );
     await flushPromises();
 
     expect(saveProfileMock).toHaveBeenCalledWith('pubkey-1', {
@@ -106,11 +114,39 @@ describe('ProfileImage.vue', () => {
     });
   });
 
+  it('publishes an upload to the account it started for after a switch, not the one shown (#400)', async () => {
+    const wrapper = await mountHeader({ name: 'alice' });
+    const other: AccountSummary = { id: 'pubkey-2', alias: 'beta', createdAt: '2026-01-01' };
+    fetchProfileMock.mockResolvedValue({ name: 'bob', banner: 'https://example.com/bob.png' });
+    await wrapper.setProps({ storedKey: other });
+    await flushPromises();
+
+    // The upload began while alpha was shown and finishes now beta is.
+    uploader(wrapper, 'banner').vm.$emit(
+      'banner-uploaded',
+      'https://example.com/alice-banner.png',
+      'pubkey-1',
+    );
+    await flushPromises();
+
+    expect(saveProfileMock).toHaveBeenCalledTimes(1);
+    expect(saveProfileMock).toHaveBeenCalledWith('pubkey-1', {
+      banner: 'https://example.com/alice-banner.png',
+    });
+    expect(wrapper.find('.profile-header__banner-image').attributes('src')).toBe(
+      'https://example.com/bob.png',
+    );
+  });
+
   it('says so when publishing an image fails, and goes back to the published one', async () => {
     saveProfileMock.mockRejectedValue(new Error('no relay accepted it'));
     const wrapper = await mountHeader({ name: 'alice', picture: 'https://example.com/old.png' });
 
-    uploader(wrapper, 'avatar').vm.$emit('avatar-uploaded', 'https://example.com/new.png');
+    uploader(wrapper, 'avatar').vm.$emit(
+      'avatar-uploaded',
+      'https://example.com/new.png',
+      'pubkey-1',
+    );
     await flushPromises();
 
     expect(notifyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'negative' }));
