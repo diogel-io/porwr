@@ -275,6 +275,15 @@ describe('ConversationList (#258, Concept C)', () => {
     expect(wrapper.find('[data-testid="conversation-search-empty"]').exists()).toBe(false);
   });
 
+  it('keeps loading for a search no listed chat matches while loading', async () => {
+    const chatOnly = conversations.filter((conversation) => !conversation.isRequest);
+    const wrapper = mountList({ conversations: chatOnly, loading: true });
+    await wrapper.find('[data-testid="conversation-search"]').setValue('zzz');
+
+    expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="conversation-search-empty"]').exists()).toBe(false);
+  });
+
   it('follows a request to Chats once it has been answered', async () => {
     const wrapper = mountList({ selectedPeer: STRANGER });
     await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');

@@ -77,8 +77,9 @@ const startable = computed(() => {
 const chatsLoading = computed(
   () =>
     Boolean(props.loading) &&
-    chats.value.length === 0 &&
-    (!searching.value || (visibleChats.value.length === 0 && startable.value.length === 0)),
+    (searching.value
+      ? visibleChats.value.length === 0 && startable.value.length === 0
+      : chats.value.length === 0),
 );
 const requestsLoading = computed(() => Boolean(props.loading) && requests.value.length === 0);
 
