@@ -127,13 +127,18 @@ describe('useAccounts', () => {
       },
     );
 
-    it.each(['/profile', '/settings', '/logs', '/keys', '/keys/Woody', '/edit-account/Woody'])(
-      'stays on %s when switching',
-      async (path) => {
-        await switchAccountOn(path);
+    it.each([
+      '/profile',
+      '/settings',
+      '/logs',
+      '/event-history',
+      '/keys',
+      '/keys/Woody',
+      '/edit-account/Woody',
+    ])('stays on %s when switching', async (path) => {
+      await switchAccountOn(path);
 
-        expect(mocks.router.push).not.toHaveBeenCalled();
-      },
-    );
+      expect(mocks.router.push).not.toHaveBeenCalled();
+    });
   });
 });

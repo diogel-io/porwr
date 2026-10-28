@@ -110,7 +110,16 @@ export function useAccounts() {
       // An account-specific page belongs to the old account, so land on the Dashboard rather than
       // the legacy `/` profile page, which the sidebar now covers (#397).
       const currentPath = router.currentRoute.value.path;
-      const managementPaths = ['/profile', '/settings', '/logs', '/popup', '/sidebar', '/login'];
+      // `/logs` redirects to `/event-history`, so the resolved path is the one seen here.
+      const managementPaths = [
+        '/profile',
+        '/settings',
+        '/logs',
+        '/event-history',
+        '/popup',
+        '/sidebar',
+        '/login',
+      ];
       const isManagementPath =
         managementPaths.includes(currentPath) ||
         currentPath.startsWith('/edit-account') ||
