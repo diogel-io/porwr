@@ -189,6 +189,37 @@ describe('ProfileImage.vue', () => {
     });
   });
 
+  it('keeps a profile loaded during a failed save rather than putting back an older image (#400)', async () => {
+    let failSave: (reason: unknown) => void = () => undefined;
+    saveProfileMock.mockImplementation(
+      () => new Promise((_resolve, reject) => (failSave = reject)),
+    );
+    let finishFetch: (value: NostrProfile) => void = () => undefined;
+    fetchProfileMock.mockImplementation(
+      () => new Promise<NostrProfile>((resolve) => (finishFetch = resolve)),
+    );
+    const wrapper = mount(ProfileImage, {
+      props: { storedKey },
+      global: { stubs: { ImageUploader: ImageUploaderStub, 'q-spinner': true, 'q-icon': true } },
+    });
+    await flushPromises();
+
+    // A recovered upload lands while the profile is still loading, then the load finishes.
+    uploader(wrapper, 'banner').vm.$emit(
+      'banner-uploaded',
+      'https://example.com/new.png',
+      'pubkey-1',
+    );
+    finishFetch({ name: 'alice', banner: 'https://example.com/published.png' });
+    await flushPromises();
+    failSave(new Error('no relay accepted it'));
+    await flushPromises();
+
+    expect(wrapper.find('.profile-header__banner-image').attributes('src')).toBe(
+      'https://example.com/published.png',
+    );
+  });
+
   it('says so when publishing an image fails, and goes back to the published one', async () => {
     saveProfileMock.mockRejectedValue(new Error('no relay accepted it'));
     const wrapper = await mountHeader({ name: 'alice', picture: 'https://example.com/old.png' });

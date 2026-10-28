@@ -135,6 +135,8 @@ function readFileAsBase64(file: File): Promise<string> {
 async function uploadImage(file: File) {
   // Fixed when the upload starts: the page may switch account before it finishes (#400).
   const pubkey = props.storedKey.id;
+  // A new upload is never a duplicate of an earlier one, even of the same image.
+  lastUploadedUrl.value = null;
   uploading.value = true;
   emitUploading(true);
 

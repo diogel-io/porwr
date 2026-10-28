@@ -64,7 +64,8 @@ async function saveImage(field: 'picture' | 'banner', url: string, pubkey: strin
   // published to that account, and the header only changes if it is the one on show.
   const shown = () => pubkey === props.storedKey.id;
   const previous = profile.value[field];
-  // Put back only a change this made, and only while that account is still the one shown.
+  // Put back only a change this made, while that account is still shown and the header still holds
+  // it: a profile loaded meanwhile is newer than `previous` and stays.
   const changedHeader = shown();
   if (changedHeader) profile.value = { ...profile.value, [field]: url };
   try {
@@ -72,7 +73,9 @@ async function saveImage(field: 'picture' | 'banner', url: string, pubkey: strin
     $q.notify({ type: 'positive', message: t('profile.saveSuccess') });
   } catch (error) {
     console.error('Error saving profile:', error);
-    if (changedHeader && shown()) profile.value = { ...profile.value, [field]: previous };
+    if (changedHeader && shown() && profile.value[field] === url) {
+      profile.value = { ...profile.value, [field]: previous };
+    }
     $q.notify({ type: 'negative', message: t('profile.saveError') });
   }
 }
