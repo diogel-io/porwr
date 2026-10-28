@@ -609,7 +609,7 @@ export default {
       noMessages: 'No messages yet',
       fromMe: 'You: {content}',
       unread: '{count} unread',
-      loading: 'Loading contacts…',
+      loading: 'Loading conversations…',
       searchLabel: 'Search contacts',
       searchPlaceholder: 'Name, NIP-05 or npub',
       start: 'Start a conversation',

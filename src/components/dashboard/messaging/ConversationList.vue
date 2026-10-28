@@ -69,7 +69,19 @@ const startable = computed(() => {
   return matches.value.filter((peer) => !listed.has(peer));
 });
 
-const showLoading = computed(() => Boolean(props.loading) && props.conversations.length === 0);
+/**
+ * Each tab shows the loading state only while it has nothing to list (#396). Searching cached
+ * contacts still works while loading, so a contact can be found before the first fetch finishes; a
+ * search with no results keeps loading rather than saying nothing matched, as more may arrive.
+ */
+const chatsLoading = computed(
+  () =>
+    Boolean(props.loading) &&
+    (searching.value
+      ? visibleChats.value.length === 0 && startable.value.length === 0
+      : chats.value.length === 0),
+);
+const requestsLoading = computed(() => Boolean(props.loading) && requests.value.length === 0);
 
 function preview(conversation: ConversationSummary): string {
   const message = conversation.lastMessage;
@@ -149,7 +161,7 @@ watch(
       </q-input>
 
       <div
-        v-if="showLoading"
+        v-if="chatsLoading"
         class="text-center q-pa-md text-grey"
         role="status"
         data-testid="conversation-list-loading"
@@ -254,7 +266,16 @@ watch(
     </template>
 
     <template v-else>
-      <q-list v-if="requests.length > 0" data-testid="conversation-list-requests">
+      <div
+        v-if="requestsLoading"
+        class="text-center q-pa-md text-grey"
+        role="status"
+        data-testid="conversation-list-loading"
+      >
+        <q-spinner color="primary" size="2em" />
+        <div class="q-mt-sm">{{ t('messaging.list.loading') }}</div>
+      </div>
+      <q-list v-else-if="requests.length > 0" data-testid="conversation-list-requests">
         <q-item
           v-for="conversation in requests"
           :key="conversation.peer"

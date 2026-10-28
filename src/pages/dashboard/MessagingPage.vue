@@ -70,6 +70,14 @@ const {
     }),
 });
 
+/**
+ * The first fetch for the account is still running (#396). `inbox` stays unknown until a fetch
+ * succeeds and returns to unknown on an account switch; a failure shows its own notice instead.
+ */
+const messagesLoading = computed(
+  () => Boolean(activeKey.value) && inbox.value === 'unknown' && !loadFailed.value,
+);
+
 const contactPubkeys = computed(() => contacts.value.map((contact) => contact.pubkey));
 /**
  * The support conversation lives on the Support page, so it is listed here only when the support
@@ -252,7 +260,7 @@ onMounted(async () => {
               :picture-of="pictureOf"
               :detail-of="detailOf"
               :find-contacts="findContacts"
-              :loading="contactsLoading"
+              :loading="contactsLoading || messagesLoading"
               @select="selectConversation"
               @start="startConversation"
               @remove="removeConversation"

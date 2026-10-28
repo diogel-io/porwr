@@ -173,6 +173,7 @@ export function useDirectMessages(options: DirectMessagesOptions) {
     messages.value = new Map();
     readState.value = {};
     inbox.value = 'unknown';
+    loadFailed.value = false;
     pending.value = [];
     notReadyPeers.value = new Set();
     newestFetched = undefined;
