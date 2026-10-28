@@ -137,8 +137,10 @@ const useAccountStore = defineStore('account', {
       this.hydration = 'empty';
     },
     async setActiveKey(alias: string) {
-      this.activeKey = alias;
+      // Persist first: pages watching `activeKey` reload from storage, and would otherwise read the
+      // previous account (#397).
       await setActive(alias);
+      this.activeKey = alias;
     },
     async renameKeyAlias(currentAlias: string, newAlias: string) {
       await renameAlias(currentAlias, newAlias);

@@ -54,7 +54,8 @@ const mountPage = async () => {
 describe('DashboardPage', () => {
   beforeEach(() => {
     accounts().activeKey = 'Woody';
-    mocks.getDashboardSummary.mockClear();
+    mocks.getDashboardSummary.mockReset();
+    mocks.getDashboardSummary.mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -75,5 +76,26 @@ describe('DashboardPage', () => {
     await flushPromises();
 
     expect(mocks.getDashboardSummary).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the latest account when an older load finishes last (#397)', async () => {
+    const resolvers: Array<(value: object) => void> = [];
+    mocks.getDashboardSummary.mockImplementation(
+      () => new Promise((resolve) => resolvers.push(resolve)),
+    );
+    await mountPage();
+
+    accounts().activeKey = 'Anne Mous';
+    await flushPromises();
+    expect(resolvers).toHaveLength(2);
+
+    resolvers[1]!({ account: 'Anne Mous' });
+    await flushPromises();
+    resolvers[0]!({ account: 'Woody' });
+    await flushPromises();
+
+    const card = wrapper!.findComponent({ name: 'ApprovedClientsCard' });
+    expect(card.props('summary')).toEqual({ account: 'Anne Mous' });
+    expect(card.props('loading')).toBe(false);
   });
 });

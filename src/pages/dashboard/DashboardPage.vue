@@ -19,16 +19,23 @@ const summary = ref<DashboardSummary | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
+// Only the latest load may update the page, so a slow load for an account the user has already
+// switched away from cannot overwrite the current one (#397).
+let latestLoad = 0;
+
 async function loadDashboardSummary() {
+  const load = ++latestLoad;
   loading.value = true;
   error.value = null;
   try {
-    summary.value = await getDashboardSummary(9);
+    const next = await getDashboardSummary(9);
+    if (load === latestLoad) summary.value = next;
   } catch (e) {
+    if (load !== latestLoad) return;
     console.error('Failed to load dashboard summary', e);
     error.value = t('dashboard.widgets.common.error');
   } finally {
-    loading.value = false;
+    if (load === latestLoad) loading.value = false;
   }
 }
 
