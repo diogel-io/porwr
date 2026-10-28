@@ -114,6 +114,22 @@ describe('account-store', () => {
       expect(store.activeKey).toBe('beta');
       expect(mockSetActive).toHaveBeenCalledWith('beta');
     });
+
+    it('persists the alias before announcing it, so watchers read the new account (#397)', async () => {
+      const store = useAccountStore();
+      let persisted!: () => void;
+      mockSetActive.mockImplementation(
+        () => new Promise<void>((resolve) => (persisted = () => resolve())),
+      );
+
+      const switching = store.setActiveKey('beta');
+      await Promise.resolve();
+      expect(store.activeKey).not.toBe('beta');
+
+      persisted();
+      await switching;
+      expect(store.activeKey).toBe('beta');
+    });
   });
 
   describe('renameKeyAlias', () => {

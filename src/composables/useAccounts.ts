@@ -107,12 +107,15 @@ export function useAccounts() {
     if (v && v !== accountStore.activeKey) {
       await accountStore.setActiveKey(v);
 
+      // An account-specific page belongs to the old account, so land on the Dashboard rather than
+      // the legacy `/` profile page, which the sidebar now covers (#397).
       const currentPath = router.currentRoute.value.path;
+      // `/logs` redirects to `/event-history`, so the resolved path is the one seen here.
       const managementPaths = [
-        '/',
         '/profile',
         '/settings',
         '/logs',
+        '/event-history',
         '/popup',
         '/sidebar',
         '/login',
@@ -123,7 +126,7 @@ export function useAccounts() {
         currentPath.startsWith('/keys');
 
       if (!isManagementPath) {
-        router.push({ path: '/' }).catch(() => {});
+        router.push({ name: 'dashboard' }).catch(() => {});
       }
     }
   });

@@ -104,4 +104,41 @@ describe('useAccounts', () => {
     expect(mocks.accountStore.setActiveKey).not.toHaveBeenCalled();
     expect((wrapper.vm as unknown as HarnessVm).model).toBe('Woody');
   });
+
+  describe('after switching account (#397)', () => {
+    async function switchAccountOn(path: string) {
+      mocks.router.currentRoute.value.path = path;
+      const wrapper = mount(TestHarness);
+      await flushPromises();
+
+      (wrapper.vm as unknown as HarnessVm).model = 'Anne Mous';
+      await flushPromises();
+
+      expect(mocks.accountStore.setActiveKey).toHaveBeenCalledWith('Anne Mous');
+    }
+
+    it.each(['/dashboard', '/messages', '/relays', '/'])(
+      'opens the Dashboard when switching on %s',
+      async (path) => {
+        await switchAccountOn(path);
+
+        expect(mocks.router.push).toHaveBeenCalledWith({ name: 'dashboard' });
+        expect(mocks.router.push).not.toHaveBeenCalledWith({ path: '/' });
+      },
+    );
+
+    it.each([
+      '/profile',
+      '/settings',
+      '/logs',
+      '/event-history',
+      '/keys',
+      '/keys/Woody',
+      '/edit-account/Woody',
+    ])('stays on %s when switching', async (path) => {
+      await switchAccountOn(path);
+
+      expect(mocks.router.push).not.toHaveBeenCalled();
+    });
+  });
 });
