@@ -59,15 +59,23 @@ async function fetchProfile(quiet = false) {
  * Shown at once, and put back if no relay takes it: a header showing an image that is not on any
  * relay would be telling the user something about their profile that is not true.
  */
-async function saveImage(field: 'picture' | 'banner', url: string) {
+async function saveImage(field: 'picture' | 'banner', url: string, pubkey: string) {
+  // The upload may have started for an account the page has since switched away from (#400). It is
+  // published to that account, and the header only changes if it is the one on show.
+  const shown = () => pubkey === props.storedKey.id;
   const previous = profile.value[field];
-  profile.value = { ...profile.value, [field]: url };
+  // Put back only a change this made, while that account is still shown and the header still holds
+  // it: a profile loaded meanwhile is newer than `previous` and stays.
+  const changedHeader = shown();
+  if (changedHeader) profile.value = { ...profile.value, [field]: url };
   try {
-    await profileService.saveProfile(props.storedKey.id, { [field]: url });
+    await profileService.saveProfile(pubkey, { [field]: url });
     $q.notify({ type: 'positive', message: t('profile.saveSuccess') });
   } catch (error) {
     console.error('Error saving profile:', error);
-    profile.value = { ...profile.value, [field]: previous };
+    if (changedHeader && shown() && profile.value[field] === url) {
+      profile.value = { ...profile.value, [field]: previous };
+    }
     $q.notify({ type: 'negative', message: t('profile.saveError') });
   }
 }
@@ -105,7 +113,11 @@ watch(
       <q-spinner color="primary" size="3em" />
     </div>
 
-    <template v-else>
+    <!--
+      Hidden, not removed, while loading: an account switch reloads the header, and an upload still
+      running in an uploader that was removed would never be published (#400).
+    -->
+    <div v-show="!loading">
       <div class="profile-header__banner">
         <RemoteImage
           v-if="profile.banner"
@@ -120,7 +132,7 @@ watch(
             :stored-key="storedKey"
             :text="t('profile.bannerTitle')"
             upload-id="banner"
-            @banner-uploaded="(url: string) => saveImage('banner', url)"
+            @banner-uploaded="(url: string, pubkey: string) => saveImage('banner', url, pubkey)"
           />
         </div>
       </div>
@@ -151,11 +163,11 @@ watch(
             :stored-key="storedKey"
             :text="t('profile.avatarTitle')"
             upload-id="avatar"
-            @avatar-uploaded="(url: string) => saveImage('picture', url)"
+            @avatar-uploaded="(url: string, pubkey: string) => saveImage('picture', url, pubkey)"
           />
         </div>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 

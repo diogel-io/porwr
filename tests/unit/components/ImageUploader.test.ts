@@ -116,13 +116,16 @@ describe('ImageUploader.vue', () => {
     expect(uploadImageToBlossomMock).toHaveBeenCalledWith(
       expect.objectContaining({
         fileType: 'image/png',
-        uploadId: 'avatar',
+        uploadId: 'avatar:test-pubkey',
       }),
     );
 
     // Should emit uploaded with the URL
     expect(wrapper.emitted('uploaded')).toBeTruthy();
-    expect(wrapper.emitted('uploaded')![0]).toEqual(['https://blossom.example.com/avatar.png']);
+    expect(wrapper.emitted('uploaded')![0]).toEqual([
+      'https://blossom.example.com/avatar.png',
+      'test-pubkey',
+    ]);
     // Should also emit the avatar-specific event
     expect(wrapper.emitted('avatar-uploaded')).toBeTruthy();
   });
@@ -228,7 +231,7 @@ describe('ImageUploader.vue', () => {
     // Only one uploaded event with the URL
     const uploadedEvents = wrapper.emitted('uploaded')!;
     expect(uploadedEvents.length).toBe(1);
-    expect(uploadedEvents[0]).toEqual(['https://blossom.example.com/img.png']);
+    expect(uploadedEvents[0]).toEqual(['https://blossom.example.com/img.png', 'test-pubkey']);
   });
 
   describe('the storage listener (#252)', () => {
@@ -314,13 +317,167 @@ describe('ImageUploader.vue', () => {
       ) => void;
 
       listener(
-        { 'blossom:upload_status': { newValue: { uploading: false, error: 'too_large' } } },
+        {
+          'blossom:upload_status:image:test-pubkey': {
+            newValue: { uploading: false, error: 'too_large' },
+          },
+        },
         'local',
       );
 
       expect(mockNotify).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'profile.uploadErrors.too_large' }),
       );
+    });
+  });
+
+  describe('uploads belong to the account they started for (#400)', () => {
+    const stubs = {
+      qBtn: { template: '<button><slot /></button>' },
+      qTooltip: { template: '<span><slot /></span>' },
+    };
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const other: AccountSummary = { id: 'other-pubkey', alias: 'other', createdAt: '2026-01-01' };
+    const fileEvent = (name: string) =>
+      ({ target: { files: [createFile(name, 'image/png')] } }) as unknown as Event;
+    type Listener = (changes: Record<string, { newValue: unknown }>, area: string) => void;
+
+    it('emits the account the upload started for, though the page switched account meanwhile', async () => {
+      let finishUpload: (value: unknown) => void = () => undefined;
+      uploadImageToBlossomMock.mockReturnValue(new Promise((resolve) => (finishUpload = resolve)));
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'banner' },
+        global: { stubs },
+      });
+      const vm = wrapper.vm as unknown as { handleFileChange(e: Event): Promise<void> };
+
+      const upload = vm.handleFileChange(fileEvent('banner.png'));
+      await wrapper.setProps({ storedKey: other });
+      finishUpload({ url: 'https://blossom.example.com/banner.png' });
+      await upload;
+
+      expect(uploadImageToBlossomMock).toHaveBeenCalledWith(
+        expect.objectContaining({ uploadId: 'banner:test-pubkey' }),
+      );
+      expect(wrapper.emitted('banner-uploaded')).toEqual([
+        ['https://blossom.example.com/banner.png', 'test-pubkey'],
+      ]);
+    });
+
+    it('emits the same image uploaded for two accounts once for each', async () => {
+      uploadImageToBlossomMock.mockResolvedValue({ url: 'https://blossom.example.com/same.png' });
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'banner' },
+        global: { stubs },
+      });
+      const vm = wrapper.vm as unknown as { handleFileChange(e: Event): Promise<void> };
+
+      await vm.handleFileChange(fileEvent('same.png'));
+      await wrapper.setProps({ storedKey: other });
+      await vm.handleFileChange(fileEvent('same.png'));
+
+      expect(wrapper.emitted('banner-uploaded')).toEqual([
+        ['https://blossom.example.com/same.png', 'test-pubkey'],
+        ['https://blossom.example.com/same.png', 'other-pubkey'],
+      ]);
+    });
+
+    it('publishes the same image again when the user uploads it again later', async () => {
+      uploadImageToBlossomMock.mockResolvedValue({ url: 'https://blossom.example.com/same.png' });
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'banner' },
+        global: { stubs },
+      });
+      const vm = wrapper.vm as unknown as { handleFileChange(e: Event): Promise<void> };
+
+      await vm.handleFileChange(fileEvent('same.png'));
+      await vm.handleFileChange(fileEvent('same.png'));
+
+      expect(wrapper.emitted('banner-uploaded')).toHaveLength(2);
+    });
+
+    it('reads only its own account’s stored status, and drops the old shared one unread', async () => {
+      mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'banner' },
+        global: { stubs },
+      });
+      await settle();
+
+      expect(storageMock.get).toHaveBeenCalledWith('blossom:upload_status:banner:test-pubkey');
+      expect(storageMock.get).not.toHaveBeenCalledWith('blossom:upload_status:banner');
+      expect(storageMock.remove).toHaveBeenCalledWith('blossom:upload_status:banner');
+    });
+
+    it('applies and clears a finished upload stored as the background writes it', async () => {
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'banner' },
+        global: { stubs },
+      });
+      await settle();
+      const listener = storageMock.onChanged.mock.calls.at(-1)?.[0] as Listener;
+
+      listener(
+        {
+          'blossom:upload_status:banner:test-pubkey': {
+            newValue: {
+              uploading: false,
+              error: null,
+              url: 'https://blossom.example.com/mine.png',
+            },
+          },
+        },
+        'local',
+      );
+
+      expect(wrapper.emitted('banner-uploaded')).toEqual([
+        ['https://blossom.example.com/mine.png', 'test-pubkey'],
+      ]);
+      expect(storageMock.remove).toHaveBeenCalledWith('blossom:upload_status:banner:test-pubkey');
+    });
+
+    it('ignores a finished upload stored for another account', async () => {
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'banner' },
+        global: { stubs },
+      });
+      await settle();
+      const listener = storageMock.onChanged.mock.calls.at(-1)?.[0] as Listener;
+
+      listener(
+        {
+          'blossom:upload_status:banner:other-pubkey': {
+            newValue: { uploading: false, url: 'https://blossom.example.com/theirs.png' },
+          },
+        },
+        'local',
+      );
+
+      expect(wrapper.emitted('banner-uploaded')).toBeUndefined();
+      expect(storageMock.remove).not.toHaveBeenCalledWith(
+        'blossom:upload_status:banner:other-pubkey',
+      );
+    });
+
+    it('applies a stored upload for the new account, with that account, after a switch', async () => {
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'banner' },
+        global: { stubs },
+      });
+      await settle();
+      storageMock.get.mockImplementation(async (key: string) =>
+        key === 'blossom:upload_status:banner:other-pubkey'
+          ? { uploading: false, url: 'https://blossom.example.com/theirs.png' }
+          : null,
+      );
+
+      await wrapper.setProps({ storedKey: other });
+      await settle();
+
+      expect(wrapper.emitted('banner-uploaded')).toEqual([
+        ['https://blossom.example.com/theirs.png', 'other-pubkey'],
+      ]);
+      storageMock.get.mockReset();
+      storageMock.get.mockResolvedValue(null);
     });
   });
 });
