@@ -165,6 +165,30 @@ describe('ProfileImage.vue', () => {
     );
   });
 
+  it('keeps the uploaders while the header reloads for another account (#400)', async () => {
+    const wrapper = await mountHeader({ name: 'alice' });
+    const before = uploader(wrapper, 'banner');
+    let finishFetch: (value: NostrProfile) => void = () => undefined;
+    fetchProfileMock.mockImplementation(
+      () => new Promise<NostrProfile>((resolve) => (finishFetch = resolve)),
+    );
+
+    await wrapper.setProps({
+      storedKey: { id: 'pubkey-2', alias: 'beta', createdAt: '2026-01-01' },
+    });
+    await flushPromises();
+    // Still loading beta: an upload alpha started finishes now.
+    before.vm.$emit('banner-uploaded', 'https://example.com/alice-banner.png', 'pubkey-1');
+    await flushPromises();
+    finishFetch({ name: 'bob' });
+    await flushPromises();
+
+    expect(uploader(wrapper, 'banner').vm).toBe(before.vm);
+    expect(saveProfileMock).toHaveBeenCalledWith('pubkey-1', {
+      banner: 'https://example.com/alice-banner.png',
+    });
+  });
+
   it('says so when publishing an image fails, and goes back to the published one', async () => {
     saveProfileMock.mockRejectedValue(new Error('no relay accepted it'));
     const wrapper = await mountHeader({ name: 'alice', picture: 'https://example.com/old.png' });

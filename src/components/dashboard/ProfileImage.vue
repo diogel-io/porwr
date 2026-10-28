@@ -110,7 +110,11 @@ watch(
       <q-spinner color="primary" size="3em" />
     </div>
 
-    <template v-else>
+    <!--
+      Hidden, not removed, while loading: an account switch reloads the header, and an upload still
+      running in an uploader that was removed would never be published (#400).
+    -->
+    <div v-show="!loading">
       <div class="profile-header__banner">
         <RemoteImage
           v-if="profile.banner"
@@ -160,7 +164,7 @@ watch(
           />
         </div>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
