@@ -61,21 +61,26 @@ vi.mock('@/services/contact-cache', () => ({
   observeContactCache: mocks.observeContactCache,
 }));
 
-vi.mock('@/stores/account-store', () => ({
-  default: () => ({
-    get activeKey() {
-      return mocks.store.activeKey;
-    },
-    get hasNoAccounts() {
-      return mocks.store.hasNoAccounts;
-    },
-    get activeAccountOrFirst() {
-      return mocks.store.activeAccountOrFirst;
-    },
-    getKeys: mocks.getKeys,
-    setActiveKey: mocks.setActiveKey,
-  }),
-}));
+// Reactive, so switching account in a test reaches the page's watcher as the real store would.
+vi.mock('@/stores/account-store', async () => {
+  const { reactive } = await import('vue');
+  mocks.store = reactive(mocks.store);
+  return {
+    default: () => ({
+      get activeKey() {
+        return mocks.store.activeKey;
+      },
+      get hasNoAccounts() {
+        return mocks.store.hasNoAccounts;
+      },
+      get activeAccountOrFirst() {
+        return mocks.store.activeAccountOrFirst;
+      },
+      getKeys: mocks.getKeys,
+      setActiveKey: mocks.setActiveKey,
+    }),
+  };
+});
 
 vi.mock('quasar', () => ({ useQuasar: () => ({ notify: mocks.notify }) }));
 
@@ -548,6 +553,53 @@ describe('MessagingPage', () => {
 
       expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(false);
       expect(wrapper.find('[data-testid="load-failed"]').exists()).toBe(true);
+    });
+
+    it('shows loading again after an account switch until the new account is fetched', async () => {
+      const CAROL = 'c'.repeat(64);
+      mocks.cachedContacts[CAROL] = [{ pubkey: BOB, relayUrl: '', petname: 'Bob' }];
+      const wrapper = await mountPage();
+      finishFetch({ inbox: 'ready', messages: [], dropped: 0 });
+      await flushPromises();
+      expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(false);
+
+      mocks.store.activeAccountOrFirst = {
+        id: CAROL,
+        alias: 'carol',
+        createdAt: '',
+        account: { privkey: '' },
+      };
+      await flushPromises();
+
+      expect(mocks.fetchMessages).toHaveBeenCalledTimes(2);
+      expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="conversation-list-empty"]').exists()).toBe(false);
+
+      finishFetch({ inbox: 'ready', messages: [], dropped: 0 });
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="conversation-list-empty"]').exists()).toBe(true);
+    });
+
+    it("clears an earlier account's failure notice when switching account", async () => {
+      const CAROL = 'c'.repeat(64);
+      mocks.cachedContacts[CAROL] = [{ pubkey: BOB, relayUrl: '', petname: 'Bob' }];
+      const wrapper = await mountPage();
+      failFetch(new Error('Vault is locked'));
+      await flushPromises();
+      expect(wrapper.find('[data-testid="load-failed"]').exists()).toBe(true);
+
+      mocks.store.activeAccountOrFirst = {
+        id: CAROL,
+        alias: 'carol',
+        createdAt: '',
+        account: { privkey: '' },
+      };
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="load-failed"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(true);
     });
   });
 });

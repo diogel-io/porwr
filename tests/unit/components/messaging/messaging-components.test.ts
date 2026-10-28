@@ -250,6 +250,23 @@ describe('ConversationList (#258, Concept C)', () => {
     expect(wrapper.find('[data-testid="conversation-requests-empty"]').exists()).toBe(false);
   });
 
+  it('shows the loading state on Requests while only chats are listed', async () => {
+    const chatOnly = conversations.filter((conversation) => !conversation.isRequest);
+    const wrapper = mountList({ conversations: chatOnly, loading: true });
+    await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="conversation-requests-empty"]').exists()).toBe(false);
+  });
+
+  it('lets a cached contact be found while loading', async () => {
+    const wrapper = mountList({ conversations: [], loading: true });
+    await wrapper.find('[data-testid="conversation-search"]').setValue('dana');
+
+    expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="conversation-search-results"]').exists()).toBe(true);
+  });
+
   it('follows a request to Chats once it has been answered', async () => {
     const wrapper = mountList({ selectedPeer: STRANGER });
     await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');

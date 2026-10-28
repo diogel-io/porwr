@@ -125,4 +125,15 @@ describe('useDirectMessages inbox state (#396)', () => {
     dm.reset();
     expect(dm.inbox.value).toBe('unknown');
   });
+
+  it('clears a load failure on reset, so it does not carry over to the new account', async () => {
+    fetchMessages.mockRejectedValueOnce(new Error('Vault is locked'));
+    const dm = withComposable();
+
+    await dm.poll();
+    expect(dm.loadFailed.value).toBe(true);
+
+    dm.reset();
+    expect(dm.loadFailed.value).toBe(false);
+  });
 });

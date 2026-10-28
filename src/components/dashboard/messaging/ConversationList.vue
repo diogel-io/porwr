@@ -69,7 +69,14 @@ const startable = computed(() => {
   return matches.value.filter((peer) => !listed.has(peer));
 });
 
-const showLoading = computed(() => Boolean(props.loading) && props.conversations.length === 0);
+/**
+ * Each tab shows the loading state only while it has nothing to list (#396). Searching cached
+ * contacts still works while loading, so a contact can be found before the first fetch finishes.
+ */
+const chatsLoading = computed(
+  () => Boolean(props.loading) && chats.value.length === 0 && !searching.value,
+);
+const requestsLoading = computed(() => Boolean(props.loading) && requests.value.length === 0);
 
 function preview(conversation: ConversationSummary): string {
   const message = conversation.lastMessage;
@@ -149,7 +156,7 @@ watch(
       </q-input>
 
       <div
-        v-if="showLoading"
+        v-if="chatsLoading"
         class="text-center q-pa-md text-grey"
         role="status"
         data-testid="conversation-list-loading"
@@ -255,7 +262,7 @@ watch(
 
     <template v-else>
       <div
-        v-if="showLoading"
+        v-if="requestsLoading"
         class="text-center q-pa-md text-grey"
         role="status"
         data-testid="conversation-list-loading"
