@@ -93,8 +93,11 @@ function emitUploading(status: boolean) {
 }
 
 function emitUploadedOnce(url: string, pubkey: string) {
-  if (lastUploadedUrl.value === url) return;
-  lastUploadedUrl.value = url;
+  // Blossom URLs name the file's hash, so the same image uploaded for two accounts has one URL; each
+  // account's upload is still its own (#400).
+  const uploaded = `${pubkey}:${url}`;
+  if (lastUploadedUrl.value === uploaded) return;
+  lastUploadedUrl.value = uploaded;
   emit('uploaded', url, pubkey);
   if (props.uploadId === 'avatar') emit('avatar-uploaded', url, pubkey);
   else if (props.uploadId === 'banner') emit('banner-uploaded', url, pubkey);

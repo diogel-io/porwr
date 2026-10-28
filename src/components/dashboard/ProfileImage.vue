@@ -64,13 +64,15 @@ async function saveImage(field: 'picture' | 'banner', url: string, pubkey: strin
   // published to that account, and the header only changes if it is the one on show.
   const shown = () => pubkey === props.storedKey.id;
   const previous = profile.value[field];
-  if (shown()) profile.value = { ...profile.value, [field]: url };
+  // Put back only a change this made, and only while that account is still the one shown.
+  const changedHeader = shown();
+  if (changedHeader) profile.value = { ...profile.value, [field]: url };
   try {
     await profileService.saveProfile(pubkey, { [field]: url });
     $q.notify({ type: 'positive', message: t('profile.saveSuccess') });
   } catch (error) {
     console.error('Error saving profile:', error);
-    if (shown()) profile.value = { ...profile.value, [field]: previous };
+    if (changedHeader && shown()) profile.value = { ...profile.value, [field]: previous };
     $q.notify({ type: 'negative', message: t('profile.saveError') });
   }
 }

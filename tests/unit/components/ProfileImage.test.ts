@@ -138,6 +138,33 @@ describe('ProfileImage.vue', () => {
     );
   });
 
+  it('leaves the header alone when a save for an account not shown fails, even after returning (#400)', async () => {
+    let failSave: (reason: unknown) => void = () => undefined;
+    saveProfileMock.mockImplementation(
+      () => new Promise((_resolve, reject) => (failSave = reject)),
+    );
+    const wrapper = await mountHeader({ name: 'alice', banner: 'https://example.com/alice.png' });
+    const other: AccountSummary = { id: 'pubkey-2', alias: 'beta', createdAt: '2026-01-01' };
+    fetchProfileMock.mockResolvedValue({ name: 'bob', banner: 'https://example.com/bob.png' });
+    await wrapper.setProps({ storedKey: other });
+    await flushPromises();
+
+    uploader(wrapper, 'banner').vm.$emit(
+      'banner-uploaded',
+      'https://example.com/alice-new.png',
+      'pubkey-1',
+    );
+    fetchProfileMock.mockResolvedValue({ name: 'alice', banner: 'https://example.com/alice.png' });
+    await wrapper.setProps({ storedKey });
+    await flushPromises();
+    failSave(new Error('no relay accepted it'));
+    await flushPromises();
+
+    expect(wrapper.find('.profile-header__banner-image').attributes('src')).toBe(
+      'https://example.com/alice.png',
+    );
+  });
+
   it('says so when publishing an image fails, and goes back to the published one', async () => {
     saveProfileMock.mockRejectedValue(new Error('no relay accepted it'));
     const wrapper = await mountHeader({ name: 'alice', picture: 'https://example.com/old.png' });

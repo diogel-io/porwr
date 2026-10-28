@@ -364,6 +364,24 @@ describe('ImageUploader.vue', () => {
       ]);
     });
 
+    it('emits the same image uploaded for two accounts once for each', async () => {
+      uploadImageToBlossomMock.mockResolvedValue({ url: 'https://blossom.example.com/same.png' });
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'banner' },
+        global: { stubs },
+      });
+      const vm = wrapper.vm as unknown as { handleFileChange(e: Event): Promise<void> };
+
+      await vm.handleFileChange(fileEvent('same.png'));
+      await wrapper.setProps({ storedKey: other });
+      await vm.handleFileChange(fileEvent('same.png'));
+
+      expect(wrapper.emitted('banner-uploaded')).toEqual([
+        ['https://blossom.example.com/same.png', 'test-pubkey'],
+        ['https://blossom.example.com/same.png', 'other-pubkey'],
+      ]);
+    });
+
     it('reads only its own account’s stored status, and drops the old shared one unread', async () => {
       mount(ImageUploader, {
         props: { storedKey: mockStoredKey, uploadId: 'banner' },
