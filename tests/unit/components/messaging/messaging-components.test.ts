@@ -242,6 +242,14 @@ describe('ConversationList (#258, Concept C)', () => {
     expect(wrapper.find('[data-testid="conversation-list-empty"]').exists()).toBe(false);
   });
 
+  it('shows the loading state on Requests too, not "No message requests" (#396)', async () => {
+    const wrapper = mountList({ conversations: [], loading: true });
+    await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="conversation-requests-empty"]').exists()).toBe(false);
+  });
+
   it('follows a request to Chats once it has been answered', async () => {
     const wrapper = mountList({ selectedPeer: STRANGER });
     await wrapper.find('[data-testid="conversation-tab-requests"]').trigger('click');

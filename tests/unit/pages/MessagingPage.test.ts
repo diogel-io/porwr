@@ -496,4 +496,58 @@ describe('MessagingPage', () => {
     expect(wrapper.text()).toContain('account.noAccounts');
     expect(mocks.fetchMessages).not.toHaveBeenCalled();
   });
+
+  describe('while the first fetch runs (#396)', () => {
+    let finishFetch: (value: unknown) => void;
+    let failFetch: (reason: unknown) => void;
+
+    beforeEach(() => {
+      // Nothing listed yet, so the list is empty until the fetch says otherwise.
+      mocks.getSavedPeers.mockResolvedValue([]);
+      mocks.fetchMessages.mockImplementation(
+        () =>
+          new Promise((resolve, reject) => {
+            finishFetch = resolve;
+            failFetch = reject;
+          }),
+      );
+    });
+
+    it('shows the loading indicator, not "No conversations yet", once contacts are cached', async () => {
+      const wrapper = await mountPage();
+
+      expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="conversation-list-empty"]').exists()).toBe(false);
+    });
+
+    it('shows "No conversations yet" when the fetch finds none', async () => {
+      const wrapper = await mountPage();
+
+      finishFetch({ inbox: 'ready', messages: [], dropped: 0 });
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="conversation-list-empty"]').exists()).toBe(true);
+    });
+
+    it('shows the conversations the fetch finds', async () => {
+      const wrapper = await mountPage();
+
+      finishFetch({ inbox: 'ready', messages: [msg('m', BOB, BOB, 10, 'hi')], dropped: 0 });
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(false);
+      expect(wrapper.find(`li[data-peer="${BOB}"]`).exists()).toBe(true);
+    });
+
+    it('stops loading and shows the notice when the fetch fails', async () => {
+      const wrapper = await mountPage();
+
+      failFetch(new Error('Vault is locked'));
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="conversation-list-loading"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="load-failed"]').exists()).toBe(true);
+    });
+  });
 });

@@ -254,7 +254,16 @@ watch(
     </template>
 
     <template v-else>
-      <q-list v-if="requests.length > 0" data-testid="conversation-list-requests">
+      <div
+        v-if="showLoading"
+        class="text-center q-pa-md text-grey"
+        role="status"
+        data-testid="conversation-list-loading"
+      >
+        <q-spinner color="primary" size="2em" />
+        <div class="q-mt-sm">{{ t('messaging.list.loading') }}</div>
+      </div>
+      <q-list v-else-if="requests.length > 0" data-testid="conversation-list-requests">
         <q-item
           v-for="conversation in requests"
           :key="conversation.peer"

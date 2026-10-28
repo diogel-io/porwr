@@ -112,3 +112,17 @@ describe('useDirectMessages poll after an account switch (diogel-io/workspace#14
     expect(dm.inbox.value).toBe('ready');
   });
 });
+
+describe('useDirectMessages inbox state (#396)', () => {
+  it('returns the inbox to unknown on reset, so the page shows loading for the new account', async () => {
+    fetchMessages.mockResolvedValueOnce({ inbox: 'ready', messages: [], dropped: 0 });
+    const dm = withComposable();
+
+    expect(dm.inbox.value).toBe('unknown');
+    await dm.poll();
+    expect(dm.inbox.value).toBe('ready');
+
+    dm.reset();
+    expect(dm.inbox.value).toBe('unknown');
+  });
+});
