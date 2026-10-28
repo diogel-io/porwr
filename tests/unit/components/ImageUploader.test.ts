@@ -408,6 +408,33 @@ describe('ImageUploader.vue', () => {
       expect(storageMock.remove).toHaveBeenCalledWith('blossom:upload_status:banner');
     });
 
+    it('applies and clears a finished upload stored as the background writes it', async () => {
+      const wrapper = mount(ImageUploader, {
+        props: { storedKey: mockStoredKey, uploadId: 'banner' },
+        global: { stubs },
+      });
+      await settle();
+      const listener = storageMock.onChanged.mock.calls.at(-1)?.[0] as Listener;
+
+      listener(
+        {
+          'blossom:upload_status:banner:test-pubkey': {
+            newValue: {
+              uploading: false,
+              error: null,
+              url: 'https://blossom.example.com/mine.png',
+            },
+          },
+        },
+        'local',
+      );
+
+      expect(wrapper.emitted('banner-uploaded')).toEqual([
+        ['https://blossom.example.com/mine.png', 'test-pubkey'],
+      ]);
+      expect(storageMock.remove).toHaveBeenCalledWith('blossom:upload_status:banner:test-pubkey');
+    });
+
     it('ignores a finished upload stored for another account', async () => {
       const wrapper = mount(ImageUploader, {
         props: { storedKey: mockStoredKey, uploadId: 'banner' },

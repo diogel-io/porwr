@@ -40,11 +40,15 @@ const uploading = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 const lastUploadedUrl = ref<string | null>(null);
 
+/** As the background stores it: the field that does not apply is `null`, not absent. */
 interface StorageUploadStatus {
   uploading?: boolean;
-  url?: string;
-  error?: string;
+  url?: string | null;
+  error?: string | null;
 }
+
+const isOptionalString = (value: unknown) =>
+  value === undefined || value === null || typeof value === 'string';
 
 function isUploadStatus(value: unknown): value is StorageUploadStatus {
   if (typeof value !== 'object' || value === null) {
@@ -53,8 +57,8 @@ function isUploadStatus(value: unknown): value is StorageUploadStatus {
 
   const record = value as Record<string, unknown>;
   const hasValidUploading = record.uploading === undefined || typeof record.uploading === 'boolean';
-  const hasValidUrl = record.url === undefined || typeof record.url === 'string';
-  const hasValidError = record.error === undefined || typeof record.error === 'string';
+  const hasValidUrl = isOptionalString(record.url);
+  const hasValidError = isOptionalString(record.error);
 
   return hasValidUploading && hasValidUrl && hasValidError;
 }
