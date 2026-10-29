@@ -39,20 +39,29 @@ describe('workflow hardening', () => {
     expect(header).not.toMatch(/:\s*write/);
   });
 
-  /** Each release job that sets permissions, with the grants it sets. */
-  const releaseGrants = () => {
-    const release = workflows.find(({ name }) => name === 'release.yml')!.source;
-    return [
-      ...release.matchAll(
-        /^  ([\w-]+):\n(?:(?!^  \S).*\n)*?\s+permissions:\n((?:\s+\w[\w-]*: \w+\n)+)/gm,
+  const releaseSource = () => workflows.find(({ name }) => name === 'release.yml')!.source;
+
+  /**
+   * Each release job that sets permissions, with the grants it sets. A grant may carry a trailing
+   * comment, which is dropped, so a comment can neither end the list early nor hide a grant.
+   */
+  const releaseGrants = () =>
+    [
+      ...releaseSource().matchAll(
+        /^  ([\w-]+):\n(?:(?!^  \S).*\n)*?\s+permissions:\n((?:\s+\w[\w-]*: \w+(?:\s+#.*)?\n)+)/gm,
       ),
     ].map(([, job, grants]) => ({
       job: job!,
       grants: grants!
         .trim()
         .split('\n')
-        .map((line) => line.trim()),
+        .map((line) => line.replace(/\s+#.*$/, '').trim()),
     }));
+
+  /** The lines of one release job, up to the next job. */
+  const releaseJob = (job: string) => {
+    const match = releaseSource().match(new RegExp(`^  ${job}:\\n((?:(?!^  \\S).*\\n)*)`, 'm'));
+    return match?.[1] ?? '';
   };
 
   it('grants write access only to the release jobs that need it', () => {
@@ -67,5 +76,14 @@ describe('workflow hardening', () => {
     const closeMilestone = releaseGrants().find(({ job }) => job === 'close-milestone');
 
     expect(closeMilestone?.grants).toEqual(['issues: write']);
+  });
+
+  it('closes the milestone only after release-please has created a release (#409)', () => {
+    const job = releaseJob('close-milestone');
+
+    // `release-please` runs only on a push, so a manual dispatch never reaches this job either.
+    expect(job).toMatch(/^\s+needs: \[release-please\]$/m);
+    expect(job).toMatch(/^\s+if: needs\.release-please\.outputs\.release_created == 'true'$/m);
+    expect(job).toMatch(/gh api --paginate "repos\/\$GITHUB_REPOSITORY\/milestones\?state=open/);
   });
 });
