@@ -389,10 +389,11 @@ export async function quickSignEvent(
   let signedEvent: NostrEvent;
   try {
     // Signed in the background as the selected account, which need not be the active one (#240).
+    // A plain copy of the tags: Firefox cannot clone a reactive proxy into an extension message (#411).
     signedEvent = await signAsAccount(selectedAccount.id, {
       kind: event.kind,
       content: event.content,
-      tags: event.tags,
+      tags: event.tags.map((tag) => [...tag]),
       created_at: event.created_at,
     });
   } catch (error: unknown) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { get, getActive } from '@/services/dexie-storage';
 import {
@@ -35,7 +35,8 @@ let relayRequest = 0;
 const showPreviewDialog = ref(false);
 const errorMessage = ref<string | null>(null);
 const successMessage = ref<string | null>(null);
-const previewEvent = ref<QuickSignPreparedEvent | null>(null);
+// Shallow, so the event stays the plain object that gets signed (#411).
+const previewEvent = shallowRef<QuickSignPreparedEvent | null>(null);
 
 const kindOptions = computed<{ label: string; value: QuickSignSupportedKind }[]>(() => [
   {
