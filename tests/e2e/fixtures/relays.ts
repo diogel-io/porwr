@@ -25,7 +25,7 @@ export interface LocalRelays {
 
 const START_TIMEOUT_MS = 10_000;
 
-function nakAvailable(): boolean {
+export function nakAvailable(): boolean {
   return spawnSync('nak', ['--version'], { stdio: 'ignore' }).status === 0;
 }
 
@@ -61,7 +61,9 @@ async function waitForPort(port: number): Promise<void> {
   throw new Error(`nak serve did not start on port ${port} within ${START_TIMEOUT_MS} ms`);
 }
 
-async function startRelay(extraArgs: string[]): Promise<{ url: string; process: ChildProcess }> {
+export async function startRelay(
+  extraArgs: string[],
+): Promise<{ url: string; process: ChildProcess }> {
   const port = await freePort();
   const child = spawn('nak', ['serve', '--port', String(port), ...extraArgs], { stdio: 'ignore' });
   await waitForPort(port);

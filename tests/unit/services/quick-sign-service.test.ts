@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { isProxy, reactive } from 'vue';
 import { get, getActive } from '@/services/dexie-storage';
 import { LogLevel, logService } from '@/services/log-service';
 import { isVaultUnlocked, sendBexMessage } from '@/services/vault-service';
@@ -233,6 +234,31 @@ describe('quick-sign-service', () => {
     expect(result.publishStatus).toBe('not-attempted');
     expect(result.relayResults).toEqual([]);
     expect(poolPublishMock).not.toHaveBeenCalled();
+  });
+
+  it('sends the background plain tags when the event is reactive, so Firefox can clone it (#411)', async () => {
+    const tags = [
+      ['t', 'diogel'],
+      ['client', 'Diogel Porwr'],
+    ];
+    const event = reactive({
+      kind: 1,
+      content: 'Working hard, building things',
+      tags,
+      created_at: 1735689600,
+      pubkey: 'f'.repeat(64),
+    });
+
+    const result = await quickSignEvent(event, true, ['wss://relay-a.example'], 'alpha');
+
+    expect(result.success).toBe(true);
+    const template = signAsAccountMock.mock.calls[0]![1] as { tags: string[][] };
+    expect(template.tags).toEqual(tags);
+    expect(isProxy(template.tags)).toBe(false);
+    for (const tag of template.tags) {
+      expect(isProxy(tag)).toBe(false);
+    }
+    expect(() => structuredClone(template)).not.toThrow();
   });
 
   it('logs safe quick-sign metadata without event content or secrets', async () => {
