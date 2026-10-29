@@ -39,16 +39,51 @@ describe('workflow hardening', () => {
     expect(header).not.toMatch(/:\s*write/);
   });
 
-  it('grants write access only to the release jobs that need it', () => {
-    const release = workflows.find(({ name }) => name === 'release.yml')!.source;
-    const writers = [
-      ...release.matchAll(
-        /^  ([\w-]+):\n(?:(?!^  \S).*\n)*?\s+permissions:\n((?:\s+\w[\w-]*: \w+\n)+)/gm,
-      ),
-    ]
-      .filter(([, , grants]) => /write/.test(grants!))
-      .map(([, job]) => job);
+  const releaseSource = () => workflows.find(({ name }) => name === 'release.yml')!.source;
 
-    expect(writers.sort()).toEqual(['build', 'release-please']);
+  /**
+   * Each release job that sets permissions, with the grants it sets. A grant may carry a trailing
+   * comment, which is dropped, so a comment can neither end the list early nor hide a grant.
+   */
+  const releaseGrants = () =>
+    [
+      ...releaseSource().matchAll(
+        /^  ([\w-]+):\n(?:(?!^  \S).*\n)*?\s+permissions:\n((?:\s+\w[\w-]*: \w+(?:\s+#.*)?\n)+)/gm,
+      ),
+    ].map(([, job, grants]) => ({
+      job: job!,
+      grants: grants!
+        .trim()
+        .split('\n')
+        .map((line) => line.replace(/\s+#.*$/, '').trim()),
+    }));
+
+  /** The lines of one release job, up to the next job. */
+  const releaseJob = (job: string) => {
+    const match = releaseSource().match(new RegExp(`^  ${job}:\\n((?:(?!^  \\S).*\\n)*)`, 'm'));
+    return match?.[1] ?? '';
+  };
+
+  it('grants write access only to the release jobs that need it', () => {
+    const writers = releaseGrants()
+      .filter(({ grants }) => grants.some((grant) => grant.endsWith('write')))
+      .map(({ job }) => job);
+
+    expect(writers.sort()).toEqual(['build', 'close-milestone', 'release-please']);
+  });
+
+  it('lets the milestone job write to issues and nothing else (#409)', () => {
+    const closeMilestone = releaseGrants().find(({ job }) => job === 'close-milestone');
+
+    expect(closeMilestone?.grants).toEqual(['issues: write']);
+  });
+
+  it('closes the milestone only after release-please has created a release (#409)', () => {
+    const job = releaseJob('close-milestone');
+
+    // `release-please` runs only on a push, so a manual dispatch never reaches this job either.
+    expect(job).toMatch(/^\s+needs: \[release-please\]$/m);
+    expect(job).toMatch(/^\s+if: needs\.release-please\.outputs\.release_created == 'true'$/m);
+    expect(job).toMatch(/gh api --paginate "repos\/\$GITHUB_REPOSITORY\/milestones\?state=open/);
   });
 });
