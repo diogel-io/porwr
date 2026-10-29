@@ -39,16 +39,33 @@ describe('workflow hardening', () => {
     expect(header).not.toMatch(/:\s*write/);
   });
 
-  it('grants write access only to the release jobs that need it', () => {
+  /** Each release job that sets permissions, with the grants it sets. */
+  const releaseGrants = () => {
     const release = workflows.find(({ name }) => name === 'release.yml')!.source;
-    const writers = [
+    return [
       ...release.matchAll(
         /^  ([\w-]+):\n(?:(?!^  \S).*\n)*?\s+permissions:\n((?:\s+\w[\w-]*: \w+\n)+)/gm,
       ),
-    ]
-      .filter(([, , grants]) => /write/.test(grants!))
-      .map(([, job]) => job);
+    ].map(([, job, grants]) => ({
+      job: job!,
+      grants: grants!
+        .trim()
+        .split('\n')
+        .map((line) => line.trim()),
+    }));
+  };
 
-    expect(writers.sort()).toEqual(['build', 'release-please']);
+  it('grants write access only to the release jobs that need it', () => {
+    const writers = releaseGrants()
+      .filter(({ grants }) => grants.some((grant) => grant.endsWith('write')))
+      .map(({ job }) => job);
+
+    expect(writers.sort()).toEqual(['build', 'close-milestone', 'release-please']);
+  });
+
+  it('lets the milestone job write to issues and nothing else (#409)', () => {
+    const closeMilestone = releaseGrants().find(({ job }) => job === 'close-milestone');
+
+    expect(closeMilestone?.grants).toEqual(['issues: write']);
   });
 });
