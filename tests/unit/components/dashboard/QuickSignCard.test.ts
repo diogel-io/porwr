@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent } from 'vue';
+import { defineComponent, isProxy } from 'vue';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import type { QuickSignAccountRelays } from '@/types';
 
@@ -38,6 +38,12 @@ vi.mock('vue-i18n', () => ({
 }));
 
 import useSettingsStore from '@/stores/settings-store';
+import { get } from '@/services/dexie-storage';
+import {
+  buildQuickSignPreviewEvent,
+  getQuickSignAvailability,
+  quickSignEvent,
+} from '@/services/quick-sign-service';
 import QuickSignCard from '@/components/dashboard/QuickSignCard.vue';
 
 // Cards share the settings store, so a card left mounted would react to the next test's relays.
@@ -175,5 +181,50 @@ describe('the Quick Publish card relays (#285)', () => {
 
     expect(listRelaysMock).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).toContain('dashboard.widgets.quickSign.publishDestinationSummary:1');
+  });
+});
+
+describe('the Quick Publish card signing (#411)', () => {
+  beforeEach(() => {
+    listRelaysMock.mockReset();
+    listRelaysMock.mockResolvedValue(ready(['wss://relay.example']));
+  });
+
+  it('hands the plain prepared event, not a reactive proxy, to be signed', async () => {
+    const event = {
+      kind: 1,
+      content: 'Working hard, building things',
+      tags: [['t', 'diogel']],
+      created_at: 1735689600,
+      pubkey: 'f'.repeat(64),
+    };
+    vi.mocked(get).mockResolvedValue({
+      alpha: { id: 'f'.repeat(64), alias: 'alpha', createdAt: '2026-01-01' },
+    });
+    vi.mocked(getQuickSignAvailability).mockResolvedValue({ state: 'ready' });
+    vi.mocked(buildQuickSignPreviewEvent).mockReturnValue({
+      event,
+      validation: { valid: true, errors: [] },
+      normalizedJson: JSON.stringify(event),
+    });
+    vi.mocked(quickSignEvent).mockResolvedValue({
+      success: true,
+      signedEvent: { ...event, id: 'e', sig: 's' },
+      publishStatus: 'success',
+      relayResults: [],
+    });
+    const wrapper = await mountCard();
+    const card = wrapper.vm as unknown as {
+      openPreview: () => Promise<void>;
+      confirmSign: () => Promise<void>;
+    };
+
+    await card.openPreview();
+    await card.confirmSign();
+
+    const signed = vi.mocked(quickSignEvent).mock.calls[0]![0];
+    expect(signed).toBe(event);
+    expect(isProxy(signed)).toBe(false);
+    expect(isProxy(signed.tags)).toBe(false);
   });
 });

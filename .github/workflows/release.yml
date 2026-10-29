@@ -52,6 +52,7 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
       sha: ${{ steps.release.outputs.sha }}
     steps:
       - name: Run release-please
@@ -61,6 +62,32 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           target-branch: master
+
+  # The milestone named after the version (for example 0.3.0) is the release's scope, so it is done
+  # once release-please has created the tag and release (#409). It does not wait for the store jobs:
+  # a store failure is retried on its own and is no reason to keep the scope open. Manual
+  # dispatches never get here, and a release with no milestone is not an error.
+  close-milestone:
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Close the version's milestone
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          set -euo pipefail
+          number="$(gh api --paginate "repos/$GITHUB_REPOSITORY/milestones?state=open&per_page=100" \
+            --jq ".[] | select(.title == \"$VERSION\") | .number")"
+          if [ -z "$number" ]; then
+            echo "::notice::No open milestone named $VERSION; nothing to close."
+            exit 0
+          fi
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/milestones/$number" -f state=closed --silent
+          echo "Closed milestone $VERSION (#$number)"
 
   # Normalises the two trigger shapes (automatic release-please merge vs. manual
   # workflow_dispatch) into one set of outputs the rest of the workflow consumes.
