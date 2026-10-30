@@ -229,6 +229,23 @@ describe('BlossomHandler', () => {
     });
   });
 
+  describe('the account the upload is for (porwr#417)', () => {
+    it('uploads when the named account is still the active one', async () => {
+      const result = await handleBlossomUpload({ ...payload, accountPubkey: 'test-pubkey' });
+
+      expect(result.success).toBe(true);
+      expect(finalizeEvent).toHaveBeenCalledTimes(1);
+    });
+
+    it('signs and sends nothing once another account has become active', async () => {
+      const result = await handleBlossomUpload({ ...payload, accountPubkey: 'other-pubkey' });
+
+      expect(result.success).toBe(false);
+      expect(finalizeEvent).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
   describe('BUD-11 authorisation (diogel-io/workspace#142, T21)', () => {
     const tagsOf = (call: number) =>
       (vi.mocked(finalizeEvent).mock.calls[call]![0] as { tags: string[][] }).tags;

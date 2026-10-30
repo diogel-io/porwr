@@ -76,6 +76,7 @@ export async function uploadImageToBlossom(
     fileType: input.fileType,
     blossomServer,
     ...(input.uploadId ? { uploadId: input.uploadId } : {}),
+    ...(input.pubkey ? { accountPubkey: input.pubkey } : {}),
   });
 
   if (isSuccessfulUploadResponse(response)) {

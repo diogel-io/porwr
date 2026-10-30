@@ -82,9 +82,15 @@ describe('parseServerList (porwr#417)', () => {
       ['server', 'https://primary.example'],
       ['server', 'http://plaintext.example'],
       ['server'],
+      ['server', '  '],
     ]);
 
-    expect(parseServerList(event)).toEqual(['https://primary.example', 'https://mirror.example']);
+    // An http:// server another client added is kept, so saving a new primary does not drop it.
+    expect(parseServerList(event)).toEqual([
+      'https://primary.example',
+      'https://mirror.example',
+      'http://plaintext.example',
+    ]);
   });
 
   it('reads nothing from another kind', () => {
@@ -128,10 +134,22 @@ describe('fetchServerList (porwr#417)', () => {
     expect(mocks.fetchAccountReplaceableEvent).toHaveBeenCalledWith(PUBKEY, 10063);
   });
 
-  it('treats a list with no usable server as none', async () => {
+  it('reports a list whose servers Porwr cannot use, so saving does not replace it unseen', async () => {
     mocks.fetchAccountReplaceableEvent.mockResolvedValue({
       status: 'found',
       event: serverList([['server', 'http://plaintext.example']]),
+    });
+
+    await expect(fetchServerList(PUBKEY)).resolves.toEqual({
+      status: 'found',
+      servers: ['http://plaintext.example'],
+    });
+  });
+
+  it('treats a list with no server tag as none', async () => {
+    mocks.fetchAccountReplaceableEvent.mockResolvedValue({
+      status: 'found',
+      event: serverList([['r', 'wss://relay.example']]),
     });
 
     await expect(fetchServerList(PUBKEY)).resolves.toEqual({ status: 'not-found' });
@@ -177,6 +195,27 @@ describe('publishServerList (porwr#417)', () => {
     );
   });
 
+  it('waits for every relay before closing the pool, and succeeds if one accepted', async () => {
+    const order: string[] = [];
+    mocks.publish.mockImplementation(() => [
+      Promise.resolve('ok').then(() => {
+        order.push('fast');
+        return 'ok';
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => {
+          order.push('slow');
+          reject(new Error('blocked'));
+        }, 10),
+      ),
+    ]);
+    mocks.close.mockImplementation(() => order.push('close'));
+
+    await publishServerList(PUBKEY, tags);
+
+    expect(order).toEqual(['fast', 'slow', 'close']);
+  });
+
   it('fails when no relay accepts the list', async () => {
     mocks.publish.mockImplementation((relays: string[]) =>
       relays.map(() => Promise.reject(new Error('blocked'))),
@@ -210,6 +249,18 @@ describe('resolveUploadServer (porwr#417)', () => {
     await expect(resolveUploadServer(PUBKEY)).resolves.toBe('https://primary.example');
     await expect(resolveUploadServer(PUBKEY)).resolves.toBe('https://primary.example');
     expect(mocks.fetchAccountReplaceableEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('uploads to the first https:// server when the primary is not one', async () => {
+    mocks.fetchAccountReplaceableEvent.mockResolvedValue({
+      status: 'found',
+      event: serverList([
+        ['server', 'http://plaintext.example'],
+        ['server', 'https://mirror.example'],
+      ]),
+    });
+
+    await expect(resolveUploadServer(PUBKEY)).resolves.toBe('https://mirror.example');
   });
 
   it.each(['not-found', 'unreachable'])(

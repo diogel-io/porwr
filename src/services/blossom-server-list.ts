@@ -31,18 +31,29 @@ export type BlossomServerListLookup =
  */
 const primaryServers = new Map<string, string>();
 
-/** The valid `server` tags of a kind 10063, normalised, without duplicates, in their order. */
+/**
+ * The `server` tags of a kind 10063, in their order and without duplicates.
+ *
+ * Valid servers are normalised. Ones Porwr would not upload to, such as an http:// server another
+ * client added, are kept as published, so saving a new primary does not drop them.
+ */
 export function parseServerList(event: Event): string[] {
   if (event.kind !== BLOSSOM_SERVER_LIST_KIND || !Array.isArray(event.tags)) return [];
   const servers: string[] = [];
   for (const tag of event.tags) {
     if (!Array.isArray(tag) || tag[0] !== 'server' || typeof tag[1] !== 'string') continue;
-    const result = normalizeBlossomServer(tag[1]);
-    if (result.valid && result.url && !servers.includes(result.url)) {
-      servers.push(result.url);
+    const raw = tag[1].trim();
+    const server = normalizeBlossomServer(raw).url ?? raw;
+    if (server && !servers.includes(server)) {
+      servers.push(server);
     }
   }
   return servers;
+}
+
+/** The first server of `servers` Porwr may upload to, if any. */
+function firstUsableServer(servers: readonly string[]): string | undefined {
+  return servers.find((server) => normalizeBlossomServer(server).valid);
 }
 
 /** `primary` first, then the other servers of `existing` in their order. */
@@ -60,7 +71,8 @@ export async function fetchServerList(pubkey: string): Promise<BlossomServerList
 
   const servers = parseServerList(lookup.event);
   if (servers.length === 0) return { status: 'not-found' };
-  primaryServers.set(pubkey, servers[0]!);
+  const usable = firstUsableServer(servers);
+  if (usable) primaryServers.set(pubkey, usable);
   return { status: 'found', servers };
 }
 
@@ -68,7 +80,8 @@ export async function fetchServerList(pubkey: string): Promise<BlossomServerList
  * Signs `tags` as `pubkey`'s kind 10063 in the background and publishes it.
  *
  * It goes where `RelayEditor` sends a kind 10002: the fallback relays and the account's NIP-65
- * write relays. Resolves once one relay accepts it, and remembers the new primary server.
+ * write relays. Resolves once every relay has answered and at least one accepted it, and remembers
+ * the new primary server.
  */
 export async function publishServerList(pubkey: string, tags: string[][]): Promise<void> {
   const settingsStore = useSettingsStore();
@@ -90,7 +103,11 @@ export async function publishServerList(pubkey: string, tags: string[][]): Promi
 
   const pool = new SimplePool();
   try {
-    await Promise.any(pool.publish(targets, event));
+    // Every relay is given its chance before the pool closes; one acceptance is enough.
+    const results = await Promise.allSettled(pool.publish(targets, event));
+    if (!results.some((result) => result.status === 'fulfilled')) {
+      throw new Error('No relay accepted the Blossom server list');
+    }
   } finally {
     pool.close(targets);
   }
@@ -100,15 +117,16 @@ export async function publishServerList(pubkey: string, tags: string[][]): Promi
 }
 
 /**
- * Where `pubkey`'s images are uploaded: the primary server of its kind 10063, or the vault's
- * Blossom setting when it has none or it cannot be read.
+ * Where `pubkey`'s images are uploaded: the first https:// server of its kind 10063, or the
+ * Blossom setting when it has none or the list cannot be read.
  */
 export async function resolveUploadServer(pubkey: string): Promise<string> {
   const known = primaryServers.get(pubkey);
   if (known) return known;
 
   const lookup = await fetchServerList(pubkey);
-  if (lookup.status === 'found') return lookup.servers[0]!;
+  const usable = lookup.status === 'found' ? firstUsableServer(lookup.servers) : undefined;
+  if (usable) return usable;
 
   const settingsStore = useSettingsStore();
   await settingsStore.getSettings();

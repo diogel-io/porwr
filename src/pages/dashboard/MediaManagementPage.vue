@@ -48,7 +48,11 @@ function vaultDefault(): string {
   return normalizeBlossomServer(settingsStore.blossomServer).url ?? settingsStore.blossomServer;
 }
 
+/** The account whose list the field shows, or is loading. */
+let loadedPubkey: string | undefined;
+
 async function loadServerList(pubkey: string): Promise<void> {
+  loadedPubkey = pubkey;
   listStatus.value = 'loading';
   await settingsStore.getSettings();
   const lookup = await fetchServerList(pubkey);
@@ -89,9 +93,12 @@ async function saveServer(): Promise<void> {
   try {
     const tags = buildServerListTags(server, publishedServers.value);
     await publishServerList(account.id, tags);
-    publishedServers.value = tags.map((tag) => tag[1] ?? '');
-    serverInput.value = server;
-    listStatus.value = 'found';
+    // Another account may have been chosen while this one was publishing.
+    if (activeStoredKey.value?.id === account.id) {
+      publishedServers.value = tags.map((tag) => tag[1] ?? '');
+      serverInput.value = server;
+      listStatus.value = 'found';
+    }
     $q.notify({ type: 'positive', message: t('mediaManagement.saveSuccess') });
   } catch (error) {
     console.error('Error saving Blossom server list:', error);
@@ -103,8 +110,8 @@ async function saveServer(): Promise<void> {
 
 watch(
   () => activeStoredKey.value?.id,
-  (pubkey, previous) => {
-    if (pubkey && previous) void loadServerList(pubkey);
+  (pubkey) => {
+    if (pubkey && pubkey !== loadedPubkey) void loadServerList(pubkey);
   },
 );
 
@@ -113,7 +120,7 @@ onMounted(async () => {
   if (!accountStore.activeKey && activeStoredKey.value) {
     await accountStore.setActiveKey(activeStoredKey.value.alias);
   }
-  if (activeStoredKey.value) {
+  if (activeStoredKey.value && activeStoredKey.value.id !== loadedPubkey) {
     await loadServerList(activeStoredKey.value.id);
   }
 });

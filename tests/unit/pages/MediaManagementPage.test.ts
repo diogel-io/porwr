@@ -276,6 +276,49 @@ describe('MediaManagementPage (porwr#417)', () => {
     expect(input(wrapper).value).toBe('https://bob.example');
   });
 
+  it('does not show a save that finishes after another account was chosen', async () => {
+    let finishPublish: () => void = () => {};
+    mocks.publishServerList.mockImplementation(
+      () => new Promise<void>((resolve) => (finishPublish = resolve)),
+    );
+    mocks.fetchServerList.mockImplementation((pubkey: string) =>
+      Promise.resolve(
+        pubkey === BOB.id
+          ? { status: 'found', servers: ['https://bob.example'] }
+          : { status: 'not-found' },
+      ),
+    );
+    const wrapper = await mountPage();
+    await wrapper.find('input').setValue('https://alice.example');
+    await saveButton(wrapper).trigger('click');
+
+    (useAccountStore() as unknown as typeof mocks.accounts).activeAccountOrFirst = BOB;
+    await flushPromises();
+    finishPublish();
+    await flushPromises();
+
+    expect(input(wrapper).value).toBe('https://bob.example');
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+  });
+
+  it('loads the list of an account that appears after the page opened', async () => {
+    mocks.accounts.activeAccountOrFirst = undefined;
+    mocks.accounts.hasNoAccounts = true;
+    mocks.fetchServerList.mockResolvedValue({
+      status: 'found',
+      servers: ['https://alice.example'],
+    });
+    const wrapper = await mountPage();
+
+    const store = useAccountStore() as unknown as typeof mocks.accounts;
+    store.hasNoAccounts = false;
+    store.activeAccountOrFirst = ALICE;
+    await flushPromises();
+
+    expect(mocks.fetchServerList).toHaveBeenCalledWith(ALICE.id);
+    expect(input(wrapper).value).toBe('https://alice.example');
+  });
+
   it('asks for an account when the vault has none', async () => {
     mocks.accounts.activeAccountOrFirst = undefined;
     mocks.accounts.hasNoAccounts = true;

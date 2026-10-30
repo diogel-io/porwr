@@ -71,6 +71,7 @@ describe('blossom-upload-service', () => {
       base64Data: 'abc123',
       fileType: 'image/png',
       blossomServer: 'https://account.example',
+      accountPubkey: 'a'.repeat(64),
     });
   });
 
