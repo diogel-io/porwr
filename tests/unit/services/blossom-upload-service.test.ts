@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { sendBexMessageMock, getSettingsMock } = vi.hoisted(() => ({
+const { sendBexMessageMock, getSettingsMock, resolveUploadServerMock } = vi.hoisted(() => ({
   sendBexMessageMock: vi.fn(),
   getSettingsMock: vi.fn(),
+  resolveUploadServerMock: vi.fn(),
+}));
+
+vi.mock('@/services/blossom-server-list', () => ({
+  resolveUploadServer: resolveUploadServerMock,
 }));
 
 vi.mock('@/services/vault-service', () => ({
@@ -45,6 +50,27 @@ describe('blossom-upload-service', () => {
       base64Data: 'iVBORw...',
       fileType: 'image/png',
       blossomServer: 'https://blossom.default.example.com',
+    });
+  });
+
+  it("uploads to the account's own Blossom server when the account is named (porwr#417)", async () => {
+    resolveUploadServerMock.mockResolvedValue('https://account.example');
+    sendBexMessageMock.mockResolvedValue({
+      success: true,
+      url: 'https://account.example/image.png',
+    });
+
+    await uploadImageToBlossom({
+      base64Data: 'abc123',
+      fileType: 'image/png',
+      pubkey: 'a'.repeat(64),
+    });
+
+    expect(resolveUploadServerMock).toHaveBeenCalledWith('a'.repeat(64));
+    expect(sendBexMessageMock).toHaveBeenCalledWith('blossom.upload', {
+      base64Data: 'abc123',
+      fileType: 'image/png',
+      blossomServer: 'https://account.example',
     });
   });
 

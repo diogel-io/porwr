@@ -151,6 +151,7 @@ async function uploadImage(file: File) {
       base64Data,
       fileType: file.type,
       uploadId: scopedUploadId(pubkey),
+      pubkey,
     });
 
     emitUploadedOnce(result.url, pubkey);

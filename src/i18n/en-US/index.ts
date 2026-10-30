@@ -640,7 +640,20 @@ export default {
   },
   mediaManagement: {
     title: 'Media Management',
-    dashboardCaption: 'Choose the Blossom server Porwr uploads your profile images to.',
+    dashboardCaption:
+      'Choose the Blossom server this account uploads its profile images to. Porwr publishes it as your Blossom server list, so other Nostr apps use it too.',
+    save: 'Save',
+    saveSuccess: 'Blossom server saved',
+    saveError: 'Could not publish your Blossom server list',
+    notPublished:
+      'You have not published a Blossom server list yet. Profile images are uploaded to this server until you save.',
+    loadError:
+      'Could not load your Blossom server list. Saving will publish only the server shown here.',
+    replaceTitle: 'Replace your Blossom server list?',
+    replaceBody:
+      'Your Blossom server list could not be loaded, so saving publishes only this server. Any other servers you published in another app will be dropped.',
+    saveAnyway: 'Save anyway',
+    cancel: 'Cancel',
   },
   remoteImages: {
     loadOne: 'Load image',

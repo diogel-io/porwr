@@ -1,3 +1,4 @@
+import { resolveUploadServer } from './blossom-server-list';
 import { sendBexMessage } from './vault-service';
 import useSettingsStore from '@/stores/settings-store';
 
@@ -5,6 +6,8 @@ export interface BlossomUploadInput {
   base64Data: string;
   fileType: string;
   uploadId?: string;
+  /** The account the image is for; its kind 10063 names the server (porwr#417). */
+  pubkey?: string;
 }
 
 export interface BlossomUploadResult {
@@ -55,16 +58,23 @@ function getUploadErrorMessage(value: unknown): string | null {
   return null;
 }
 
+async function vaultBlossomServer(): Promise<string> {
+  const settingsStore = useSettingsStore();
+  await settingsStore.getSettings();
+  return settingsStore.blossomServer;
+}
+
 export async function uploadImageToBlossom(
   input: BlossomUploadInput,
 ): Promise<BlossomUploadResult> {
-  const settingsStore = useSettingsStore();
-  await settingsStore.getSettings();
+  const blossomServer = input.pubkey
+    ? await resolveUploadServer(input.pubkey)
+    : await vaultBlossomServer();
 
   const response = await sendBexMessage('blossom.upload', {
     base64Data: input.base64Data,
     fileType: input.fileType,
-    blossomServer: settingsStore.blossomServer,
+    blossomServer,
     ...(input.uploadId ? { uploadId: input.uploadId } : {}),
   });
 

@@ -12,13 +12,14 @@ export type QuickSignSupportedKind = (typeof QUICK_SIGN_SUPPORTED_KINDS)[number]
 
 /**
  * Every kind an extension page may have the background sign: profile (0), contact list (3), relay
- * list (10002), and QuickSign's kinds. Anything else is refused, so the action cannot be turned into
- * a general-purpose signer.
+ * list (10002), Blossom server list (10063, porwr#417), and QuickSign's kinds. Anything else is
+ * refused, so the action cannot be turned into a general-purpose signer.
  */
 export const ACCOUNT_SIGNABLE_KINDS: readonly number[] = [
   0,
   3,
   10002,
+  10063,
   ...QUICK_SIGN_SUPPORTED_KINDS,
 ];
 

@@ -65,11 +65,14 @@ export function extractWritePreferredRelayUrls(event: Event): string[] {
 }
 
 /**
- * What a relay list lookup found. `not-found` means at least one relay answered without one;
- * `unreachable` means none of the fallback relays answered at all (#285).
+ * What a lookup of an account's replaceable event found. `not-found` means at least one relay
+ * answered without one; `unreachable` means none of the fallback relays answered at all (#285).
  */
-export type AccountRelayListLookup =
+export type ReplaceableEventLookup =
   { status: 'found'; event: Event } | { status: 'not-found' } | { status: 'unreachable' };
+
+/** What a relay list lookup found (#285). */
+export type AccountRelayListLookup = ReplaceableEventLookup;
 
 /**
  * The reason nostr-tools gives a relay's subscription when it closes after EOSE, i.e. the relay
@@ -79,14 +82,18 @@ export type AccountRelayListLookup =
 const CLOSED_ON_EOSE = 'closed automatically on eose';
 
 /**
- * Looks up the kind 10002 relay list for a pubkey on the fallback relays, telling an account with
- * no relay list apart from relays that could not be reached.
+ * Looks up the newest event of a replaceable `kind` for a pubkey on the fallback relays, telling an
+ * account with none apart from relays that could not be reached.
  *
  * `SimplePool.get` cannot do this: it resolves `null` both when the relays answered with nothing
  * and when none of them connected, so this reads each relay's close reason instead (#285).
- * @param pubkey The public key to fetch the relay list for
+ * @param pubkey The public key to fetch the event for
+ * @param kind The replaceable kind, such as 10002 or 10063
  */
-export async function fetchAccountRelayList(pubkey: string): Promise<AccountRelayListLookup> {
+export async function fetchAccountReplaceableEvent(
+  pubkey: string,
+  kind: number,
+): Promise<ReplaceableEventLookup> {
   const settingsStore = useSettingsStore();
   const relays = await settingsStore.getFallbackRelays();
 
@@ -96,11 +103,11 @@ export async function fetchAccountRelayList(pubkey: string): Promise<AccountRela
 
   const relayMetadataPool = new SimplePool();
   try {
-    return await new Promise<AccountRelayListLookup>((resolve) => {
+    return await new Promise<ReplaceableEventLookup>((resolve) => {
       let newest: Event | null = null;
       relayMetadataPool.subscribeEose(
         relays,
-        { kinds: [10002], authors: [pubkey], limit: 1 },
+        { kinds: [kind], authors: [pubkey], limit: 1 },
         {
           onevent(event) {
             if (!newest || event.created_at > newest.created_at) {
@@ -124,6 +131,15 @@ export async function fetchAccountRelayList(pubkey: string): Promise<AccountRela
   } finally {
     relayMetadataPool.close(relays);
   }
+}
+
+/**
+ * Looks up the kind 10002 relay list for a pubkey on the fallback relays, telling an account with
+ * no relay list apart from relays that could not be reached (#285).
+ * @param pubkey The public key to fetch the relay list for
+ */
+export async function fetchAccountRelayList(pubkey: string): Promise<AccountRelayListLookup> {
+  return fetchAccountReplaceableEvent(pubkey, 10002);
 }
 
 /**

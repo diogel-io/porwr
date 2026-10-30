@@ -41,7 +41,29 @@ export function normalizeBlossomServer(input: string | null | undefined): Blosso
     return { valid: false, error: 'A Blossom server URL must not contain a username or password' };
   }
 
-  return { valid: true, url: url.toString(), hostname: url.hostname.toLowerCase() };
+  // Serialised without a trailing slash, the form a kind 10063 `server` tag carries (porwr#417).
+  // `URL.toString()` would add one to a bare origin.
+  const path = url.pathname.replace(/\/+$/, '');
+  return {
+    valid: true,
+    url: `${url.origin}${path}${url.search}`,
+    hostname: url.hostname.toLowerCase(),
+  };
+}
+
+export const BLOSSOM_SERVER_TRAILING_SLASH_ERROR = 'A Blossom server URL must not end with a /';
+
+/**
+ * Checks what the user typed into the Media Management field (porwr#417).
+ *
+ * Stricter than `normalizeBlossomServer`, which reads stored values and drops a trailing slash:
+ * typed input that ends in one is refused, so what is saved is exactly what was typed.
+ */
+export function validateBlossomServerInput(input: string | null | undefined): BlossomServerResult {
+  if ((input ?? '').trim().endsWith('/')) {
+    return { valid: false, error: BLOSSOM_SERVER_TRAILING_SLASH_ERROR };
+  }
+  return normalizeBlossomServer(input);
 }
 
 /**

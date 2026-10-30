@@ -59,8 +59,8 @@ describe('account.signEvent', () => {
     expect(verifyEvent(result.data)).toBe(true);
   });
 
-  it('signs every kind Porwr publishes: profile, contacts, relay list and QuickSign', async () => {
-    for (const kind of [0, 3, 10002, 1, 30023]) {
+  it('signs every kind Porwr publishes: profile, contacts, relay list, Blossom server list and QuickSign', async () => {
+    for (const kind of [0, 3, 10002, 10063, 1, 30023]) {
       const result = await handleAccountSignEvent({
         accountPubkey: ACTIVE,
         template: template({ kind }),
@@ -70,7 +70,7 @@ describe('account.signEvent', () => {
   });
 
   it('refuses any other kind, so it is not a general signer', async () => {
-    for (const kind of [4, 5, 7, 1059, 22242, 24242, 27235]) {
+    for (const kind of [4, 5, 7, 1059, 10064, 22242, 24242, 27235]) {
       const result = await handleAccountSignEvent({
         accountPubkey: ACTIVE,
         template: template({ kind }),

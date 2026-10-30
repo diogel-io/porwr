@@ -59,6 +59,7 @@ export const NOSTR_KIND_LABELS: Readonly<Record<number, string>> = {
   9735: 'Zap receipt',
   10002: 'Relay list metadata',
   [DM_RELAY_LIST_KIND]: 'DM relay list',
+  10063: 'Blossom server list',
   22242: 'Client authentication',
   27235: 'HTTP authentication',
   30023: 'Long-form content',
@@ -79,6 +80,8 @@ export const ELEVATED_EVENT_KINDS: readonly number[] = [
   9734,
   10002,
   DM_RELAY_LIST_KIND,
+  // Names the servers the account's media is uploaded to and fetched from (porwr#417).
+  10063,
   22242,
   27235,
 ];
@@ -100,6 +103,7 @@ const ELEVATED_KIND_EFFECTS: Readonly<Record<number, string>> = {
   9734: 'attach your identity to a Lightning zap',
   10002: 'replace the list of relays your identity advertises',
   [DM_RELAY_LIST_KIND]: 'replace the relays others deliver your private messages to',
+  10063: 'replace the media servers your identity advertises',
   22242: 'prove your identity to this site for a session',
   // NIP-98 (#215): Bancwr signs its users in with one, bound to its login URL.
   27235: "prove your identity to this site's server",

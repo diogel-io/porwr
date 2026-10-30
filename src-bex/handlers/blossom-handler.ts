@@ -73,15 +73,14 @@ export async function handleBlossomUpload(
 
     // Built from the validated URL, not the raw payload, so surrounding whitespace or casing in a
     // saved setting can't break the endpoints.
-    const serverUrl = server.url;
-    const normalizedServer = serverUrl.replace(/\/$/, '');
+    // `normalizeBlossomServer` already drops a trailing slash (porwr#417).
+    const normalizedServer = server.url;
     const uploadOptions = [
       { url: `${normalizedServer}/upload`, method: 'PUT' },
       { url: `${normalizedServer}/upload`, method: 'POST' },
       { url: `${normalizedServer}/`, method: 'PUT' },
       { url: `${normalizedServer}/`, method: 'POST' },
       { url: `${normalizedServer}/${hashHex}`, method: 'PUT' },
-      { url: serverUrl, method: 'PUT' },
     ];
 
     // One BUD-11 authorisation per upload, reused for every endpoint tried: limited to this blob

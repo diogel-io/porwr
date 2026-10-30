@@ -1,42 +1,121 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue';
+import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
+import useAccountStore from '@/stores/account-store';
 import useSettingsStore from '@/stores/settings-store';
-import { normalizeBlossomServer } from '@/services/blossom-server';
+import { normalizeBlossomServer, validateBlossomServerInput } from '@/services/blossom-server';
+import {
+  buildServerListTags,
+  fetchServerList,
+  publishServerList,
+} from '@/services/blossom-server-list';
 
+const $q = useQuasar();
 const { t } = useI18n();
+const accountStore = useAccountStore();
 const settingsStore = useSettingsStore();
 
-// Edited locally and saved only once it is a valid https:// URL, so a half-typed or http:// value
-// never becomes the upload target (T21).
-const serverInput = ref(settingsStore.blossomServer);
+const activeStoredKey = computed(() => accountStore.activeAccountOrFirst);
+const showNoAccount = computed(() => accountStore.hasNoAccounts);
+
+/**
+ * The account's kind 10063 as last read (porwr#417). `unreachable` means the list shown may not be
+ * the account's, and saving would replace whatever is published.
+ */
+const listStatus = ref<'loading' | 'found' | 'not-found' | 'unreachable'>('loading');
+/** The servers of the account's published list, primary first. */
+const publishedServers = ref<string[]>([]);
+const serverInput = ref('');
+const saving = ref(false);
+
 const serverError = computed(() => {
-  const result = normalizeBlossomServer(serverInput.value);
+  const result = validateBlossomServerInput(serverInput.value);
   return result.valid ? '' : (result.error ?? '');
 });
 
-// Follows a change made elsewhere, in another tab or through storage. A value this field just saved
-// comes back normalised (a trailing slash added), so it is recognised as its own and not written
-// over what is being typed.
-watch(
-  () => settingsStore.blossomServer,
-  (stored) => {
-    if (normalizeBlossomServer(serverInput.value).url !== stored) {
-      serverInput.value = stored;
-    }
-  },
+// Nothing to save when the field still shows the published primary.
+const canSave = computed(
+  () =>
+    !saving.value &&
+    listStatus.value !== 'loading' &&
+    serverError.value === '' &&
+    !(listStatus.value === 'found' && serverInput.value.trim() === publishedServers.value[0]),
 );
 
-async function updateServer(value: string | number | null): Promise<void> {
-  serverInput.value = String(value ?? '');
-  if (serverError.value === '') {
-    await settingsStore.setBlossomServer(serverInput.value);
+/** The vault's Blossom setting, shown for an account with no list of its own. */
+function vaultDefault(): string {
+  return normalizeBlossomServer(settingsStore.blossomServer).url ?? settingsStore.blossomServer;
+}
+
+async function loadServerList(pubkey: string): Promise<void> {
+  listStatus.value = 'loading';
+  await settingsStore.getSettings();
+  const lookup = await fetchServerList(pubkey);
+  // Another account was chosen while this one was read.
+  if (activeStoredKey.value?.id !== pubkey) return;
+
+  if (lookup.status === 'found') {
+    publishedServers.value = lookup.servers;
+    serverInput.value = lookup.servers[0] ?? '';
+  } else {
+    publishedServers.value = [];
+    serverInput.value = vaultDefault();
+  }
+  listStatus.value = lookup.status;
+}
+
+function confirmReplace(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const dialog = $q.dialog({
+      title: t('mediaManagement.replaceTitle'),
+      message: t('mediaManagement.replaceBody'),
+      ok: { label: t('mediaManagement.saveAnyway'), color: 'warning', noCaps: true },
+      cancel: { label: t('mediaManagement.cancel'), flat: true, noCaps: true },
+      persistent: true,
+    });
+    dialog.onOk(() => resolve(true));
+    dialog.onCancel(() => resolve(false));
+  });
+}
+
+async function saveServer(): Promise<void> {
+  const account = activeStoredKey.value;
+  const server = validateBlossomServerInput(serverInput.value).url;
+  if (!account || !server || !canSave.value) return;
+  if (listStatus.value === 'unreachable' && !(await confirmReplace())) return;
+
+  saving.value = true;
+  try {
+    const tags = buildServerListTags(server, publishedServers.value);
+    await publishServerList(account.id, tags);
+    publishedServers.value = tags.map((tag) => tag[1] ?? '');
+    serverInput.value = server;
+    listStatus.value = 'found';
+    $q.notify({ type: 'positive', message: t('mediaManagement.saveSuccess') });
+  } catch (error) {
+    console.error('Error saving Blossom server list:', error);
+    $q.notify({ type: 'negative', message: t('mediaManagement.saveError') });
+  } finally {
+    saving.value = false;
   }
 }
 
+watch(
+  () => activeStoredKey.value?.id,
+  (pubkey, previous) => {
+    if (pubkey && previous) void loadServerList(pubkey);
+  },
+);
+
 onMounted(async () => {
-  await settingsStore.getSettings();
-  serverInput.value = settingsStore.blossomServer;
+  await accountStore.getKeys();
+  if (!accountStore.activeKey && activeStoredKey.value) {
+    await accountStore.setActiveKey(activeStoredKey.value.alias);
+  }
+  if (activeStoredKey.value) {
+    await loadServerList(activeStoredKey.value.id);
+  }
 });
 </script>
 
@@ -47,28 +126,75 @@ onMounted(async () => {
       <p class="dashboard-hero-caption">{{ t('mediaManagement.dashboardCaption') }}</p>
     </section>
 
-    <q-card class="dashboard-card media-management-page__card">
-      <q-card-section>
+    <q-card class="dashboard-card media-management-page__card" data-testid="blossom-server-card">
+      <q-card-section v-if="activeStoredKey">
         <h2 class="text-subtitle1 q-mb-md">{{ t('profile.blossomServer') }}</h2>
         <q-list>
           <q-item>
             <q-item-section>
               <q-item-label>{{ t('profile.blossomServer') }}</q-item-label>
               <q-item-label caption>{{ t('profile.blossomServerCaption') }}</q-item-label>
-              <q-input
-                :model-value="serverInput"
+              <div class="row q-col-gutter-sm items-start q-mt-sm">
+                <div class="col-grow">
+                  <q-input
+                    v-model="serverInput"
+                    dense
+                    outlined
+                    :aria-label="t('profile.blossomServer')"
+                    :disable="listStatus === 'loading'"
+                    :error="serverError !== ''"
+                    :error-message="serverError"
+                    @keyup.enter="saveServer"
+                  />
+                </div>
+                <div class="col-auto">
+                  <q-btn
+                    class="diogel-btn-primary"
+                    :label="t('mediaManagement.save')"
+                    :loading="saving"
+                    :disable="!canSave"
+                    no-caps
+                    @click="saveServer"
+                  />
+                </div>
+              </div>
+              <q-item-label
+                v-if="listStatus === 'not-found'"
+                caption
+                data-testid="blossom-server-not-published"
+              >
+                {{ t('mediaManagement.notPublished') }}
+              </q-item-label>
+              <q-banner
+                v-else-if="listStatus === 'unreachable'"
                 class="q-mt-sm"
                 dense
-                outlined
-                :aria-label="t('profile.blossomServer')"
-                :error="serverError !== ''"
-                :error-message="serverError"
-                @update:model-value="updateServer"
-              />
+                rounded
+                data-testid="blossom-server-load-error"
+              >
+                {{ t('mediaManagement.loadError') }}
+              </q-banner>
             </q-item-section>
           </q-item>
         </q-list>
       </q-card-section>
+
+      <div v-else-if="showNoAccount" class="text-center q-pa-xl">
+        <q-icon color="grey-5" name="account_circle" size="4em" />
+        <div class="text-h6 text-grey-7 q-mt-md">{{ t('account.noAccounts') }}</div>
+        <p class="text-grey-6">{{ t('account.noAccountDesc') }}</p>
+        <q-btn
+          class="q-mt-md diogel-btn-primary"
+          :label="t('account.create')"
+          :to="{ name: 'add-new-key' }"
+        />
+      </div>
+
+      <!-- Not yet read from the vault, which is not the same as holding no accounts (#211). -->
+      <div v-else class="text-center q-pa-xl" role="status">
+        <q-spinner color="grey-5" size="3em" />
+        <div class="text-h6 text-grey-7 q-mt-md">{{ t('account.loading') }}</div>
+      </div>
     </q-card>
   </q-page>
 </template>
