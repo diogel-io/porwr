@@ -60,6 +60,11 @@ in the same way: the new vault is still written, since the user created it and i
 password, but it is left locked with no key or session behind. The rows for T15 and T18 describe the
 code after that change.
 
+diogel-io/porwr#418 (diogel-io/porwr#417) uploads media to the first `https:` server of the
+account's kind 10063 Blossom server list, signs that list from Porwr's own pages, treats it as an
+elevated kind for sites, and refuses an upload named for an account that is no longer active. The
+`Uploaded media` asset row and the rows for T10 and T21 describe the code after that change.
+
 Tracking issue: diogel-io/workspace#135
 
 This is the threat model for the whole Porwr extension. It supersedes the workspace approval threat

@@ -9,6 +9,7 @@ import {
   buildServerListTags,
   fetchServerList,
   publishServerList,
+  type BlossomServerListLookup,
 } from '@/services/blossom-server-list';
 
 const $q = useQuasar();
@@ -54,10 +55,21 @@ let loadedPubkey: string | undefined;
 async function loadServerList(pubkey: string): Promise<void> {
   loadedPubkey = pubkey;
   listStatus.value = 'loading';
-  await settingsStore.getSettings();
-  const lookup = await fetchServerList(pubkey);
+  let lookup: BlossomServerListLookup;
+  try {
+    await settingsStore.getSettings();
+    lookup = await fetchServerList(pubkey);
+  } catch (error) {
+    // Shown as unreachable, so the page never stays disabled and saving still asks first.
+    console.error('Error loading Blossom server list:', error);
+    lookup = { status: 'unreachable' };
+  }
   // Another account was chosen while this one was read.
-  if (activeStoredKey.value?.id !== pubkey) return;
+  if (activeStoredKey.value?.id !== pubkey) {
+    // Lets the watcher load this account again if it is chosen once more.
+    if (loadedPubkey === pubkey) loadedPubkey = undefined;
+    return;
+  }
 
   if (lookup.status === 'found') {
     publishedServers.value = lookup.servers;

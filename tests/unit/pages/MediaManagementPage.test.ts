@@ -342,6 +342,16 @@ describe('MediaManagementPage (porwr#417)', () => {
     expect(input(wrapper).value).toBe('https://alice.example');
   });
 
+  it('treats a failed load as unreachable, so the page stays usable', async () => {
+    mocks.fetchServerList.mockRejectedValue(new Error('relay pool failed'));
+
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="blossom-server-load-error"]').exists()).toBe(true);
+    expect(input(wrapper).value).toBe('https://vault.example');
+    expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
+  });
+
   it('asks for an account when the vault has none', async () => {
     mocks.accounts.activeAccountOrFirst = undefined;
     mocks.accounts.hasNoAccounts = true;
