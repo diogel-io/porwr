@@ -548,8 +548,9 @@ describe('SettingsStore', () => {
 
       await store.setBlossomServer('https://media.example.org');
 
-      expect(store.blossomServer).toBe('https://media.example.org/');
-      expect(storageService.set).toHaveBeenCalledWith(BLOSSOM_SERVER, 'https://media.example.org/');
+      // Kept without a trailing slash, as a kind 10063 `server` tag carries it (porwr#417).
+      expect(store.blossomServer).toBe('https://media.example.org');
+      expect(storageService.set).toHaveBeenCalledWith(BLOSSOM_SERVER, 'https://media.example.org');
     });
 
     it.each([

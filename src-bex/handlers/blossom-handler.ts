@@ -1,4 +1,4 @@
-import { finalizeEvent } from 'nostr-tools';
+import { finalizeEvent, getPublicKey } from 'nostr-tools';
 import { hexToBytes } from '@noble/hashes/utils';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { storageService, NOSTR_ACTIVE, BLOSSOM_UPLOAD_STATUS } from '@/services/storage-service';
@@ -21,11 +21,12 @@ export async function handleBlossomUpload(
     fileType: string;
     blossomServer: string;
     uploadId?: string;
+    accountPubkey?: string;
   },
   _origin: string = '',
 ): Promise<HandlerResult<string>> {
   void _origin;
-  const { base64Data, fileType, blossomServer, uploadId } = payload;
+  const { base64Data, fileType, blossomServer, uploadId, accountPubkey } = payload;
 
   const uploadStatusKey = uploadId ? `blossom:upload_status:${uploadId}` : BLOSSOM_UPLOAD_STATUS;
 
@@ -59,6 +60,11 @@ export async function handleBlossomUpload(
     }
 
     const sk = hexToBytes(storedKey.account.privkey);
+    // The page chose the server for this account. If another became active since, the token would
+    // be signed by an account the image is not for, so nothing is sent (porwr#417).
+    if (accountPubkey && getPublicKey(sk) !== accountPubkey) {
+      throw new Error('The upload is for an account that is no longer active');
+    }
 
     const binaryString = atob(base64Data);
     const bytes = new Uint8Array(binaryString.length);
@@ -73,15 +79,14 @@ export async function handleBlossomUpload(
 
     // Built from the validated URL, not the raw payload, so surrounding whitespace or casing in a
     // saved setting can't break the endpoints.
-    const serverUrl = server.url;
-    const normalizedServer = serverUrl.replace(/\/$/, '');
+    // `normalizeBlossomServer` already drops a trailing slash (porwr#417).
+    const normalizedServer = server.url;
     const uploadOptions = [
       { url: `${normalizedServer}/upload`, method: 'PUT' },
       { url: `${normalizedServer}/upload`, method: 'POST' },
       { url: `${normalizedServer}/`, method: 'PUT' },
       { url: `${normalizedServer}/`, method: 'POST' },
       { url: `${normalizedServer}/${hashHex}`, method: 'PUT' },
-      { url: serverUrl, method: 'PUT' },
     ];
 
     // One BUD-11 authorisation per upload, reused for every endpoint tried: limited to this blob

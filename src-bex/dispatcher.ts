@@ -467,6 +467,7 @@ export async function dispatchMessage<K extends BridgeAction>(
           fileType: blossomPayload.fileType || '',
           blossomServer: blossomPayload.blossomServer || '',
           ...(blossomPayload.uploadId ? { uploadId: blossomPayload.uploadId } : {}),
+          ...(blossomPayload.accountPubkey ? { accountPubkey: blossomPayload.accountPubkey } : {}),
         },
         origin,
       );

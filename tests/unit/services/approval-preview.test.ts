@@ -429,6 +429,23 @@ describe('approval preview rules', () => {
     });
   });
 
+  describe('Blossom server list (kind 10063, porwr#417)', () => {
+    it('is recognised, labelled and elevated, so it is never an unrecognised kind', () => {
+      expect(getEventKindLabel(10063)).toBe('Blossom server list (10063)');
+      expect(classifyRequest('sign_event', 10063)).toBe('elevated');
+      expect(getRiskWarning('elevated', 10063)).toBe(
+        'Approving this lets the site replace the media servers your identity advertises.',
+      );
+    });
+
+    it('is never offered always, as an elevated kind', () => {
+      expect(getAllowedDurations(classifyRequest('sign_event', 10063), true)).toEqual([
+        'once',
+        '8h',
+      ]);
+    });
+  });
+
   describe('HTTP authentication (kind 27235)', () => {
     const httpAuth = (tags: string[][]) => ({
       kind: HTTP_AUTH_KIND,

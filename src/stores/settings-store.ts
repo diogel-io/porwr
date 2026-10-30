@@ -33,7 +33,7 @@ import {
   setStoredProfileSearchRelays,
 } from '@/services/profile-search-relay-settings-service';
 
-const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net/';
+export const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net';
 const DEFAULT_FALLBACK_RELAYS = RELAY_SEEDS;
 const DEFAULT_PROFILE_SEARCH_RELAYS = PROFILE_SEARCH_RELAY_SEEDS;
 

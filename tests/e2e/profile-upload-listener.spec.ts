@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures/extension';
-import { createVault, seedAccount } from './fixtures/vault';
+import { createVault, seedAccount, TEST_ACCOUNT } from './fixtures/vault';
 
 /**
  * Leaving the Profile page takes its upload listeners with it (#252).
@@ -25,9 +25,12 @@ test('an upload status after several Profile visits is handled once', async ({ o
     }
   }
 
-  await page.evaluate(() =>
-    // A code, as the background stores it: the status never holds a server's own text (porwr#370).
-    chrome.storage.local.set({ 'blossom:upload_status:avatar': { error: 'too_large' } }),
+  await page.evaluate(
+    (key) =>
+      // A code, as the background stores it: the status never holds a server's own text (porwr#370).
+      chrome.storage.local.set({ [key]: { error: 'too_large' } }),
+    // Named for the account since #400; the unscoped key is dropped unread.
+    `blossom:upload_status:avatar:${TEST_ACCOUNT.pubkey}`,
   );
 
   // Quasar folds identical notifications into one and counts the repeats in a badge, so a single

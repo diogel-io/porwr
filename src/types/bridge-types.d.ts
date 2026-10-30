@@ -288,6 +288,8 @@ export interface BridgeRequestMap {
     fileType?: string;
     blossomServer?: string;
     uploadId?: string;
+    /** The account the image is for; the upload is refused if it is no longer active (porwr#417). */
+    accountPubkey?: string;
     file?: File;
   };
   ping: {
