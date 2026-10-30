@@ -88,6 +88,8 @@ async function saveServer(): Promise<void> {
   const server = validateBlossomServerInput(serverInput.value).url;
   if (!account || !server || !canSave.value) return;
   if (listStatus.value === 'unreachable' && !(await confirmReplace())) return;
+  // The dialog can stay open while another account is chosen; its list must not be published here.
+  if (activeStoredKey.value?.id !== account.id) return;
 
   saving.value = true;
   try {

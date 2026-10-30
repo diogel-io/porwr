@@ -247,6 +247,29 @@ describe('MediaManagementPage (porwr#417)', () => {
       ]);
     });
 
+    it('publishes nothing when another account is chosen while the dialog is open', async () => {
+      let answer: () => void = () => {};
+      mocks.dialog.mockImplementation(() => {
+        const dialog = {
+          onOk: (callback: () => void) => {
+            answer = callback;
+            return dialog;
+          },
+          onCancel: () => dialog,
+        };
+        return dialog;
+      });
+      const wrapper = await mountPage();
+
+      await saveButton(wrapper).trigger('click');
+      (useAccountStore() as unknown as typeof mocks.accounts).activeAccountOrFirst = BOB;
+      await flushPromises();
+      answer();
+      await flushPromises();
+
+      expect(mocks.publishServerList).not.toHaveBeenCalled();
+    });
+
     it('publishes nothing when the user cancels', async () => {
       mocks.dialogAnswer = 'cancel';
       const wrapper = await mountPage();
