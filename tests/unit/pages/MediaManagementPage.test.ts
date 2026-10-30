@@ -366,6 +366,8 @@ describe('MediaManagementPage (porwr#417)', () => {
 
 describe('MediaManagementPage loading state (porwr#420)', () => {
   const field = (wrapper: Wrapper) => wrapper.find('[data-loading]');
+  const status = (wrapper: Wrapper) =>
+    wrapper.find('[data-testid="blossom-server-loading-status"]');
 
   it('shows a spinner and no validation error while the list loads', async () => {
     let finishLoad: (lookup: unknown) => void = () => {};
@@ -381,11 +383,13 @@ describe('MediaManagementPage loading state (porwr#420)', () => {
     expect(field(wrapper).attributes('data-loading')).toBe('true');
     expect(wrapper.find('.error').text()).toBe('');
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(status(wrapper).text()).toBe('mediaManagement.loading');
 
     finishLoad({ status: 'found', servers: ['https://primary.example'] });
     await flushPromises();
 
     expect(field(wrapper).attributes('data-loading')).toBe('false');
+    expect(status(wrapper).text()).toBe('');
     expect(input(wrapper).value).toBe('https://primary.example');
   });
 

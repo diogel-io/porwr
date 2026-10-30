@@ -181,6 +181,15 @@ onMounted(async () => {
                   />
                 </div>
               </div>
+              <!-- Always present, so the announcement is read when loading starts. -->
+              <span
+                class="media-management-page__sr-only"
+                role="status"
+                aria-live="polite"
+                data-testid="blossom-server-loading-status"
+              >
+                {{ loading ? t('mediaManagement.loading') : '' }}
+              </span>
               <q-item-label caption class="q-mt-sm" data-testid="blossom-server-help">
                 {{ t('mediaManagement.serverListHelp') }}
               </q-item-label>
@@ -232,5 +241,17 @@ onMounted(async () => {
 
 .media-management-page__card {
   overflow: hidden;
+}
+
+.media-management-page__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

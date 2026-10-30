@@ -645,6 +645,7 @@ export default {
     save: 'Save',
     saveSuccess: 'Blossom server saved',
     saveError: 'Could not publish your Blossom server list',
+    loading: 'Loading your Blossom server list…',
     serverListHelp:
       'Your Blossom server list (BUD-03) tells Nostr clients where to upload your media and where to find it. Putting your preferred address first makes clients treat it as your preferred server; any other servers stay on the list as mirrors.',
     notPublished:
