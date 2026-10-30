@@ -71,6 +71,9 @@ test.describe('media management', () => {
     // No list yet: the vault default, without its old trailing slash.
     await expect(field).toHaveValue('https://blossom.primal.net', { timeout: 6_000 });
     await expect(card.getByTestId('blossom-server-not-published')).toBeVisible();
+    await expect(card.getByTestId('blossom-server-help')).toContainText(
+      'Your Blossom server list (BUD-03) tells Nostr clients',
+    );
 
     await field.fill('https://threenine.blossom.band/');
     await expect(save).toBeDisabled();

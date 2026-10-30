@@ -74,8 +74,8 @@ const mountPage = async () => {
         'q-icon': true,
         'q-input': {
           template:
-            '<div><input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /><span class="error">{{ error ? errorMessage : \'\' }}</span></div>',
-          props: ['modelValue', 'error', 'errorMessage'],
+            '<div :data-loading="loading"><input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /><span class="error">{{ error ? errorMessage : \'\' }}</span></div>',
+          props: ['modelValue', 'error', 'errorMessage', 'loading'],
           emits: ['update:modelValue'],
         },
         'q-btn': {
@@ -361,5 +361,59 @@ describe('MediaManagementPage (porwr#417)', () => {
     expect(wrapper.find('input').exists()).toBe(false);
     expect(wrapper.text()).toContain('account.noAccounts');
     expect(mocks.fetchServerList).not.toHaveBeenCalled();
+  });
+});
+
+describe('MediaManagementPage loading state (porwr#420)', () => {
+  const field = (wrapper: Wrapper) => wrapper.find('[data-loading]');
+
+  it('shows a spinner and no validation error while the list loads', async () => {
+    let finishLoad: (lookup: unknown) => void = () => {};
+    mocks.fetchServerList.mockReturnValue(
+      new Promise((resolve) => {
+        finishLoad = resolve;
+      }),
+    );
+
+    const wrapper = await mountPage();
+
+    expect(input(wrapper).value).toBe('');
+    expect(field(wrapper).attributes('data-loading')).toBe('true');
+    expect(wrapper.find('.error').text()).toBe('');
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+
+    finishLoad({ status: 'found', servers: ['https://primary.example'] });
+    await flushPromises();
+
+    expect(field(wrapper).attributes('data-loading')).toBe('false');
+    expect(input(wrapper).value).toBe('https://primary.example');
+  });
+
+  it('stops the spinner and shows the default when the account has no list', async () => {
+    const wrapper = await mountPage();
+
+    expect(field(wrapper).attributes('data-loading')).toBe('false');
+    expect(input(wrapper).value).toBe('https://vault.example');
+    expect(wrapper.find('[data-testid="blossom-server-not-published"]').exists()).toBe(true);
+  });
+
+  it.each(['', 'not a url', 'https://threenine.blossom.band/'])(
+    'still shows the validation error for %j once loaded',
+    async (value) => {
+      const wrapper = await mountPage();
+
+      await wrapper.find('input').setValue(value);
+
+      expect(wrapper.find('.error').text()).not.toBe('');
+      expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+    },
+  );
+
+  it('explains the Blossom server list below the field', async () => {
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="blossom-server-help"]').text()).toBe(
+      'mediaManagement.serverListHelp',
+    );
   });
 });

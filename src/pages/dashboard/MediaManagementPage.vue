@@ -29,6 +29,7 @@ const listStatus = ref<'loading' | 'found' | 'not-found' | 'unreachable'>('loadi
 const publishedServers = ref<string[]>([]);
 const serverInput = ref('');
 const saving = ref(false);
+const loading = computed(() => listStatus.value === 'loading');
 
 const serverError = computed(() => {
   const result = validateBlossomServerInput(serverInput.value);
@@ -39,7 +40,7 @@ const serverError = computed(() => {
 const canSave = computed(
   () =>
     !saving.value &&
-    listStatus.value !== 'loading' &&
+    !loading.value &&
     serverError.value === '' &&
     !(listStatus.value === 'found' && serverInput.value.trim() === publishedServers.value[0]),
 );
@@ -162,8 +163,9 @@ onMounted(async () => {
                     dense
                     outlined
                     :aria-label="t('profile.blossomServer')"
-                    :disable="listStatus === 'loading'"
-                    :error="serverError !== ''"
+                    :disable="loading"
+                    :loading="loading"
+                    :error="!loading && serverError !== ''"
                     :error-message="serverError"
                     @keyup.enter="saveServer"
                   />
@@ -179,6 +181,9 @@ onMounted(async () => {
                   />
                 </div>
               </div>
+              <q-item-label caption class="q-mt-sm" data-testid="blossom-server-help">
+                {{ t('mediaManagement.serverListHelp') }}
+              </q-item-label>
               <q-item-label
                 v-if="listStatus === 'not-found'"
                 caption
