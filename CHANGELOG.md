@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.1](https://github.com/diogel-io/porwr/compare/v0.3.0...v0.3.1) (2026-10-31)
+
+
+### Features
+
+* **media:** publish the Blossom server as the account's kind 10063 list ([#418](https://github.com/diogel-io/porwr/issues/418)) ([69937fe](https://github.com/diogel-io/porwr/commit/69937fe38b917bf2560bd413a90599e438f0d1b1))
+
+
+### Bug Fixes
+
+* **media:** show a spinner while Media Management loads the Blossom server ([#421](https://github.com/diogel-io/porwr/issues/421)) ([aa87ab6](https://github.com/diogel-io/porwr/commit/aa87ab6a1c14ca5a39cd616a4062f31367512397))
+* **quick-publish:** send a plain event to the background so Firefox can sign it ([#411](https://github.com/diogel-io/porwr/issues/411)) ([#412](https://github.com/diogel-io/porwr/issues/412)) ([f64493a](https://github.com/diogel-io/porwr/commit/f64493a0fb42207073474ce06b8b1080907bcb9b))
+
+
+### Reverts
+
+* remove the Qodana workflow until it is configured ([#419](https://github.com/diogel-io/porwr/issues/419)) ([aacc986](https://github.com/diogel-io/porwr/commit/aacc986ecb5202ab10cda3cdc47a8817e68a4b49))
+
 ## [0.3.0](https://github.com/diogel-io/porwr/compare/v0.2.0...v0.3.0) (2026-10-28)
 
 
