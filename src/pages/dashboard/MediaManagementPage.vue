@@ -29,6 +29,10 @@ const listStatus = ref<'loading' | 'found' | 'not-found' | 'unreachable'>('loadi
 const publishedServers = ref<string[]>([]);
 const serverInput = ref('');
 const saving = ref(false);
+const loading = computed(() => listStatus.value === 'loading');
+/** Set once the page is in the DOM, so the loading announcement is added to an existing region. */
+const mounted = ref(false);
+const announceLoading = computed(() => mounted.value && !!activeStoredKey.value && loading.value);
 
 const serverError = computed(() => {
   const result = validateBlossomServerInput(serverInput.value);
@@ -39,7 +43,7 @@ const serverError = computed(() => {
 const canSave = computed(
   () =>
     !saving.value &&
-    listStatus.value !== 'loading' &&
+    !loading.value &&
     serverError.value === '' &&
     !(listStatus.value === 'found' && serverInput.value.trim() === publishedServers.value[0]),
 );
@@ -130,6 +134,7 @@ watch(
 );
 
 onMounted(async () => {
+  mounted.value = true;
   await accountStore.getKeys();
   if (!accountStore.activeKey && activeStoredKey.value) {
     await accountStore.setActiveKey(activeStoredKey.value.alias);
@@ -148,6 +153,18 @@ onMounted(async () => {
     </section>
 
     <q-card class="dashboard-card media-management-page__card" data-testid="blossom-server-card">
+      <!--
+        Outside the account section and empty until mounted, so the region is in the page before
+        its text arrives; screen readers announce only text added to a region already present.
+      -->
+      <span
+        class="media-management-page__sr-only"
+        role="status"
+        aria-live="polite"
+        data-testid="blossom-server-loading-status"
+      >
+        {{ announceLoading ? t('mediaManagement.loading') : '' }}
+      </span>
       <q-card-section v-if="activeStoredKey">
         <h2 class="text-subtitle1 q-mb-md">{{ t('profile.blossomServer') }}</h2>
         <q-list>
@@ -162,8 +179,9 @@ onMounted(async () => {
                     dense
                     outlined
                     :aria-label="t('profile.blossomServer')"
-                    :disable="listStatus === 'loading'"
-                    :error="serverError !== ''"
+                    :disable="loading"
+                    :loading="loading"
+                    :error="!loading && serverError !== ''"
                     :error-message="serverError"
                     @keyup.enter="saveServer"
                   />
@@ -179,6 +197,9 @@ onMounted(async () => {
                   />
                 </div>
               </div>
+              <q-item-label caption class="q-mt-sm" data-testid="blossom-server-help">
+                {{ t('mediaManagement.serverListHelp') }}
+              </q-item-label>
               <q-item-label
                 v-if="listStatus === 'not-found'"
                 caption
@@ -227,5 +248,17 @@ onMounted(async () => {
 
 .media-management-page__card {
   overflow: hidden;
+}
+
+.media-management-page__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

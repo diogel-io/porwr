@@ -71,6 +71,9 @@ test.describe('media management', () => {
     // No list yet: the vault default, without its old trailing slash.
     await expect(field).toHaveValue('https://blossom.primal.net', { timeout: 6_000 });
     await expect(card.getByTestId('blossom-server-not-published')).toBeVisible();
+    await expect(card.getByTestId('blossom-server-help')).toHaveText(
+      'Your Blossom server list (BUD-03) tells Nostr clients where to upload your media and where to find it. Putting your preferred address first makes clients treat it as your preferred server; any other servers stay on the list as mirrors.',
+    );
 
     await field.fill('https://threenine.blossom.band/');
     await expect(save).toBeDisabled();
