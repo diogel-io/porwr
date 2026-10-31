@@ -58,8 +58,9 @@ vi.mock('quasar', () => ({
 import MediaManagementPage from '@/pages/dashboard/MediaManagementPage.vue';
 import useAccountStore from '@/stores/account-store';
 
-const mountPage = async () => {
-  const wrapper = mount(MediaManagementPage, {
+// Mounts without waiting, so a test can see the DOM as first rendered.
+const mountUnsettled = () =>
+  mount(MediaManagementPage, {
     global: {
       stubs: {
         'q-page': { template: '<div><slot /></div>' },
@@ -86,6 +87,9 @@ const mountPage = async () => {
       },
     },
   });
+
+const mountPage = async () => {
+  const wrapper = mountUnsettled();
   await flushPromises();
   return wrapper;
 };
@@ -391,6 +395,34 @@ describe('MediaManagementPage loading state (porwr#420)', () => {
     expect(field(wrapper).attributes('data-loading')).toBe('false');
     expect(status(wrapper).text()).toBe('');
     expect(input(wrapper).value).toBe('https://primary.example');
+  });
+
+  it('renders the loading announcement into an already empty status region', async () => {
+    mocks.fetchServerList.mockReturnValue(new Promise(() => {}));
+
+    const wrapper = mountUnsettled();
+
+    expect(status(wrapper).exists()).toBe(true);
+    expect(status(wrapper).text()).toBe('');
+
+    await flushPromises();
+
+    expect(status(wrapper).text()).toBe('mediaManagement.loading');
+  });
+
+  it('keeps the status region in place for an account that appears after the page opened', async () => {
+    mocks.accounts.activeAccountOrFirst = undefined;
+    mocks.accounts.hasNoAccounts = false;
+    mocks.fetchServerList.mockReturnValue(new Promise(() => {}));
+    const wrapper = await mountPage();
+
+    expect(status(wrapper).exists()).toBe(true);
+    expect(status(wrapper).text()).toBe('');
+
+    (useAccountStore() as unknown as typeof mocks.accounts).activeAccountOrFirst = ALICE;
+    await flushPromises();
+
+    expect(status(wrapper).text()).toBe('mediaManagement.loading');
   });
 
   it('stops the spinner and shows the default when the account has no list', async () => {

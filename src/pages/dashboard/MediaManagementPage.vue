@@ -30,6 +30,9 @@ const publishedServers = ref<string[]>([]);
 const serverInput = ref('');
 const saving = ref(false);
 const loading = computed(() => listStatus.value === 'loading');
+/** Set once the page is in the DOM, so the loading announcement is added to an existing region. */
+const mounted = ref(false);
+const announceLoading = computed(() => mounted.value && !!activeStoredKey.value && loading.value);
 
 const serverError = computed(() => {
   const result = validateBlossomServerInput(serverInput.value);
@@ -131,6 +134,7 @@ watch(
 );
 
 onMounted(async () => {
+  mounted.value = true;
   await accountStore.getKeys();
   if (!accountStore.activeKey && activeStoredKey.value) {
     await accountStore.setActiveKey(activeStoredKey.value.alias);
@@ -149,6 +153,18 @@ onMounted(async () => {
     </section>
 
     <q-card class="dashboard-card media-management-page__card" data-testid="blossom-server-card">
+      <!--
+        Outside the account section and empty until mounted, so the region is in the page before
+        its text arrives; screen readers announce only text added to a region already present.
+      -->
+      <span
+        class="media-management-page__sr-only"
+        role="status"
+        aria-live="polite"
+        data-testid="blossom-server-loading-status"
+      >
+        {{ announceLoading ? t('mediaManagement.loading') : '' }}
+      </span>
       <q-card-section v-if="activeStoredKey">
         <h2 class="text-subtitle1 q-mb-md">{{ t('profile.blossomServer') }}</h2>
         <q-list>
@@ -181,15 +197,6 @@ onMounted(async () => {
                   />
                 </div>
               </div>
-              <!-- Always present, so the announcement is read when loading starts. -->
-              <span
-                class="media-management-page__sr-only"
-                role="status"
-                aria-live="polite"
-                data-testid="blossom-server-loading-status"
-              >
-                {{ loading ? t('mediaManagement.loading') : '' }}
-              </span>
               <q-item-label caption class="q-mt-sm" data-testid="blossom-server-help">
                 {{ t('mediaManagement.serverListHelp') }}
               </q-item-label>
