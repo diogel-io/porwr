@@ -80,9 +80,14 @@ function isOversizedContent(content: string): boolean {
   return new TextEncoder().encode(content).length > MAX_PROFILE_CONTENT_LENGTH;
 }
 
-/** `value` cut to `max` characters, for text that still reads correctly when shortened. */
+/**
+ * `value` cut to `max` UTF-16 code units, for text that still reads correctly when shortened. A cut
+ * that would leave half of a surrogate pair, such as an emoji, drops that half too.
+ */
 function capText(value: string, max: number): string {
-  return value.length > max ? value.slice(0, max) : value;
+  if (value.length <= max) return value;
+  const last = value.charCodeAt(max - 1);
+  return value.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
 }
 
 /** `value`, or nothing when it is too long: a shortened URL or address points somewhere else. */

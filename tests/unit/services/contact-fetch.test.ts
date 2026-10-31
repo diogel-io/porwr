@@ -213,6 +213,18 @@ describe('contact cache bounds (workspace#182)', () => {
     expect(profile?.picture).toBe('https://example.com/bob.png');
   });
 
+  it('never cuts an emoji in half', () => {
+    const name = `a${'\u{1F600}'.repeat(MAX_NAME_LENGTH)}`;
+    const profile = parseContactProfile(kind0(JSON.stringify({ name })));
+    const [contact] = parseContactTags([['p', BOB, '', name]]);
+
+    for (const cut of [profile!.name, contact!.petname]) {
+      // 'a' plus 127 emoji fill 255 units; a whole 128th emoji would need 257.
+      expect(cut).toBe(`a${'\u{1F600}'.repeat((MAX_NAME_LENGTH - 2) / 2)}`);
+      expect(cut.isWellFormed()).toBe(true);
+    }
+  });
+
   it('cuts a long petname and drops a relay hint over the limit', () => {
     const relay = `wss://${'r'.repeat(MAX_URL_LENGTH)}.example`;
 
