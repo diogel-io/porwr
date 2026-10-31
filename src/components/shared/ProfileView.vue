@@ -354,7 +354,7 @@ watch(
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
   }
 
   // Neutral rather than brand orange, so an empty banner does not look like a default one (#301).
