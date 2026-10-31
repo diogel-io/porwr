@@ -17,7 +17,12 @@ const workflows = readdirSync(DIR)
 
 describe('workflow hardening', () => {
   it('finds the workflows', () => {
-    expect(workflows.map(({ name }) => name).sort()).toEqual(['ci.yml', 'e2e.yml', 'release.yml']);
+    expect(workflows.map(({ name }) => name).sort()).toEqual([
+      'ci.yml',
+      'code_quality.yml',
+      'e2e.yml',
+      'release.yml',
+    ]);
   });
 
   it.each(workflows)('$name pins every action to a commit SHA with its version', ({ source }) => {
@@ -37,6 +42,18 @@ describe('workflow hardening', () => {
 
     expect(header).toMatch(/^permissions:\s*\n\s+contents: read\s*$/m);
     expect(header).not.toMatch(/:\s*write/);
+  });
+
+  it('lets the Qodana job write checks and pull request comments, never contents', () => {
+    const source = workflows.find(({ name }) => name === 'code_quality.yml')!.source;
+    const grants = source
+      .match(/^    permissions:\n((?:      \w[\w-]*: \w+(?:\s+#.*)?\n)+)/m)?.[1]
+      ?.trim()
+      .split('\n')
+      .map((line) => line.replace(/\s+#.*$/, '').trim());
+
+    expect(grants?.sort()).toEqual(['checks: write', 'contents: read', 'pull-requests: write']);
+    expect(source).toMatch(/^\s+push-fixes: none$/m);
   });
 
   const releaseSource = () => workflows.find(({ name }) => name === 'release.yml')!.source;
