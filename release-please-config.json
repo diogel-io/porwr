@@ -24,8 +24,7 @@
     ".": {
       "release-type": "node",
       "package-name": "diogel",
-      "changelog-path": "CHANGELOG.md",
-      "release-as": "0.3.1"
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }
