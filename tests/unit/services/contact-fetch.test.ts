@@ -172,6 +172,14 @@ describe('contact cache bounds (workspace#182)', () => {
     expect(parseContactProfile(kind0(content))).toBeNull();
   });
 
+  it('measures kind 0 content in UTF-8 bytes, not characters', () => {
+    // Three bytes each in UTF-8, so under the limit in characters but over it in bytes.
+    const content = JSON.stringify({ about: '\u4e2d'.repeat(MAX_PROFILE_CONTENT_LENGTH / 2) });
+
+    expect(content.length).toBeLessThan(MAX_PROFILE_CONTENT_LENGTH);
+    expect(parseContactProfile(kind0(content))).toBeNull();
+  });
+
   it('cuts long names and about text to their limits', () => {
     const profile = parseContactProfile(
       kind0(

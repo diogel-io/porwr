@@ -46,14 +46,24 @@ const profiles = computed<Record<string, ContactProfile>>(() => ({
   ...addedProfiles.value,
 }));
 const errorMessage = computed(() => publishError.value || contactCache.error.value);
-/** The published list is longer than Porwr keeps, so publishing it back would drop follows. */
-const truncated = computed(() => contactCache.list.value?.truncated === true);
+/**
+ * The list on the page came from a published list longer than Porwr keeps, so publishing it back
+ * would drop follows. Set with the list in `applyCachedList`, so it stays with edits to that list
+ * even if a newer list reaches the cache meanwhile.
+ */
+const truncated = ref(false);
+/** More contacts than the cache keeps: published, the cached copy would lose the extra ones. */
+const overLimit = computed(() => contacts.value.length > MAX_CONTACTS_PER_ACCOUNT);
+const canPublish = computed(
+  () => dirty.value && !publishing.value && !truncated.value && !overLimit.value,
+);
 
 /** Shows the cached list, unless the user is part-way through editing it. */
 function applyCachedList() {
   if (dirty.value) return;
   const list = contactCache.list.value;
   contacts.value = list ? list.contacts.map((contact) => ({ ...contact })) : [];
+  truncated.value = list?.truncated === true;
   sourceEventId.value = list?.sourceEventId;
   sourceCreatedAt.value = list?.sourceCreatedAt;
 }
@@ -206,7 +216,7 @@ function removeContact(contact: Nip02Contact) {
 }
 
 async function publishChanges() {
-  if (!activeStoredKey.value || !dirty.value || truncated.value) {
+  if (!activeStoredKey.value || !canPublish.value) {
     return;
   }
 
@@ -295,6 +305,15 @@ onMounted(async () => {
         {{ t('contacts.truncatedWarning', { max: MAX_CONTACTS_PER_ACCOUNT }) }}
       </q-banner>
 
+      <q-banner
+        v-else-if="overLimit"
+        class="bg-orange-1 text-orange-10 q-ma-md"
+        rounded
+        data-testid="contacts-over-limit"
+      >
+        {{ t('contacts.overLimitWarning', { max: MAX_CONTACTS_PER_ACCOUNT }) }}
+      </q-banner>
+
       <q-banner v-if="errorMessage" class="bg-red-1 text-red-10 q-ma-md" rounded>
         {{ errorMessage }}
       </q-banner>
@@ -322,7 +341,7 @@ onMounted(async () => {
           <q-btn
             class="diogel-btn-primary"
             icon="publish"
-            :disable="!dirty || publishing || truncated"
+            :disable="!canPublish"
             :label="t('contacts.publish')"
             :loading="publishing"
             @click="publishChanges"

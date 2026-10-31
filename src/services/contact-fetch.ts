@@ -25,7 +25,7 @@ const RELAY_MAX_WAIT_MS = 5000;
  */
 /** Contacts kept per account. Far above real follow lists; also bounds the profiles cached. */
 export const MAX_CONTACTS_PER_ACCOUNT = 10_000;
-/** A kind 0 whose content is longer is not parsed at all. */
+/** A kind 0 whose content is longer, in UTF-8 bytes, is not parsed at all. */
 export const MAX_PROFILE_CONTENT_LENGTH = 64 * 1024;
 /** Names, display names and petnames are cut to this length. */
 export const MAX_NAME_LENGTH = 256;
@@ -70,6 +70,16 @@ function getStringField(value: Record<string, unknown>, field: string): string {
   return typeof fieldValue === 'string' ? fieldValue.trim() : '';
 }
 
+/**
+ * Whether `content` is over `MAX_PROFILE_CONTENT_LENGTH` UTF-8 bytes. Each UTF-16 code unit is one
+ * to three bytes, so the length alone settles most cases without encoding.
+ */
+function isOversizedContent(content: string): boolean {
+  if (content.length > MAX_PROFILE_CONTENT_LENGTH) return true;
+  if (content.length * 3 <= MAX_PROFILE_CONTENT_LENGTH) return false;
+  return new TextEncoder().encode(content).length > MAX_PROFILE_CONTENT_LENGTH;
+}
+
 /** `value` cut to `max` characters, for text that still reads correctly when shortened. */
 function capText(value: string, max: number): string {
   return value.length > max ? value.slice(0, max) : value;
@@ -81,7 +91,7 @@ function capUrl(value: string): string {
 }
 
 export function parseContactProfile(event: NostrEvent): ContactProfile | null {
-  if (event.content.length > MAX_PROFILE_CONTENT_LENGTH) {
+  if (isOversizedContent(event.content)) {
     return null;
   }
 

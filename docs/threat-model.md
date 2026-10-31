@@ -65,6 +65,12 @@ account's kind 10063 Blossom server list, signs that list from Porwr's own pages
 elevated kind for sites, and refuses an upload named for an account that is no longer active. The
 `Uploaded media` asset row and the rows for T10 and T21 describe the code after that change.
 
+diogel-io/porwr#426 (diogel-io/workspace#182) bounded the contact cache against a relay: contacts
+per account, kind 0 content size, and the length of each cached field. A list that hit the contact
+limit is marked truncated, and the Contacts page publishes neither a truncated list nor one edited
+past the limit. The `Contact cache` asset row and its section 8 row describe the code after that
+change.
+
 Tracking issue: diogel-io/workspace#135
 
 This is the threat model for the whole Porwr extension. It supersedes the workspace approval threat

@@ -34,6 +34,9 @@ vi.mock('@/composables/useContactCache', async () => {
   return { useContactCache: () => ({ ...mocks.cache, contacts }) };
 });
 
+// A small contact limit, so a list over it renders quickly.
+vi.mock('@/services/contact-fetch', () => ({ MAX_CONTACTS_PER_ACCOUNT: 3 }));
+
 vi.mock('@/services/contact-cache', () => ({
   writeContactList: mocks.writeContactList,
   upsertProfiles: mocks.upsertProfiles,
@@ -68,6 +71,7 @@ vi.mock('vue-i18n', () => ({
 }));
 
 import ContactListPage from '@/pages/dashboard/ContactListPage.vue';
+import { MAX_CONTACTS_PER_ACCOUNT } from '@/services/contact-fetch';
 
 const slot = { template: '<div><slot /></div>' };
 const stubs = {
@@ -218,7 +222,7 @@ describe('ContactListPage truncated list (workspace#182)', () => {
     const wrapper = await mountPage();
 
     expect(wrapper.find('[data-testid="contacts-truncated"]').text()).toBe(
-      'contacts.truncatedWarning:10000',
+      'contacts.truncatedWarning:3',
     );
 
     await wrapper.findAll('button[aria-label="contacts.remove"]')[0]!.trigger('click');
@@ -236,5 +240,45 @@ describe('ContactListPage truncated list (workspace#182)', () => {
     const wrapper = await mountPage();
 
     expect(wrapper.find('[data-testid="contacts-truncated"]').exists()).toBe(false);
+  });
+});
+
+describe('ContactListPage publish limits (workspace#182 review)', () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      pubkey: index.toString(16).padStart(64, '0'),
+      relayUrl: '',
+      petname: '',
+    }));
+
+  it('keeps an edited truncated list unpublishable when a newer list reaches the cache', async () => {
+    mocks.cache.list.value = { ...cachedList([bob, dave]), truncated: true };
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+
+    await wrapper.findAll('button[aria-label="contacts.remove"]')[0]!.trigger('click');
+    mocks.cache.list.value = cachedList([bob], 150);
+    await flushPromises();
+
+    await wrapper.find('button[data-icon="publish"]').trigger('click');
+    await flushPromises();
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="contacts-truncated"]').exists()).toBe(true);
+  });
+
+  it('will not publish an edited list longer than the cache keeps', async () => {
+    // Over the limit and not marked truncated: what adding to a full list leaves on the page.
+    mocks.cache.list.value = cachedList(many(MAX_CONTACTS_PER_ACCOUNT + 2));
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+
+    await wrapper.findAll('button[aria-label="contacts.remove"]')[0]!.trigger('click');
+    const publish = wrapper.find('button[data-icon="publish"]');
+
+    expect(wrapper.find('[data-testid="contacts-over-limit"]').exists()).toBe(true);
+    expect(publish.attributes('disabled')).toBeDefined();
+    await publish.trigger('click');
+    await flushPromises();
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
   });
 });
