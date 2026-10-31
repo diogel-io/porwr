@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/diogel-io/porwr/compare/v0.3.1...v0.3.2) (2026-10-31)
+
+
+### Bug Fixes
+
+* **contacts:** bound the unencrypted contact cache ([#426](https://github.com/diogel-io/porwr/issues/426)) ([e289cf4](https://github.com/diogel-io/porwr/commit/e289cf4d9614e919406398b8173c47140a760f48))
+
 ## [0.3.1](https://github.com/diogel-io/porwr/compare/v0.3.0...v0.3.1) (2026-10-31)
 
 
