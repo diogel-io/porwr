@@ -25,7 +25,7 @@
     "record:sidebar": "npm run build:chrome && playwright test --config tests/recordings/playwright.config.ts"
   },
   "dependencies": {
-    "@noble/hashes": "^1.8.0",
+    "@noble/hashes": "^2.4.0",
     "@quasar/extras": "^2.1.0",
     "@scure/base": "^2.4.0",
     "dexie": "^4.4.7",
