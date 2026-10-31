@@ -284,7 +284,7 @@ onMounted(async () => {
     <q-card v-else class="dashboard-card contacts-page__card">
       <q-card-section class="contacts-page__summary">
         <div>
-          <div class="text-h6">{{ activeStoredKey.alias }}</div>
+          <div class="text-h6 contacts-page__alias">{{ activeStoredKey.alias }}</div>
           <div class="text-caption text-grey-7">{{ sourceSummary }}</div>
         </div>
         <q-chip v-if="dirty" color="warning" text-color="dark" icon="edit">
@@ -391,9 +391,9 @@ onMounted(async () => {
                 </q-avatar>
                 <q-avatar v-else color="primary" text-color="white" icon="person" />
               </q-item-section>
-              <q-item-section>
-                <q-item-label>{{ getSearchResultName(result) }}</q-item-label>
-                <q-item-label caption>{{ getSearchResultSubtitle(result) }}</q-item-label>
+              <q-item-section class="contacts-page__row-main">
+                <q-item-label lines="1">{{ getSearchResultName(result) }}</q-item-label>
+                <q-item-label caption lines="1">{{ getSearchResultSubtitle(result) }}</q-item-label>
                 <q-item-label caption class="contacts-page__pubkey">
                   {{ formatContactNpub(result.pubkey) }}
                 </q-item-label>
@@ -432,13 +432,15 @@ onMounted(async () => {
               </q-tooltip>
             </q-avatar>
           </q-item-section>
-          <q-item-section>
-            <q-item-label>{{ getDisplayName(contact) }}</q-item-label>
-            <q-item-label caption>{{ getContactSubtitle(contact) }}</q-item-label>
+          <q-item-section class="contacts-page__row-main">
+            <q-item-label lines="1">{{ getDisplayName(contact) }}</q-item-label>
+            <q-item-label caption lines="1">{{ getContactSubtitle(contact) }}</q-item-label>
             <q-item-label caption class="contacts-page__pubkey">
               {{ formatContactNpub(contact.pubkey) }}
             </q-item-label>
-            <q-item-label v-if="contact.relayUrl" caption>{{ contact.relayUrl }}</q-item-label>
+            <q-item-label v-if="contact.relayUrl" caption lines="1">
+              {{ contact.relayUrl }}
+            </q-item-label>
           </q-item-section>
           <q-item-section side>
             <div class="contacts-page__row-actions">
@@ -508,6 +510,20 @@ onMounted(async () => {
 
 .contacts-page__add-panel {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/*
+ * A contact without a profile shows its npub as the name and subtitle, and a relay URL has no
+ * spaces either. Those labels are one line with an ellipsis (`lines="1"`); the full npub stays on
+ * the pubkey line. `min-width: 0` lets the ellipsis take effect inside the flex row, so a row never
+ * grows wider than the card at the 320px floor (NFR-11).
+ */
+.contacts-page__row-main {
+  min-width: 0;
+}
+
+.contacts-page__alias {
+  overflow-wrap: anywhere;
 }
 
 .contacts-page__pubkey {
