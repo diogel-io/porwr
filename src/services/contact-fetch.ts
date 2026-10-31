@@ -19,6 +19,21 @@ export const PROFILE_BATCH_SIZE = 25;
 export const PROFILE_BATCH_CONCURRENCY = 4;
 const RELAY_MAX_WAIT_MS = 5000;
 
+/*
+ * Bounds on what a relay can make Porwr cache (workspace#182). The cache is unencrypted and filled
+ * from whatever relays serve, so without them one malicious relay could grow it without limit.
+ */
+/** Contacts kept per account. Far above real follow lists; also bounds the profiles cached. */
+export const MAX_CONTACTS_PER_ACCOUNT = 10_000;
+/** A kind 0 whose content is longer, in UTF-8 bytes, is not parsed at all. */
+export const MAX_PROFILE_CONTENT_LENGTH = 64 * 1024;
+/** Names, display names and petnames are cut to this length. */
+export const MAX_NAME_LENGTH = 256;
+/** A profile's about text is cut to this length. */
+export const MAX_ABOUT_LENGTH = 2000;
+/** A longer picture, NIP-05 address or relay hint is dropped, since a cut one would be wrong. */
+export const MAX_URL_LENGTH = 2048;
+
 const HEX_PUBKEY_PATTERN = /^[0-9a-f]{64}$/i;
 
 export type RelayReader = Pick<SimplePool, 'get' | 'querySync'>;
@@ -55,7 +70,36 @@ function getStringField(value: Record<string, unknown>, field: string): string {
   return typeof fieldValue === 'string' ? fieldValue.trim() : '';
 }
 
+/**
+ * Whether `content` is over `MAX_PROFILE_CONTENT_LENGTH` UTF-8 bytes. Each UTF-16 code unit is one
+ * to three bytes, so the length alone settles most cases without encoding.
+ */
+function isOversizedContent(content: string): boolean {
+  if (content.length > MAX_PROFILE_CONTENT_LENGTH) return true;
+  if (content.length * 3 <= MAX_PROFILE_CONTENT_LENGTH) return false;
+  return new TextEncoder().encode(content).length > MAX_PROFILE_CONTENT_LENGTH;
+}
+
+/**
+ * `value` cut to `max` UTF-16 code units, for text that still reads correctly when shortened. A cut
+ * that would leave half of a surrogate pair, such as an emoji, drops that half too.
+ */
+function capText(value: string, max: number): string {
+  if (value.length <= max) return value;
+  const last = value.charCodeAt(max - 1);
+  return value.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+}
+
+/** `value`, or nothing when it is too long: a shortened URL or address points somewhere else. */
+function capUrl(value: string): string {
+  return value.length > MAX_URL_LENGTH ? '' : value;
+}
+
 export function parseContactProfile(event: NostrEvent): ContactProfile | null {
+  if (isOversizedContent(event.content)) {
+    return null;
+  }
+
   try {
     const parsed = JSON.parse(event.content) as unknown;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -66,11 +110,11 @@ export function parseContactProfile(event: NostrEvent): ContactProfile | null {
 
     return {
       pubkey: event.pubkey,
-      name: getStringField(profile, 'name'),
-      displayName: getStringField(profile, 'display_name'),
-      about: getStringField(profile, 'about'),
-      picture: getStringField(profile, 'picture'),
-      nip05: getStringField(profile, 'nip05'),
+      name: capText(getStringField(profile, 'name'), MAX_NAME_LENGTH),
+      displayName: capText(getStringField(profile, 'display_name'), MAX_NAME_LENGTH),
+      about: capText(getStringField(profile, 'about'), MAX_ABOUT_LENGTH),
+      picture: capUrl(getStringField(profile, 'picture')),
+      nip05: capUrl(getStringField(profile, 'nip05')),
       updatedAt: event.created_at,
     };
   } catch {
@@ -79,6 +123,17 @@ export function parseContactProfile(event: NostrEvent): ContactProfile | null {
 }
 
 export function parseContactTags(tags: string[][]): Nip02Contact[] {
+  return parseContactTagsCapped(tags).contacts;
+}
+
+/**
+ * The contacts in a kind 3's tags, at most `MAX_CONTACTS_PER_ACCOUNT` of them. `truncated` says that
+ * more were dropped, so the list must not be published back as it stands.
+ */
+export function parseContactTagsCapped(tags: string[][]): {
+  contacts: Nip02Contact[];
+  truncated: boolean;
+} {
   const seen = new Set<string>();
   const contacts: Nip02Contact[] = [];
 
@@ -93,14 +148,18 @@ export function parseContactTags(tags: string[][]): Nip02Contact[] {
       continue;
     }
 
-    const relayUrl = rawRelayUrl.trim();
-    const petname = rawPetname.trim();
+    if (contacts.length === MAX_CONTACTS_PER_ACCOUNT) {
+      return { contacts, truncated: true };
+    }
+
+    const relayUrl = capUrl(rawRelayUrl.trim());
+    const petname = capText(rawPetname.trim(), MAX_NAME_LENGTH);
 
     contacts.push({ pubkey, relayUrl, petname });
     seen.add(pubkey);
   }
 
-  return contacts;
+  return { contacts, truncated: false };
 }
 
 /** The account's newest kind 3 on `relays`, parsed. No event means no published list. */
@@ -121,11 +180,14 @@ export async function fetchContactListSnapshot(
     return { contacts: [] };
   }
 
-  return {
-    contacts: parseContactTags(event.tags),
+  const { contacts, truncated } = parseContactTagsCapped(event.tags);
+  const snapshot: ContactListSnapshot = {
+    contacts,
     sourceEventId: event.id,
     sourceCreatedAt: event.created_at,
   };
+  if (truncated) snapshot.truncated = true;
+  return snapshot;
 }
 
 function chunk<T>(items: T[], size: number): T[][] {

@@ -1,5 +1,6 @@
 import { liveQuery } from 'dexie';
 import { db } from '@/services/database';
+import { MAX_CONTACTS_PER_ACCOUNT } from '@/services/contact-fetch';
 import type {
   CachedContactList,
   CachedContactProfile,
@@ -71,6 +72,9 @@ export async function readContactCache(accountPubkey: string): Promise<ContactCa
  * A slow relay can answer with the list from before a publish; that must not undo the publish. An
  * older or missing answer still marks the list as checked, so pages stop asking. Returns whether the
  * contacts were replaced.
+ *
+ * At most `MAX_CONTACTS_PER_ACCOUNT` contacts are kept, whoever calls; a longer list is marked
+ * `truncated` (workspace#182).
  */
 export async function writeContactList(
   accountPubkey: string,
@@ -99,11 +103,16 @@ export async function writeContactList(
 
     const next: CachedContactList = {
       accountPubkey,
-      contacts: snapshot.contacts.map((contact) => ({ ...contact })),
+      contacts: snapshot.contacts
+        .slice(0, MAX_CONTACTS_PER_ACCOUNT)
+        .map((contact) => ({ ...contact })),
       fetchedAt: now,
     };
     if (snapshot.sourceEventId !== undefined) next.sourceEventId = snapshot.sourceEventId;
     if (snapshot.sourceCreatedAt !== undefined) next.sourceCreatedAt = snapshot.sourceCreatedAt;
+    if (snapshot.truncated || snapshot.contacts.length > MAX_CONTACTS_PER_ACCOUNT) {
+      next.truncated = true;
+    }
 
     await db.contactLists.put(next);
     return true;

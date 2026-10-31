@@ -65,6 +65,11 @@ export interface CachedContactList {
   sourceCreatedAt?: number;
   /** When relays were last asked, in milliseconds. Drives revalidation, not which list wins. */
   fetchedAt: number;
+  /**
+   * The published list had more than `MAX_CONTACTS_PER_ACCOUNT` contacts and only the first were
+   * kept (workspace#182). Publishing it back would drop the rest, so the Contacts page refuses to.
+   */
+  truncated?: true;
 }
 
 /** A contact's kind 0 profile, cached for the account that follows them. */
@@ -76,7 +81,7 @@ export interface CachedContactProfile extends ContactProfile {
 /** The contact list fields a fetch or a publish produces. */
 export type ContactListSnapshot = Pick<
   CachedContactList,
-  'contacts' | 'sourceEventId' | 'sourceCreatedAt'
+  'contacts' | 'sourceEventId' | 'sourceCreatedAt' | 'truncated'
 >;
 
 /** Asks the background to refresh the active account's contact cache. */

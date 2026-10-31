@@ -58,6 +58,7 @@ vi.mock('@/services/database', () => {
   };
 });
 
+import { MAX_CONTACTS_PER_ACCOUNT } from '@/services/contact-fetch';
 import {
   CONTACT_CACHE_TTL_MS,
   clearAccount,
@@ -154,6 +155,48 @@ describe('writeContactList', () => {
     await writeContactList(ALICE, { contacts: [] }, 3);
 
     expect(store.lists.get(ALICE)).toEqual({ accountPubkey: ALICE, contacts: [], fetchedAt: 3 });
+  });
+});
+
+describe('writeContactList bounds (workspace#182)', () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      pubkey: index.toString(16).padStart(64, '0'),
+      relayUrl: '',
+      petname: '',
+    }));
+
+  it('keeps at most the contact limit from any caller and marks the list truncated', async () => {
+    await writeContactList(ALICE, {
+      contacts: many(MAX_CONTACTS_PER_ACCOUNT + 5),
+      sourceCreatedAt: 100,
+    });
+
+    const cached = store.lists.get(ALICE) as CachedContactList;
+    expect(cached.contacts).toHaveLength(MAX_CONTACTS_PER_ACCOUNT);
+    expect(cached.truncated).toBe(true);
+  });
+
+  it('stores the truncated mark a fetch reported', async () => {
+    await writeContactList(ALICE, { contacts: [bob], sourceCreatedAt: 100, truncated: true });
+
+    expect((store.lists.get(ALICE) as CachedContactList).truncated).toBe(true);
+  });
+
+  it('keeps the mark when a slow relay answers with an older list', async () => {
+    await writeContactList(ALICE, { contacts: [bob], sourceCreatedAt: 200, truncated: true });
+
+    await writeContactList(ALICE, { contacts: [dave], sourceCreatedAt: 100 });
+
+    expect((store.lists.get(ALICE) as CachedContactList).truncated).toBe(true);
+  });
+
+  it('clears the mark when a newer list fits', async () => {
+    await writeContactList(ALICE, { contacts: [bob], sourceCreatedAt: 100, truncated: true });
+
+    await writeContactList(ALICE, { contacts: [bob, dave], sourceCreatedAt: 200 });
+
+    expect(store.lists.get(ALICE)).not.toHaveProperty('truncated');
   });
 });
 

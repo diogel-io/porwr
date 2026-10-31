@@ -1,10 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Event as NostrEvent, Filter } from 'nostr-tools';
 import {
+  MAX_ABOUT_LENGTH,
+  MAX_CONTACTS_PER_ACCOUNT,
+  MAX_NAME_LENGTH,
+  MAX_PROFILE_CONTENT_LENGTH,
+  MAX_URL_LENGTH,
   PROFILE_BATCH_CONCURRENCY,
   PROFILE_BATCH_SIZE,
   fetchContactListSnapshot,
   fetchProfilesInBatches,
+  parseContactProfile,
+  parseContactTags,
   type RelayReader,
 } from '@/services/contact-fetch';
 
@@ -143,5 +150,132 @@ describe('fetchContactListSnapshot', () => {
     } as unknown as RelayReader;
 
     await expect(fetchContactListSnapshot(pool, RELAYS, ALICE)).resolves.toEqual({ contacts: [] });
+  });
+});
+
+describe('contact cache bounds (workspace#182)', () => {
+  const kind0 = (content: string): NostrEvent => ({
+    id: 'p1',
+    pubkey: BOB,
+    kind: 0,
+    created_at: 1,
+    tags: [],
+    content,
+    sig: '',
+  });
+  const contactTags = (count: number) =>
+    Array.from({ length: count }, (_, index) => ['p', pubkeyAt(index + 1)]);
+
+  it('does not parse a kind 0 whose content is over the limit', () => {
+    const content = JSON.stringify({ name: 'Bob', about: 'x'.repeat(MAX_PROFILE_CONTENT_LENGTH) });
+
+    expect(parseContactProfile(kind0(content))).toBeNull();
+  });
+
+  it('measures kind 0 content in UTF-8 bytes, not characters', () => {
+    // Three bytes each in UTF-8, so under the limit in characters but over it in bytes.
+    const content = JSON.stringify({ about: '\u4e2d'.repeat(MAX_PROFILE_CONTENT_LENGTH / 2) });
+
+    expect(content.length).toBeLessThan(MAX_PROFILE_CONTENT_LENGTH);
+    expect(parseContactProfile(kind0(content))).toBeNull();
+  });
+
+  it('cuts long names and about text to their limits', () => {
+    const profile = parseContactProfile(
+      kind0(
+        JSON.stringify({
+          name: 'n'.repeat(MAX_NAME_LENGTH + 1),
+          display_name: 'd'.repeat(MAX_NAME_LENGTH + 50),
+          about: 'a'.repeat(MAX_ABOUT_LENGTH + 1),
+        }),
+      ),
+    );
+
+    expect(profile?.name).toBe('n'.repeat(MAX_NAME_LENGTH));
+    expect(profile?.displayName).toBe('d'.repeat(MAX_NAME_LENGTH));
+    expect(profile?.about).toBe('a'.repeat(MAX_ABOUT_LENGTH));
+  });
+
+  it('drops a picture or NIP-05 address over the limit rather than cutting it', () => {
+    const long = `https://example.com/${'p'.repeat(MAX_URL_LENGTH)}`;
+    const profile = parseContactProfile(kind0(JSON.stringify({ picture: long, nip05: long })));
+
+    expect(profile?.picture).toBe('');
+    expect(profile?.nip05).toBe('');
+  });
+
+  it('keeps fields within the limits as they are', () => {
+    const profile = parseContactProfile(
+      kind0(JSON.stringify({ name: 'Bob', picture: 'https://example.com/bob.png' })),
+    );
+
+    expect(profile?.name).toBe('Bob');
+    expect(profile?.picture).toBe('https://example.com/bob.png');
+  });
+
+  it('never cuts an emoji in half', () => {
+    const name = `a${'\u{1F600}'.repeat(MAX_NAME_LENGTH)}`;
+    const profile = parseContactProfile(kind0(JSON.stringify({ name })));
+    const [contact] = parseContactTags([['p', BOB, '', name]]);
+
+    for (const cut of [profile!.name, contact!.petname]) {
+      // 'a' plus 127 emoji fill 255 units; a whole 128th emoji would need 257.
+      expect(cut).toBe(`a${'\u{1F600}'.repeat((MAX_NAME_LENGTH - 2) / 2)}`);
+      expect(cut.isWellFormed()).toBe(true);
+    }
+  });
+
+  it('cuts a long petname and drops a relay hint over the limit', () => {
+    const relay = `wss://${'r'.repeat(MAX_URL_LENGTH)}.example`;
+
+    expect(parseContactTags([['p', BOB, relay, 'b'.repeat(MAX_NAME_LENGTH + 1)]])).toEqual([
+      { pubkey: BOB, relayUrl: '', petname: 'b'.repeat(MAX_NAME_LENGTH) },
+    ]);
+  });
+
+  it('keeps at most the contact limit and marks the list as truncated', async () => {
+    const pool = {
+      get: vi.fn(() =>
+        Promise.resolve({
+          id: 'e1',
+          pubkey: ALICE,
+          kind: 3,
+          created_at: 100,
+          tags: contactTags(MAX_CONTACTS_PER_ACCOUNT + 1),
+          content: '',
+          sig: '',
+        }),
+      ),
+      querySync: vi.fn(),
+    } as unknown as RelayReader;
+
+    const snapshot = await fetchContactListSnapshot(pool, RELAYS, ALICE);
+
+    expect(snapshot.contacts).toHaveLength(MAX_CONTACTS_PER_ACCOUNT);
+    expect(snapshot.contacts.at(-1)?.pubkey).toBe(pubkeyAt(MAX_CONTACTS_PER_ACCOUNT));
+    expect(snapshot.truncated).toBe(true);
+  });
+
+  it('does not mark a list at exactly the limit, or one padded with duplicates', async () => {
+    const tags = [...contactTags(MAX_CONTACTS_PER_ACCOUNT), ['p', pubkeyAt(1)]];
+    const pool = {
+      get: vi.fn(() =>
+        Promise.resolve({
+          id: 'e1',
+          pubkey: ALICE,
+          kind: 3,
+          created_at: 100,
+          tags,
+          content: '',
+          sig: '',
+        }),
+      ),
+      querySync: vi.fn(),
+    } as unknown as RelayReader;
+
+    const snapshot = await fetchContactListSnapshot(pool, RELAYS, ALICE);
+
+    expect(snapshot.contacts).toHaveLength(MAX_CONTACTS_PER_ACCOUNT);
+    expect(snapshot).not.toHaveProperty('truncated');
   });
 });
