@@ -719,6 +719,8 @@ export default {
     duplicateContact: 'This contact is already in the list.',
     invalidContact: 'Contact details are invalid.',
     unsavedChanges: 'Unsaved changes',
+    truncatedWarning:
+      'Your published contact list is longer than the {max} contacts Porwr keeps, so only the first {max} are shown. Publishing is turned off here, because it would remove the rest from your list.',
     replaceWarning:
       'Publishing will replace the active account’s full NIP-02 follow list with the contacts shown here.',
     publishSuccess: 'Contact list published successfully.',

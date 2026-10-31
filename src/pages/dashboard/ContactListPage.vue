@@ -8,6 +8,7 @@ import type { AccountSummary } from '@/types/accounts';
 import { useContactCache } from '@/composables/useContactCache';
 import RemoteImage from '@/components/shared/RemoteImage.vue';
 import { upsertProfiles, writeContactList } from '@/services/contact-cache';
+import { MAX_CONTACTS_PER_ACCOUNT } from '@/services/contact-fetch';
 import {
   formatContactNpub,
   getContactDisplayName,
@@ -45,6 +46,8 @@ const profiles = computed<Record<string, ContactProfile>>(() => ({
   ...addedProfiles.value,
 }));
 const errorMessage = computed(() => publishError.value || contactCache.error.value);
+/** The published list is longer than Porwr keeps, so publishing it back would drop follows. */
+const truncated = computed(() => contactCache.list.value?.truncated === true);
 
 /** Shows the cached list, unless the user is part-way through editing it. */
 function applyCachedList() {
@@ -203,7 +206,7 @@ function removeContact(contact: Nip02Contact) {
 }
 
 async function publishChanges() {
-  if (!activeStoredKey.value || !dirty.value) {
+  if (!activeStoredKey.value || !dirty.value || truncated.value) {
     return;
   }
 
@@ -283,6 +286,15 @@ onMounted(async () => {
         {{ t('contacts.replaceWarning') }}
       </q-banner>
 
+      <q-banner
+        v-if="truncated"
+        class="bg-orange-1 text-orange-10 q-ma-md"
+        rounded
+        data-testid="contacts-truncated"
+      >
+        {{ t('contacts.truncatedWarning', { max: MAX_CONTACTS_PER_ACCOUNT }) }}
+      </q-banner>
+
       <q-banner v-if="errorMessage" class="bg-red-1 text-red-10 q-ma-md" rounded>
         {{ errorMessage }}
       </q-banner>
@@ -310,7 +322,7 @@ onMounted(async () => {
           <q-btn
             class="diogel-btn-primary"
             icon="publish"
-            :disable="!dirty || publishing"
+            :disable="!dirty || publishing || truncated"
             :label="t('contacts.publish')"
             :loading="publishing"
             @click="publishChanges"

@@ -210,3 +210,31 @@ describe('ContactListPage (#257)', () => {
     expect(wrapper.text()).toContain('contacts.count:1');
   });
 });
+
+describe('ContactListPage truncated list (workspace#182)', () => {
+  it('explains a truncated list and will not publish it, which would drop follows', async () => {
+    mocks.cache.list.value = { ...cachedList([bob, dave]), truncated: true };
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="contacts-truncated"]').text()).toBe(
+      'contacts.truncatedWarning:10000',
+    );
+
+    await wrapper.findAll('button[aria-label="contacts.remove"]')[0]!.trigger('click');
+    const publish = wrapper.find('button[data-icon="publish"]');
+    expect(publish.attributes('disabled')).toBeDefined();
+
+    await publish.trigger('click');
+    await flushPromises();
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
+  });
+
+  it('shows no notice for a list within the limit', async () => {
+    mocks.cache.list.value = cachedList([bob]);
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="contacts-truncated"]').exists()).toBe(false);
+  });
+});
