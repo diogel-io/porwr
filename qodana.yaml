@@ -1,0 +1,14 @@
+# Qodana configuration for .github/workflows/code_quality.yml.
+# https://www.jetbrains.com/help/qodana/qodana-yaml.html
+version: '1.0'
+linter: jetbrains/qodana-js:2026.2
+profile:
+  name: qodana.recommended
+exclude:
+  - name: All
+    paths:
+      - dist
+      - coverage
+      - test-results
+      - playwright-report
+      - CHANGELOG.md
