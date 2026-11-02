@@ -250,7 +250,7 @@ function requestPublish() {
     return;
   }
   const shown = newerList.value.sourceEventId;
-  replaceDialog = $q
+  const dialog = $q
     .dialog({
       title: t('contacts.replaceNewerTitle'),
       message: t('contacts.replaceNewerBody', { date: newerListDate.value }),
@@ -265,6 +265,12 @@ function requestPublish() {
       }
       void publishChanges();
     });
+  // A closed dialog cannot be hidden again. OK may already have opened the next one, so only
+  // forget this one if it is still the open dialog.
+  dialog.onDismiss(() => {
+    if (replaceDialog === dialog) replaceDialog = undefined;
+  });
+  replaceDialog = dialog;
 }
 
 async function publishChanges() {

@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   notify: vi.fn(),
   dialog: vi.fn(),
   dialogHide: vi.fn(),
+  /** The dismiss handler of the last dialog the page opened, which Quasar runs on OK or Cancel. */
+  dialogDismiss: undefined as (() => void) | undefined,
   /** The OK handler of the last dialog the page opened. */
   dialogOk: undefined as (() => void) | undefined,
   account: {} as Ref<{ id: string; alias: string; createdAt: string }>,
@@ -142,6 +144,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.account.value = { id: ME, alias: 'alice', createdAt: '' };
   mocks.dialogOk = undefined;
+  mocks.dialogDismiss = undefined;
   mocks.dialog.mockImplementation(() => {
     // Like Quasar's dialog chain: onOk returns the same object, which can be hidden.
     const chain = {
@@ -149,7 +152,10 @@ beforeEach(() => {
         mocks.dialogOk = handler;
         return chain;
       },
-      onDismiss: () => chain,
+      onDismiss(handler: () => void) {
+        mocks.dialogDismiss = handler;
+        return chain;
+      },
       hide: mocks.dialogHide,
     };
     return chain;
@@ -389,6 +395,17 @@ describe('ContactListPage newer list during edits (#430)', () => {
     wrapper.unmount();
 
     expect(mocks.dialogHide).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not hide a confirmation that was already closed when the page goes away', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await publish(wrapper);
+    // Cancel: Quasar closes the dialog, and hiding it again would throw.
+    mocks.dialogDismiss!();
+    wrapper.unmount();
+
+    expect(mocks.dialogHide).not.toHaveBeenCalled();
   });
 
   it('publishes nothing and keeps the notice when the user cancels', async () => {
