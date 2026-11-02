@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   notify: vi.fn(),
   dialog: vi.fn(),
   dialogHide: vi.fn(),
+  /** Every dialog the page opened, in order, with its own handlers and whether it was hidden. */
+  dialogs: [] as { ok?: () => void; dismiss?: () => void; hidden: boolean }[],
   /** The dismiss handler of the last dialog the page opened, which Quasar runs on OK or Cancel. */
   dialogDismiss: undefined as (() => void) | undefined,
   /** The OK handler of the last dialog the page opened. */
@@ -145,18 +147,26 @@ beforeEach(() => {
   mocks.account.value = { id: ME, alias: 'alice', createdAt: '' };
   mocks.dialogOk = undefined;
   mocks.dialogDismiss = undefined;
+  mocks.dialogs = [];
   mocks.dialog.mockImplementation(() => {
     // Like Quasar's dialog chain: onOk returns the same object, which can be hidden.
+    const record: (typeof mocks.dialogs)[number] = { hidden: false };
+    mocks.dialogs.push(record);
     const chain = {
       onOk(handler: () => void) {
+        record.ok = handler;
         mocks.dialogOk = handler;
         return chain;
       },
       onDismiss(handler: () => void) {
+        record.dismiss = handler;
         mocks.dialogDismiss = handler;
         return chain;
       },
-      hide: mocks.dialogHide,
+      hide: () => {
+        record.hidden = true;
+        mocks.dialogHide();
+      },
     };
     return chain;
   });
@@ -406,6 +416,24 @@ describe('ContactListPage newer list during edits (#430)', () => {
     wrapper.unmount();
 
     expect(mocks.dialogHide).not.toHaveBeenCalled();
+  });
+
+  it('still closes the second confirmation when the first one is dismissed after it opens', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await publish(wrapper);
+    mocks.cache.list.value = cachedList([dave], 180);
+    await flushPromises();
+    // Quasar runs a dialog's OK handlers, which here open the second dialog, then its dismiss ones.
+    const [first] = mocks.dialogs;
+    first!.ok!();
+    first!.dismiss!();
+    expect(mocks.dialogs).toHaveLength(2);
+
+    wrapper.unmount();
+
+    expect(mocks.dialogs[1]!.hidden).toBe(true);
+    expect(first!.hidden).toBe(false);
   });
 
   it('publishes nothing and keeps the notice when the user cancels', async () => {
