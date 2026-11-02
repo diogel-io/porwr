@@ -503,9 +503,10 @@ describe('ContactListPage newer list during edits (#430)', () => {
   });
 
   it('shows the notice when a list arrives after edits made before any list had loaded', async () => {
+    // A ready cache with no list, which `useContactCache` does not produce: edits with no list to
+    // start from are now blocked until the list loads (#429). Kept as a check of `applyCachedList`.
     mocks.cache.status.value = 'ready';
     const wrapper = await mountPage();
-    // No list yet, and the user adds a contact to the empty page (#429).
     mocks.searchContacts.mockResolvedValue([{ pubkey: DAVE, relayUrl: '' }]);
     await wrapper.find('button[data-icon="person_add"]').trigger('click');
     await wrapper.find('input').setValue('dave');
@@ -528,5 +529,66 @@ describe('ContactListPage newer list during edits (#430)', () => {
     await flushPromises();
 
     expect(notice(wrapper).exists()).toBe(false);
+  });
+});
+
+describe('ContactListPage before the list has loaded (#429)', () => {
+  const addButton = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
+    wrapper.find('button[data-icon="person_add"]');
+  const publishButton = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
+    wrapper.find('button[data-icon="publish"]');
+
+  it('will not let a contact be added or anything be published while the list is loading', async () => {
+    const wrapper = await mountPage();
+
+    expect(wrapper.text()).toContain('contacts.loading');
+    expect(addButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(publishButton(wrapper).attributes('disabled')).toBeDefined();
+
+    await addButton(wrapper).trigger('click');
+    await publishButton(wrapper).trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('input').exists()).toBe(false);
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
+  });
+
+  it('closes an open Add panel when the next account has no list yet, and publishes nothing', async () => {
+    mocks.cache.list.value = cachedList([bob]);
+    mocks.cache.status.value = 'ready';
+    mocks.searchContacts.mockResolvedValue([{ pubkey: DAVE, relayUrl: '' }]);
+    const wrapper = await mountPage();
+    await addButton(wrapper).trigger('click');
+    await wrapper.find('input').setValue('dave');
+    await wrapper.find('button[data-icon="search"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('button[aria-label="contacts.select"]').exists()).toBe(true);
+
+    // Switching account: the cache drops the old list and loads the next one.
+    mocks.account.value = { id: 'c'.repeat(64), alias: 'carol', createdAt: '' };
+    mocks.cache.list.value = undefined;
+    mocks.cache.status.value = 'loading';
+    await flushPromises();
+
+    expect(wrapper.find('input').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="contacts.select"]').exists()).toBe(false);
+    expect(addButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(publishButton(wrapper).attributes('disabled')).toBeDefined();
+    await publishButton(wrapper).trigger('click');
+    await flushPromises();
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
+  });
+
+  it('allows adding once the list has loaded', async () => {
+    const wrapper = await mountPage();
+    expect(addButton(wrapper).attributes('disabled')).toBeDefined();
+
+    mocks.cache.list.value = cachedList([bob]);
+    mocks.cache.status.value = 'ready';
+    await flushPromises();
+
+    expect(addButton(wrapper).attributes('disabled')).toBeUndefined();
+    await addButton(wrapper).trigger('click');
+    expect(wrapper.find('input').exists()).toBe(true);
   });
 });
