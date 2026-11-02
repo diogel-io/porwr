@@ -237,13 +237,17 @@ function removeContact(contact: Nip02Contact) {
   dirty.value = true;
 }
 
-/** Publishes the edits, asking first when that would replace a newer list (#430). */
+/**
+ * Publishes the edits, asking first when that would replace a newer list (#430). If yet another
+ * list reaches the cache while the dialog is open, the user is asked again about that one.
+ */
 function requestPublish() {
   if (!canPublish.value) return;
   if (!newerList.value) {
     void publishChanges();
     return;
   }
+  const shown = newerList.value.sourceEventId;
   $q.dialog({
     title: t('contacts.replaceNewerTitle'),
     message: t('contacts.replaceNewerBody', { date: newerListDate.value }),
@@ -251,6 +255,10 @@ function requestPublish() {
     cancel: { label: t('contacts.replaceNewerCancel'), flat: true, noCaps: true },
     persistent: true,
   }).onOk(() => {
+    if (newerList.value && newerList.value.sourceEventId !== shown) {
+      requestPublish();
+      return;
+    }
     void publishChanges();
   });
 }

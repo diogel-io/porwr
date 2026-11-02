@@ -353,6 +353,26 @@ describe('ContactListPage newer list during edits (#430)', () => {
     expect(mocks.publishContactList).toHaveBeenCalledWith(ME, []);
   });
 
+  it('asks again when yet another list arrives while the dialog is open', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await publish(wrapper);
+    mocks.cache.list.value = cachedList([dave], 180);
+    await flushPromises();
+    mocks.dialogOk!();
+    await flushPromises();
+
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
+    expect(mocks.dialog).toHaveBeenCalledTimes(2);
+    expect(mocks.dialog.mock.calls[1]![0].message).toBe(
+      `contacts.replaceNewerBody:${new Date(180_000).toLocaleString()}`,
+    );
+
+    mocks.dialogOk!();
+    await flushPromises();
+    expect(mocks.publishContactList).toHaveBeenCalledWith(ME, []);
+  });
+
   it('publishes nothing and keeps the notice when the user cancels', async () => {
     const wrapper = await editThenReceive(cachedList([bob, dave], 150));
 
