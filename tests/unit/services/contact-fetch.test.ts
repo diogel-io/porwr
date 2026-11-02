@@ -14,6 +14,7 @@ import {
   parseContactTags,
   type RelayReader,
 } from '@/services/contact-fetch';
+import { REPLACEABLE_LOOKUP_TIMEOUT_MS } from '@/services/replaceable-lookup';
 
 const RELAYS = ['wss://relay.example'];
 const ALICE = 'a'.repeat(64);
@@ -163,7 +164,8 @@ describe('fetchContactListSnapshot', () => {
     expect(subscribeEose).toHaveBeenCalledWith(
       RELAYS,
       { authors: [ALICE], kinds: [3], limit: 1 },
-      expect.objectContaining({ maxWait: 5000 }),
+      // nostr-tools' own timeout comes after Porwr's, so it never decides (#424).
+      expect.objectContaining({ maxWait: REPLACEABLE_LOOKUP_TIMEOUT_MS + 1_000 }),
     );
   });
 
@@ -191,16 +193,38 @@ describe('fetchContactListSnapshot', () => {
   });
 
   it('reports no list when one relay answered and another did not', async () => {
-    const subscribeEose = vi.fn((_relays: string[], _filter: Filter, params: EoseParams) => {
+    // Each relay is asked on its own subscription (#424).
+    const subscribeEose = vi.fn((relays: string[], _filter: Filter, params: EoseParams) => {
+      const [url = ''] = relays;
       params.onclose([
-        { url: 'wss://down.example', reason: 'connection failed' },
-        { url: 'wss://up.example', reason: CLOSED_ON_EOSE },
+        { url, reason: url.includes('down') ? 'connection failed' : CLOSED_ON_EOSE },
       ]);
       return { close: vi.fn() };
     });
     const pool = { get: vi.fn(), querySync: vi.fn(), subscribeEose } as unknown as RelayReader;
 
-    await expect(fetchContactListSnapshot(pool, RELAYS, ALICE)).resolves.toEqual({ contacts: [] });
+    await expect(
+      fetchContactListSnapshot(pool, ['wss://down.example', 'wss://up.example'], ALICE),
+    ).resolves.toEqual({ contacts: [] });
+    expect(subscribeEose).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks the list unreachable when a relay connects and never answers (#424)', async () => {
+    vi.useFakeTimers();
+    try {
+      const close = vi.fn();
+      // Never calls onclose, as a relay that never sends EOSE.
+      const subscribeEose = vi.fn(() => ({ close }));
+      const pool = { get: vi.fn(), querySync: vi.fn(), subscribeEose } as unknown as RelayReader;
+
+      const snapshot = fetchContactListSnapshot(pool, RELAYS, ALICE);
+      await vi.advanceTimersByTimeAsync(REPLACEABLE_LOOKUP_TIMEOUT_MS);
+
+      await expect(snapshot).resolves.toEqual({ contacts: [], unreachable: true });
+      expect(close).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('marks the list unreachable when the subscription throws', async () => {

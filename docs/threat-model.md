@@ -74,10 +74,15 @@ change.
 diogel-io/porwr#437 (diogel-io/porwr#435) stops a contact list lookup from caching an empty list
 when no relay could be reached or completed the connection. The lookup reads each relay's close
 reason, as the kind 10002 and 10063 lookups do. With nothing cached, it records the list as unknown,
-and the Contacts page allows no editing or publishing until a relay answers. A relay that connects
-but never answers still looks like one with no list, because nostr-tools ends its subscription as if
-it had answered; diogel-io/porwr#424 tracks that. The section 8 contact cache row describes the code
-after that change.
+and the Contacts page allows no editing or publishing until a relay answers. The section 8 contact
+cache row describes the code after that change.
+
+diogel-io/porwr#424 makes a relay that connects but never answers count as unreachable for all three
+lookups: the contact list, the kind 10002 relay list and the kind 10063 Blossom server list.
+nostr-tools ends such a subscription as if the relay had answered, so each relay is asked on its own
+under a deadline Porwr sets, and only one that answers before it counts as having answered. The
+Contacts page then keeps editing off, and Media Management asks before replacing the Blossom server
+list, when every relay is silent as well as when none can be reached.
 
 Tracking issue: diogel-io/workspace#135
 
@@ -456,7 +461,7 @@ Each control below must be covered by an automated test, not by review alone.
 | Forged, impersonated, and non-chat gift wraps are rejected                                                                                                                                  | T34      | `tests/unit/services/nip17-messaging.test.ts`                                                                                                                                                                             |
 | Other extensions and content scripts are refused on the raw listener                                                                                                                        | T25      | `tests/unit/services/message-routing.test.ts`, `tests/unit/services/sender-policy.test.ts`                                                                                                                                |
 | The manifest asks for no host permissions and the CSP allows scripts only from `'self'`                                                                                                     | T27      | `tests/unit/manifest-csp.test.ts`, `tests/unit/bex-manifest.test.ts`, `tests/e2e/extension-loads.spec.ts`                                                                                                                 |
-| A relay cannot grow the contact cache past fixed bounds, a truncated list is never published back, and a lookup no relay could be reached for is never cached as an editable empty list     | A4       | `tests/unit/services/contact-fetch.test.ts`, `tests/unit/services/contact-cache.test.ts`, `tests/unit/pages/ContactListPage.test.ts`                                                                                      |
+| A relay cannot grow the contact cache past fixed bounds, a truncated list is never published back, and a lookup no relay answered is never cached as an editable empty list                 | A4       | `tests/unit/services/contact-fetch.test.ts`, `tests/unit/services/contact-cache.test.ts`, `tests/unit/pages/ContactListPage.test.ts`                                                                                      |
 
 ## 9. Open items
 

@@ -173,9 +173,7 @@ export async function fetchContactListSnapshot(
   relays: string[],
   accountPubkey: string,
 ): Promise<ContactListSnapshot> {
-  const lookup = await lookupReplaceableEvent(pool, relays, accountPubkey, CONTACT_LIST_KIND, {
-    maxWait: RELAY_MAX_WAIT_MS,
-  });
+  const lookup = await lookupReplaceableEvent(pool, relays, accountPubkey, CONTACT_LIST_KIND);
 
   if (lookup.status === 'unreachable') {
     return { contacts: [], unreachable: true };
