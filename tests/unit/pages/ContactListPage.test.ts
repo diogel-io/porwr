@@ -758,4 +758,14 @@ describe('ContactListPage with a long list (#428)', () => {
     expect(wrapper.find('[data-testid="contacts-list"]').attributes('data-items')).toBe('300');
     expect(wrapper.text()).toContain('contacts.count:300');
   });
+
+  it('tells assistive technology where each row sits in the whole list', async () => {
+    mocks.cache.list.value = cachedList([bob, dave]);
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+
+    const rows = wrapper.findAll('.contacts-page__contact');
+    expect(rows.map((row) => row.attributes('aria-posinset'))).toEqual(['1', '2']);
+    expect(rows.map((row) => row.attributes('aria-setsize'))).toEqual(['2', '2']);
+  });
 });

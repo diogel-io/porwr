@@ -82,6 +82,9 @@ test('the Contacts page shows, edits and scrolls a 10,000-contact list quickly',
   // Only the rows in view are in the page.
   const rows = page.locator('.contacts-page__contact');
   expect(await rows.count()).toBeLessThan(100);
+  // Assistive technology still learns the whole list's size.
+  await expect(rows.first()).toHaveAttribute('aria-posinset', '1');
+  await expect(rows.first()).toHaveAttribute('aria-setsize', String(COUNT));
 
   // The bio tooltip still shows on a row's avatar.
   await rows.first().locator('.q-avatar').hover();

@@ -540,14 +540,20 @@ onMounted(async () => {
       -->
       <q-virtual-scroll
         v-else-if="sortedContacts.length > 0"
-        v-slot="{ item: contact }"
+        v-slot="{ item: contact, index }"
         :items="sortedContacts"
         :virtual-scroll-item-size="CONTACT_ROW_HEIGHT"
         scroll-target="body"
         separator
         data-testid="contacts-list"
       >
-        <q-item :key="contact.pubkey" class="contacts-page__contact">
+        <!-- Only a slice is in the page, so each row says where it sits in the whole list. -->
+        <q-item
+          :key="contact.pubkey"
+          class="contacts-page__contact"
+          :aria-posinset="index + 1"
+          :aria-setsize="sortedContacts.length"
+        >
           <q-item-section avatar>
             <q-avatar v-if="getProfile(contact)?.picture">
               <RemoteImage :src="getProfile(contact)?.picture ?? ''" />
