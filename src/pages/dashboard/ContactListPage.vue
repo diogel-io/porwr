@@ -113,6 +113,8 @@ watch(listReady, (ready) => {
 });
 
 const sortedContacts = computed(() => contacts.value);
+/** A contact row's usual height in px at panel width, where the npub wraps; rows are measured. */
+const CONTACT_ROW_HEIGHT = 126;
 
 const newerListDate = computed(() =>
   newerList.value?.sourceCreatedAt
@@ -532,11 +534,25 @@ onMounted(async () => {
         />
       </q-card-section>
 
-      <q-list v-else-if="sortedContacts.length > 0" separator>
+      <!--
+        Only the rows in view are rendered, so a long list stays quick to show and to edit (#428).
+        The window scrolls, as for the rest of the page: "body" is how Quasar names it.
+      -->
+      <q-virtual-scroll
+        v-else-if="sortedContacts.length > 0"
+        v-slot="{ item: contact, index }"
+        :items="sortedContacts"
+        :virtual-scroll-item-size="CONTACT_ROW_HEIGHT"
+        scroll-target="body"
+        separator
+        data-testid="contacts-list"
+      >
+        <!-- Only a slice is in the page, so each row says where it sits in the whole list. -->
         <q-item
-          v-for="contact in sortedContacts"
           :key="contact.pubkey"
           class="contacts-page__contact"
+          :aria-posinset="index + 1"
+          :aria-setsize="sortedContacts.length"
         >
           <q-item-section avatar>
             <q-avatar v-if="getProfile(contact)?.picture">
@@ -575,7 +591,7 @@ onMounted(async () => {
             </div>
           </q-item-section>
         </q-item>
-      </q-list>
+      </q-virtual-scroll>
 
       <q-card-section v-else class="text-center q-pa-xl">
         <q-icon color="grey-5" name="contacts" size="4em" />
