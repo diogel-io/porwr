@@ -25,15 +25,6 @@ export interface ContactSearchResult {
   matchType: ContactSearchMatchType;
 }
 
-export interface ContactListState {
-  accountAlias: string;
-  pubkey: string;
-  contacts: Nip02Contact[];
-  sourceEventId?: string;
-  sourceCreatedAt?: number;
-  dirty: boolean;
-}
-
 export interface ContactListPublishResult {
   event: NostrEvent;
   relayResults: ContactListRelayPublishResult[];
@@ -70,6 +61,11 @@ export interface CachedContactList {
    * kept (workspace#182). Publishing it back would drop the rest, so the Contacts page refuses to.
    */
   truncated?: true;
+  /**
+   * No relay answered, so the account's list is unknown rather than empty (#435). Only written when
+   * nothing was cached yet; such a row holds no contacts and must never be edited or published.
+   */
+  unreachable?: true;
 }
 
 /** A contact's kind 0 profile, cached for the account that follows them. */
@@ -81,7 +77,7 @@ export interface CachedContactProfile extends ContactProfile {
 /** The contact list fields a fetch or a publish produces. */
 export type ContactListSnapshot = Pick<
   CachedContactList,
-  'contacts' | 'sourceEventId' | 'sourceCreatedAt' | 'truncated'
+  'contacts' | 'sourceEventId' | 'sourceCreatedAt' | 'truncated' | 'unreachable'
 >;
 
 /** Asks the background to refresh the active account's contact cache. */

@@ -38,10 +38,11 @@ async function refresh(accountPubkey: string, options: RefreshOptions): Promise<
   const relays = await getFallbackRelays();
   // No usable fallback relay (#142): there is nothing to ask, and the cache stays as it is.
   if (relays.length === 0) return;
-  await writeContactList(
-    accountPubkey,
-    await fetchContactListSnapshot(pool, relays, accountPubkey),
-  );
+  const snapshot = await fetchContactListSnapshot(pool, relays, accountPubkey);
+  await writeContactList(accountPubkey, snapshot);
+  // No relay answered (#435): the cache kept what it had, so there are no new contacts to fetch
+  // profiles for, and pruning against an empty read-back would drop every cached profile.
+  if (snapshot.unreachable) return;
 
   // Read back rather than using the fetch: a publish made meanwhile may have won.
   const contacts = (await readContactList(accountPubkey))?.contacts ?? [];

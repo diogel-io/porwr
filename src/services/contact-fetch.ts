@@ -1,6 +1,7 @@
 import { nip19 } from 'nostr-tools';
 import type { Event as NostrEvent, SimplePool } from 'nostr-tools';
 import type { ContactListSnapshot, ContactProfile, Nip02Contact } from '@/types/contact-list';
+import { lookupReplaceableEvent } from './replaceable-lookup';
 
 /**
  * Reading contact lists and profiles from relays.
@@ -36,7 +37,7 @@ export const MAX_URL_LENGTH = 2048;
 
 const HEX_PUBKEY_PATTERN = /^[0-9a-f]{64}$/i;
 
-export type RelayReader = Pick<SimplePool, 'get' | 'querySync'>;
+export type RelayReader = Pick<SimplePool, 'get' | 'querySync' | 'subscribeEose'>;
 
 export function normalizePubkey(input: string): string | null {
   const trimmed = input.trim();
@@ -162,24 +163,28 @@ export function parseContactTagsCapped(tags: string[][]): {
   return { contacts, truncated: false };
 }
 
-/** The account's newest kind 3 on `relays`, parsed. No event means no published list. */
+/**
+ * The account's newest kind 3 on `relays`, parsed. A relay that answered with none means no
+ * published list; no relay answering means the list is unknown, marked `unreachable` so it is never
+ * taken for an empty one and published over the real list (#435).
+ */
 export async function fetchContactListSnapshot(
   pool: RelayReader,
   relays: string[],
   accountPubkey: string,
 ): Promise<ContactListSnapshot> {
-  // `pool.get` over no relays never settles; no relay means no list could be read (#142).
-  if (relays.length === 0) return { contacts: [] };
-  const event = await pool.get(
-    relays,
-    { authors: [accountPubkey], kinds: [CONTACT_LIST_KIND] },
-    { maxWait: RELAY_MAX_WAIT_MS },
-  );
+  const lookup = await lookupReplaceableEvent(pool, relays, accountPubkey, CONTACT_LIST_KIND, {
+    maxWait: RELAY_MAX_WAIT_MS,
+  });
 
-  if (!event) {
+  if (lookup.status === 'unreachable') {
+    return { contacts: [], unreachable: true };
+  }
+  if (lookup.status === 'not-found') {
     return { contacts: [] };
   }
 
+  const { event } = lookup;
   const { contacts, truncated } = parseContactTagsCapped(event.tags);
   const snapshot: ContactListSnapshot = {
     contacts,
