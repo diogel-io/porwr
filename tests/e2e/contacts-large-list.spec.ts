@@ -213,6 +213,30 @@ test.describe('keyboard focus in a 10,000-contact list (#440)', () => {
     expect(focusedRowText).toContain('Contact 4');
   });
 
+  test('removing the last contact by keyboard moves focus to the new last one', async ({
+    openPage,
+    relays,
+  }) => {
+    const page = await openPage('/login');
+    await openLargeList(page, relays.plain);
+    await expect
+      .poll(
+        async () => {
+          await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+          return page.getByText(`Contact ${COUNT}`, { exact: true }).isVisible();
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+    await page
+      .locator(`.contacts-page__contact[aria-posinset="${COUNT}"] .contacts-page__remove`)
+      .focus();
+
+    await page.keyboard.press('Enter');
+    await expect(page.getByText(`${COUNT - 1} contacts`, { exact: true })).toBeVisible();
+    await expect.poll(() => focused(page)).toBe(`remove@${COUNT - 1}`);
+  });
+
   test('clicking away from a focused row lets focus go', async ({ openPage, relays }) => {
     const page = await openPage('/login');
     await openLargeList(page, relays.plain);

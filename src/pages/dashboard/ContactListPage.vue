@@ -254,7 +254,15 @@ function onContactsKeydown(event: KeyboardEvent) {
  * so the next Tab carries on from where they are looking.
  */
 function restoreContactsFocus() {
-  if (focusedRow === undefined || !contactsFocusLost()) return;
+  if (focusedRow === undefined) return;
+  const lastRow = sortedContacts.value.length - 1;
+  if (lastRow < 0) {
+    stopTrackingContactsFocus();
+    return;
+  }
+  // Removing the last contact leaves the tracked row past the end: the new last row takes over.
+  if (focusedRow > lastRow) focusedRow = lastRow;
+  if (!contactsFocusLost()) return;
   if (focusTrackedRow() || scrollingToRow) return;
 
   const rows = Array.from(
