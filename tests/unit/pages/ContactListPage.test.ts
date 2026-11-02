@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { enableAutoUnmount, mount, flushPromises } from '@vue/test-utils';
 import type { Ref } from 'vue';
 import type { CachedContactList, ContactProfile } from '@/types/contact-list';
 
@@ -99,6 +99,13 @@ const stubs = {
   'q-banner': { template: '<div><slot /><slot name="action" /></div>' },
   'q-chip': slot,
   'q-list': slot,
+  // Renders every item, so the row assertions see each contact; the browser renders only those in
+  // view (#428), which the e2e suite covers.
+  'q-virtual-scroll': {
+    template:
+      '<div :data-items="items.length"><template v-for="(item, index) in items" :key="index"><slot :item="item" :index="index" /></template></div>',
+    props: ['items'],
+  },
   'q-item': { template: '<div @click="$emit(\'click\')"><slot /></div>', emits: ['click'] },
   'q-item-section': slot,
   'q-item-label': { template: '<span class="label"><slot /></span>' },
@@ -121,6 +128,9 @@ const stubs = {
     emits: ['click'],
   },
 };
+
+// The cache mocks are shared, so a page left mounted would re-render with every later test's list.
+enableAutoUnmount(afterEach);
 
 const mountPage = async () => {
   const wrapper = mount(ContactListPage, { global: { stubs } });
@@ -731,5 +741,21 @@ describe('ContactListPage summary while loading', () => {
 
     expect(wrapper.find('.contacts-page__summary').text()).toContain('contacts.loading');
     expect(wrapper.text()).not.toContain('contacts.noPublishedList');
+  });
+});
+
+describe('ContactListPage with a long list (#428)', () => {
+  it('hands the whole list to the virtual list, which renders only the rows in view', async () => {
+    const many = Array.from({ length: 300 }, (_, index) => ({
+      pubkey: (index + 1).toString(16).padStart(64, '0'),
+      relayUrl: '',
+      petname: '',
+    }));
+    mocks.cache.list.value = cachedList(many);
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('[data-testid="contacts-list"]').attributes('data-items')).toBe('300');
+    expect(wrapper.text()).toContain('contacts.count:300');
   });
 });
