@@ -420,7 +420,8 @@ onMounted(async () => {
 
       <q-card-section class="contacts-page__toolbar">
         <div class="contacts-page__count-actions">
-          <div class="text-subtitle1">
+          <!-- An unknown list has no count; "0 contacts" would say it is empty (#435). -->
+          <div v-if="!unreachable" class="text-subtitle1">
             {{ t('contacts.count', { count: contacts.length }) }}
           </div>
           <q-btn

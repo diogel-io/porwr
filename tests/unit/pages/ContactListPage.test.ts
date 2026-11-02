@@ -697,6 +697,8 @@ describe('ContactListPage when no relay answered (#435)', () => {
     expect(wrapper.text()).not.toContain('contacts.noPublishedList');
     expect(wrapper.text()).not.toContain('contacts.emptyTitle');
     expect(wrapper.text()).not.toContain('contacts.loading');
+    // An unknown list is not an empty one, so no "0 contacts".
+    expect(wrapper.text()).not.toContain('contacts.count');
     expect(wrapper.find('button[data-icon="person_add"]').attributes('disabled')).toBeDefined();
     expect(wrapper.find('button[data-icon="publish"]').attributes('disabled')).toBeDefined();
   });
@@ -717,6 +719,7 @@ describe('ContactListPage when no relay answered (#435)', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-testid="contacts-unreachable"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('contacts.count');
     expect(wrapper.findAll('button[aria-label="contacts.remove"]')).toHaveLength(1);
     expect(wrapper.find('button[data-icon="person_add"]').attributes('disabled')).toBeUndefined();
   });
