@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import useAccountStore from '@/stores/account-store';
@@ -57,11 +57,29 @@ const overLimit = computed(() => contacts.value.length > MAX_CONTACTS_PER_ACCOUN
 const canPublish = computed(
   () => dirty.value && !publishing.value && !truncated.value && !overLimit.value,
 );
+/**
+ * A list published after the one the edits started from, which Publish would replace (#430).
+ * Another client, or the background refresh, can put it in the cache while the user edits.
+ */
+const newerList = ref<{ sourceEventId: string; sourceCreatedAt: number | undefined }>();
+/** The open "replace the newer list?" dialog, closed with the page so it cannot publish later. */
+let replaceDialog: { hide: () => void } | undefined;
 
-/** Shows the cached list, unless the user is part-way through editing it. */
+/**
+ * Shows the cached list, unless the user is part-way through editing it. Then it only notes that
+ * the cache now holds a different list: the cache never goes back to an older one
+ * (`writeContactList`), so a different event is at least as new as the edits' starting point.
+ */
 function applyCachedList() {
-  if (dirty.value) return;
   const list = contactCache.list.value;
+  if (dirty.value) {
+    newerList.value =
+      list?.sourceEventId && list.sourceEventId !== sourceEventId.value
+        ? { sourceEventId: list.sourceEventId, sourceCreatedAt: list.sourceCreatedAt }
+        : undefined;
+    return;
+  }
+  newerList.value = undefined;
   contacts.value = list ? list.contacts.map((contact) => ({ ...contact })) : [];
   truncated.value = list?.truncated === true;
   sourceEventId.value = list?.sourceEventId;
@@ -82,6 +100,12 @@ watch(
 );
 
 const sortedContacts = computed(() => contacts.value);
+
+const newerListDate = computed(() =>
+  newerList.value?.sourceCreatedAt
+    ? new Date(newerList.value.sourceCreatedAt * 1000).toLocaleString()
+    : '',
+);
 
 const sourceSummary = computed(() => {
   if (!sourceEventId.value || !sourceCreatedAt.value) {
@@ -215,6 +239,40 @@ function removeContact(contact: Nip02Contact) {
   dirty.value = true;
 }
 
+/**
+ * Publishes the edits, asking first when that would replace a newer list (#430). If yet another
+ * list reaches the cache while the dialog is open, the user is asked again about that one.
+ */
+function requestPublish() {
+  if (!canPublish.value) return;
+  if (!newerList.value) {
+    void publishChanges();
+    return;
+  }
+  const shown = newerList.value.sourceEventId;
+  const dialog = $q
+    .dialog({
+      title: t('contacts.replaceNewerTitle'),
+      message: t('contacts.replaceNewerBody', { date: newerListDate.value }),
+      ok: { label: t('contacts.replaceNewerConfirm'), color: 'negative', noCaps: true },
+      cancel: { label: t('contacts.replaceNewerCancel'), flat: true, noCaps: true },
+      persistent: true,
+    })
+    .onOk(() => {
+      if (newerList.value && newerList.value.sourceEventId !== shown) {
+        requestPublish();
+        return;
+      }
+      void publishChanges();
+    });
+  // A closed dialog cannot be hidden again. OK may already have opened the next one, so only
+  // forget this one if it is still the open dialog.
+  dialog.onDismiss(() => {
+    if (replaceDialog === dialog) replaceDialog = undefined;
+  });
+  replaceDialog = dialog;
+}
+
 async function publishChanges() {
   if (!activeStoredKey.value || !canPublish.value) {
     return;
@@ -228,6 +286,7 @@ async function publishChanges() {
 
   try {
     const result = await publishContactList(accountPubkey, published);
+    // Before the cache write below, so the page does not take its own list for a newer one.
     sourceEventId.value = result.event.id;
     sourceCreatedAt.value = result.event.created_at;
     // Every page reading the cache sees the published list now, not after the next refresh.
@@ -249,6 +308,10 @@ async function publishChanges() {
     publishing.value = false;
   }
 }
+
+onBeforeUnmount(() => {
+  replaceDialog?.hide();
+});
 
 onMounted(async () => {
   await accountStore.getKeys();
@@ -294,6 +357,23 @@ onMounted(async () => {
 
       <q-banner v-if="dirty" class="bg-orange-1 text-orange-10 q-ma-md" rounded>
         {{ t('contacts.replaceWarning') }}
+      </q-banner>
+
+      <q-banner
+        v-if="dirty && newerList"
+        class="bg-orange-1 text-orange-10 q-ma-md"
+        rounded
+        data-testid="contacts-newer-list"
+      >
+        {{ t('contacts.newerListWarning', { date: newerListDate }) }}
+        <template #action>
+          <q-btn
+            flat
+            color="primary"
+            :label="t('contacts.loadNewerList')"
+            @click="reloadContacts"
+          />
+        </template>
       </q-banner>
 
       <q-banner
@@ -344,7 +424,7 @@ onMounted(async () => {
             :disable="!canPublish"
             :label="t('contacts.publish')"
             :loading="publishing"
-            @click="publishChanges"
+            @click="requestPublish"
           />
         </div>
       </q-card-section>

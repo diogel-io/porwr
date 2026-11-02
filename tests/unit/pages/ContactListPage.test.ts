@@ -16,9 +16,19 @@ const mocks = vi.hoisted(() => ({
     refresh: ReturnType<typeof vi.fn>;
   },
   publishContactList: vi.fn(),
+  searchContacts: vi.fn(),
   writeContactList: vi.fn(),
   upsertProfiles: vi.fn(),
   notify: vi.fn(),
+  dialog: vi.fn(),
+  dialogHide: vi.fn(),
+  /** Every dialog the page opened, in order, with its own handlers and whether it was hidden. */
+  dialogs: [] as { ok?: () => void; dismiss?: () => void; hidden: boolean }[],
+  /** The dismiss handler of the last dialog the page opened, which Quasar runs on OK or Cancel. */
+  dialogDismiss: undefined as (() => void) | undefined,
+  /** The OK handler of the last dialog the page opened. */
+  dialogOk: undefined as (() => void) | undefined,
+  account: {} as Ref<{ id: string; alias: string; createdAt: string }>,
   getKeys: vi.fn(),
   setActiveKey: vi.fn(),
 }));
@@ -44,7 +54,7 @@ vi.mock('@/services/contact-cache', () => ({
 
 vi.mock('@/services/contact-list-service', () => ({
   publishContactList: mocks.publishContactList,
-  searchContacts: vi.fn(),
+  searchContacts: mocks.searchContacts,
   formatContactNpub: (pubkey: string) => `npub-${pubkey.slice(0, 4)}`,
   getContactDisplayName: (
     contact: { pubkey: string; petname: string },
@@ -52,16 +62,24 @@ vi.mock('@/services/contact-list-service', () => ({
   ) => profile?.name || contact.petname || `npub-${contact.pubkey.slice(0, 4)}`,
 }));
 
-vi.mock('@/stores/account-store', () => ({
-  default: () => ({
-    activeKey: 'alice',
-    activeAccountOrFirst: { id: ME, alias: 'alice', createdAt: '' },
-    getKeys: mocks.getKeys,
-    setActiveKey: mocks.setActiveKey,
-  }),
-}));
+vi.mock('@/stores/account-store', async () => {
+  const { ref } = await import('vue');
+  mocks.account = ref({ id: 'a'.repeat(64), alias: 'alice', createdAt: '' });
+  return {
+    default: () => ({
+      activeKey: 'alice',
+      get activeAccountOrFirst() {
+        return mocks.account.value;
+      },
+      getKeys: mocks.getKeys,
+      setActiveKey: mocks.setActiveKey,
+    }),
+  };
+});
 
-vi.mock('quasar', () => ({ useQuasar: () => ({ notify: mocks.notify }) }));
+vi.mock('quasar', () => ({
+  useQuasar: () => ({ notify: mocks.notify, dialog: mocks.dialog }),
+}));
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -78,10 +96,10 @@ const stubs = {
   'q-page': slot,
   'q-card': slot,
   'q-card-section': slot,
-  'q-banner': slot,
+  'q-banner': { template: '<div><slot /><slot name="action" /></div>' },
   'q-chip': slot,
   'q-list': slot,
-  'q-item': slot,
+  'q-item': { template: '<div @click="$emit(\'click\')"><slot /></div>', emits: ['click'] },
   'q-item-section': slot,
   'q-item-label': { template: '<span class="label"><slot /></span>' },
   'q-avatar': slot,
@@ -90,7 +108,12 @@ const stubs = {
   'q-separator': true,
   'q-icon': true,
   'q-spinner': true,
-  'q-input': true,
+  'q-input': {
+    template:
+      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+  },
   'q-btn': {
     template:
       '<button :disabled="disable" :aria-label="ariaLabel || label" :data-icon="icon" @click="$emit(\'click\')">{{ label }}</button>',
@@ -121,6 +144,32 @@ const dave = { pubkey: DAVE, relayUrl: '', petname: 'Dave' };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.account.value = { id: ME, alias: 'alice', createdAt: '' };
+  mocks.dialogOk = undefined;
+  mocks.dialogDismiss = undefined;
+  mocks.dialogs = [];
+  mocks.dialog.mockImplementation(() => {
+    // Like Quasar's dialog chain: onOk returns the same object, which can be hidden.
+    const record: (typeof mocks.dialogs)[number] = { hidden: false };
+    mocks.dialogs.push(record);
+    const chain = {
+      onOk(handler: () => void) {
+        record.ok = handler;
+        mocks.dialogOk = handler;
+        return chain;
+      },
+      onDismiss(handler: () => void) {
+        record.dismiss = handler;
+        mocks.dialogDismiss = handler;
+        return chain;
+      },
+      hide: () => {
+        record.hidden = true;
+        mocks.dialogHide();
+      },
+    };
+    return chain;
+  });
   mocks.cache.list.value = undefined;
   mocks.cache.profiles.value = {};
   mocks.cache.status.value = 'loading';
@@ -280,5 +329,204 @@ describe('ContactListPage publish limits (workspace#182 review)', () => {
     await publish.trigger('click');
     await flushPromises();
     expect(mocks.publishContactList).not.toHaveBeenCalled();
+  });
+});
+
+describe('ContactListPage newer list during edits (#430)', () => {
+  const editThenReceive = async (newer: CachedContactList) => {
+    mocks.cache.list.value = cachedList([bob]);
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+    await wrapper.find('button[aria-label="contacts.remove"]').trigger('click');
+    mocks.cache.list.value = newer;
+    await flushPromises();
+    return wrapper;
+  };
+  const notice = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
+    wrapper.find('[data-testid="contacts-newer-list"]');
+  const publish = async (wrapper: Awaited<ReturnType<typeof mountPage>>) => {
+    await wrapper.find('button[data-icon="publish"]').trigger('click');
+    await flushPromises();
+  };
+
+  it('tells the user, keeps the edits, and asks before Publish replaces the newer list', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    expect(notice(wrapper).exists()).toBe(true);
+    expect(notice(wrapper).text()).toContain(
+      `contacts.newerListWarning:${new Date(150_000).toLocaleString()}`,
+    );
+    expect(wrapper.text()).toContain('contacts.count:0');
+
+    await publish(wrapper);
+    expect(mocks.dialog).toHaveBeenCalledTimes(1);
+    expect(mocks.dialog.mock.calls[0]![0]).toMatchObject({
+      title: 'contacts.replaceNewerTitle',
+      persistent: true,
+    });
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
+  });
+
+  it('publishes the edits once the user confirms', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await publish(wrapper);
+    mocks.dialogOk!();
+    await flushPromises();
+
+    expect(mocks.publishContactList).toHaveBeenCalledWith(ME, []);
+  });
+
+  it('asks again when yet another list arrives while the dialog is open', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await publish(wrapper);
+    mocks.cache.list.value = cachedList([dave], 180);
+    await flushPromises();
+    mocks.dialogOk!();
+    await flushPromises();
+
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
+    expect(mocks.dialog).toHaveBeenCalledTimes(2);
+    expect(mocks.dialog.mock.calls[1]![0].message).toBe(
+      `contacts.replaceNewerBody:${new Date(180_000).toLocaleString()}`,
+    );
+
+    mocks.dialogOk!();
+    await flushPromises();
+    expect(mocks.publishContactList).toHaveBeenCalledWith(ME, []);
+  });
+
+  it('closes an open confirmation when the page goes away, so it cannot publish later', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await publish(wrapper);
+    expect(mocks.dialogHide).not.toHaveBeenCalled();
+    wrapper.unmount();
+
+    expect(mocks.dialogHide).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not hide a confirmation that was already closed when the page goes away', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await publish(wrapper);
+    // Cancel: Quasar closes the dialog, and hiding it again would throw.
+    mocks.dialogDismiss!();
+    wrapper.unmount();
+
+    expect(mocks.dialogHide).not.toHaveBeenCalled();
+  });
+
+  it('still closes the second confirmation when the first one is dismissed after it opens', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await publish(wrapper);
+    mocks.cache.list.value = cachedList([dave], 180);
+    await flushPromises();
+    // Quasar runs a dialog's OK handlers, which here open the second dialog, then its dismiss ones.
+    const [first] = mocks.dialogs;
+    first!.ok!();
+    first!.dismiss!();
+    expect(mocks.dialogs).toHaveLength(2);
+
+    wrapper.unmount();
+
+    expect(mocks.dialogs[1]!.hidden).toBe(true);
+    expect(first!.hidden).toBe(false);
+  });
+
+  it('publishes nothing and keeps the notice when the user cancels', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    // Cancel is the dialog closing without its OK handler running.
+    await publish(wrapper);
+
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
+    expect(notice(wrapper).exists()).toBe(true);
+    expect(wrapper.text()).toContain('contacts.count:0');
+  });
+
+  it('"Load newer list" discards the edits and shows the newer list', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await wrapper.find('button[aria-label="contacts.loadNewerList"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('contacts.count:2');
+    expect(notice(wrapper).exists()).toBe(false);
+    expect(mocks.cache.refresh).toHaveBeenCalledWith(true);
+  });
+
+  it('shows no notice, and publishes without asking, when no other list arrived', async () => {
+    mocks.cache.list.value = cachedList([bob, dave]);
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+
+    await wrapper.findAll('button[aria-label="contacts.remove"]')[0]!.trigger('click');
+    // The background writing the same list again is not a newer list.
+    mocks.cache.list.value = { ...cachedList([bob, dave]), fetchedAt: 2 };
+    await flushPromises();
+
+    expect(notice(wrapper).exists()).toBe(false);
+    await publish(wrapper);
+    expect(mocks.dialog).not.toHaveBeenCalled();
+    expect(mocks.publishContactList).toHaveBeenCalledWith(ME, [dave]);
+  });
+
+  it("does not take the page's own published list for a newer one", async () => {
+    mocks.cache.list.value = cachedList([bob, dave]);
+    mocks.cache.status.value = 'ready';
+    // Saving profiles fails after the list is published and cached, so the edits stay unsaved and
+    // nothing clears a wrong notice: only recording the published event before the cache write
+    // keeps the page from taking its own list for a newer one.
+    mocks.upsertProfiles.mockRejectedValue(new Error('profiles failed'));
+    // The cache picks up the published list while the publish is still finishing.
+    mocks.writeContactList.mockImplementation(async (_account: string, snapshot) => {
+      mocks.cache.list.value = {
+        ...cachedList(snapshot.contacts, 200),
+        sourceEventId: 'event-200',
+      };
+      await flushPromises();
+      return true;
+    });
+    const wrapper = await mountPage();
+
+    await wrapper.findAll('button[aria-label="contacts.remove"]')[0]!.trigger('click');
+    await publish(wrapper);
+
+    expect(mocks.publishContactList).toHaveBeenCalledTimes(1);
+    // The failure left the edits unsaved, which is when a wrong notice would stay.
+    expect(wrapper.text()).toContain('profiles failed');
+    expect(notice(wrapper).exists()).toBe(false);
+    expect(wrapper.text()).toContain('contacts.count:1');
+  });
+
+  it('shows the notice when a list arrives after edits made before any list had loaded', async () => {
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+    // No list yet, and the user adds a contact to the empty page (#429).
+    mocks.searchContacts.mockResolvedValue([{ pubkey: DAVE, relayUrl: '' }]);
+    await wrapper.find('button[data-icon="person_add"]').trigger('click');
+    await wrapper.find('input').setValue('dave');
+    await wrapper.find('button[data-icon="search"]').trigger('click');
+    await flushPromises();
+    await wrapper.find('button[aria-label="contacts.select"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('contacts.count:1');
+
+    mocks.cache.list.value = cachedList([bob], 150);
+    await flushPromises();
+
+    expect(notice(wrapper).exists()).toBe(true);
+  });
+
+  it('clears the notice when the account changes', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    mocks.account.value = { id: 'c'.repeat(64), alias: 'carol', createdAt: '' };
+    await flushPromises();
+
+    expect(notice(wrapper).exists()).toBe(false);
   });
 });

@@ -725,6 +725,14 @@ export default {
       'Porwr can publish at most {max} contacts. Remove some contacts to publish your list.',
     replaceWarning:
       'Publishing will replace the active account’s full NIP-02 follow list with the contacts shown here.',
+    newerListWarning:
+      'Another contact list, published on {date}, reached Porwr while you were editing. Publishing your changes will replace it, and any follows only in that list will be lost.',
+    loadNewerList: 'Load newer list',
+    replaceNewerTitle: 'Replace the other contact list?',
+    replaceNewerBody:
+      'A contact list published on {date} reached Porwr while you were editing. Publishing replaces it with the contacts shown here, and any follows only in that list will be lost.',
+    replaceNewerConfirm: 'Replace it',
+    replaceNewerCancel: 'Cancel',
     publishSuccess: 'Contact list published successfully.',
     noPublishedList: 'No published contact list was found on the configured relays.',
     sourceSummary: 'Loaded event {eventId}… from {date}',
