@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   upsertProfiles: vi.fn(),
   notify: vi.fn(),
   dialog: vi.fn(),
+  dialogHide: vi.fn(),
   /** The OK handler of the last dialog the page opened. */
   dialogOk: undefined as (() => void) | undefined,
   account: {} as Ref<{ id: string; alias: string; createdAt: string }>,
@@ -141,11 +142,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.account.value = { id: ME, alias: 'alice', createdAt: '' };
   mocks.dialogOk = undefined;
-  mocks.dialog.mockImplementation(() => ({
-    onOk(handler: () => void) {
-      mocks.dialogOk = handler;
-    },
-  }));
+  mocks.dialog.mockImplementation(() => {
+    // Like Quasar's dialog chain: onOk returns the same object, which can be hidden.
+    const chain = {
+      onOk(handler: () => void) {
+        mocks.dialogOk = handler;
+        return chain;
+      },
+      onDismiss: () => chain,
+      hide: mocks.dialogHide,
+    };
+    return chain;
+  });
   mocks.cache.list.value = undefined;
   mocks.cache.profiles.value = {};
   mocks.cache.status.value = 'loading';
@@ -371,6 +379,16 @@ describe('ContactListPage newer list during edits (#430)', () => {
     mocks.dialogOk!();
     await flushPromises();
     expect(mocks.publishContactList).toHaveBeenCalledWith(ME, []);
+  });
+
+  it('closes an open confirmation when the page goes away, so it cannot publish later', async () => {
+    const wrapper = await editThenReceive(cachedList([bob, dave], 150));
+
+    await publish(wrapper);
+    expect(mocks.dialogHide).not.toHaveBeenCalled();
+    wrapper.unmount();
+
+    expect(mocks.dialogHide).toHaveBeenCalledTimes(1);
   });
 
   it('publishes nothing and keeps the notice when the user cancels', async () => {

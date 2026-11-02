@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuasar } from 'quasar';
 import useAccountStore from '@/stores/account-store';
@@ -62,6 +62,8 @@ const canPublish = computed(
  * Another client, or the background refresh, can put it in the cache while the user edits.
  */
 const newerList = ref<{ sourceEventId: string; sourceCreatedAt: number | undefined }>();
+/** The open "replace the newer list?" dialog, closed with the page so it cannot publish later. */
+let replaceDialog: { hide: () => void } | undefined;
 
 /**
  * Shows the cached list, unless the user is part-way through editing it. Then it only notes that
@@ -248,19 +250,21 @@ function requestPublish() {
     return;
   }
   const shown = newerList.value.sourceEventId;
-  $q.dialog({
-    title: t('contacts.replaceNewerTitle'),
-    message: t('contacts.replaceNewerBody', { date: newerListDate.value }),
-    ok: { label: t('contacts.replaceNewerConfirm'), color: 'negative', noCaps: true },
-    cancel: { label: t('contacts.replaceNewerCancel'), flat: true, noCaps: true },
-    persistent: true,
-  }).onOk(() => {
-    if (newerList.value && newerList.value.sourceEventId !== shown) {
-      requestPublish();
-      return;
-    }
-    void publishChanges();
-  });
+  replaceDialog = $q
+    .dialog({
+      title: t('contacts.replaceNewerTitle'),
+      message: t('contacts.replaceNewerBody', { date: newerListDate.value }),
+      ok: { label: t('contacts.replaceNewerConfirm'), color: 'negative', noCaps: true },
+      cancel: { label: t('contacts.replaceNewerCancel'), flat: true, noCaps: true },
+      persistent: true,
+    })
+    .onOk(() => {
+      if (newerList.value && newerList.value.sourceEventId !== shown) {
+        requestPublish();
+        return;
+      }
+      void publishChanges();
+    });
 }
 
 async function publishChanges() {
@@ -298,6 +302,10 @@ async function publishChanges() {
     publishing.value = false;
   }
 }
+
+onBeforeUnmount(() => {
+  replaceDialog?.hide();
+});
 
 onMounted(async () => {
   await accountStore.getKeys();
