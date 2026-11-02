@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
+  subscribeEose: vi.fn(),
   publish: vi.fn(),
   signAsAccount: vi.fn(),
   relays: ['wss://relay-a.example', 'wss://relay-b.example'],
@@ -12,7 +12,7 @@ vi.mock('nostr-tools', async (importOriginal) => {
   return {
     ...actual,
     SimplePool: class {
-      get = mocks.get;
+      subscribeEose = mocks.subscribeEose;
       publish = mocks.publish;
       querySync = vi.fn(() => Promise.resolve([]));
     },
@@ -39,7 +39,10 @@ beforeEach(() => {
 
 describe('contact list (#240)', () => {
   it('reads the list for the account by its id, without touching the private key', async () => {
-    mocks.get.mockResolvedValue(null);
+    mocks.subscribeEose.mockImplementation(
+      (relays: string[], _filter: unknown, params: { onclose: (closes: object[]) => void }) =>
+        params.onclose(relays.map((url) => ({ url, reason: 'closed automatically on eose' }))),
+    );
     // A stored key whose private key would throw if anything tried to use it.
     const storedKey = {
       id: ACCOUNT,
@@ -51,9 +54,9 @@ describe('contact list (#240)', () => {
     const state = await fetchContactList(storedKey);
 
     expect(state.pubkey).toBe(ACCOUNT);
-    expect(mocks.get).toHaveBeenCalledWith(
+    expect(mocks.subscribeEose).toHaveBeenCalledWith(
       mocks.relays,
-      { authors: [ACCOUNT], kinds: [3] },
+      { authors: [ACCOUNT], kinds: [3], limit: 1 },
       expect.anything(),
     );
   });

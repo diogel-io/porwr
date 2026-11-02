@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   cache: {} as {
     list: Ref<CachedContactList | undefined>;
     profiles: Ref<Record<string, ContactProfile>>;
-    status: Ref<'idle' | 'loading' | 'ready'>;
+    status: Ref<'idle' | 'loading' | 'ready' | 'unreachable'>;
     error: Ref<string>;
     refresh: ReturnType<typeof vi.fn>;
   },
@@ -679,5 +679,54 @@ describe('ContactListPage before the list has loaded (#429)', () => {
     expect(addButton(wrapper).attributes('disabled')).toBeUndefined();
     await addButton(wrapper).trigger('click');
     expect(wrapper.find('input').exists()).toBe(true);
+  });
+});
+
+describe('ContactListPage when no relay answered (#435)', () => {
+  const unreachableMount = async () => {
+    mocks.cache.status.value = 'unreachable';
+    return mountPage();
+  };
+
+  it('says the list could not be loaded, and keeps editing and Publish off', async () => {
+    const wrapper = await unreachableMount();
+
+    expect(wrapper.find('[data-testid="contacts-unreachable"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('contacts.unreachableTitle');
+    expect(wrapper.text()).toContain('contacts.unreachableSummary');
+    expect(wrapper.text()).not.toContain('contacts.noPublishedList');
+    expect(wrapper.text()).not.toContain('contacts.emptyTitle');
+    expect(wrapper.text()).not.toContain('contacts.loading');
+    expect(wrapper.find('button[data-icon="person_add"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('button[data-icon="publish"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('asks relays again from its Refresh button', async () => {
+    const wrapper = await unreachableMount();
+
+    await wrapper.find('[data-testid="contacts-unreachable"] button').trigger('click');
+
+    expect(mocks.cache.refresh).toHaveBeenCalledWith(true);
+  });
+
+  it('shows the list, editable, once a relay answers', async () => {
+    const wrapper = await unreachableMount();
+
+    mocks.cache.list.value = cachedList([bob]);
+    mocks.cache.status.value = 'ready';
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="contacts-unreachable"]').exists()).toBe(false);
+    expect(wrapper.findAll('button[aria-label="contacts.remove"]')).toHaveLength(1);
+    expect(wrapper.find('button[data-icon="person_add"]').attributes('disabled')).toBeUndefined();
+  });
+});
+
+describe('ContactListPage summary while loading', () => {
+  it('says the list is loading rather than that none was found', async () => {
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('.contacts-page__summary').text()).toContain('contacts.loading');
+    expect(wrapper.text()).not.toContain('contacts.noPublishedList');
   });
 });

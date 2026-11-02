@@ -67,6 +67,24 @@ describe('useContactCache', () => {
     expect(cache.status.value).toBe('ready');
   });
 
+  it('reports an unreachable row as unreachable, with no list to edit (#435)', () => {
+    const { cache } = setup(ALICE);
+
+    emit(ALICE, {
+      list: { accountPubkey: ALICE, contacts: [], fetchedAt: 0, unreachable: true },
+      profiles: {},
+    });
+
+    expect(cache.status.value).toBe('unreachable');
+    expect(cache.list.value).toBeUndefined();
+    expect(cache.contacts.value).toEqual([]);
+
+    // A later fetch that a relay answered replaces the row.
+    emit(ALICE, { list: { accountPubkey: ALICE, contacts: [bob], fetchedAt: 2 }, profiles: {} });
+    expect(cache.status.value).toBe('ready');
+    expect(cache.contacts.value).toEqual([bob]);
+  });
+
   it('always has the background revalidate when it starts, however fresh the cache', () => {
     setup(ALICE);
 

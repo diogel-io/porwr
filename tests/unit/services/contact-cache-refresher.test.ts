@@ -102,6 +102,19 @@ describe('refreshContacts', () => {
     expect(mocks.pruneProfiles).toHaveBeenCalledWith(ALICE, [BOB]);
   });
 
+  it('fetches and prunes no profiles when no relay answered (#435)', async () => {
+    mocks.fetchContactListSnapshot.mockResolvedValue({ contacts: [], unreachable: true });
+
+    await refreshContacts(ALICE);
+
+    expect(mocks.writeContactList).toHaveBeenCalledWith(ALICE, {
+      contacts: [],
+      unreachable: true,
+    });
+    expect(mocks.fetchProfilesInBatches).not.toHaveBeenCalled();
+    expect(mocks.pruneProfiles).not.toHaveBeenCalled();
+  });
+
   it('leaves a fresh cache alone', async () => {
     mocks.list = { accountPubkey: ALICE, contacts: [], fetchedAt: 1 };
     mocks.isStale.mockReturnValue(false);

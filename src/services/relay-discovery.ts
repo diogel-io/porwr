@@ -1,5 +1,6 @@
 import { SimplePool, type Event } from 'nostr-tools';
 import { normalizeRelayUrl } from './relay-url';
+import { lookupReplaceableEvent, type ReplaceableEventLookup } from './replaceable-lookup';
 import useSettingsStore from '@/stores/settings-store';
 
 export interface RelayListEntry {
@@ -64,29 +65,14 @@ export function extractWritePreferredRelayUrls(event: Event): string[] {
   return normalizeAndDeduplicateRelays(entries.map((entry) => entry.url));
 }
 
-/**
- * What a lookup of an account's replaceable event found. `not-found` means at least one relay
- * answered without one; `unreachable` means none of the fallback relays answered at all (#285).
- */
-export type ReplaceableEventLookup =
-  { status: 'found'; event: Event } | { status: 'not-found' } | { status: 'unreachable' };
+export type { ReplaceableEventLookup } from './replaceable-lookup';
 
 /** What a relay list lookup found (#285). */
 export type AccountRelayListLookup = ReplaceableEventLookup;
 
 /**
- * The reason nostr-tools gives a relay's subscription when it closes after EOSE, i.e. the relay
- * answered. Any other reason (connection failed or timed out, auth failed) means it did not.
- * nostr-tools does not export it, so it is pinned here; the relay list tests catch a change.
- */
-const CLOSED_ON_EOSE = 'closed automatically on eose';
-
-/**
  * Looks up the newest event of a replaceable `kind` for a pubkey on the fallback relays, telling an
- * account with none apart from relays that could not be reached.
- *
- * `SimplePool.get` cannot do this: it resolves `null` both when the relays answered with nothing
- * and when none of them connected, so this reads each relay's close reason instead (#285).
+ * account with none apart from relays that could not be reached (#285).
  * @param pubkey The public key to fetch the event for
  * @param kind The replaceable kind, such as 10002 or 10063
  */
@@ -103,31 +89,7 @@ export async function fetchAccountReplaceableEvent(
 
   const relayMetadataPool = new SimplePool();
   try {
-    return await new Promise<ReplaceableEventLookup>((resolve) => {
-      let newest: Event | null = null;
-      relayMetadataPool.subscribeEose(
-        relays,
-        { kinds: [kind], authors: [pubkey], limit: 1 },
-        {
-          onevent(event) {
-            if (!newest || event.created_at > newest.created_at) {
-              newest = event;
-            }
-          },
-          onclose(closes) {
-            if (newest) {
-              resolve({ status: 'found', event: newest });
-            } else if (closes.some((close) => close.reason === CLOSED_ON_EOSE)) {
-              resolve({ status: 'not-found' });
-            } else {
-              resolve({ status: 'unreachable' });
-            }
-          },
-        },
-      );
-    });
-  } catch {
-    return { status: 'unreachable' };
+    return await lookupReplaceableEvent(relayMetadataPool, relays, pubkey, kind);
   } finally {
     relayMetadataPool.close(relays);
   }

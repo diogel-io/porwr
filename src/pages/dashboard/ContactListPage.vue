@@ -46,6 +46,8 @@ const loading = computed(() => contactCache.status.value === 'loading');
  * list, and publishing edits to it would replace the whole follow list with them (#429).
  */
 const listReady = computed(() => contactCache.status.value === 'ready');
+/** No relay answered and nothing was cached: the list is unknown, not empty (#435). */
+const unreachable = computed(() => contactCache.status.value === 'unreachable');
 const profiles = computed<Record<string, ContactProfile>>(() => ({
   ...contactCache.profiles.value,
   ...addedProfiles.value,
@@ -119,6 +121,8 @@ const newerListDate = computed(() =>
 );
 
 const sourceSummary = computed(() => {
+  if (loading.value) return t('contacts.loading');
+  if (unreachable.value) return t('contacts.unreachableSummary');
   if (!sourceEventId.value || !sourceCreatedAt.value) {
     return t('contacts.noPublishedList');
   }
@@ -508,6 +512,23 @@ onMounted(async () => {
       <q-card-section v-if="loading" class="text-center q-pa-xl">
         <q-spinner color="primary" size="3em" />
         <p class="text-grey-7 q-mt-md">{{ t('contacts.loading') }}</p>
+      </q-card-section>
+
+      <q-card-section
+        v-else-if="unreachable"
+        class="text-center q-pa-xl"
+        data-testid="contacts-unreachable"
+      >
+        <q-icon color="grey-5" name="cloud_off" size="4em" />
+        <div class="text-h6 text-grey-7 q-mt-md">{{ t('contacts.unreachableTitle') }}</div>
+        <p class="text-grey-6">{{ t('contacts.unreachableCaption') }}</p>
+        <q-btn
+          flat
+          color="primary"
+          icon="refresh"
+          :label="t('contacts.refresh')"
+          @click="reloadContacts"
+        />
       </q-card-section>
 
       <q-list v-else-if="sortedContacts.length > 0" separator>

@@ -735,6 +735,10 @@ export default {
     replaceNewerCancel: 'Cancel',
     publishSuccess: 'Contact list published successfully.',
     noPublishedList: 'No published contact list was found on the configured relays.',
+    unreachableSummary: 'Contact list not loaded: no relay answered.',
+    unreachableTitle: 'Couldn’t load your contact list',
+    unreachableCaption:
+      'No relay answered, so Porwr can’t tell whether this account has a published contact list. Editing is turned off so your published list isn’t replaced. Check your relays, then refresh.',
     sourceSummary: 'Loaded event {eventId}… from {date}',
   },
   relays: {

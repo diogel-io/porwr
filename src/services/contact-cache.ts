@@ -70,8 +70,9 @@ export async function readContactCache(accountPubkey: string): Promise<ContactCa
  * Stores a contact list unless the cache already holds a newer one.
  *
  * A slow relay can answer with the list from before a publish; that must not undo the publish. An
- * older or missing answer still marks the list as checked, so pages stop asking. Returns whether the
- * contacts were replaced.
+ * older or missing answer still marks the list as checked, so pages stop asking. An `unreachable`
+ * snapshot, where no relay answered, changes nothing cached (#435). Returns whether the row was
+ * replaced.
  *
  * At most `MAX_CONTACTS_PER_ACCOUNT` contacts are kept, whoever calls; a longer list is marked
  * `truncated` (workspace#182).
@@ -83,6 +84,16 @@ export async function writeContactList(
 ): Promise<boolean> {
   return db.transaction('rw', db.contactLists, async () => {
     const existing = await db.contactLists.get(accountPubkey);
+
+    if (snapshot.unreachable) {
+      // No relay answered (#435). A cached list stays exactly as it is, and fetchedAt is not
+      // bumped, so the next trigger asks again. With nothing cached, the row records that the list
+      // is unknown, never that it is empty; fetchedAt 0 keeps it stale, so every trigger retries.
+      if (existing) return false;
+      await db.contactLists.put({ accountPubkey, contacts: [], fetchedAt: 0, unreachable: true });
+      return true;
+    }
+
     const incomingAt = snapshot.sourceCreatedAt ?? 0;
     const existingAt = existing?.sourceCreatedAt ?? 0;
 

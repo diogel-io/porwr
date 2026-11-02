@@ -10,8 +10,10 @@ import type { CachedContactList, ContactProfile, Nip02Contact } from '@/types/co
  * - `loading`: relays have never been asked for this account, so there is nothing to show yet.
  *   Never shown as "no contacts".
  * - `ready`: the cache holds this account's list, which may be empty.
+ * - `unreachable`: no relay answered and nothing was cached, so the list is unknown (#435). There is
+ *   no list to show or edit, and never an empty one.
  */
-export type ContactCacheStatus = 'idle' | 'loading' | 'ready';
+export type ContactCacheStatus = 'idle' | 'loading' | 'ready' | 'unreachable';
 
 /**
  * An account's cached contacts and profiles, kept current (#257).
@@ -54,9 +56,11 @@ export function useContactCache(accountPubkey: MaybeRefOrGetter<string | undefin
         pubkey,
         (snapshot) => {
           if (toValue(accountPubkey) !== pubkey) return;
-          list.value = snapshot.list;
+          const unreachable = snapshot.list?.unreachable === true;
+          // An unreachable row holds no list, so callers never see it as an empty one.
+          list.value = unreachable ? undefined : snapshot.list;
           profiles.value = snapshot.profiles;
-          status.value = snapshot.list ? 'ready' : 'loading';
+          status.value = unreachable ? 'unreachable' : snapshot.list ? 'ready' : 'loading';
         },
         (observeError) => {
           error.value = observeError instanceof Error ? observeError.message : String(observeError);

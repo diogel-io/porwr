@@ -71,6 +71,11 @@ limit is marked truncated, and the Contacts page publishes neither a truncated l
 past the limit. The `Contact cache` asset row and its section 8 row describe the code after that
 change.
 
+diogel-io/porwr#435 stops a contact list lookup that no relay answered from caching an empty list.
+The lookup reads each relay's close reason, as the kind 10002 and 10063 lookups do. With nothing
+cached, it records the list as unknown, and the Contacts page allows no editing or publishing until
+a relay answers. The section 8 contact cache row describes the code after that change.
+
 Tracking issue: diogel-io/workspace#135
 
 This is the threat model for the whole Porwr extension. It supersedes the workspace approval threat
@@ -448,7 +453,7 @@ Each control below must be covered by an automated test, not by review alone.
 | Forged, impersonated, and non-chat gift wraps are rejected                                                                                                                                  | T34      | `tests/unit/services/nip17-messaging.test.ts`                                                                                                                                                                             |
 | Other extensions and content scripts are refused on the raw listener                                                                                                                        | T25      | `tests/unit/services/message-routing.test.ts`, `tests/unit/services/sender-policy.test.ts`                                                                                                                                |
 | The manifest asks for no host permissions and the CSP allows scripts only from `'self'`                                                                                                     | T27      | `tests/unit/manifest-csp.test.ts`, `tests/unit/bex-manifest.test.ts`, `tests/e2e/extension-loads.spec.ts`                                                                                                                 |
-| A relay cannot grow the contact cache past fixed bounds, and a truncated list is never published back                                                                                       | A4       | `tests/unit/services/contact-fetch.test.ts`, `tests/unit/services/contact-cache.test.ts`, `tests/unit/pages/ContactListPage.test.ts`                                                                                      |
+| A relay cannot grow the contact cache past fixed bounds, a truncated list is never published back, and a lookup no relay answered is never cached as empty                                  | A4       | `tests/unit/services/contact-fetch.test.ts`, `tests/unit/services/contact-cache.test.ts`, `tests/unit/pages/ContactListPage.test.ts`                                                                                      |
 
 ## 9. Open items
 

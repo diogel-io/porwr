@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CachedContactList, CachedContactProfile, ContactProfile } from '@/types/contact-list';
+import type {
+  CachedContactList,
+  CachedContactProfile,
+  ContactListSnapshot,
+  ContactProfile,
+} from '@/types/contact-list';
 
 /**
  * The repository mocks Dexie rather than running IndexedDB, so this stands in for the two cache
@@ -155,6 +160,72 @@ describe('writeContactList', () => {
     await writeContactList(ALICE, { contacts: [] }, 3);
 
     expect(store.lists.get(ALICE)).toEqual({ accountPubkey: ALICE, contacts: [], fetchedAt: 3 });
+  });
+});
+
+describe('writeContactList when no relay answered (#435)', () => {
+  const unreachable: ContactListSnapshot = { contacts: [], unreachable: true };
+
+  it('leaves a cached list exactly as it is, so the next trigger asks again', async () => {
+    await writeContactList(
+      ALICE,
+      { contacts: [bob], sourceEventId: 'e1', sourceCreatedAt: 100 },
+      5,
+    );
+
+    await expect(writeContactList(ALICE, unreachable, 9)).resolves.toBe(false);
+
+    expect(store.lists.get(ALICE)).toEqual({
+      accountPubkey: ALICE,
+      contacts: [bob],
+      sourceEventId: 'e1',
+      sourceCreatedAt: 100,
+      fetchedAt: 5,
+    });
+  });
+
+  it('leaves an account’s empty list as it is', async () => {
+    await writeContactList(ALICE, { contacts: [] }, 5);
+
+    await expect(writeContactList(ALICE, unreachable, 9)).resolves.toBe(false);
+
+    expect(store.lists.get(ALICE)).toEqual({ accountPubkey: ALICE, contacts: [], fetchedAt: 5 });
+  });
+
+  it('with nothing cached, records the list as unknown and stale, never as empty', async () => {
+    await expect(writeContactList(ALICE, unreachable, 9)).resolves.toBe(true);
+
+    expect(store.lists.get(ALICE)).toEqual({
+      accountPubkey: ALICE,
+      contacts: [],
+      fetchedAt: 0,
+      unreachable: true,
+    });
+    expect(isStale(0)).toBe(true);
+  });
+
+  it('replaces the unknown row once a relay answers without a list', async () => {
+    await writeContactList(ALICE, unreachable, 9);
+
+    await expect(writeContactList(ALICE, { contacts: [] }, 11)).resolves.toBe(true);
+
+    expect(store.lists.get(ALICE)).toEqual({ accountPubkey: ALICE, contacts: [], fetchedAt: 11 });
+  });
+
+  it('replaces the unknown row once a relay answers with the list', async () => {
+    await writeContactList(ALICE, unreachable, 9);
+
+    await expect(
+      writeContactList(ALICE, { contacts: [bob], sourceEventId: 'e1', sourceCreatedAt: 100 }, 11),
+    ).resolves.toBe(true);
+
+    expect(store.lists.get(ALICE)).toEqual({
+      accountPubkey: ALICE,
+      contacts: [bob],
+      sourceEventId: 'e1',
+      sourceCreatedAt: 100,
+      fetchedAt: 11,
+    });
   });
 });
 

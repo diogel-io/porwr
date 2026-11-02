@@ -112,44 +112,107 @@ describe('fetchProfilesInBatches', () => {
   });
 });
 
-describe('fetchContactListSnapshot', () => {
-  it('asks nothing and reads no list when there is no relay (#142)', async () => {
-    const get = vi.fn(() => new Promise(() => undefined));
-    const pool = { get, querySync: vi.fn() } as unknown as RelayReader;
+const CLOSED_ON_EOSE = 'closed automatically on eose';
 
-    await expect(fetchContactListSnapshot(pool, [], ALICE)).resolves.toEqual({ contacts: [] });
-    expect(get).not.toHaveBeenCalled();
+type EoseParams = {
+  maxWait?: number;
+  onevent: (event: NostrEvent) => void;
+  onclose: (closes: { url: string; reason: string }[]) => void;
+};
+
+/** A pool whose kind 3 lookup sends `events`, then closes each relay with `reason`. */
+const kind3Pool = (events: NostrEvent[], reason = CLOSED_ON_EOSE) => {
+  const subscribeEose = vi.fn((relays: string[], _filter: Filter, params: EoseParams) => {
+    events.forEach((event) => params.onevent(event));
+    params.onclose(relays.map((url) => ({ url, reason })));
+    return { close: vi.fn() };
+  });
+  const pool = { get: vi.fn(), querySync: vi.fn(), subscribeEose } as unknown as RelayReader;
+  return { pool, subscribeEose };
+};
+
+const kind3 = (tags: string[][], createdAt = 100, id = 'e1'): NostrEvent => ({
+  id,
+  pubkey: ALICE,
+  kind: 3,
+  created_at: createdAt,
+  tags,
+  content: '',
+  sig: '',
+});
+
+describe('fetchContactListSnapshot', () => {
+  it('asks nothing and marks the list unreachable when there is no relay (#142, #435)', async () => {
+    const { pool, subscribeEose } = kind3Pool([]);
+
+    await expect(fetchContactListSnapshot(pool, [], ALICE)).resolves.toEqual({
+      contacts: [],
+      unreachable: true,
+    });
+    expect(subscribeEose).not.toHaveBeenCalled();
   });
 
   it('parses the account’s kind 3', async () => {
-    const get = vi.fn(() =>
-      Promise.resolve({
-        id: 'e1',
-        pubkey: ALICE,
-        kind: 3,
-        created_at: 100,
-        tags: [['p', BOB, '', 'Bob']],
-        content: '',
-        sig: '',
-      }),
-    );
-    const pool = { get, querySync: vi.fn() } as unknown as RelayReader;
+    const { pool, subscribeEose } = kind3Pool([kind3([['p', BOB, '', 'Bob']])]);
 
     await expect(fetchContactListSnapshot(pool, RELAYS, ALICE)).resolves.toEqual({
       contacts: [{ pubkey: BOB, relayUrl: '', petname: 'Bob' }],
       sourceEventId: 'e1',
       sourceCreatedAt: 100,
     });
-    expect(get).toHaveBeenCalledWith(RELAYS, { authors: [ALICE], kinds: [3] }, expect.anything());
+    expect(subscribeEose).toHaveBeenCalledWith(
+      RELAYS,
+      { authors: [ALICE], kinds: [3], limit: 1 },
+      expect.objectContaining({ maxWait: 5000 }),
+    );
   });
 
-  it('reports no list when relays have none', async () => {
-    const pool = {
-      get: vi.fn(() => Promise.resolve(null)),
-      querySync: vi.fn(),
-    } as unknown as RelayReader;
+  it('keeps the newest kind 3 when relays send several', async () => {
+    const { pool } = kind3Pool([kind3([['p', BOB]], 200, 'newer'), kind3([], 100, 'older')]);
+
+    await expect(fetchContactListSnapshot(pool, RELAYS, ALICE)).resolves.toMatchObject({
+      sourceEventId: 'newer',
+    });
+  });
+
+  it('reports no list when a relay answered without one', async () => {
+    const { pool } = kind3Pool([]);
 
     await expect(fetchContactListSnapshot(pool, RELAYS, ALICE)).resolves.toEqual({ contacts: [] });
+  });
+
+  it('marks the list unreachable when no relay answered (#435)', async () => {
+    const { pool } = kind3Pool([], 'connection failed');
+
+    await expect(fetchContactListSnapshot(pool, RELAYS, ALICE)).resolves.toEqual({
+      contacts: [],
+      unreachable: true,
+    });
+  });
+
+  it('reports no list when one relay answered and another did not', async () => {
+    const subscribeEose = vi.fn((_relays: string[], _filter: Filter, params: EoseParams) => {
+      params.onclose([
+        { url: 'wss://down.example', reason: 'connection failed' },
+        { url: 'wss://up.example', reason: CLOSED_ON_EOSE },
+      ]);
+      return { close: vi.fn() };
+    });
+    const pool = { get: vi.fn(), querySync: vi.fn(), subscribeEose } as unknown as RelayReader;
+
+    await expect(fetchContactListSnapshot(pool, RELAYS, ALICE)).resolves.toEqual({ contacts: [] });
+  });
+
+  it('marks the list unreachable when the subscription throws', async () => {
+    const subscribeEose = vi.fn(() => {
+      throw new Error('bad relay url');
+    });
+    const pool = { get: vi.fn(), querySync: vi.fn(), subscribeEose } as unknown as RelayReader;
+
+    await expect(fetchContactListSnapshot(pool, RELAYS, ALICE)).resolves.toEqual({
+      contacts: [],
+      unreachable: true,
+    });
   });
 });
 
@@ -234,20 +297,7 @@ describe('contact cache bounds (workspace#182)', () => {
   });
 
   it('keeps at most the contact limit and marks the list as truncated', async () => {
-    const pool = {
-      get: vi.fn(() =>
-        Promise.resolve({
-          id: 'e1',
-          pubkey: ALICE,
-          kind: 3,
-          created_at: 100,
-          tags: contactTags(MAX_CONTACTS_PER_ACCOUNT + 1),
-          content: '',
-          sig: '',
-        }),
-      ),
-      querySync: vi.fn(),
-    } as unknown as RelayReader;
+    const { pool } = kind3Pool([kind3(contactTags(MAX_CONTACTS_PER_ACCOUNT + 1))]);
 
     const snapshot = await fetchContactListSnapshot(pool, RELAYS, ALICE);
 
@@ -258,20 +308,7 @@ describe('contact cache bounds (workspace#182)', () => {
 
   it('does not mark a list at exactly the limit, or one padded with duplicates', async () => {
     const tags = [...contactTags(MAX_CONTACTS_PER_ACCOUNT), ['p', pubkeyAt(1)]];
-    const pool = {
-      get: vi.fn(() =>
-        Promise.resolve({
-          id: 'e1',
-          pubkey: ALICE,
-          kind: 3,
-          created_at: 100,
-          tags,
-          content: '',
-          sig: '',
-        }),
-      ),
-      querySync: vi.fn(),
-    } as unknown as RelayReader;
+    const { pool } = kind3Pool([kind3(tags)]);
 
     const snapshot = await fetchContactListSnapshot(pool, RELAYS, ALICE);
 
