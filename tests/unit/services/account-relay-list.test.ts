@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEvent, generateSecretKey, getPublicKey } from 'nostr-tools';
 import { useWebSocketImplementation } from 'nostr-tools/pool';
 import { fetchAccountRelayList, fetchAccountRelayListEvent } from '@/services/relay-discovery';
+import { REPLACEABLE_LOOKUP_TIMEOUT_MS } from '@/services/replaceable-lookup';
 
 /**
  * A relay list lookup tells "no kind 10002" apart from "could not reach the relays" (#285).
@@ -31,11 +32,15 @@ vi.mock('@/stores/settings-store', () => ({ default: () => settingsStoreMock }))
 type RelayBehaviour =
   | { kind: 'answers'; events: unknown[] }
   | { kind: 'refuses' }
-  | { kind: 'silent' };
+  | { kind: 'silent' }
+  | { kind: 'mute' };
 
 const relays = new Map<string, RelayBehaviour>();
 
-/** A relay socket that answers a REQ with its events and EOSE, refuses to connect, or never opens. */
+/**
+ * A relay socket that answers a REQ with its events and EOSE, refuses to connect, never opens, or
+ * opens and never answers a REQ (`mute`, #424).
+ */
 class FakeRelaySocket {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
@@ -140,9 +145,62 @@ describe('looking up an account relay list (#285)', () => {
     settingsStoreMock.fallbackRelays = ['wss://silent.example/'];
 
     const lookup = fetchAccountRelayList(pubkey);
-    await vi.advanceTimersByTimeAsync(3_000);
+    await vi.advanceTimersByTimeAsync(REPLACEABLE_LOOKUP_TIMEOUT_MS);
 
     await expect(lookup).resolves.toEqual({ status: 'unreachable' });
+  });
+
+  describe('a relay that connects and never answers (#424)', () => {
+    it('says unreachable, though nostr-tools would close it as if it had answered', async () => {
+      vi.useFakeTimers();
+      relays.set('wss://mute.example/', { kind: 'mute' });
+      settingsStoreMock.fallbackRelays = ['wss://mute.example/'];
+
+      const lookup = fetchAccountRelayList(pubkey);
+      await vi.advanceTimersByTimeAsync(REPLACEABLE_LOOKUP_TIMEOUT_MS);
+
+      await expect(lookup).resolves.toEqual({ status: 'unreachable' });
+    });
+
+    it('is still unreachable when nostr-tools’ own timeout would come first', async () => {
+      vi.useFakeTimers();
+      relays.set('wss://mute.example/', { kind: 'mute' });
+      relays.set('wss://down.example/', { kind: 'refuses' });
+      settingsStoreMock.fallbackRelays = ['wss://mute.example/', 'wss://down.example/'];
+
+      const lookup = fetchAccountRelayList(pubkey);
+      // Past both Porwr's deadline and the margin nostr-tools' timeout is given.
+      await vi.advanceTimersByTimeAsync(REPLACEABLE_LOOKUP_TIMEOUT_MS + 5_000);
+
+      await expect(lookup).resolves.toEqual({ status: 'unreachable' });
+    });
+
+    it('says not-found when another relay answers without one', async () => {
+      vi.useFakeTimers();
+      relays.set('wss://mute.example/', { kind: 'mute' });
+      relays.set('wss://a.example/', { kind: 'answers', events: [] });
+      settingsStoreMock.fallbackRelays = ['wss://mute.example/', 'wss://a.example/'];
+
+      const lookup = fetchAccountRelayList(pubkey);
+      await vi.advanceTimersByTimeAsync(REPLACEABLE_LOOKUP_TIMEOUT_MS);
+
+      await expect(lookup).resolves.toEqual({ status: 'not-found' });
+    });
+
+    it('finds the list another relay has', async () => {
+      vi.useFakeTimers();
+      const list = relayList(1_700_000_000, 'wss://relay.example');
+      relays.set('wss://mute.example/', { kind: 'mute' });
+      relays.set('wss://a.example/', { kind: 'answers', events: [list] });
+      settingsStoreMock.fallbackRelays = ['wss://mute.example/', 'wss://a.example/'];
+
+      const lookup = fetchAccountRelayList(pubkey);
+      await vi.advanceTimersByTimeAsync(REPLACEABLE_LOOKUP_TIMEOUT_MS);
+
+      const result = await lookup;
+      expect(result.status).toBe('found');
+      expect(result.status === 'found' && result.event.id).toBe(list.id);
+    });
   });
 
   it('says unreachable when there are no fallback relays to ask', async () => {
