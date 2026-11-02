@@ -599,6 +599,61 @@ describe('ContactListPage before the list has loaded (#429)', () => {
     expect(mocks.publishContactList).not.toHaveBeenCalled();
   });
 
+  // The UI already blocks these paths (disabled Add, the panel closing, no Remove buttons while
+  // loading), so these call the handlers directly to pin the guards behind it.
+  describe('edit handlers called while the list is loading', () => {
+    type EditHandlers = {
+      openAddDialog: () => void;
+      selectSearchResult: (result: { pubkey: string; relayUrl: string }) => void;
+      removeContact: (contact: typeof bob) => void;
+    };
+    const handlers = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
+      wrapper.vm as unknown as EditHandlers;
+
+    // A loaded list of one, whose cache then goes back to loading without dropping the row.
+    const mountThenLoading = async () => {
+      mocks.cache.list.value = cachedList([bob]);
+      mocks.cache.status.value = 'ready';
+      const wrapper = await mountPage();
+      mocks.cache.status.value = 'loading';
+      await flushPromises();
+      return wrapper;
+    };
+
+    // Back to ready: any edit the handler made would now show and be publishable.
+    const expectNoEdits = async (wrapper: Awaited<ReturnType<typeof mountPage>>) => {
+      mocks.cache.status.value = 'ready';
+      await flushPromises();
+      expect(wrapper.text()).not.toContain('contacts.unsavedChanges');
+      expect(wrapper.findAll('button[aria-label="contacts.remove"]')).toHaveLength(1);
+      expect(publishButton(wrapper).attributes('disabled')).toBeDefined();
+    };
+
+    it('openAddDialog opens no panel', async () => {
+      const wrapper = await mountPage();
+      handlers(wrapper).openAddDialog();
+      await flushPromises();
+
+      expect(wrapper.find('input').exists()).toBe(false);
+    });
+
+    it('selectSearchResult adds no contact', async () => {
+      const wrapper = await mountThenLoading();
+      handlers(wrapper).selectSearchResult({ pubkey: DAVE, relayUrl: '' });
+      await flushPromises();
+
+      await expectNoEdits(wrapper);
+    });
+
+    it('removeContact removes no contact', async () => {
+      const wrapper = await mountThenLoading();
+      handlers(wrapper).removeContact(bob);
+      await flushPromises();
+
+      await expectNoEdits(wrapper);
+    });
+  });
+
   it('allows adding once the list has loaded', async () => {
     const wrapper = await mountPage();
     expect(addButton(wrapper).attributes('disabled')).toBeDefined();
