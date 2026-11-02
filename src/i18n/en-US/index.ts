@@ -726,11 +726,11 @@ export default {
     replaceWarning:
       'Publishing will replace the active account’s full NIP-02 follow list with the contacts shown here.',
     newerListWarning:
-      'A newer contact list was published on {date}, after you started editing. Publishing your changes will replace it, and any follows added there will be lost.',
+      'Another contact list, published on {date}, reached Porwr while you were editing. Publishing your changes will replace it, and any follows only in that list will be lost.',
     loadNewerList: 'Load newer list',
-    replaceNewerTitle: 'Replace the newer contact list?',
+    replaceNewerTitle: 'Replace the other contact list?',
     replaceNewerBody:
-      'A contact list was published on {date}, after you started editing. Publishing replaces it with the contacts shown here, and any follows added there will be lost.',
+      'A contact list published on {date} reached Porwr while you were editing. Publishing replaces it with the contacts shown here, and any follows only in that list will be lost.',
     replaceNewerConfirm: 'Replace it',
     replaceNewerCancel: 'Cancel',
     publishSuccess: 'Contact list published successfully.',

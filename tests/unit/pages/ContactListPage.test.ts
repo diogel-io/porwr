@@ -477,6 +477,10 @@ describe('ContactListPage newer list during edits (#430)', () => {
   it("does not take the page's own published list for a newer one", async () => {
     mocks.cache.list.value = cachedList([bob, dave]);
     mocks.cache.status.value = 'ready';
+    // Saving profiles fails after the list is published and cached, so the edits stay unsaved and
+    // nothing clears a wrong notice: only recording the published event before the cache write
+    // keeps the page from taking its own list for a newer one.
+    mocks.upsertProfiles.mockRejectedValue(new Error('profiles failed'));
     // The cache picks up the published list while the publish is still finishing.
     mocks.writeContactList.mockImplementation(async (_account: string, snapshot) => {
       mocks.cache.list.value = {
@@ -492,6 +496,8 @@ describe('ContactListPage newer list during edits (#430)', () => {
     await publish(wrapper);
 
     expect(mocks.publishContactList).toHaveBeenCalledTimes(1);
+    // The failure left the edits unsaved, which is when a wrong notice would stay.
+    expect(wrapper.text()).toContain('profiles failed');
     expect(notice(wrapper).exists()).toBe(false);
     expect(wrapper.text()).toContain('contacts.count:1');
   });
