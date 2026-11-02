@@ -579,6 +579,26 @@ describe('ContactListPage before the list has loaded (#429)', () => {
     expect(mocks.publishContactList).not.toHaveBeenCalled();
   });
 
+  it('publishes nothing when the list stops being ready while a confirmation is open', async () => {
+    mocks.cache.list.value = cachedList([bob]);
+    mocks.cache.status.value = 'ready';
+    const wrapper = await mountPage();
+    await wrapper.find('button[aria-label="contacts.remove"]').trigger('click');
+    mocks.cache.list.value = cachedList([bob, dave], 150);
+    await flushPromises();
+    await publishButton(wrapper).trigger('click');
+    expect(mocks.dialog).toHaveBeenCalledTimes(1);
+
+    // The edits are still unsaved, but the cache no longer holds a list to start from.
+    mocks.cache.status.value = 'loading';
+    await flushPromises();
+    expect(publishButton(wrapper).attributes('disabled')).toBeDefined();
+    mocks.dialogOk!();
+    await flushPromises();
+
+    expect(mocks.publishContactList).not.toHaveBeenCalled();
+  });
+
   it('allows adding once the list has loaded', async () => {
     const wrapper = await mountPage();
     expect(addButton(wrapper).attributes('disabled')).toBeDefined();
