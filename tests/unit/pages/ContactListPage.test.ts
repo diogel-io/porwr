@@ -606,6 +606,7 @@ describe('ContactListPage before the list has loaded (#429)', () => {
       openAddDialog: () => void;
       selectSearchResult: (result: { pubkey: string; relayUrl: string }) => void;
       removeContact: (contact: typeof bob) => void;
+      publishChanges: () => Promise<void>;
     };
     const handlers = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
       wrapper.vm as unknown as EditHandlers;
@@ -642,6 +643,19 @@ describe('ContactListPage before the list has loaded (#429)', () => {
       handlers(wrapper).selectSearchResult({ pubkey: DAVE, relayUrl: '' });
       await flushPromises();
 
+      await expectNoEdits(wrapper);
+    });
+
+    it('publishes nothing from an add attempted before any list had loaded', async () => {
+      const wrapper = await mountPage();
+      handlers(wrapper).selectSearchResult({ pubkey: DAVE, relayUrl: '' });
+
+      mocks.cache.list.value = cachedList([bob]);
+      mocks.cache.status.value = 'ready';
+      await flushPromises();
+
+      await handlers(wrapper).publishChanges();
+      expect(mocks.publishContactList).not.toHaveBeenCalled();
       await expectNoEdits(wrapper);
     });
 
