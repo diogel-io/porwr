@@ -41,6 +41,11 @@ const contactCache = useContactCache(() => activeStoredKey.value?.id);
 
 /** Until relays have answered once for this account, there is no list to show — not an empty one. */
 const loading = computed(() => contactCache.status.value === 'loading');
+/**
+ * The account's list has reached the cache, so edits start from it. Before that the page holds no
+ * list, and publishing edits to it would replace the whole follow list with them (#429).
+ */
+const listReady = computed(() => contactCache.status.value === 'ready');
 const profiles = computed<Record<string, ContactProfile>>(() => ({
   ...contactCache.profiles.value,
   ...addedProfiles.value,
@@ -55,7 +60,7 @@ const truncated = ref(false);
 /** More contacts than the cache keeps: published, the cached copy would lose the extra ones. */
 const overLimit = computed(() => contacts.value.length > MAX_CONTACTS_PER_ACCOUNT);
 const canPublish = computed(
-  () => dirty.value && !publishing.value && !truncated.value && !overLimit.value,
+  () => listReady.value && dirty.value && !publishing.value && !truncated.value && !overLimit.value,
 );
 /**
  * A list published after the one the edits started from, which Publish would replace (#430).
@@ -98,6 +103,12 @@ watch(
     applyCachedList();
   },
 );
+
+// An Add panel left open when the list stops being ready, as on switching to an account whose list
+// has not loaded, would add to a list that is not there (#429).
+watch(listReady, (ready) => {
+  if (!ready) closeAddContactForm();
+});
 
 const sortedContacts = computed(() => contacts.value);
 
@@ -164,6 +175,7 @@ function resetForm() {
 }
 
 function openAddDialog() {
+  if (!listReady.value) return;
   resetForm();
   dialogOpen.value = !dialogOpen.value;
 }
@@ -202,6 +214,7 @@ function reloadContacts() {
 }
 
 function selectSearchResult(result: ContactSearchResult) {
+  if (!listReady.value) return;
   if (contacts.value.some((contact) => contact.pubkey === result.pubkey)) {
     formError.value = t('contacts.duplicateContact');
     return;
@@ -232,6 +245,7 @@ function closeAddContactForm() {
 }
 
 function removeContact(contact: Nip02Contact) {
+  if (!listReady.value) return;
   contacts.value = contacts.value.filter((item) => item.pubkey !== contact.pubkey);
   const nextProfiles = { ...addedProfiles.value };
   delete nextProfiles[contact.pubkey];
@@ -274,6 +288,8 @@ function requestPublish() {
 }
 
 async function publishChanges() {
+  // Not only the button: nothing is published before the list has loaded (#429), or while the
+  // other `canPublish` conditions hold.
   if (!activeStoredKey.value || !canPublish.value) {
     return;
   }
@@ -415,6 +431,7 @@ onMounted(async () => {
           <q-btn
             icon="person_add"
             color="primary"
+            :disable="!listReady"
             :label="t('contacts.add')"
             @click="openAddDialog"
           />
