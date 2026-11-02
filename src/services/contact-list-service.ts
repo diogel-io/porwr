@@ -5,16 +5,13 @@ import { sendBexMessage } from '@/services/bridge-client';
 import {
   CONTACT_LIST_KIND,
   PROFILE_METADATA_KIND,
-  fetchContactListSnapshot,
   fetchProfilesInBatches,
   normalizePubkey,
   parseContactProfile,
 } from '@/services/contact-fetch';
-import type { AccountSummary } from '@/types/accounts';
 import type {
   ContactInputValidationResult,
   ContactListPublishResult,
-  ContactListState,
   ContactListRelayPublishResult,
   ContactProfile,
   ContactRefreshRequest,
@@ -29,10 +26,6 @@ import { parseNip05Identifier } from '@/services/nip05-service';
 export { normalizePubkey, parseContactProfile, parseContactTags } from '@/services/contact-fetch';
 
 const pool = new SimplePool();
-
-function getAccountPubkey(storedKey: AccountSummary): string {
-  return storedKey.id;
-}
 
 export function formatContactNpub(pubkey: string): string {
   return nip19.npubEncode(pubkey);
@@ -246,27 +239,6 @@ export function validateContactInput(
       petname: petnameInput.trim(),
     },
   };
-}
-
-export async function fetchContactList(storedKey: AccountSummary): Promise<ContactListState> {
-  const settingsStore = useSettingsStore();
-  const relays = await settingsStore.getFallbackRelays();
-  const pubkey = getAccountPubkey(storedKey);
-  const snapshot = await fetchContactListSnapshot(pool, relays, pubkey);
-
-  const state: ContactListState = {
-    accountAlias: storedKey.alias,
-    pubkey,
-    contacts: snapshot.contacts,
-    dirty: false,
-  };
-
-  if (snapshot.sourceEventId !== undefined && snapshot.sourceCreatedAt !== undefined) {
-    state.sourceEventId = snapshot.sourceEventId;
-    state.sourceCreatedAt = snapshot.sourceCreatedAt;
-  }
-
-  return state;
 }
 
 /**

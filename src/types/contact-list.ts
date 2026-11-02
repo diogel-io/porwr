@@ -25,15 +25,6 @@ export interface ContactSearchResult {
   matchType: ContactSearchMatchType;
 }
 
-export interface ContactListState {
-  accountAlias: string;
-  pubkey: string;
-  contacts: Nip02Contact[];
-  sourceEventId?: string;
-  sourceCreatedAt?: number;
-  dirty: boolean;
-}
-
 export interface ContactListPublishResult {
   event: NostrEvent;
   relayResults: ContactListRelayPublishResult[];
