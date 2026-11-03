@@ -1,5 +1,5 @@
 import { finalizeEvent, getPublicKey, SimplePool, nip04, nip44 } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 import type { Event } from 'nostr-tools';
 import { isAllowedRelayProtocol } from '@/services/relay-url';
 import {
@@ -293,6 +293,7 @@ export class Nip47Client {
       void pending.promise.catch(() => undefined);
       throw new Error(
         `Failed to publish NIP-47 request to any relay: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
 

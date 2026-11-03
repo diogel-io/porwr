@@ -5,7 +5,7 @@ import { type QInput, useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import * as nip19 from 'nostr-tools/nip19';
 import { getPublicKey } from 'nostr-tools';
-import { bytesToHex } from '@noble/hashes/utils';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 import ViewStoredKey from '@/components/dashboard/ViewStoredKey.vue';
 import useAccountStore from '@/stores/account-store';

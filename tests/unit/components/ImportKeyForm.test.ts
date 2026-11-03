@@ -61,7 +61,7 @@ vi.mock('nostr-tools', () => ({
   getPublicKey: vi.fn(() => 'pubkey-hex'),
 }));
 
-vi.mock('@noble/hashes/utils', () => ({
+vi.mock('@noble/hashes/utils.js', () => ({
   bytesToHex: vi.fn(() => 'privkey-hex'),
 }));
 

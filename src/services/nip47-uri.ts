@@ -1,5 +1,5 @@
 import { getPublicKey } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 import type { ParsedNwcUri } from '@/types/nip47';
 import { RELAY_PROTOCOL_ERROR, isAllowedRelayProtocol } from '@/services/relay-url';
 

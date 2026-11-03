@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
-import { bytesToHex } from '@noble/hashes/utils';
+import { bytesToHex } from '@noble/hashes/utils.js';
 import { buildNip47ConnectionId, parseNwcUri } from '@/services/nip47-uri';
 
 describe('parseNwcUri', () => {

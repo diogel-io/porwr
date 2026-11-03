@@ -1,5 +1,5 @@
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import type { HandlerResult } from '../types/background';
 import type {
   BeginNip47AuthorizationRequest,
@@ -449,7 +449,7 @@ async function withNegotiatedEncryption(
     logService.log(LogLevel.WARN, '[NIP-47] Could not read the wallet info event', {
       error: describeError(error),
     });
-    throw new Error(WALLET_INFO_UNAVAILABLE);
+    throw new Error(WALLET_INFO_UNAVAILABLE, { cause: error });
   }
   failedRefreshAt.delete(connection.id);
   await recordWalletInfo(accountPubkey, connection.id, info);

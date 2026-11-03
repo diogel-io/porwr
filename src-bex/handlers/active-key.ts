@@ -1,4 +1,4 @@
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 import { getPublicKey } from 'nostr-tools';
 import type { Pubkey } from '@/types/pubkey';
 import { NOSTR_ACTIVE, storageService } from '@/services/storage-service';

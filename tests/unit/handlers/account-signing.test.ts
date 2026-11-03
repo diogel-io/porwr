@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateSecretKey, getPublicKey, verifyEvent } from 'nostr-tools';
-import { bytesToHex } from '@noble/hashes/utils';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 const vault = vi.hoisted(() => ({
   unlocked: true,

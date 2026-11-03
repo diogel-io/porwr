@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 import * as nip49 from 'nostr-tools/nip49';
 import { bech32 } from '@scure/base';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 
 import type { VaultData } from '@/types/bridge';
 

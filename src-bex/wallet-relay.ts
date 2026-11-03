@@ -85,7 +85,7 @@ export function readWalletSuccess(data: unknown, assumeSuccess = false): Relayed
   if (!walletPubkey) {
     return null;
   }
-  let relayUrls: string[] = [];
+  let relayUrls: string[];
   try {
     relayUrls = readStrings(record.relayUrls);
   } catch {

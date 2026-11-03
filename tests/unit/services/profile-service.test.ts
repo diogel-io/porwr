@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { finalizeEvent, getPublicKey } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 import { storageService } from '@/services/storage-service';
 import type { AccountEventTemplate } from '@/types/account-signing';
 
