@@ -449,7 +449,7 @@ async function withNegotiatedEncryption(
     logService.log(LogLevel.WARN, '[NIP-47] Could not read the wallet info event', {
       error: describeError(error),
     });
-    throw new Error(WALLET_INFO_UNAVAILABLE);
+    throw new Error(WALLET_INFO_UNAVAILABLE, { cause: error });
   }
   failedRefreshAt.delete(connection.id);
   await recordWalletInfo(accountPubkey, connection.id, info);

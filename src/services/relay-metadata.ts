@@ -114,7 +114,7 @@ export async function fetchRelayMetadata(
     };
   } catch (err) {
     clearTimeout(id);
-    let errorMessage = 'Fetch failed';
+    let errorMessage: string;
     if (err instanceof Error) {
       if (err.name === 'AbortError') {
         errorMessage = `Timeout after ${timeoutMs}ms`;

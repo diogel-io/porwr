@@ -203,7 +203,7 @@ export async function handleWebLnSendPayment(
     logService.log(LogLevel.WARN, '[WebLN] Payment did not complete', {
       error: describeError(error),
     });
-    throw new Error(paymentFailureForSite(error));
+    throw new Error(paymentFailureForSite(error), { cause: error });
   }
   if (!result.success) {
     throw new Error(WEBLN_PAYMENT_FAILED);

@@ -293,6 +293,7 @@ export class Nip47Client {
       void pending.promise.catch(() => undefined);
       throw new Error(
         `Failed to publish NIP-47 request to any relay: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
 
