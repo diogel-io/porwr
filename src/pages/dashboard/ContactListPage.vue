@@ -219,14 +219,18 @@ function onContactsFocusOut(event: FocusEvent) {
 }
 
 /**
- * A click in a row outside its buttons focuses the list's content element, which would read as
- * focus Quasar parked and pull focus back to the tracked row: a click lets the tracking go instead.
+ * A click anywhere but a row's buttons lets the tracking go. In a row it focuses the list's content
+ * element, which would read as focus Quasar parked; elsewhere a pending restore or retry would
+ * otherwise pull focus back into the list before the click's focusout check runs.
  */
 function onContactsPointerDown(event: PointerEvent) {
   if (!(event.target as Element | null)?.closest('.contacts-page__contact button')) {
     stopTrackingContactsFocus();
   }
 }
+
+onMounted(() => document.addEventListener('pointerdown', onContactsPointerDown, true));
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onContactsPointerDown, true));
 
 /**
  * Tab from a row's last button, or Shift+Tab from its first, moves to the next or previous row,
@@ -733,7 +737,6 @@ onMounted(async () => {
         scroll-target="body"
         separator
         data-testid="contacts-list"
-        @pointerdown="onContactsPointerDown"
         @focusin="onContactsFocusIn"
         @focusout="onContactsFocusOut"
         @keydown="onContactsKeydown"
