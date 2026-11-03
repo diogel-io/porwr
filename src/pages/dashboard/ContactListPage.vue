@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useQuasar } from 'quasar';
+import { useQuasar, type QVirtualScroll } from 'quasar';
 import useAccountStore from '@/stores/account-store';
 import type { ContactProfile, ContactSearchResult, Nip02Contact } from '@/types/contact-list';
 import type { AccountSummary } from '@/types/accounts';
@@ -115,6 +115,192 @@ watch(listReady, (ready) => {
 const sortedContacts = computed(() => contacts.value);
 /** A contact row's usual height in px at panel width, where the npub wraps; rows are measured. */
 const CONTACT_ROW_HEIGHT = 126;
+
+/*
+ * Keyboard focus in the contact list (#440). Only the rows near the view are rendered, so the
+ * browser alone would let focus leave the list: Tab held down outruns the rendering of the next
+ * row, and a focused row scrolled far enough away is removed. Quasar then parks focus on the list's
+ * content element, from which the next Tab starts again at the first rendered row.
+ *
+ * So the page keeps track of the row that should hold focus, moves it itself for Tab between rows,
+ * and puts focus back whenever the list loses it.
+ */
+const contactsList = ref<QVirtualScroll | null>(null);
+/** The 0-based index of the row that should hold focus, while focus is in the list. */
+let focusedRow: number | undefined;
+/** Which of that row's buttons: the last after Shift+Tab, the first otherwise. */
+let focusLastButton = false;
+/** Set while the list scrolls to `focusedRow` for Tab, so lost focus waits for that row. */
+let scrollingToRow = false;
+/** Frames to wait for that row to render before leaving focus where it is. */
+const ROW_FOCUS_FRAMES = 10;
+
+function contactsListElement(): HTMLElement | undefined {
+  return (contactsList.value?.$el as HTMLElement | undefined) ?? undefined;
+}
+
+function rowElement(index: number): HTMLElement | null {
+  return (
+    contactsListElement()?.querySelector<HTMLElement>(
+      `.contacts-page__contact[aria-posinset="${index + 1}"]`,
+    ) ?? null
+  );
+}
+
+function rowIndexOf(element: Element | null): number | undefined {
+  const position = Number(
+    element?.closest('.contacts-page__contact')?.getAttribute('aria-posinset'),
+  );
+  return position > 0 ? position - 1 : undefined;
+}
+
+function rowButtons(row: Element): HTMLButtonElement[] {
+  return Array.from(row.querySelectorAll('button'));
+}
+
+/** Whether focus has nowhere useful to be: on the page, or parked by Quasar on the list itself. */
+function contactsFocusLost(): boolean {
+  const active = document.activeElement;
+  return (
+    !active || active === document.body || active.classList.contains('q-virtual-scroll__content')
+  );
+}
+
+/** Focuses `focusedRow` if it is rendered; returns whether it was. */
+function focusTrackedRow(): boolean {
+  const row = focusedRow === undefined ? null : rowElement(focusedRow);
+  if (!row) return false;
+  const buttons = rowButtons(row);
+  buttons[focusLastButton ? buttons.length - 1 : 0]?.focus();
+  scrollingToRow = false;
+  return true;
+}
+
+function focusTrackedRowWhenRendered(frames = ROW_FOCUS_FRAMES) {
+  requestAnimationFrame(() => {
+    if (!scrollingToRow || focusTrackedRow()) return;
+    if (frames > 1) focusTrackedRowWhenRendered(frames - 1);
+    else scrollingToRow = false;
+  });
+}
+
+function onContactsFocusIn(event: FocusEvent) {
+  const target = event.target as Element | null;
+  // Quasar parked focus while it rearranged rows: give it back once they are in place.
+  if (target?.classList.contains('q-virtual-scroll__content')) {
+    requestAnimationFrame(restoreContactsFocus);
+    return;
+  }
+  const row = target?.closest('.contacts-page__contact');
+  const index = rowIndexOf(target);
+  if (!row || index === undefined) return;
+  const buttons = rowButtons(row);
+  focusedRow = index;
+  focusLastButton = buttons.length > 1 && target === buttons[buttons.length - 1];
+}
+
+function stopTrackingContactsFocus() {
+  focusedRow = undefined;
+  scrollingToRow = false;
+}
+
+function onContactsFocusOut(event: FocusEvent) {
+  const next = event.relatedTarget as Node | null;
+  if (next) {
+    if (!contactsListElement()?.contains(next)) stopTrackingContactsFocus();
+    return;
+  }
+  // Focus went nowhere. A button the list removed stays tracked, so focus can come back; one
+  // still in the page means the user clicked away or left the window, and is let go.
+  const left = event.target as Element;
+  requestAnimationFrame(() => {
+    if (left.isConnected && contactsFocusLost()) stopTrackingContactsFocus();
+  });
+}
+
+/**
+ * A click in a row outside its buttons focuses the list's content element, which would read as
+ * focus Quasar parked and pull focus back to the tracked row: a click lets the tracking go instead.
+ */
+function onContactsPointerDown(event: PointerEvent) {
+  if (!(event.target as Element | null)?.closest('.contacts-page__contact button')) {
+    stopTrackingContactsFocus();
+  }
+}
+
+/**
+ * Tab from a row's last button, or Shift+Tab from its first, moves to the next or previous row,
+ * counted from the row that should hold focus, so presses made faster than rows render still add
+ * up. Leaving the list at either end, and moving between a row's own buttons, are left to the
+ * browser.
+ */
+function onContactsKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (focusedRow === undefined) return;
+  const backwards = event.shiftKey;
+
+  const active = event.target as HTMLElement;
+  // Rows removed or added above a focused button move it without a focusin: count from where it
+  // is now. While the list scrolls for an earlier press, the tracked row is ahead of focus.
+  if (!scrollingToRow) focusedRow = rowIndexOf(active) ?? focusedRow;
+  const row = rowElement(focusedRow);
+  if (row && row.contains(active)) {
+    const buttons = rowButtons(row);
+    if (active !== buttons[backwards ? 0 : buttons.length - 1]) return;
+  }
+
+  const target = focusedRow + (backwards ? -1 : 1);
+  if (target < 0 || target >= sortedContacts.value.length) return;
+
+  event.preventDefault();
+  focusedRow = target;
+  focusLastButton = backwards;
+  if (focusTrackedRow()) return;
+  scrollingToRow = true;
+  contactsList.value?.scrollTo(target, backwards ? 'start' : 'end');
+  focusTrackedRowWhenRendered();
+}
+
+/**
+ * Puts focus back when the list has lost it: on the row that should hold it, once that row is
+ * rendered; or, when the user scrolled that row away, on the first row in view, without scrolling,
+ * so the next Tab carries on from where they are looking.
+ */
+function restoreContactsFocus() {
+  if (focusedRow === undefined) return;
+  const lastRow = sortedContacts.value.length - 1;
+  if (lastRow < 0) {
+    stopTrackingContactsFocus();
+    return;
+  }
+  // Removing the last contact leaves the tracked row past the end: the new last row takes over.
+  if (focusedRow > lastRow) focusedRow = lastRow;
+  if (!contactsFocusLost()) return;
+  if (focusTrackedRow() || scrollingToRow) return;
+
+  const rows = Array.from(
+    contactsListElement()?.querySelectorAll<HTMLElement>('.contacts-page__contact') ?? [],
+  );
+  // The first row wholly in view, or failing that the first one partly in it.
+  const inView =
+    rows.find((row) => row.getBoundingClientRect().top >= 0) ??
+    rows.find((row) => row.getBoundingClientRect().bottom > 0);
+  const remove = inView?.querySelector<HTMLElement>('.contacts-page__remove');
+  if (!inView || !remove) return;
+  remove.focus({ preventScroll: true });
+  focusedRow = rowIndexOf(inView);
+  focusLastButton = false;
+}
+
+// Removing a contact takes its button, and focus, with it: focus the contact now in its place.
+watch(sortedContacts, () => {
+  void nextTick(restoreContactsFocus);
+});
+
+function onContactsVirtualScroll() {
+  // The rows the slice dropped leave the page on the next render.
+  void nextTick(restoreContactsFocus);
+}
 
 const newerListDate = computed(() =>
   newerList.value?.sourceCreatedAt
@@ -543,9 +729,15 @@ onMounted(async () => {
         v-slot="{ item: contact, index }"
         :items="sortedContacts"
         :virtual-scroll-item-size="CONTACT_ROW_HEIGHT"
+        ref="contactsList"
         scroll-target="body"
         separator
         data-testid="contacts-list"
+        @pointerdown="onContactsPointerDown"
+        @focusin="onContactsFocusIn"
+        @focusout="onContactsFocusOut"
+        @keydown="onContactsKeydown"
+        @virtual-scroll="onContactsVirtualScroll"
       >
         <!-- Only a slice is in the page, so each row says where it sits in the whole list. -->
         <q-item
@@ -583,6 +775,7 @@ onMounted(async () => {
                 flat
                 round
                 dense
+                class="contacts-page__remove"
                 color="negative"
                 icon="delete"
                 :aria-label="t('contacts.remove')"
