@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.2](https://github.com/diogel-io/porwr/compare/v0.3.1...v0.3.2) (2026-11-03)
+
+
+### Bug Fixes
+
+* **contacts:** bound the unencrypted contact cache ([#426](https://github.com/diogel-io/porwr/issues/426)) ([e289cf4](https://github.com/diogel-io/porwr/commit/e289cf4d9614e919406398b8173c47140a760f48))
+* **contacts:** don't allow editing or publishing before the list loads ([#436](https://github.com/diogel-io/porwr/issues/436)) ([d0e1880](https://github.com/diogel-io/porwr/commit/d0e1880420bf3fc70d11c6d1f209acdb6d1edad1))
+* **contacts:** don't cache an empty contact list when no relay answers ([#437](https://github.com/diogel-io/porwr/issues/437)) ([59e3171](https://github.com/diogel-io/porwr/commit/59e3171247f4fe6731a23ae80d68d40e9d640c02))
+* **contacts:** keep contact rows inside the card at panel width ([#433](https://github.com/diogel-io/porwr/issues/433)) ([1db4622](https://github.com/diogel-io/porwr/commit/1db4622f8c1130e5fe232d11a852050fe59b4470)), closes [#431](https://github.com/diogel-io/porwr/issues/431)
+* **contacts:** keep keyboard focus in the virtual contact list ([#441](https://github.com/diogel-io/porwr/issues/441)) ([b6babca](https://github.com/diogel-io/porwr/commit/b6babcaaa5478dfec59b5818f3e2714a6a613386))
+* **contacts:** render only the contact rows in view ([#439](https://github.com/diogel-io/porwr/issues/439)) ([d1b1262](https://github.com/diogel-io/porwr/commit/d1b1262d263f1706c1d993401f3085e3645d50fb))
+* **contacts:** stop focus tracking on any click outside a row's buttons ([#442](https://github.com/diogel-io/porwr/issues/442)) ([4aef19e](https://github.com/diogel-io/porwr/commit/4aef19e335698667b04efa77532dc05566513d7a))
+* **contacts:** warn before publishing edits over a newer contact list ([#434](https://github.com/diogel-io/porwr/issues/434)) ([267ada3](https://github.com/diogel-io/porwr/commit/267ada3a568b5edcf433a307bcd68c2b13c8044b))
+* **relays:** report a relay that never answers as unreachable ([#438](https://github.com/diogel-io/porwr/issues/438)) ([f3244ad](https://github.com/diogel-io/porwr/commit/f3244ad2d53df9c9a164b8070e18cb8630599526))
+
 ## [0.3.1](https://github.com/diogel-io/porwr/compare/v0.3.0...v0.3.1) (2026-10-31)
 
 
