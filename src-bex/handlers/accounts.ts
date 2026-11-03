@@ -30,7 +30,7 @@ import { assignUnownedWalletData } from '../services/nip47-ownership';
 import { interruptRequestsForAccount } from '../services/request-queue';
 import { sweepSiteStateForRemovedAccounts } from '../services/connected-sites';
 import { accountPubkeyOf, isRemoteAccount, localSecretKeyOf } from '../services/account-key';
-import { allowedSignerRelays, Nip46BadResponseError, nip46Client } from '../services/nip46-client';
+import { allowedSignerRelays, nip46Client } from '../services/nip46-client';
 import { addAuthChallenge } from '../services/nip46-auth-challenges';
 import { parseBunkerUri } from '@/services/nip46-uri';
 import type { RemoteSignerConnection } from '@/types';
@@ -128,6 +128,9 @@ export async function handleAccountsAdd(
   }
 }
 
+const CONNECTION_NOT_ACCEPTED = 'The remote signer did not accept the connection';
+const NO_VALID_USER_KEY = 'The remote signer did not report a valid public key';
+
 /** `switch_relays` is optional, so a signer that does not answer quickly keeps its URI's relays. */
 const SWITCH_RELAYS_TIMEOUT_MS = 5000;
 
@@ -189,7 +192,7 @@ export async function handleAccountsAddRemote(
         { onAuthUrl },
       );
       if (ack !== 'ack' && !(parsed.secret !== undefined && ack === parsed.secret)) {
-        throw new Nip46BadResponseError('The remote signer did not accept the connection');
+        return { success: false, error: CONNECTION_NOT_ACCEPTED };
       }
       userPubkey = (await nip46Client.request(connection, 'get_public_key', [], { onAuthUrl }))
         .trim()
@@ -197,9 +200,7 @@ export async function handleAccountsAddRemote(
     } finally {
       for (const remove of withdraw) remove();
     }
-    if (!HEX_64.test(userPubkey)) {
-      throw new Nip46BadResponseError('The remote signer did not report a valid public key');
-    }
+    if (!HEX_64.test(userPubkey)) return { success: false, error: NO_VALID_USER_KEY };
     connection = { ...connection, relays: await switchedRelays(connection) };
 
     const added = await mutateVault((vault) => {
