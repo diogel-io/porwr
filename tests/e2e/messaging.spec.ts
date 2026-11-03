@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import type { Page } from '@playwright/test';
 import { finalizeEvent, SimplePool } from 'nostr-tools';
 import type { Event, EventTemplate } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 
 import { expect, test } from './fixtures/relays';
 import { createVault, TEST_ACCOUNT, seedAccounts as seedVaultAccounts } from './fixtures/vault';

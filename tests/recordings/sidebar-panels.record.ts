@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { Page } from '@playwright/test';
 import { finalizeEvent } from 'nostr-tools/pure';
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 
 import { expect, test } from '../e2e/fixtures/extension';
 import { createVault, lockVault, seedAccounts } from '../e2e/fixtures/vault';

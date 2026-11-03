@@ -32,7 +32,7 @@ vi.mock('nostr-tools', () => ({
   },
 }));
 
-vi.mock('@noble/hashes/utils', () => ({
+vi.mock('@noble/hashes/utils.js', () => ({
   hexToBytes: vi.fn(() => new Uint8Array(32)),
 }));
 

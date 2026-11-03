@@ -1,6 +1,6 @@
 import type { WebElement } from 'selenium-webdriver';
 import { finalizeEvent, SimplePool } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 
 import { expect, test, until } from '../fixtures/firefox';
 import { nakAvailable, startRelay } from '../fixtures/relays';

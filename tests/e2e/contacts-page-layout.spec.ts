@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { finalizeEvent, SimplePool } from 'nostr-tools';
 import type { Event } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 
 import { expect, test } from './fixtures/relays';
 import { createVault, seedAccount, TEST_ACCOUNT } from './fixtures/vault';

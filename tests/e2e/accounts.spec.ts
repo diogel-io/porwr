@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 import { nip19 } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 import * as nip49 from 'nostr-tools/nip49';
 
 import { expect, test } from './fixtures/extension';

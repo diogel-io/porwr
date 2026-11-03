@@ -11,7 +11,7 @@
  * fails, which looks like data loss rather than an identity mix-up.
  */
 
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 
 import { NOSTR_ACTIVE, storageService } from '@/services/storage-service';
 import type { StoredKey } from '@/types';

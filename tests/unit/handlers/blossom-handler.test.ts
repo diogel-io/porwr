@@ -27,7 +27,7 @@ vi.mock('nostr-tools', () => ({
   getPublicKey: vi.fn(),
 }));
 
-vi.mock('@noble/hashes/utils', () => ({
+vi.mock('@noble/hashes/utils.js', () => ({
   hexToBytes: vi.fn((hex) => Buffer.from(hex, 'hex')),
 }));
 

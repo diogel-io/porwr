@@ -1,5 +1,5 @@
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import type { HandlerResult } from '../types/background';
 import type {
   BeginNip47AuthorizationRequest,

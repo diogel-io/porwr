@@ -4,7 +4,7 @@
 
 import type { HandlerResult, UnsignedEvent, SignedEvent } from '../types/background';
 import { finalizeEvent } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils';
+import { hexToBytes } from '@noble/hashes/utils.js';
 import { isVaultUnlocked } from '../vault';
 import { checkPermission } from './permission-handler';
 import { resolveSigningAccount } from '../services/signing-account';

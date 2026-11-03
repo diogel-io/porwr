@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
-import { bytesToHex } from '@noble/hashes/utils';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 /**
  * No response a page gets from the vault carries a secret (#240).
