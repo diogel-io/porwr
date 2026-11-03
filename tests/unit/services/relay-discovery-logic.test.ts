@@ -8,9 +8,13 @@ import {
 } from '@/services/relay-discovery';
 import type { Event } from 'nostr-tools';
 
+// Held outside the factory: Vitest 5 clears mock history before each test (`clearMocks`), so
+// `SimplePool.mock.results` no longer reaches the pool the service built when it was imported.
+const { querySyncMock } = vi.hoisted(() => ({ querySyncMock: vi.fn() }));
+
 // Mock nostr-tools
 vi.mock('nostr-tools', () => {
-  const querySyncMock = vi.fn().mockResolvedValue([
+  querySyncMock.mockResolvedValue([
     {
       kind: 10002,
       id: 'event1',
@@ -215,16 +219,7 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
       expect(result.errors).toEqual([]);
     });
 
-    const poolQuerySync = async () => {
-      const { SimplePool } = await import('nostr-tools');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (SimplePool as any).mock.results[0].value.querySync as ReturnType<typeof vi.fn>;
-    };
-
     it('asks only the seeds Porwr may connect to (diogel-io/workspace#142)', async () => {
-      const querySyncMock = await poolQuerySync();
-      querySyncMock.mockClear();
-
       await relayDiscoveryService.discoverFromRelays(['ws://public.example', 'wss://seed1.com']);
 
       expect(querySyncMock).toHaveBeenCalledTimes(1);
@@ -232,9 +227,6 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
     });
 
     it('queries nothing when no seed is usable', async () => {
-      const querySyncMock = await poolQuerySync();
-      querySyncMock.mockClear();
-
       const result = await relayDiscoveryService.discoverFromRelays(['ws://public.example']);
 
       expect(querySyncMock).not.toHaveBeenCalled();
@@ -243,11 +235,8 @@ describe('RelayDiscoveryService Parsing and Extraction Logic', () => {
     });
 
     it('should handle query failures gracefully', async () => {
-      // Access the mock pool instance and make it throw
-      const { SimplePool } = await import('nostr-tools');
-      const poolInstance = (SimplePool as any).mock.results[0].value;
-      // Since querySyncMock is reused, we need to mock its next call
-      poolInstance.querySync.mockRejectedValueOnce(new Error('Network error'));
+      // The pool's querySync is shared, so make only its next call fail
+      querySyncMock.mockRejectedValueOnce(new Error('Network error'));
 
       const result = await relayDiscoveryService.discoverFromRelays(['wss://seed1.com']);
 
