@@ -49,6 +49,15 @@ describe('parseBunkerUri (#138)', () => {
     expect(() => parseBunkerUri('bunker://npub1abc?relay=wss://r.example')).toThrow('hex key');
   });
 
+  it('keeps a literal + in the secret, and still decodes percent-encoding', () => {
+    expect(parseBunkerUri(`bunker://${SIGNER}?relay=wss://r.example&secret=ab+cd`).secret).toBe(
+      'ab+cd',
+    );
+    expect(
+      parseBunkerUri(`bunker://${SIGNER}?relay=wss://r.example&secret=ab%2Bcd%20e`).secret,
+    ).toBe('ab+cd e');
+  });
+
   it('refuses an empty or oversized secret', () => {
     expect(() => parseBunkerUri(`bunker://${SIGNER}?relay=wss://r.example&secret=`)).toThrow(
       'secret',

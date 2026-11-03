@@ -46,9 +46,13 @@ export function parseBunkerUri(input: string): ParsedBunkerUri {
     throw new Error("The bunker URI's remote signer key must be a 64-character hex key");
   }
 
+  // A URI's query is not a form body: a literal `+` is a plus, not a space. `URLSearchParams` would
+  // turn it into one, so a secret such as `ab+cd` would no longer match the signer's.
+  const params = new URLSearchParams(url.search.replace(/\+/g, '%2B'));
+
   const relays = Array.from(
     new Set(
-      url.searchParams
+      params
         .getAll('relay')
         .map((relay) => normalizeRelayUrl(relay))
         .flatMap((result) => (result.valid && result.url ? [result.url] : [])),
@@ -56,7 +60,7 @@ export function parseBunkerUri(input: string): ParsedBunkerUri {
   );
   if (relays.length === 0) throw new Error(BUNKER_URI_NO_RELAYS);
 
-  const secret = url.searchParams.get('secret') ?? undefined;
+  const secret = params.get('secret') ?? undefined;
   if (secret !== undefined && (secret.length === 0 || secret.length > MAX_SECRET_LENGTH)) {
     throw new Error("The bunker URI's secret is not valid");
   }
