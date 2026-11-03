@@ -81,12 +81,19 @@ export interface Nip46RequestOptions {
   onAuthUrl?: (url: string) => void;
 }
 
-/** The connection's relays Porwr may connect to. A connection with none makes no request. */
+/**
+ * The connection's relays Porwr may connect to, each once. A connection with none makes no
+ * request.
+ */
 export function allowedSignerRelays(connection: Pick<RemoteSignerConnection, 'relays'>): string[] {
-  const relays = connection.relays.flatMap((relay) => {
-    const result = normalizeRelayUrl(relay);
-    return result.valid && result.url ? [result.url] : [];
-  });
+  const relays = Array.from(
+    new Set(
+      connection.relays.flatMap((relay) => {
+        const result = normalizeRelayUrl(relay);
+        return result.valid && result.url ? [result.url] : [];
+      }),
+    ),
+  );
   if (relays.length === 0) throw new Nip46UnreachableError();
   return relays;
 }

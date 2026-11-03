@@ -38,7 +38,13 @@ async function startBunker(relay: string): Promise<Bunker> {
   );
   child.stdout?.on('data', (chunk: Buffer) => (log += chunk.toString()));
   child.stderr?.on('data', (chunk: Buffer) => (log += chunk.toString()));
-  await expect.poll(() => log.includes('bunker:'), { timeout: 10_000 }).toBe(true);
+  try {
+    await expect.poll(() => log.includes('bunker:'), { timeout: 10_000 }).toBe(true);
+  } catch (error: unknown) {
+    // A bunker that never came up must not outlive the test, holding the worker open.
+    child.kill();
+    throw error;
+  }
   return {
     uri: `bunker://${USER_PUBKEY}?relay=${encodeURIComponent(relay)}&secret=${CONNECT_SECRET}`,
     methods: () => [...log.matchAll(/"method": "([a-z0-9_]+)"/g)].map((match) => match[1]!),
@@ -80,7 +86,13 @@ test.describe('remote-signer accounts (#138)', () => {
   }) => {
     test.setTimeout(120_000);
     const relay = await startRelay([]);
-    const bunker = await startBunker(relay.url);
+    let bunker: Bunker;
+    try {
+      bunker = await startBunker(relay.url);
+    } catch (error: unknown) {
+      relay.process.kill();
+      throw error;
+    }
     try {
       const setup = await openPage('/login');
       await createVault(setup);

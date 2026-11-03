@@ -112,7 +112,11 @@ async function saveAlias() {
 
     <section class="dashboard-hero">
       <h1 class="dashboard-hero-title">{{ t('keyManagement.viewTitle') }}</h1>
-      <p class="dashboard-hero-caption">{{ t('keyManagement.viewCaption') }}</p>
+      <p class="dashboard-hero-caption">
+        {{
+          isRemote ? t('keyManagement.remoteSigner.viewCaption') : t('keyManagement.viewCaption')
+        }}
+      </p>
     </section>
 
     <q-card v-if="storedKey" class="dashboard-card view-key-page__card">

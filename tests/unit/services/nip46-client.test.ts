@@ -311,6 +311,17 @@ describe('Nip46Client.request', () => {
   });
 });
 
+describe('allowedSignerRelays', () => {
+  it('keeps each allowed relay once', async () => {
+    const { allowedSignerRelays } = await import('@/../src-bex/services/nip46-client');
+    expect(
+      allowedSignerRelays({
+        relays: ['wss://a.example', 'wss://a.example/', 'ws://plain.example', 'wss://b.example'],
+      }),
+    ).toEqual(['wss://a.example', 'wss://b.example']);
+  });
+});
+
 describe('acceptableAuthUrl', () => {
   it('accepts only https URLs of bounded length', () => {
     expect(acceptableAuthUrl('https://signer.example/a')).toBe('https://signer.example/a');

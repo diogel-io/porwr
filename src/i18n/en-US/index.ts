@@ -149,6 +149,8 @@ export default {
       authTitle: 'Your remote signer asks you to authorise Porwr',
       authOpen: 'Open {host}',
       badge: 'Remote signer',
+      viewCaption:
+        'Review this account. Its key is held by a remote signer, so only its alias can be edited.',
       signerKey: 'Remote signer key',
       relays: 'Relays',
       noPrivateKey:
