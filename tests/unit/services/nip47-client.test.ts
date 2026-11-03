@@ -52,6 +52,22 @@ function buildConnection(): Nip47Connection {
   };
 }
 
+type RelayEvent = { kind: number; pubkey: string; tags: string[][]; content: string };
+
+/** A response as the wallet sends it: its key, kind 23195, and the request's `e` and `p` tags. */
+function walletResponse(overrides: Partial<RelayEvent> = {}): RelayEvent {
+  return {
+    kind: 23195,
+    pubkey: 'wallet-service-pubkey',
+    tags: [
+      ['p', 'client-pubkey'],
+      ['e', 'event-id'],
+    ],
+    content: 'encrypted-response',
+    ...overrides,
+  };
+}
+
 describe('Nip47Client.sendRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -141,14 +157,9 @@ describe('Nip47Client.sendRequest', () => {
   });
 
   it('resolves with the wallet response once a matching relay event is published successfully', async () => {
-    let onEvent:
-      ((event: { pubkey: string; tags: string[][]; content: string }) => void) | undefined;
+    let onEvent: ((event: RelayEvent) => void) | undefined;
     mockPoolInstance.subscribe.mockImplementation(
-      (
-        _relays: string[],
-        _filter: unknown,
-        opts: { onevent: (event: { pubkey: string; tags: string[][]; content: string }) => void },
-      ) => {
+      (_relays: string[], _filter: unknown, opts: { onevent: (event: RelayEvent) => void }) => {
         onEvent = opts.onevent;
         return { close: vi.fn() };
       },
@@ -164,11 +175,7 @@ describe('Nip47Client.sendRequest', () => {
       params: {},
     });
 
-    onEvent?.({
-      pubkey: 'wallet-service-pubkey',
-      tags: [['e', 'event-id']],
-      content: 'encrypted-response',
-    });
+    onEvent?.(walletResponse());
 
     const response = await requestPromise;
     expect(response.result).toEqual({ balance: 1000 });
@@ -176,8 +183,6 @@ describe('Nip47Client.sendRequest', () => {
 });
 
 describe('NIP-47 encryption negotiation (diogel-io/workspace#142, T22)', () => {
-  type RelayEvent = { pubkey: string; tags: string[][]; content: string };
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -200,7 +205,7 @@ describe('NIP-47 encryption negotiation (diogel-io/workspace#142, T22)', () => {
       { ...buildConnection(), ...(encryption ? { encryption } : {}) },
       { method: 'get_balance', params: {} },
     );
-    onEvent?.({ pubkey: 'wallet-service-pubkey', tags: [['e', 'event-id']], content: 'reply' });
+    onEvent?.(walletResponse({ content: 'reply' }));
     const response = await pending;
     const template = vi.mocked(finalizeEvent).mock.calls[0]![0] as {
       tags: string[][];
@@ -287,6 +292,123 @@ describe('wallet relays (diogel-io/workspace#142, T19)', () => {
   });
 });
 
+describe('NIP-47 response authenticity (diogel-io/workspace#178, T33)', () => {
+  let onEvent: ((event: RelayEvent) => void) | undefined;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    onEvent = undefined;
+    mockPoolInstance.subscribe.mockImplementation(
+      (_relays: string[], _filter: unknown, opts: { onevent: (event: RelayEvent) => void }) => {
+        onEvent = opts.onevent;
+        return { close: vi.fn() };
+      },
+    );
+    mockPoolInstance.publish.mockReturnValue([Promise.resolve('ok')]);
+    vi.mocked(nip04.decrypt).mockReturnValue(JSON.stringify({ result: { balance: 1000 } }));
+  });
+
+  async function pendingBalance() {
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    let settled = false;
+    const promise = new Nip47Client()
+      .sendRequest(buildConnection(), { method: 'get_balance', params: {} })
+      .finally(() => {
+        settled = true;
+      });
+    // Let the publish settle so the client is waiting on the subscription alone.
+    await Promise.resolve();
+    return { promise, isSettled: () => settled };
+  }
+
+  it.each([
+    ['is signed by another key', { pubkey: 'relay-pubkey' }],
+    ['does not name this client', { tags: [['e', 'event-id']] }],
+    [
+      'names another client',
+      {
+        tags: [
+          ['p', 'other-client'],
+          ['e', 'event-id'],
+        ],
+      },
+    ],
+    [
+      'answers another request',
+      {
+        tags: [
+          ['p', 'client-pubkey'],
+          ['e', 'other-request'],
+        ],
+      },
+    ],
+    ['is not a response', { kind: 23194 }],
+  ])(
+    'ignores an event that %s, and still takes the wallet response after it',
+    async (_case, forged) => {
+      const { promise, isSettled } = await pendingBalance();
+
+      onEvent?.(walletResponse(forged));
+      await Promise.resolve();
+
+      expect(nip04.decrypt).not.toHaveBeenCalled();
+      expect(isSettled()).toBe(false);
+
+      onEvent?.(walletResponse());
+      expect((await promise).result).toEqual({ balance: 1000 });
+      expect(nip04.decrypt).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('times out, reporting neither a result nor a failure, when only a forged response arrives', async () => {
+    vi.useFakeTimers();
+    try {
+      const { Nip47ResponseTimeoutError } = await import('@/../src-bex/services/nip47-client');
+      const { promise } = await pendingBalance();
+      const outcome = promise.catch((error: unknown) => error);
+
+      onEvent?.(walletResponse({ pubkey: 'relay-pubkey' }));
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      expect(await outcome).toBeInstanceOf(Nip47ResponseTimeoutError);
+      expect(nip04.decrypt).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("decrypts with the connection's wallet key", async () => {
+    const { promise } = await pendingBalance();
+
+    onEvent?.(walletResponse());
+    await promise;
+
+    expect(nip04.decrypt).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      'wallet-service-pubkey',
+      'encrypted-response',
+    );
+  });
+
+  it("derives the NIP-44 key from the connection's wallet key", async () => {
+    vi.mocked(nip44.decrypt).mockReturnValue(JSON.stringify({ result: { balance: 7 } }));
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+    const pending = new Nip47Client().sendRequest(
+      { ...buildConnection(), encryption: ['nip44_v2'] },
+      { method: 'get_balance', params: {} },
+    );
+    vi.mocked(nip44.getConversationKey).mockClear();
+
+    onEvent?.(walletResponse());
+
+    expect((await pending).result).toEqual({ balance: 7 });
+    expect(nip44.getConversationKey).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      'wallet-service-pubkey',
+    );
+  });
+});
+
 describe('Nip47Client.getInfo (diogel-io/workspace#142)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -294,14 +416,27 @@ describe('Nip47Client.getInfo (diogel-io/workspace#142)', () => {
 
   it('negotiates from the newest info event any relay holds', async () => {
     mockPoolInstance.querySync.mockResolvedValue([
-      { pubkey: 'w', created_at: 100, content: 'pay_invoice', tags: [['encryption', 'nip04']] },
       {
-        pubkey: 'w',
+        kind: 13194,
+        pubkey: 'wallet-service-pubkey',
+        created_at: 100,
+        content: 'pay_invoice',
+        tags: [['encryption', 'nip04']],
+      },
+      {
+        kind: 13194,
+        pubkey: 'wallet-service-pubkey',
         created_at: 200,
         content: 'pay_invoice get_balance',
         tags: [['encryption', 'nip44_v2 nip04']],
       },
-      { pubkey: 'w', created_at: 150, content: 'pay_invoice', tags: [] },
+      {
+        kind: 13194,
+        pubkey: 'wallet-service-pubkey',
+        created_at: 150,
+        content: 'pay_invoice',
+        tags: [],
+      },
     ]);
     const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
 
@@ -320,6 +455,56 @@ describe('Nip47Client.getInfo (diogel-io/workspace#142)', () => {
 
   it('reports no info event when no relay holds one', async () => {
     mockPoolInstance.querySync.mockResolvedValue([]);
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+
+    await expect(new Nip47Client().getInfo(buildConnection())).rejects.toThrow(
+      'No NIP-47 wallet info event',
+    );
+  });
+
+  it("ignores a newer info event signed by another key, and reports the connection's wallet key (diogel-io/workspace#178)", async () => {
+    mockPoolInstance.querySync.mockResolvedValue([
+      {
+        kind: 13194,
+        pubkey: 'wallet-service-pubkey',
+        created_at: 100,
+        content: 'pay_invoice',
+        tags: [['encryption', 'nip44_v2']],
+      },
+      {
+        kind: 13194,
+        pubkey: 'relay-pubkey',
+        created_at: 200,
+        content: 'pay_invoice get_balance make_invoice',
+        tags: [['encryption', 'nip04']],
+      },
+      {
+        kind: 1,
+        pubkey: 'wallet-service-pubkey',
+        created_at: 300,
+        content: 'get_balance',
+        tags: [],
+      },
+    ]);
+    const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
+
+    const info = await new Nip47Client().getInfo(buildConnection());
+
+    expect(info.pubkey).toBe('wallet-service-pubkey');
+    expect(info.capabilities).toEqual(['pay_invoice']);
+    expect(info.encryption).toEqual(['nip44_v2']);
+  });
+
+  it('reports no info event when every one returned was signed by another key (diogel-io/workspace#178)', async () => {
+    mockPoolInstance.querySync.mockResolvedValue([
+      {
+        kind: 13194,
+        pubkey: 'relay-pubkey',
+        created_at: 200,
+        content: 'pay_invoice',
+        tags: [['encryption', 'nip04']],
+      },
+    ]);
     const { Nip47Client } = await import('@/../src-bex/services/nip47-client');
 
     await expect(new Nip47Client().getInfo(buildConnection())).rejects.toThrow(
