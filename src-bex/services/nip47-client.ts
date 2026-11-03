@@ -91,6 +91,14 @@ function tagValues(event: Event, tagName: string): string[] {
     .filter((value) => value.length > 0);
 }
 
+/**
+ * Whether the wallet service itself signed this event. A relay is not trusted to have applied the
+ * subscription's `authors` filter (A4, T33), so the client checks the author itself.
+ */
+function isFromWallet(event: Event, walletPubkey: string): boolean {
+  return event.pubkey === walletPubkey;
+}
+
 function parseRpcResponse(content: string): Nip47RpcResponse {
   const record = parseJsonRecord(content);
   const errorRecord = record.error;
@@ -161,18 +169,26 @@ export class Nip47Client {
       },
       { maxWait: 5000 },
     );
-    const event = events.reduce<Event | null>(
-      (newest, candidate) =>
-        !newest || candidate.created_at > newest.created_at ? candidate : newest,
-      null,
-    );
+    // Checked before choosing the newest, so a forged newer event cannot set the capabilities or
+    // the encryption scheme.
+    const event = events
+      .filter(
+        (candidate) =>
+          candidate.kind === NIP47_WALLET_INFO_KIND &&
+          isFromWallet(candidate, connection.walletServicePubkey),
+      )
+      .reduce<Event | null>(
+        (newest, candidate) =>
+          !newest || candidate.created_at > newest.created_at ? candidate : newest,
+        null,
+      );
 
     if (!event) {
       throw new Error('No NIP-47 wallet info event found on configured relays');
     }
 
     return {
-      pubkey: event.pubkey,
+      pubkey: connection.walletServicePubkey,
       capabilities: parseCommands(event.content),
       relays: connection.relays,
       encryption: tagValues(event, 'encryption'),
@@ -334,15 +350,25 @@ export class Nip47Client {
         {
           maxWait: 15000,
           onevent: (event: Event) => {
+            // The relay's filter is not relied on: a response is used only when the wallet signed
+            // it, for this request and this client. Anything else is ignored, and the wait for the
+            // wallet's own answer goes on, rather than settling the request on another key's word.
+            const isResponseToThisRequest =
+              event.kind === NIP47_RESPONSE_KIND &&
+              isFromWallet(event, connection.walletServicePubkey) &&
+              event.tags.some((tag) => tag[0] === 'p' && tag[1] === clientPubkey) &&
+              event.tags.some((tag) => tag[0] === 'e' && tag[1] === requestEventId);
+            if (!isResponseToThisRequest) {
+              return;
+            }
             try {
-              const hasMatchingRequestTag = event.tags.some(
-                (tag) => tag[0] === 'e' && tag[1] === requestEventId,
-              );
-              if (!hasMatchingRequestTag) {
-                return;
-              }
               // The wallet answers in the scheme the request used.
-              const decrypted = decryptFrom(scheme, clientSecretBytes, event.pubkey, event.content);
+              const decrypted = decryptFrom(
+                scheme,
+                clientSecretBytes,
+                connection.walletServicePubkey,
+                event.content,
+              );
               clearTimeout(timeout);
               closer.close('nip47 response received');
               resolve(parseRpcResponse(decrypted));
