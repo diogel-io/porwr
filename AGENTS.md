@@ -154,6 +154,30 @@ answers with `nwc:success`, and that answer reaches the background by one of two
 Both routes post their outcome on `wallet-connect-channel`. Both check the wallet's details and
 call `get_info` before anything is saved.
 
+### Remote-signer accounts (NIP-46)
+
+An account can be backed by a NIP-46 remote signer instead of a key in the vault
+(diogel-io/workspace#138). It is connected from a `bunker://` URI on the Add New Key page
+(`RemoteSignerForm`), through `accounts.addRemote` (`handleAccountsAddRemote` in
+`src-bex/handlers/accounts.ts`). The background generates the connection's client key, sends
+`connect`, takes the user's key from `get_public_key`, and stores the account as
+`{ type: 'remote', nip46: RemoteSignerConnection }` (`src/types/index.d.ts`). An account with no
+`type` is a local one.
+
+Website requests for a remote account take the same path as any other: page channel, queue,
+approval, grants, site binding. Only the handler's last step differs. `signerFor`
+(`src-bex/services/account-signer.ts`) signs with the vault's key, or sends the operation to the
+signer through `src-bex/services/nip46-client.ts`. That client accepts a response only from the
+pinned signer key, for this client, answering a request still waiting, with a 60 s timeout and no
+retry. A signed event is returned only when it is the approved event signed by the account's key.
+
+A signer's `auth_url` is kept in memory (`src-bex/services/nip46-auth-challenges.ts`), shown on the
+panel as text (`RemoteSignerAuthNotice`), and opened only on the user's click by challenge id
+(`nip46.openAuthChallenge`). Anything that needs the private key itself goes through
+`localSecretKeyOf` (`src-bex/services/account-key.ts`), which refuses a remote account. That covers
+NIP-17 messaging, Blossom, own-page signing, and showing or exporting a key. Porwr is a NIP-46 client
+only, and `nostrconnect://` is not implemented.
+
 ### Approval / permission model
 
 - Per-origin, per-event-kind permissions are checked via `checkPermission` /
@@ -289,6 +313,11 @@ public issue or pull request.
 
 **Secrets**
 
+- A remote-signer account (NIP-46) stores no private key in Porwr. Its connection's client secret
+  and the `bunker://` URI's secret live in the encrypted vault, never reach a page or a log, and are
+  never used to sign as the user. Anything that needs a private key gets it through
+  `localSecretKeyOf` (`src-bex/services/account-key.ts`), which refuses a remote account. A remote
+  signer's answer is checked before a page sees it (T39 in `docs/threat-model.md`).
 - Private keys exist in plaintext only inside the unlocked vault in the background, and briefly on
   Porwr's own pages when the user imports an nsec or shows a key. Showing a key
   (`accounts.revealSecret`) and exporting one (`accounts.exportEncrypted`) both need the vault
@@ -318,7 +347,10 @@ public issue or pull request.
   and Porwr itself still sends nothing to that address. Any other custom address must be `https:`.
   The accepted risk, that a device on the same network can read the user's Hub login and forge the
   Hub's reply, is T35 in `docs/threat-model.md`.
-- NIP-47 requests use NIP-44 whenever the wallet advertises it.
+- NIP-47 requests use NIP-44 whenever the wallet advertises it. NIP-46 requests always use NIP-44,
+  and go only to the relays a remote signer's connection names that pass `normalizeRelayUrl`.
+- A remote signer's `auth_url` is never fetched or opened automatically. It is `https:` only, shown on
+  Porwr's panel as text, and opened in a new tab only when the user clicks it (D13).
 - Show an image that a profile or relay names only through `RemoteImage`
   (`src/components/shared/RemoteImage.vue`), never an `<img>` or `<q-img>` that binds its own
   `src`. It holds the image back while "Load remote images" is off (T32), and

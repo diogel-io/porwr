@@ -16,6 +16,7 @@ const stubs = {
   'q-card-section': { template: '<div><slot /></div>' },
   'import-key-form': true,
   'generate-key-form': true,
+  'remote-signer-form': true,
   'dashboard-breadcrumbs': {
     props: ['items'],
     template: '<nav class="crumbs-stub" :data-items="JSON.stringify(items)" />',

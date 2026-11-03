@@ -3,11 +3,16 @@
  */
 
 import type { HandlerResult, UnsignedEvent, SignedEvent } from '../types/background';
-import { finalizeEvent } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils.js';
 import { isVaultUnlocked } from '../vault';
 import { checkPermission } from './permission-handler';
 import { resolveSigningAccount } from '../services/signing-account';
+import { signerFor } from '../services/account-signer';
+import {
+  Nip46BadResponseError,
+  Nip46RefusedError,
+  Nip46TimeoutError,
+} from '../services/nip46-client';
+import { RemoteAccountUnsupportedError } from '../services/account-key';
 import { messagingRelays, type Nip07RelayMap } from '../services/messaging-relays';
 import { logService } from '@/services/log-service';
 import { ErrorCode } from '@/types/error-codes.d';
@@ -16,6 +21,18 @@ const logWrapper = <TArgs extends unknown[], TResult>(
   fn: (...args: TArgs) => Promise<TResult>,
   name: string,
 ) => logService.wrapWithLogging(fn, 'Nip07Handler', name);
+
+/** The code for a failed signature, telling a remote signer's refusal or silence apart (#138). */
+const signingErrorCode = (error: unknown): ErrorCode =>
+  error instanceof Nip46TimeoutError
+    ? ErrorCode.SIG_REMOTE_TIMEOUT
+    : error instanceof Nip46RefusedError
+      ? ErrorCode.SIG_REMOTE_REFUSED
+      : error instanceof Nip46BadResponseError
+        ? ErrorCode.SIG_REMOTE_BAD_RESPONSE
+        : error instanceof RemoteAccountUnsupportedError
+          ? ErrorCode.SIG_REMOTE_UNSUPPORTED
+          : ErrorCode.SIG_FAILED;
 
 export const handleGetPublicKey = logWrapper(
   async (_payload: unknown, origin: string): Promise<HandlerResult<string>> => {
@@ -93,17 +110,15 @@ export const handleSignEvent = logWrapper(
     }
 
     try {
-      // Set the correct pubkey
+      // With the vault's key, or by the account's remote signer, which may refuse on its own and
+      // whose answer is checked against this event before it is returned (#138).
       payload.event.pubkey = account.id;
-
-      // Sign
-      const sk = hexToBytes(account.account.privkey);
-      const signed = finalizeEvent(payload.event, sk);
+      const signed = await signerFor(account, { origin }).signEvent(payload.event);
 
       return { success: true, data: signed };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to sign event';
-      return { success: false, error: message, code: ErrorCode.SIG_FAILED };
+      return { success: false, error: message, code: signingErrorCode(error) };
     }
   },
   'signEvent',

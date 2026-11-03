@@ -20,6 +20,11 @@ export enum ErrorCode {
   SIG_FAILED = 'SIG_FAILED',
   SIG_INVALID_EVENT = 'SIG_INVALID_EVENT',
   SIG_NO_ACTIVE_KEY = 'SIG_NO_ACTIVE_KEY',
+  // Remote signer (NIP-46) errors (#138)
+  SIG_REMOTE_TIMEOUT = 'SIG_REMOTE_TIMEOUT',
+  SIG_REMOTE_REFUSED = 'SIG_REMOTE_REFUSED',
+  SIG_REMOTE_BAD_RESPONSE = 'SIG_REMOTE_BAD_RESPONSE',
+  SIG_REMOTE_UNSUPPORTED = 'SIG_REMOTE_UNSUPPORTED',
 
   // Network errors (NET prefix)
   NET_OFFLINE = 'NET_OFFLINE',
@@ -91,6 +96,22 @@ export const ERROR_METADATA: Record<ErrorCode, Omit<ErrorMetadata, 'code'>> = {
   [ErrorCode.SIG_NO_ACTIVE_KEY]: {
     severity: ErrorSeverity.WARNING,
     userAction: 'Select or create an account first',
+  },
+  [ErrorCode.SIG_REMOTE_TIMEOUT]: {
+    severity: ErrorSeverity.WARNING,
+    userAction: 'The remote signer did not answer in time. Check it is running and try again',
+  },
+  [ErrorCode.SIG_REMOTE_REFUSED]: {
+    severity: ErrorSeverity.INFO,
+    userAction: 'The remote signer refused the request',
+  },
+  [ErrorCode.SIG_REMOTE_BAD_RESPONSE]: {
+    severity: ErrorSeverity.ERROR,
+    userAction: 'The remote signer sent an answer Porwr could not accept',
+  },
+  [ErrorCode.SIG_REMOTE_UNSUPPORTED]: {
+    severity: ErrorSeverity.WARNING,
+    userAction: 'This feature needs an account whose key is in Porwr',
   },
   [ErrorCode.NET_OFFLINE]: {
     severity: ErrorSeverity.WARNING,

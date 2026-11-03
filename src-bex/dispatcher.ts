@@ -49,6 +49,7 @@ import {
   handleSavedPeersRemove,
 } from './handlers/messaging';
 import { handleAccountSignEvent } from './handlers/account-signing';
+import { handleNip46AuthChallenges, handleNip46OpenAuthChallenge } from './handlers/nip46';
 import { handleContactsRefresh } from './handlers/contacts';
 import {
   handleAccountsAdd,
@@ -57,6 +58,7 @@ import {
   handleAccountsRevealSecret,
   handleAccountsExportEncrypted,
   handleAccountsImportEncrypted,
+  handleAccountsAddRemote,
   handleVaultGetView,
 } from './handlers/accounts';
 import {
@@ -695,6 +697,55 @@ export async function dispatchMessage<K extends BridgeAction>(
       try {
         const result = await handleNip47AuthorizationOpen(
           payload as BridgeRequestMap['nip47.authorization.open'],
+        );
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'accounts.addRemote': {
+      try {
+        const result = await handleAccountsAddRemote(
+          payload as BridgeRequestMap['accounts.addRemote'],
+        );
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'nip46.authChallenges': {
+      try {
+        const result = await handleNip46AuthChallenges();
+        if (result.success) {
+          return result.data as BridgeResponsePayload<K>;
+        }
+        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
+      } catch (error: unknown) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        } as unknown as BridgeResponsePayload<K>;
+      }
+    }
+
+    case 'nip46.openAuthChallenge': {
+      try {
+        const result = await handleNip46OpenAuthChallenge(
+          payload as BridgeRequestMap['nip46.openAuthChallenge'],
         );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;

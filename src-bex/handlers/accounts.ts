@@ -11,6 +11,7 @@ import type {
   AccountRequest,
   AccountSummary,
   AddAccountRequest,
+  AddRemoteAccountRequest,
   EncryptedKeyExport,
   ExportEncryptedRequest,
   ImportEncryptedRequest,
@@ -28,6 +29,11 @@ import { removeAccountWalletData } from '../services/nip47-connection-store';
 import { assignUnownedWalletData } from '../services/nip47-ownership';
 import { interruptRequestsForAccount } from '../services/request-queue';
 import { sweepSiteStateForRemovedAccounts } from '../services/connected-sites';
+import { accountPubkeyOf, isRemoteAccount, localSecretKeyOf } from '../services/account-key';
+import { allowedSignerRelays, Nip46BadResponseError, nip46Client } from '../services/nip46-client';
+import { addAuthChallenge } from '../services/nip46-auth-challenges';
+import { parseBunkerUri } from '@/services/nip46-uri';
+import type { RemoteSignerConnection } from '@/types';
 
 /**
  * Accounts, for Porwr's own pages (#240).
@@ -43,6 +49,15 @@ export const summarise = (account: StoredKey): AccountSummary => ({
   id: account.id,
   alias: account.alias,
   createdAt: account.createdAt,
+  ...(isRemoteAccount(account)
+    ? {
+        kind: 'remote' as const,
+        remoteSigner: {
+          pubkey: account.account.nip46.remoteSignerPubkey,
+          relays: [...account.account.nip46.relays],
+        },
+      }
+    : {}),
 });
 
 /** The vault as a page may see it: accounts by id, alias and creation date, and nothing secret. */
@@ -50,15 +65,12 @@ export const viewOf = (vault: VaultData): VaultView => ({
   accounts: (vault.accounts ?? []).map(summarise),
 });
 
-/** The account whose stored key produces `pubkey`, matched on the key itself rather than the stored id. */
+/**
+ * The account that acts as `pubkey`: a local account matched on the key itself rather than the
+ * stored id, or a remote-signer account on the key its signer reported (#138).
+ */
 const findByKey = (vault: VaultData, pubkey: string): StoredKey | undefined =>
-  (vault.accounts ?? []).find((account) => {
-    try {
-      return getPublicKey(hexToBytes(account.account.privkey)) === pubkey;
-    } catch {
-      return false;
-    }
-  });
+  (vault.accounts ?? []).find((account) => accountPubkeyOf(account) === pubkey);
 
 const checkAlias = (vault: VaultData, alias: unknown, ignore?: string): string => {
   const trimmed = typeof alias === 'string' ? alias.trim() : '';
@@ -103,6 +115,101 @@ export async function handleAccountsAdd(
         id: pubkey,
         alias,
         account: { privkey: bytesToHex(secretKey) },
+        createdAt: new Date().toISOString(),
+      };
+      return {
+        vault: { ...vault, accounts: [...(vault.accounts ?? []), account] },
+        result: summarise(account),
+      };
+    });
+    return { success: true, data: added };
+  } catch (error: unknown) {
+    return fail(error);
+  }
+}
+
+/** `switch_relays` is optional, so a signer that does not answer quickly keeps its URI's relays. */
+const SWITCH_RELAYS_TIMEOUT_MS = 5000;
+
+/**
+ * The relays the signer asks the client to use from now on, kept only when Porwr may connect to
+ * them (NIP-46 §switch_relays). Any failure, or a `null` answer, keeps the current relays.
+ */
+async function switchedRelays(connection: RemoteSignerConnection): Promise<string[]> {
+  try {
+    const result = await nip46Client.request(connection, 'switch_relays', [], {
+      timeoutMs: SWITCH_RELAYS_TIMEOUT_MS,
+    });
+    const relays = JSON.parse(result) as unknown;
+    if (!Array.isArray(relays) || !relays.every((relay) => typeof relay === 'string')) {
+      return connection.relays;
+    }
+    return allowedSignerRelays({ relays });
+  } catch {
+    return connection.relays;
+  }
+}
+
+/**
+ * Connect an account held by a NIP-46 remote signer (#138).
+ *
+ * The background makes the client key itself and keeps it in the vault, with the signer's key, its
+ * relays and the URI's secret; no private key for the account is stored. The user's public key is
+ * the one the signer reports after `connect`, never the key in the URI. Nothing is saved unless the
+ * signer accepts the connection and reports a valid key that is not already in the vault.
+ */
+export async function handleAccountsAddRemote(
+  payload: AddRemoteAccountRequest,
+): Promise<HandlerResult<AccountSummary>> {
+  try {
+    const parsed = parseBunkerUri(payload?.bunkerUri);
+    // Checked before anything is sent, so a taken alias costs no round trip to the signer.
+    checkAlias(await readVault(), payload?.alias);
+
+    let connection: RemoteSignerConnection = {
+      remoteSignerPubkey: parsed.remoteSignerPubkey,
+      relays: parsed.relays,
+      clientSecret: bytesToHex(generateSecretKey()),
+      ...(parsed.secret !== undefined ? { connectSecret: parsed.secret } : {}),
+    };
+
+    // A signer may ask the user to authorise the client first; the form and the panel show it.
+    const withdraw: Array<() => void> = [];
+    const onAuthUrl = (url: string): void => {
+      withdraw.push(addAuthChallenge({ origin: '', accountPubkey: '', url }));
+    };
+    let userPubkey: string;
+    try {
+      const ack = await nip46Client.request(
+        connection,
+        'connect',
+        parsed.secret !== undefined
+          ? [parsed.remoteSignerPubkey, parsed.secret]
+          : [parsed.remoteSignerPubkey],
+        { onAuthUrl },
+      );
+      if (ack !== 'ack' && !(parsed.secret !== undefined && ack === parsed.secret)) {
+        throw new Nip46BadResponseError('The remote signer did not accept the connection');
+      }
+      userPubkey = (await nip46Client.request(connection, 'get_public_key', [], { onAuthUrl }))
+        .trim()
+        .toLowerCase();
+    } finally {
+      for (const remove of withdraw) remove();
+    }
+    if (!HEX_64.test(userPubkey)) {
+      throw new Nip46BadResponseError('The remote signer did not report a valid public key');
+    }
+    connection = { ...connection, relays: await switchedRelays(connection) };
+
+    const added = await mutateVault((vault) => {
+      const alias = checkAlias(vault, payload?.alias);
+      if (findByKey(vault, userPubkey)) throw new Error('Key with the same npub already exists.');
+
+      const account: StoredKey = {
+        id: userPubkey,
+        alias,
+        account: { type: 'remote', nip46: connection },
         createdAt: new Date().toISOString(),
       };
       return {
@@ -211,7 +318,7 @@ export async function handleAccountsRevealSecret(
   try {
     const account = findByKey(await readVault(), pubkey);
     if (!account) return { success: false, error: 'Account not found' };
-    return { success: true, data: { nsec: nip19.nsecEncode(hexToBytes(account.account.privkey)) } };
+    return { success: true, data: { nsec: nip19.nsecEncode(localSecretKeyOf(account)) } };
   } catch (error: unknown) {
     return fail(error);
   }
@@ -253,7 +360,7 @@ export async function handleAccountsExportEncrypted(
     return {
       success: true,
       data: {
-        ncryptsec: nip49.encrypt(hexToBytes(account.account.privkey), payload.password),
+        ncryptsec: nip49.encrypt(localSecretKeyOf(account), payload.password),
         npub: nip19.npubEncode(account.id),
       },
     };

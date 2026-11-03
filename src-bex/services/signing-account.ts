@@ -11,13 +11,12 @@
  * fails, which looks like data loss rather than an identity mix-up.
  */
 
-import { hexToBytes } from '@noble/hashes/utils.js';
-
 import { NOSTR_ACTIVE, storageService } from '@/services/storage-service';
 import type { StoredKey } from '@/types';
 import { ErrorCode } from '@/types/error-codes.d';
 import { getVaultData, isVaultUnlocked } from '../vault';
 import { bindOriginIfUnbound, getBinding } from './site-binding-store';
+import { signerFor, type AccountSigner } from './account-signer';
 
 export type SigningAccountResult = { account: StoredKey } | { error: string; code: ErrorCode };
 
@@ -84,14 +83,15 @@ export async function bindSiteToAccount(
 }
 
 /**
- * The bound account's secret key, for the encryption handlers.
+ * A signer for the bound account, for the encryption handlers: its key in the vault, or its remote
+ * signer (#138).
  *
  * Throws rather than returning a result, because those handlers already turn a thrown error into
  * their failure shape and there is nothing useful to add on the way through.
  */
-export async function resolveSigningSecretKey(origin: string): Promise<Uint8Array> {
+export async function resolveSigningSigner(origin: string): Promise<AccountSigner> {
   const resolved = await resolveSigningAccount(origin);
   if ('error' in resolved) throw new Error(resolved.error);
 
-  return hexToBytes(resolved.account.account.privkey);
+  return signerFor(resolved.account, { origin });
 }

@@ -52,6 +52,7 @@ const current = ref<typeof REQUEST | null>(null);
 
 vi.mock('@/composables/useApprovalQueue', () => ({
   useApprovalQueue: () => ({
+    authChallenges: ref([]),
     pending: ref([]),
     current,
     content: ref(null),
