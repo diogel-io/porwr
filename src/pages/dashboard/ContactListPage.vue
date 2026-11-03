@@ -219,6 +219,16 @@ function onContactsFocusOut(event: FocusEvent) {
 }
 
 /**
+ * A click in a row outside its buttons focuses the list's content element, which would read as
+ * focus Quasar parked and pull focus back to the tracked row: a click lets the tracking go instead.
+ */
+function onContactsPointerDown(event: PointerEvent) {
+  if (!(event.target as Element | null)?.closest('.contacts-page__contact button')) {
+    stopTrackingContactsFocus();
+  }
+}
+
+/**
  * Tab from a row's last button, or Shift+Tab from its first, moves to the next or previous row,
  * counted from the row that should hold focus, so presses made faster than rows render still add
  * up. Leaving the list at either end, and moving between a row's own buttons, are left to the
@@ -230,6 +240,9 @@ function onContactsKeydown(event: KeyboardEvent) {
   const backwards = event.shiftKey;
 
   const active = event.target as HTMLElement;
+  // Rows removed or added above a focused button move it without a focusin: count from where it
+  // is now. While the list scrolls for an earlier press, the tracked row is ahead of focus.
+  if (!scrollingToRow) focusedRow = rowIndexOf(active) ?? focusedRow;
   const row = rowElement(focusedRow);
   if (row && row.contains(active)) {
     const buttons = rowButtons(row);
@@ -720,6 +733,7 @@ onMounted(async () => {
         scroll-target="body"
         separator
         data-testid="contacts-list"
+        @pointerdown="onContactsPointerDown"
         @focusin="onContactsFocusIn"
         @focusout="onContactsFocusOut"
         @keydown="onContactsKeydown"

@@ -251,6 +251,54 @@ test.describe('keyboard focus in a 10,000-contact list (#440)', () => {
     expect(await focused(page)).toBe(away);
   });
 
+  test('clicking a contact in the list leaves focus and the scroll where they are', async ({
+    openPage,
+    relays,
+  }) => {
+    const page = await openPage('/login');
+    await openLargeList(page, relays.plain);
+    // A mouse remove focuses the button, and then the contact moved into its place.
+    await page.locator('.contacts-page__contact[aria-posinset="5"] .contacts-page__remove').click();
+    await expect(page.getByText(`${COUNT - 1} contacts`, { exact: true })).toBeVisible();
+    // Scroll on, keeping that row rendered, and click another contact's name.
+    await page.mouse.wheel(0, 700);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
+    await page.waitForTimeout(500);
+    const scrolledTo = await page.evaluate(() => window.scrollY);
+    await page.getByText('Contact 12', { exact: true }).click();
+    await page.waitForTimeout(500);
+
+    expect(await focused(page)).not.toMatch(/^remove@/);
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrolledTo);
+  });
+
+  test('Tab counts from the focused row after rows above it change', async ({
+    openPage,
+    relays,
+  }) => {
+    const page = await openPage('/login');
+    await openLargeList(page, relays.plain);
+    await page.locator('.contacts-page__contact[aria-posinset="10"] .contacts-page__remove').focus();
+    // A remove that leaves focus where it is, as a click does in Firefox on macOS.
+    await page
+      .locator('.contacts-page__contact[aria-posinset="3"] .contacts-page__remove')
+      .evaluate((button: HTMLElement) => button.click());
+    await expect(page.getByText(`${COUNT - 1} contacts`, { exact: true })).toBeVisible();
+    const focusedContact = () =>
+      page.evaluate(() =>
+        document.activeElement
+          ?.closest('.contacts-page__contact')
+          ?.querySelector('.q-item__label')
+          ?.textContent?.trim(),
+      );
+    expect(await focusedContact()).toBe('Contact 10');
+
+    await page.keyboard.press('Tab');
+    expect(await focusedContact()).toBe('Contact 11');
+    await page.keyboard.press('Shift+Tab');
+    expect(await focusedContact()).toBe('Contact 10');
+  });
+
   test('Tab at typing speed, and leaving the list at either end, work as before', async ({
     openPage,
     relays,
