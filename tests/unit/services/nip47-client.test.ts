@@ -293,6 +293,7 @@ describe('wallet relays (diogel-io/workspace#142, T19)', () => {
 });
 
 describe('NIP-47 response authenticity (diogel-io/workspace#178, T33)', () => {
+  const FORGED_CONTENT = 'forged-response';
   let onEvent: ((event: RelayEvent) => void) | undefined;
 
   beforeEach(() => {
@@ -305,7 +306,10 @@ describe('NIP-47 response authenticity (diogel-io/workspace#178, T33)', () => {
       },
     );
     mockPoolInstance.publish.mockReturnValue([Promise.resolve('ok')]);
-    vi.mocked(nip04.decrypt).mockReturnValue(JSON.stringify({ result: { balance: 1000 } }));
+    // A forged event carries its own content and balance, so a result shows which event settled it.
+    vi.mocked(nip04.decrypt).mockImplementation((_secret, _pubkey, content: string) =>
+      JSON.stringify({ result: { balance: content === FORGED_CONTENT ? 999_000 : 1000 } }),
+    );
   });
 
   async function pendingBalance() {
@@ -316,8 +320,6 @@ describe('NIP-47 response authenticity (diogel-io/workspace#178, T33)', () => {
       .finally(() => {
         settled = true;
       });
-    // Let the publish settle so the client is waiting on the subscription alone.
-    await Promise.resolve();
     return { promise, isSettled: () => settled };
   }
 
@@ -348,8 +350,9 @@ describe('NIP-47 response authenticity (diogel-io/workspace#178, T33)', () => {
     async (_case, forged) => {
       const { promise, isSettled } = await pendingBalance();
 
-      onEvent?.(walletResponse(forged));
-      await Promise.resolve();
+      onEvent?.(walletResponse({ ...forged, content: FORGED_CONTENT }));
+      // A macrotask, so every promise the forged event could have settled has run.
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(nip04.decrypt).not.toHaveBeenCalled();
       expect(isSettled()).toBe(false);
@@ -367,7 +370,7 @@ describe('NIP-47 response authenticity (diogel-io/workspace#178, T33)', () => {
       const { promise } = await pendingBalance();
       const outcome = promise.catch((error: unknown) => error);
 
-      onEvent?.(walletResponse({ pubkey: 'relay-pubkey' }));
+      onEvent?.(walletResponse({ pubkey: 'relay-pubkey', content: FORGED_CONTENT }));
       await vi.advanceTimersByTimeAsync(15_000);
 
       expect(await outcome).toBeInstanceOf(Nip47ResponseTimeoutError);
