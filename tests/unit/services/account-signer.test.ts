@@ -141,6 +141,24 @@ describe('a remote-signer account', () => {
     expect(listAuthChallenges()).toEqual([]);
   });
 
+  it('keeps one auth_url per request, however many URLs the signer sends', async () => {
+    let seenDuringWait: unknown[] = [];
+    request.mockImplementation(
+      async (_connection, _method, _params, options: { onAuthUrl: (url: string) => void }) => {
+        for (let i = 0; i < 50; i += 1) options.onAuthUrl(`https://signer.example/auth/${i}`);
+        seenDuringWait = listAuthChallenges();
+        return 'answer';
+      },
+    );
+
+    await signerFor(remote, { origin: 'https://site.example' }).nip44Encrypt(peerPubkey, 'x');
+
+    expect(seenDuringWait).toEqual([
+      expect.objectContaining({ url: 'https://signer.example/auth/49' }),
+    ]);
+    expect(listAuthChallenges()).toEqual([]);
+  });
+
   it('withdraws an auth_url when the request fails too', async () => {
     request.mockImplementation(
       async (_connection, _method, _params, options: { onAuthUrl: (url: string) => void }) => {

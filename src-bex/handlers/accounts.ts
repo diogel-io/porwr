@@ -31,7 +31,7 @@ import { interruptRequestsForAccount } from '../services/request-queue';
 import { sweepSiteStateForRemovedAccounts } from '../services/connected-sites';
 import { accountPubkeyOf, isRemoteAccount, localSecretKeyOf } from '../services/account-key';
 import { allowedSignerRelays, nip46Client } from '../services/nip46-client';
-import { addAuthChallenge } from '../services/nip46-auth-challenges';
+import { authChallengeSlot } from '../services/nip46-auth-challenges';
 import { parseBunkerUri } from '@/services/nip46-uri';
 import type { RemoteSignerConnection } from '@/types';
 
@@ -181,10 +181,8 @@ export async function handleAccountsAddRemote(
     };
 
     // A signer may ask the user to authorise the client first; the form and the panel show it.
-    const withdraw: Array<() => void> = [];
-    const onAuthUrl = (url: string): void => {
-      withdraw.push(addAuthChallenge({ origin: '', accountPubkey: '', url }));
-    };
+    const challenge = authChallengeSlot({ origin: '', accountPubkey: '' });
+    const onAuthUrl = challenge.show;
     let userPubkey: string;
     try {
       const ack = await nip46Client.request(
@@ -202,7 +200,7 @@ export async function handleAccountsAddRemote(
         .trim()
         .toLowerCase();
     } finally {
-      for (const remove of withdraw) remove();
+      challenge.clear();
     }
     if (!HEX_64.test(userPubkey)) return { success: false, error: NO_VALID_USER_KEY };
     connection = { ...connection, relays: await switchedRelays(connection) };

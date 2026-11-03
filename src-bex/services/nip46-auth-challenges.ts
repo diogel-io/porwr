@@ -31,6 +31,29 @@ export function addAuthChallenge(challenge: Omit<Nip46AuthChallenge, 'id' | 'hos
   };
 }
 
+/**
+ * One challenge at a time for one operation. A signer that sends a new URL replaces its earlier
+ * one rather than adding to it, so however many URLs it sends during a request, the panel holds
+ * at most one banner for that request. `clear` withdraws whatever is shown.
+ */
+export function authChallengeSlot(context: Omit<Nip46AuthChallenge, 'id' | 'host' | 'url'>): {
+  show: (url: string) => void;
+  clear: () => void;
+} {
+  let withdraw: (() => void) | null = null;
+  const clear = (): void => {
+    withdraw?.();
+    withdraw = null;
+  };
+  return {
+    show: (url) => {
+      clear();
+      withdraw = addAuthChallenge({ ...context, url });
+    },
+    clear,
+  };
+}
+
 export function listAuthChallenges(): Nip46AuthChallenge[] {
   return [...challenges.values()];
 }

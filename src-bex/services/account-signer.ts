@@ -17,7 +17,7 @@ import { finalizeEvent, nip04, nip44, verifyEvent } from 'nostr-tools';
 import type { StoredKey } from '@/types';
 import type { SignedEvent, UnsignedEvent } from '../types/background';
 import { isRemoteAccount, localSecretKeyOf, type RemoteStoredKey } from './account-key';
-import { addAuthChallenge } from './nip46-auth-challenges';
+import { authChallengeSlot } from './nip46-auth-challenges';
 import { Nip46BadResponseError, nip46Client, type Nip46Method } from './nip46-client';
 import { MAX_PAGE_PAYLOAD_LENGTH } from './request-limits';
 
@@ -111,16 +111,13 @@ async function bounded(result: Promise<string>): Promise<string> {
 
 function remoteSigner(account: RemoteStoredKey, context: SignerContext): AccountSigner {
   const call = async (method: Nip46Method, params: string[]): Promise<string> => {
-    const withdraw: Array<() => void> = [];
+    const challenge = authChallengeSlot({ origin: context.origin, accountPubkey: account.id });
     try {
       return await nip46Client.request(account.account.nip46, method, params, {
-        onAuthUrl: (url) =>
-          withdraw.push(
-            addAuthChallenge({ origin: context.origin, accountPubkey: account.id, url }),
-          ),
+        onAuthUrl: challenge.show,
       });
     } finally {
-      for (const remove of withdraw) remove();
+      challenge.clear();
     }
   };
 
