@@ -29,6 +29,15 @@ const PUBLISH_MAX_WAIT_MS = 5000;
 /** How far back a response may be dated, for a signer whose clock runs a little behind. */
 const SINCE_SKEW_SECONDS = 10;
 
+/**
+ * The most relays a remote-signer connection may use. Every request goes to all of them, so a URI or
+ * a signer cannot make Porwr hold an unbounded number of connections. A longer list is refused,
+ * never cut short, since dropping relays could leave the signer unreachable.
+ */
+export const MAX_SIGNER_RELAYS = 16;
+
+export const TOO_MANY_SIGNER_RELAYS = `A remote signer may use at most ${MAX_SIGNER_RELAYS} relays`;
+
 /** The longest `auth_url` accepted, so a signer cannot fill the panel. */
 const MAX_AUTH_URL_LENGTH = 2048;
 
@@ -82,8 +91,8 @@ export interface Nip46RequestOptions {
 }
 
 /**
- * The connection's relays Porwr may connect to, each once. A connection with none makes no
- * request.
+ * The connection's relays Porwr may connect to, each once. A connection with none, or with more
+ * than `MAX_SIGNER_RELAYS`, makes no request.
  */
 export function allowedSignerRelays(connection: Pick<RemoteSignerConnection, 'relays'>): string[] {
   const relays = Array.from(
@@ -95,6 +104,7 @@ export function allowedSignerRelays(connection: Pick<RemoteSignerConnection, 're
     ),
   );
   if (relays.length === 0) throw new Nip46UnreachableError();
+  if (relays.length > MAX_SIGNER_RELAYS) throw new Error(TOO_MANY_SIGNER_RELAYS);
   return relays;
 }
 
@@ -135,6 +145,17 @@ export class Nip46Client {
   private activePool: SimplePool | null = null;
 
   private readonly pending = new Set<Pending>();
+
+  /**
+   * Advanced by every `close()`, which locking the vault calls. A caller that saves what a signer
+   * answered compares it before writing, so an answer that outlived a lock is never saved into the
+   * vault unlocked after it.
+   */
+  private locks = 0;
+
+  get lockGeneration(): number {
+    return this.locks;
+  }
 
   private get pool(): SimplePool {
     return (this.activePool ??= new SimplePool());
@@ -276,6 +297,7 @@ export class Nip46Client {
 
   /** Stop every request still waiting and close the relay connections. Locking the vault calls it. */
   close(): void {
+    this.locks += 1;
     for (const entry of [...this.pending]) {
       entry.reject(new Error('The vault was locked before the remote signer answered'));
     }

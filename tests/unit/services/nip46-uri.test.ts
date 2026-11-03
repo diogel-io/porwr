@@ -58,6 +58,13 @@ describe('parseBunkerUri (#138)', () => {
     ).toBe('ab+cd e');
   });
 
+  it('refuses more relays than Porwr allows, rather than dropping some', () => {
+    const relays = (n: number) =>
+      Array.from({ length: n }, (_, i) => `relay=wss://r${i}.example`).join('&');
+    expect(parseBunkerUri(`bunker://${SIGNER}?${relays(16)}`).relays).toHaveLength(16);
+    expect(() => parseBunkerUri(`bunker://${SIGNER}?${relays(17)}`)).toThrow('at most 16');
+  });
+
   it('refuses an empty or oversized secret', () => {
     expect(() => parseBunkerUri(`bunker://${SIGNER}?relay=wss://r.example&secret=`)).toThrow(
       'secret',

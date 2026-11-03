@@ -130,6 +130,8 @@ export async function handleAccountsAdd(
 
 const CONNECTION_NOT_ACCEPTED = 'The remote signer did not accept the connection';
 const NO_VALID_USER_KEY = 'The remote signer did not report a valid public key';
+const LOCKED_WHILE_CONNECTING =
+  'The vault was locked while the remote signer was being connected. Nothing was saved.';
 
 /** `switch_relays` is optional, so a signer that does not answer quickly keeps its URI's relays. */
 const SWITCH_RELAYS_TIMEOUT_MS = 5000;
@@ -169,6 +171,8 @@ export async function handleAccountsAddRemote(
     // Checked before anything is sent, so a taken alias costs no round trip to the signer.
     checkAlias(await readVault(), payload?.alias);
 
+    // A lock while the signer is being asked must stop the save, as it does for a wallet (#85).
+    const locksBefore = nip46Client.lockGeneration;
     let connection: RemoteSignerConnection = {
       remoteSignerPubkey: parsed.remoteSignerPubkey,
       relays: parsed.relays,
@@ -204,6 +208,8 @@ export async function handleAccountsAddRemote(
     connection = { ...connection, relays: await switchedRelays(connection) };
 
     const added = await mutateVault((vault) => {
+      // Checked inside the mutation, so the check and the write go together.
+      if (nip46Client.lockGeneration !== locksBefore) throw new Error(LOCKED_WHILE_CONNECTING);
       const alias = checkAlias(vault, payload?.alias);
       if (findByKey(vault, userPubkey)) throw new Error('Key with the same npub already exists.');
 

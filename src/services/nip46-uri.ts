@@ -1,5 +1,8 @@
 import { normalizeRelayUrl } from '@/services/relay-url';
 
+/** Kept in step with `MAX_SIGNER_RELAYS` in `src-bex/services/nip46-client.ts`. */
+export const MAX_BUNKER_URI_RELAYS = 16;
+
 /**
  * Parsing a NIP-46 `bunker://` URI (diogel-io/workspace#138).
  *
@@ -59,6 +62,9 @@ export function parseBunkerUri(input: string): ParsedBunkerUri {
     ),
   );
   if (relays.length === 0) throw new Error(BUNKER_URI_NO_RELAYS);
+  if (relays.length > MAX_BUNKER_URI_RELAYS) {
+    throw new Error(`A bunker URI may name at most ${MAX_BUNKER_URI_RELAYS} relays`);
+  }
 
   const secret = params.get('secret') ?? undefined;
   if (secret !== undefined && (secret.length === 0 || secret.length > MAX_SECRET_LENGTH)) {

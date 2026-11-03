@@ -69,7 +69,8 @@ const RETRY_DELAYS_MS = [100, 400];
  * a repeat would fail as a duplicate after the first had already succeeded (#141). Opening a
  * wallet authorization opens a wallet window in the background: a repeat would open another, with
  * its own client secret, for the same request (workspace#85). Connecting a remote signer would
- * connect it again with a new client key (#138).
+ * connect it again with a new client key, and opening a signer's authorisation page would open a
+ * second tab (#138).
  */
 const NOT_REPEATED_AFTER_TIMEOUT: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
   'account.signEvent',
@@ -81,6 +82,7 @@ const NOT_REPEATED_AFTER_TIMEOUT: ReadonlySet<BridgeAction> = new Set<BridgeActi
   'messaging.send',
   'nip47.authorization.open',
   'nip47.payInvoice',
+  'nip46.openAuthChallenge',
   'nostr.requests.respond',
 ]);
 

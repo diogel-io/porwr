@@ -320,6 +320,14 @@ describe('allowedSignerRelays', () => {
       }),
     ).toEqual(['wss://a.example', 'wss://b.example']);
   });
+
+  it('refuses more relays than Porwr allows', async () => {
+    const { allowedSignerRelays, MAX_SIGNER_RELAYS } =
+      await import('@/../src-bex/services/nip46-client');
+    const relays = Array.from({ length: MAX_SIGNER_RELAYS + 1 }, (_, i) => `wss://r${i}.example`);
+    expect(() => allowedSignerRelays({ relays })).toThrow('at most');
+    expect(allowedSignerRelays({ relays: relays.slice(1) })).toHaveLength(MAX_SIGNER_RELAYS);
+  });
 });
 
 describe('acceptableAuthUrl', () => {
