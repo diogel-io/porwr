@@ -36,6 +36,8 @@ const looksLikeBunkerUri = computed(() => trimmedUri.value.toLowerCase().startsW
 /** While connecting, the background is asked about challenges once a second. */
 const CHALLENGE_POLL_MS = 1000;
 let poller: ReturnType<typeof setInterval> | undefined;
+/** Set once the user has left the form, so a late success does not take them back to the key. */
+let unmounted = false;
 
 const stopPolling = (): void => {
   if (poller !== undefined) clearInterval(poller);
@@ -55,8 +57,14 @@ const readChallenges = async (): Promise<void> => {
   }
 };
 
-function openChallenge(challenge: Nip46AuthChallengeView): void {
-  void sendBexMessage('nip46.openAuthChallenge', { challengeId: challenge.id });
+async function openChallenge(challenge: Nip46AuthChallengeView): Promise<void> {
+  const opened = await sendBexMessage('nip46.openAuthChallenge', {
+    challengeId: challenge.id,
+  }).then(
+    (result) => result === true,
+    () => false,
+  );
+  if (!opened) $q.notify({ type: 'negative', message: t('sidebar.remoteSignerAuth.openFailed') });
 }
 
 async function connect(): Promise<void> {
@@ -76,7 +84,7 @@ async function connect(): Promise<void> {
     });
     bunkerUri.value = '';
     $q.notify({ type: 'positive', message: String(t('keyManagement.remoteSigner.connected')) });
-    await router.push({ name: 'view-key', params: { alias: account.alias } });
+    if (!unmounted) await router.push({ name: 'view-key', params: { alias: account.alias } });
   } catch (error: unknown) {
     $q.notify({
       type: 'negative',
@@ -91,6 +99,7 @@ async function connect(): Promise<void> {
 }
 
 onBeforeUnmount(() => {
+  unmounted = true;
   stopPolling();
   bunkerUri.value = '';
 });

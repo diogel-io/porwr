@@ -892,6 +892,7 @@ export default {
       forConnect: 'An account is being connected.',
       open: 'Open {host}',
       hint: 'This opens in a new tab only when you click. Porwr loads nothing from it.',
+      openFailed: 'This authorisation request has ended, or could not be opened.',
     },
     unlock: {
       ariaLabel: 'Unlock your vault',

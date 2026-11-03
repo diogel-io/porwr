@@ -110,7 +110,7 @@ test to get a pass.
    `src/services/log-service.ts`, then call `dispatchMessage` (`src-bex/dispatcher.ts`).
 4. `dispatcher.ts` is the single switch-statement router from `BridgeAction` →
    handler in `src-bex/handlers/*` (vault, accounts, account-signing, active-key, nip04, nip07,
-   nip44, nip47, webln, messaging, contacts, blossom, relay-browser, permissions). It is shared by
+   nip44, nip46, nip47, webln, messaging, contacts, blossom, relay-browser, permissions). It is shared by
    the page handlers and the raw `chrome.runtime.onMessage` listener, which serves only Porwr's
    own pages.
 5. Vault state itself (encryption, lock/unlock, account storage) lives in

@@ -8,8 +8,9 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
-const { sendBexMessage } = vi.hoisted(() => ({ sendBexMessage: vi.fn() }));
+const { sendBexMessage, notify } = vi.hoisted(() => ({ sendBexMessage: vi.fn(), notify: vi.fn() }));
 vi.mock('@/services/bridge-client', () => ({ sendBexMessage }));
+vi.mock('quasar', () => ({ useQuasar: () => ({ notify }) }));
 
 import RemoteSignerAuthNotice from '@/components/sidebar/RemoteSignerAuthNotice.vue';
 
@@ -38,6 +39,7 @@ const mountNotice = (challenges = [challenge]) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sendBexMessage.mockResolvedValue(true);
 });
 
 /** A remote signer's `auth_url`, shown on the panel as text and opened only on a click (#138, D13). */
@@ -62,6 +64,23 @@ describe('the remote-signer authorisation notice', () => {
 
     expect(sendBexMessage).toHaveBeenCalledWith('nip46.openAuthChallenge', {
       challengeId: 'nip46-auth-1',
+    });
+    await vi.waitFor(() => expect(sendBexMessage).toHaveBeenCalled());
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('tells the user when the challenge has ended or could not be opened', async () => {
+    sendBexMessage.mockResolvedValueOnce({ success: false, error: 'ended' });
+    sendBexMessage.mockRejectedValueOnce(new Error('bridge down'));
+    const wrapper = mountNotice();
+
+    await wrapper.find('button').trigger('click');
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
+    await wrapper.find('button').trigger('click');
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(2));
+    expect(notify).toHaveBeenCalledWith({
+      type: 'negative',
+      message: 'sidebar.remoteSignerAuth.openFailed',
     });
   });
 

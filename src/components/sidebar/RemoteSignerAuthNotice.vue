@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
+import { useQuasar } from 'quasar';
 
 import { sendBexMessage } from '@/services/bridge-client';
 import type { Nip46AuthChallengeView } from '@/types/nip46';
@@ -17,9 +18,17 @@ defineOptions({ name: 'RemoteSignerAuthNotice' });
 defineProps<{ challenges: Nip46AuthChallengeView[] }>();
 
 const { t } = useI18n();
+const $q = useQuasar();
 
-function open(challenge: Nip46AuthChallengeView): void {
-  void sendBexMessage('nip46.openAuthChallenge', { challengeId: challenge.id });
+/** Opens the challenge, or says so when it has ended or the background could not open it. */
+async function open(challenge: Nip46AuthChallengeView): Promise<void> {
+  const opened = await sendBexMessage('nip46.openAuthChallenge', {
+    challengeId: challenge.id,
+  }).then(
+    (result) => result === true,
+    () => false,
+  );
+  if (!opened) $q.notify({ type: 'negative', message: t('sidebar.remoteSignerAuth.openFailed') });
 }
 </script>
 
