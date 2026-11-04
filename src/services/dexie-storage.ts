@@ -1,6 +1,7 @@
 import type {
   AccountSummary,
   AddAccountRequest,
+  AddRemoteAccountRequest,
   EncryptedKeyExport,
   ImportEncryptedRequest,
 } from '@/types/accounts';
@@ -112,6 +113,24 @@ export async function exportEncryptedKey(
   if (!response || typeof response !== 'object' || !('ncryptsec' in response)) {
     return fail(response, 'Failed to export the key');
   }
+  return response;
+}
+
+/**
+ * Connects an account held by a NIP-46 remote signer from its `bunker://` URI, and makes it active
+ * (#138). The background makes the client key and talks to the signer; no private key is involved.
+ */
+export async function connectRemoteSigner(
+  request: AddRemoteAccountRequest,
+): Promise<AccountSummary> {
+  if (!(await isVaultUnlocked())) {
+    throw new Error('Vault is locked. Cannot connect a remote signer.');
+  }
+  const response = await sendBexMessage('accounts.addRemote', request);
+  if (!response || typeof response !== 'object' || !('id' in response)) {
+    return fail(response, 'Failed to connect the remote signer');
+  }
+  await setActive(response.alias);
   return response;
 }
 

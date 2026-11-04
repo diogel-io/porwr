@@ -27,6 +27,8 @@ const alias = ref('');
 
 const requestedAlias = computed(() => String(route.params.alias ?? ''));
 const trimmedAlias = computed(() => alias.value.trim());
+/** Held by a NIP-46 remote signer, so there is no private key here to show or export (#138). */
+const isRemote = computed(() => storedKey.value?.kind === 'remote');
 
 /**
  * The trail back to the Keys list (#302).
@@ -110,7 +112,11 @@ async function saveAlias() {
 
     <section class="dashboard-hero">
       <h1 class="dashboard-hero-title">{{ t('keyManagement.viewTitle') }}</h1>
-      <p class="dashboard-hero-caption">{{ t('keyManagement.viewCaption') }}</p>
+      <p class="dashboard-hero-caption">
+        {{
+          isRemote ? t('keyManagement.remoteSigner.viewCaption') : t('keyManagement.viewCaption')
+        }}
+      </p>
     </section>
 
     <q-card v-if="storedKey" class="dashboard-card view-key-page__card">
@@ -151,10 +157,25 @@ async function saveAlias() {
       <q-separator inset />
 
       <q-card-section class="q-pa-lg">
-        <view-stored-key :stored-key="storedKey" />
+        <view-stored-key :stored-key="storedKey" :revealable="!isRemote" />
       </q-card-section>
 
-      <q-card-section class="row justify-end q-pa-lg q-pt-none">
+      <!-- A remote-signer account has no key here to show or export (#138). -->
+      <q-card-section v-if="isRemote" class="q-pa-lg q-pt-none" data-testid="remote-signer-details">
+        <p class="text-grey-7">{{ t('keyManagement.remoteSigner.noPrivateKey') }}</p>
+        <div class="text-caption text-grey-7">{{ t('keyManagement.remoteSigner.signerKey') }}</div>
+        <div class="view-key-page__mono q-mb-sm">{{ storedKey.remoteSigner?.pubkey }}</div>
+        <div class="text-caption text-grey-7">{{ t('keyManagement.remoteSigner.relays') }}</div>
+        <div
+          v-for="relay in storedKey.remoteSigner?.relays ?? []"
+          :key="relay"
+          class="view-key-page__mono"
+        >
+          {{ relay }}
+        </div>
+      </q-card-section>
+
+      <q-card-section v-else class="row justify-end q-pa-lg q-pt-none">
         <ExportButton :stored-key="storedKey" />
       </q-card-section>
     </q-card>
@@ -171,6 +192,11 @@ async function saveAlias() {
 <style scoped>
 .view-key-page {
   width: 100%;
+}
+
+.view-key-page__mono {
+  overflow-wrap: anywhere;
+  font-family: monospace;
 }
 
 .view-key-page__card {

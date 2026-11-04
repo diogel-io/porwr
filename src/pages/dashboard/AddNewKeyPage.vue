@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
 import GenerateKeyForm from '@/components/dashboard/key-management/GenerateKeyForm.vue';
+import RemoteSignerForm from '@/components/dashboard/key-management/RemoteSignerForm.vue';
 import DashboardBreadcrumbs from '@/components/dashboard/DashboardBreadcrumbs.vue';
 
 const { t } = useI18n();
@@ -23,6 +24,12 @@ const { t } = useI18n();
     <q-card class="dashboard-card add-new-key-page__card">
       <q-card-section>
         <generate-key-form />
+      </q-card-section>
+    </q-card>
+
+    <q-card class="dashboard-card add-new-key-page__card q-mt-lg">
+      <q-card-section>
+        <remote-signer-form />
       </q-card-section>
     </q-card>
   </q-page>

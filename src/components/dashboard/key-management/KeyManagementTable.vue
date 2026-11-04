@@ -19,6 +19,7 @@ interface KeyRow {
   canCopyNpub: boolean;
   createdAt: string | null;
   isActive: boolean;
+  isRemote: boolean;
 }
 
 const columns = computed(() => [
@@ -54,6 +55,7 @@ const rows = computed<KeyRow[]>(() =>
       canCopyNpub: npub.length > 0,
       createdAt: key.createdAt,
       isActive: false,
+      isRemote: key.kind === 'remote',
     };
   }),
 );
@@ -106,6 +108,20 @@ async function copyPublicKey(npub: string): Promise<void> {
     flat
     row-key="alias"
   >
+    <template v-slot:body-cell-alias="slotProps">
+      <q-td :props="slotProps">
+        {{ slotProps.row.alias }}
+        <q-badge
+          v-if="slotProps.row.isRemote"
+          class="q-ml-sm"
+          outline
+          color="primary"
+          :label="t('keyManagement.remoteSigner.badge')"
+          data-testid="remote-signer-badge"
+        />
+      </q-td>
+    </template>
+
     <template v-slot:body-cell-npub="slotProps">
       <q-td :props="slotProps" class="key-management-table__public-key-cell">
         <div class="key-management-table__public-key-content">

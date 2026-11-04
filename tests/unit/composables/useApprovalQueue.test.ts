@@ -427,4 +427,114 @@ describe('useApprovalQueue', () => {
       expect(sendBexMessage).not.toHaveBeenCalledWith('nostr.requests.list');
     });
   });
+
+  describe('remote-signer challenges (#138)', () => {
+    it('applies an older read when the newer one fails', async () => {
+      const challenge = {
+        id: 'nip46-auth-2',
+        origin: 'https://site.example',
+        accountPubkey: 'a'.repeat(64),
+        url: 'https://signer.example/auth',
+        host: 'signer.example',
+      };
+      const answers: Array<{ resolve: (value: unknown) => void; reject: (e: Error) => void }> = [];
+      sendBexMessage.mockImplementation((event: string) => {
+        if (event === 'nip46.authChallenges') {
+          return new Promise((resolve, reject) => answers.push({ resolve, reject }));
+        }
+        if (event === 'nostr.requests.list') return Promise.resolve([]);
+        return Promise.resolve(null);
+      });
+
+      const wrapper = mount(Consumer);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      portOptions.current?.onQueueChanged?.();
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+
+      // The newer read fails; the older one, still the freshest answer there is, is used.
+      answers[1]!.reject(new Error('background restarting'));
+      answers[0]!.resolve([challenge]);
+      await vi.waitFor(() =>
+        expect((wrapper.vm as unknown as { authChallenges: unknown[] }).authChallenges).toEqual([
+          challenge,
+        ]),
+      );
+      wrapper.unmount();
+    });
+
+    it('keeps the challenges shown when a read gets no answer', async () => {
+      const challenge = {
+        id: 'nip46-auth-3',
+        origin: 'https://site.example',
+        accountPubkey: 'a'.repeat(64),
+        url: 'https://signer.example/auth',
+        host: 'signer.example',
+      };
+      const answers: Array<(value: unknown) => void> = [];
+      sendBexMessage.mockImplementation((event: string) => {
+        if (event === 'nip46.authChallenges')
+          return new Promise((resolve) => answers.push(resolve));
+        if (event === 'nostr.requests.list') return Promise.resolve([]);
+        return Promise.resolve(null);
+      });
+
+      const wrapper = mount(Consumer);
+      const shown = () => (wrapper.vm as unknown as { authChallenges: unknown[] }).authChallenges;
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      answers[0]!([challenge]);
+      await vi.waitFor(() => expect(shown()).toEqual([challenge]));
+
+      portOptions.current?.onQueueChanged?.();
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      answers[1]!(undefined);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(shown()).toEqual([challenge]);
+
+      // An empty list is a real answer, and clears them.
+      portOptions.current?.onQueueChanged?.();
+      await vi.waitFor(() => expect(answers).toHaveLength(3));
+      answers[2]!([]);
+      await vi.waitFor(() => expect(shown()).toEqual([]));
+      wrapper.unmount();
+    });
+
+    it('applies only the latest read when reads finish out of order', async () => {
+      const challenge = {
+        id: 'nip46-auth-1',
+        origin: 'https://site.example',
+        accountPubkey: 'a'.repeat(64),
+        url: 'https://signer.example/auth',
+        host: 'signer.example',
+      };
+      const answers: Array<(value: unknown) => void> = [];
+      sendBexMessage.mockImplementation((event: string) => {
+        if (event === 'nip46.authChallenges')
+          return new Promise((resolve) => answers.push(resolve));
+        if (event === 'nostr.requests.list') return Promise.resolve([]);
+        return Promise.resolve(null);
+      });
+
+      const wrapper = mount(Consumer);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      portOptions.current?.onQueueChanged?.();
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+
+      // The newer read sees the challenge; the older, empty one finishes after it.
+      answers[1]!([challenge]);
+      await vi.waitFor(() =>
+        expect((wrapper.vm as unknown as { authChallenges: unknown[] }).authChallenges).toEqual([
+          challenge,
+        ]),
+      );
+      answers[0]!([]);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect((wrapper.vm as unknown as { authChallenges: unknown[] }).authChallenges).toEqual([
+        challenge,
+      ]);
+      wrapper.unmount();
+    });
+  });
 });

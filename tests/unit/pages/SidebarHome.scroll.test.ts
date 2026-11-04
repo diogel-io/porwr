@@ -36,6 +36,7 @@ vi.mock('@/composables/useActiveTab', () => ({ useActiveTab: () => ({ activeOrig
 
 vi.mock('@/composables/useApprovalQueue', () => ({
   useApprovalQueue: () => ({
+    authChallenges: ref([]),
     pending: ref([]),
     current,
     // The queue has been read; the panel is past its loading view (porwr#371).

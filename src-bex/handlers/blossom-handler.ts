@@ -1,5 +1,4 @@
 import { finalizeEvent, getPublicKey } from 'nostr-tools';
-import { hexToBytes } from '@noble/hashes/utils.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { storageService, NOSTR_ACTIVE, BLOSSOM_UPLOAD_STATUS } from '@/services/storage-service';
 import { describeError, LogLevel, logService } from '@/services/log-service';
@@ -11,6 +10,7 @@ import {
 import type { VaultData, StoredKey } from '@/types/bridge';
 import type { HandlerResult } from '../types/background';
 import { handleVaultGetData, handleVaultIsUnlocked } from './vault-handler';
+import { localSecretKeyOf } from '../services/account-key';
 
 /** How long an upload authorisation is valid for (BUD-11 `expiration`). */
 export const BLOSSOM_AUTH_TTL_SECONDS = 300;
@@ -59,7 +59,8 @@ export async function handleBlossomUpload(
       throw new Error('No active account found');
     }
 
-    const sk = hexToBytes(storedKey.account.privkey);
+    // A remote-signer account cannot sign the upload token here (#138).
+    const sk = localSecretKeyOf(storedKey);
     // The page chose the server for this account. If another became active since, the token would
     // be signed by an account the image is not for, so nothing is sent (porwr#417).
     if (accountPubkey && getPublicKey(sk) !== accountPubkey) {

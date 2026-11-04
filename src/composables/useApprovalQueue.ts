@@ -10,6 +10,7 @@ import type {
   ApprovalRequestRecord,
   DecisionResult,
 } from '@/../src-bex/types/background';
+import type { Nip46AuthChallengeView } from '@/types/nip46';
 
 /**
  * Panel-side view of the background request queue.
@@ -37,6 +38,8 @@ export interface UseApprovalQueueResult {
   content: Ref<ApprovalRequestContent | null>;
   pendingCount: Ref<number>;
   loading: Ref<boolean>;
+  /** Remote signers asking the user to authorise Porwr before they answer (#138). */
+  authChallenges: Ref<Nip46AuthChallengeView[]>;
   refresh: () => Promise<void>;
   decide: (id: string, approved: boolean, duration: ApprovalDuration) => Promise<DecisionResult>;
   dismiss: (id: string) => Promise<boolean>;
@@ -49,6 +52,7 @@ const EXPIRY_GRACE_MS = 250;
 const pending = ref<ApprovalRequestRecord[]>([]);
 const current = ref<ApprovalRequestRecord | null>(null);
 const content = ref<ApprovalRequestContent | null>(null);
+const authChallenges = ref<Nip46AuthChallengeView[]>([]);
 /**
  * True until this panel has read the queue successfully.
  *
@@ -95,8 +99,36 @@ const loadContent = async (id: string | undefined, generation: number): Promise<
   if (generation === panelGeneration) content.value = loaded;
 };
 
+/**
+ * A remote signer's authorisation challenges arrive after Porwr's own approval, and the background
+ * announces them with the same bare push as the queue. Read on their own, so a failed read here
+ * never holds the queue back.
+ */
+let challengeReads = 0;
+let appliedChallengeRead = 0;
+
+const refreshAuthChallenges = async (generation: number): Promise<void> => {
+  // Overlapping reads can finish out of order. A read is applied only when it is newer than the
+  // last one applied, so an older, empty answer cannot hide a challenge a newer read saw, and a
+  // newer read that failed does not stop an older one from refreshing a stale list.
+  const read = (challengeReads += 1);
+  try {
+    const challenges = await sendBexMessage('nip46.authChallenges');
+    // The background always answers with a list, so no answer is a failed read: the challenges
+    // shown stay up, as a signer may still be waiting on one.
+    if (!Array.isArray(challenges)) return;
+    if (generation === panelGeneration && read > appliedChallengeRead) {
+      appliedChallengeRead = read;
+      authChallenges.value = challenges;
+    }
+  } catch {
+    /* the next push reads again */
+  }
+};
+
 const refresh = async (): Promise<void> => {
   const generation = panelGeneration;
+  void refreshAuthChallenges(generation);
   try {
     const records = await sendBexMessage('nostr.requests.list');
     // The background always answers with a list, so no answer is a failed read, not an empty
@@ -175,6 +207,7 @@ export function resetApprovalQueue(): void {
   pending.value = [];
   current.value = null;
   content.value = null;
+  authChallenges.value = [];
   loading.value = true;
 }
 
@@ -214,6 +247,7 @@ export function useApprovalQueue(): UseApprovalQueueResult {
     pending.value = [];
     current.value = null;
     content.value = null;
+    authChallenges.value = [];
 
     // Closing the panel is never a decision: hand the request back to the queue (FR-6). This runs
     // only once the last consumer has gone, so navigating within the panel does not requeue. The
@@ -223,5 +257,16 @@ export function useApprovalQueue(): UseApprovalQueueResult {
     });
   });
 
-  return { pending, current, content, pendingCount, loading, refresh, decide, dismiss, present };
+  return {
+    pending,
+    current,
+    content,
+    pendingCount,
+    loading,
+    authChallenges,
+    refresh,
+    decide,
+    dismiss,
+    present,
+  };
 }

@@ -1,7 +1,13 @@
 import { acceptHMRUpdate, defineStore } from 'pinia';
 import { watch } from 'vue';
-import type { AccountSummary, AddAccountRequest, ImportEncryptedRequest } from '@/types/accounts';
+import type {
+  AccountSummary,
+  AddAccountRequest,
+  AddRemoteAccountRequest,
+  ImportEncryptedRequest,
+} from '@/types/accounts';
 import {
+  connectRemoteSigner,
   get,
   getActive,
   importEncryptedKey,
@@ -99,6 +105,13 @@ const useAccountStore = defineStore('account', {
     /** Imports a NIP-49 `ncryptsec`, decrypted in the background, and makes it active (#141). */
     async importEncryptedKey(request: ImportEncryptedRequest): Promise<AccountSummary> {
       const account = await importEncryptedKey(request);
+      this.storedKeys.add(account);
+      this.activeKey = account.alias;
+      return account;
+    },
+    /** Connects an account held by a NIP-46 remote signer and makes it active (#138). */
+    async connectRemoteSigner(request: AddRemoteAccountRequest): Promise<AccountSummary> {
+      const account = await connectRemoteSigner(request);
       this.storedKeys.add(account);
       this.activeKey = account.alias;
       return account;

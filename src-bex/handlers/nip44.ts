@@ -1,6 +1,5 @@
-import { nip44 } from 'nostr-tools';
 import type { HandlerResult } from '../types/background';
-import { resolveSigningSecretKey } from '../services/signing-account';
+import { resolveSigningSigner } from '../services/signing-account';
 import { INVALID_PUBKEY_MESSAGE, isHexPubkey } from '../services/pubkey';
 
 export async function handleNip44Encrypt(
@@ -10,9 +9,8 @@ export async function handleNip44Encrypt(
   if (!isHexPubkey(payload.pubkey)) return { success: false, error: INVALID_PUBKEY_MESSAGE };
 
   try {
-    const secretKey = await resolveSigningSecretKey(origin);
-    const conversationKey = nip44.getConversationKey(secretKey, payload.pubkey);
-    const ciphertext = nip44.encrypt(payload.plaintext, conversationKey);
+    const signer = await resolveSigningSigner(origin);
+    const ciphertext = await signer.nip44Encrypt(payload.pubkey, payload.plaintext);
 
     return { success: true, data: ciphertext };
   } catch (error: unknown) {
@@ -30,9 +28,8 @@ export async function handleNip44Decrypt(
   if (!isHexPubkey(payload.pubkey)) return { success: false, error: INVALID_PUBKEY_MESSAGE };
 
   try {
-    const secretKey = await resolveSigningSecretKey(origin);
-    const conversationKey = nip44.getConversationKey(secretKey, payload.pubkey);
-    const plaintext = nip44.decrypt(payload.ciphertext, conversationKey);
+    const signer = await resolveSigningSigner(origin);
+    const plaintext = await signer.nip44Decrypt(payload.pubkey, payload.ciphertext);
 
     return { success: true, data: plaintext };
   } catch (error: unknown) {

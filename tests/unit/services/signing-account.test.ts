@@ -22,8 +22,10 @@ import { clearSiteBindingCache, getBinding } from '@/../src-bex/services/site-bi
 import {
   bindSiteToAccount,
   resolveSigningAccount,
-  resolveSigningSecretKey,
+  resolveSigningSigner,
 } from '@/../src-bex/services/signing-account';
+import { hexToBytes } from '@noble/hashes/utils.js';
+import { getPublicKey, nip44 } from 'nostr-tools';
 import { ErrorCode } from '@/types/error-codes.d';
 
 const alice = { id: 'a'.repeat(64), alias: 'alice', account: { privkey: '11'.repeat(32) } };
@@ -104,23 +106,29 @@ describe('resolving the account that acts for a site', () => {
     });
   });
 
-  describe('the secret key for encryption', () => {
-    it('is the bound account key, never the active account key', async () => {
+  describe('the signer for encryption', () => {
+    it('is the bound account, never the active account', async () => {
       withAccounts([alice, bob], 'alice');
       await bindSiteToAccount(ORIGIN, alice.id);
 
       withAccounts([alice, bob], 'bob');
-      const key = await resolveSigningSecretKey(ORIGIN);
+      const signer = await resolveSigningSigner(ORIGIN);
+      const peer = '33'.repeat(32);
+      const ciphertext = await signer.nip44Encrypt(getPublicKey(hexToBytes(peer)), 'hello');
 
       // Encrypting under the wrong identity tells the recipient the wrong thing about who is
-      // talking to them, and decrypting under it simply fails.
-      expect(Buffer.from(key).toString('hex')).toBe(alice.account.privkey);
+      // talking to them, and decrypting under it simply fails. Only alice's key opens this.
+      const fromAlice = nip44.getConversationKey(
+        hexToBytes(peer),
+        getPublicKey(hexToBytes(alice.account.privkey)),
+      );
+      expect(nip44.decrypt(ciphertext, fromAlice)).toBe('hello');
     });
 
-    it('throws rather than returning a key it could not resolve', async () => {
+    it('throws rather than returning a signer it could not resolve', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(false);
 
-      await expect(resolveSigningSecretKey(ORIGIN)).rejects.toThrow('Vault is locked');
+      await expect(resolveSigningSigner(ORIGIN)).rejects.toThrow('Vault is locked');
     });
   });
 });

@@ -7,7 +7,13 @@ import ViewKeyPage from '@/pages/dashboard/ViewKeyPage.vue';
 
 const state = vi.hoisted(() => ({
   alias: 'alpha',
-  storedKeys: [] as Array<{ id: string; alias: string; createdAt: string }>,
+  storedKeys: [] as Array<{
+    id: string;
+    alias: string;
+    createdAt: string;
+    kind?: 'remote';
+    remoteSigner?: { pubkey: string; relays: string[] };
+  }>,
   replace: vi.fn(),
   notify: vi.fn(),
   renameKeyAlias: vi.fn(),
@@ -56,8 +62,11 @@ const mountPage = async () => {
           template: '<button class="save-alias" @click="$emit(\'click\')">{{ label }}</button>',
         },
         'security-warning': true,
-        'view-stored-key': true,
-        ExportButton: true,
+        'view-stored-key': {
+          props: ['revealable'],
+          template: '<div class="stored-key-stub" :data-revealable="String(revealable)" />',
+        },
+        ExportButton: { template: '<div class="export-stub" />' },
         'dashboard-breadcrumbs': {
           props: ['items'],
           template: '<nav class="crumbs-stub" :data-items="JSON.stringify(items)" />',
@@ -117,5 +126,35 @@ describe('ViewKeyPage.vue breadcrumb', () => {
     state.alias = 'missing';
 
     expect(crumbs(await mountPage())[1]).toEqual({ label: 'keyManagement.viewTitle' });
+  });
+});
+
+describe('ViewKeyPage.vue for a remote-signer account (#138)', () => {
+  it('offers to reveal and export a local key', async () => {
+    const wrapper = await mountPage();
+
+    expect(wrapper.get('.stored-key-stub').attributes('data-revealable')).toBe('true');
+    expect(wrapper.find('.export-stub').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="remote-signer-details"]').exists()).toBe(false);
+  });
+
+  it('offers neither for a remote-signer account, and shows the signer instead', async () => {
+    state.storedKeys = [
+      {
+        id: 'a'.repeat(64),
+        alias: 'alpha',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        kind: 'remote',
+        remoteSigner: { pubkey: 'b'.repeat(64), relays: ['wss://relay.example.com'] },
+      },
+    ];
+
+    const wrapper = await mountPage();
+
+    expect(wrapper.get('.stored-key-stub').attributes('data-revealable')).toBe('false');
+    expect(wrapper.find('.export-stub').exists()).toBe(false);
+    const details = wrapper.get('[data-testid="remote-signer-details"]');
+    expect(details.text()).toContain('b'.repeat(64));
+    expect(details.text()).toContain('wss://relay.example.com');
   });
 });
