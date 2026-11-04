@@ -1,7 +1,12 @@
 import { normalizeRelayUrl } from '@/services/relay-url';
 
-/** Kept in step with `MAX_SIGNER_RELAYS` in `src-bex/services/nip46-client.ts`. */
-export const MAX_BUNKER_URI_RELAYS = 16;
+/**
+ * The most relays a remote-signer connection may use. Every request goes to all of them, so a URI or
+ * a signer cannot make Porwr hold an unbounded number of connections. A longer list is refused,
+ * never cut short, since dropping relays could leave the signer unreachable. The NIP-46 client
+ * applies the same limit to `switch_relays`.
+ */
+export const MAX_SIGNER_RELAYS = 16;
 
 /**
  * Parsing a NIP-46 `bunker://` URI (diogel-io/workspace#138).
@@ -62,8 +67,8 @@ export function parseBunkerUri(input: string): ParsedBunkerUri {
     ),
   );
   if (relays.length === 0) throw new Error(BUNKER_URI_NO_RELAYS);
-  if (relays.length > MAX_BUNKER_URI_RELAYS) {
-    throw new Error(`A bunker URI may name at most ${MAX_BUNKER_URI_RELAYS} relays`);
+  if (relays.length > MAX_SIGNER_RELAYS) {
+    throw new Error(`A bunker URI may name at most ${MAX_SIGNER_RELAYS} relays`);
   }
 
   const secret = params.get('secret') ?? undefined;

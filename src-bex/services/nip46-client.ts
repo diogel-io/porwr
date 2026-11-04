@@ -3,6 +3,7 @@ import { finalizeEvent, getPublicKey, nip44, SimplePool, verifyEvent } from 'nos
 import type { Event } from 'nostr-tools';
 
 import { LogLevel, logService } from '@/services/log-service';
+import { MAX_SIGNER_RELAYS } from '@/services/nip46-uri';
 import { normalizeRelayUrl } from '@/services/relay-url';
 import type { RemoteSignerConnection } from '@/types';
 
@@ -29,12 +30,7 @@ const PUBLISH_MAX_WAIT_MS = 5000;
 /** How far back a response may be dated, for a signer whose clock runs a little behind. */
 const SINCE_SKEW_SECONDS = 10;
 
-/**
- * The most relays a remote-signer connection may use. Every request goes to all of them, so a URI or
- * a signer cannot make Porwr hold an unbounded number of connections. A longer list is refused,
- * never cut short, since dropping relays could leave the signer unreachable.
- */
-export const MAX_SIGNER_RELAYS = 16;
+export { MAX_SIGNER_RELAYS };
 
 export const TOO_MANY_SIGNER_RELAYS = `A remote signer may use at most ${MAX_SIGNER_RELAYS} relays`;
 
