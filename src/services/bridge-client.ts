@@ -46,9 +46,11 @@ const WALLET_CALLS: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
 
 /**
  * Connecting a remote signer (#138) waits on it twice, for `connect` and `get_public_key`, up to
- * 60 s each, then up to 5 s for `switch_relays`. A phone signer may ask its user in between.
+ * 60 s each, then up to 5 s for `switch_relays`. A phone signer may ask its user in between. The
+ * rest is for saving the account to the vault, which may queue behind other vault writes, so a
+ * slow but successful connection is not reported here as a failure.
  */
-const REMOTE_SIGNER_CALL_TIMEOUT_MS = 130_000;
+const REMOTE_SIGNER_CALL_TIMEOUT_MS = 155_000;
 const REMOTE_SIGNER_CALLS: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
   'accounts.addRemote',
 ]);
