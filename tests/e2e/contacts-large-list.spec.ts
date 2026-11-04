@@ -278,7 +278,11 @@ test.describe('keyboard focus in a 10,000-contact list (#440)', () => {
   }) => {
     const page = await openPage('/login');
     await openLargeList(page, relays.plain);
-    await page.locator('.contacts-page__contact[aria-posinset="10"] .contacts-page__remove').focus();
+    // Without scrolling: a scroll makes Quasar re-render the rows, which can drop row 3 before it
+    // is clicked, and a detached button ignores the click (#448).
+    await page
+      .locator('.contacts-page__contact[aria-posinset="10"] .contacts-page__remove')
+      .evaluate((button: HTMLElement) => button.focus({ preventScroll: true }));
     // A remove that leaves focus where it is, as a click does in Firefox on macOS.
     await page
       .locator('.contacts-page__contact[aria-posinset="3"] .contacts-page__remove')
@@ -293,10 +297,12 @@ test.describe('keyboard focus in a 10,000-contact list (#440)', () => {
       );
     expect(await focusedContact()).toBe('Contact 10');
 
+    // Quasar takes focus for a moment while it re-renders rows after the removal, and the page
+    // gives it back (#448), so wait for focus to settle.
     await page.keyboard.press('Tab');
-    expect(await focusedContact()).toBe('Contact 11');
+    await expect.poll(focusedContact).toBe('Contact 11');
     await page.keyboard.press('Shift+Tab');
-    expect(await focusedContact()).toBe('Contact 10');
+    await expect.poll(focusedContact).toBe('Contact 10');
   });
 
   test('Tab at typing speed, and leaving the list at either end, work as before', async ({
