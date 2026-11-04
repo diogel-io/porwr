@@ -462,6 +462,43 @@ describe('useApprovalQueue', () => {
       wrapper.unmount();
     });
 
+    it('keeps the challenges shown when a read gets no answer', async () => {
+      const challenge = {
+        id: 'nip46-auth-3',
+        origin: 'https://site.example',
+        accountPubkey: 'a'.repeat(64),
+        url: 'https://signer.example/auth',
+        host: 'signer.example',
+      };
+      const answers: Array<(value: unknown) => void> = [];
+      sendBexMessage.mockImplementation((event: string) => {
+        if (event === 'nip46.authChallenges')
+          return new Promise((resolve) => answers.push(resolve));
+        if (event === 'nostr.requests.list') return Promise.resolve([]);
+        return Promise.resolve(null);
+      });
+
+      const wrapper = mount(Consumer);
+      const shown = () => (wrapper.vm as unknown as { authChallenges: unknown[] }).authChallenges;
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      answers[0]!([challenge]);
+      await vi.waitFor(() => expect(shown()).toEqual([challenge]));
+
+      portOptions.current?.onQueueChanged?.();
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      answers[1]!(undefined);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(shown()).toEqual([challenge]);
+
+      // An empty list is a real answer, and clears them.
+      portOptions.current?.onQueueChanged?.();
+      await vi.waitFor(() => expect(answers).toHaveLength(3));
+      answers[2]!([]);
+      await vi.waitFor(() => expect(shown()).toEqual([]));
+      wrapper.unmount();
+    });
+
     it('applies only the latest read when reads finish out of order', async () => {
       const challenge = {
         id: 'nip46-auth-1',

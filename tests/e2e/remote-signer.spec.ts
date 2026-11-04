@@ -104,6 +104,9 @@ test.describe('remote-signer accounts (#138)', () => {
       await keys.getByTestId('remote-signer-alias').fill('bunker');
       await keys.getByTestId('remote-signer-connect').click();
       await expect(keys.getByTestId('remote-signer-details')).toBeVisible({ timeout: 30_000 });
+      // There is no key here to show or export.
+      await expect(keys.getByRole('button', { name: /export/i })).toHaveCount(0);
+      await expect(keys.getByLabel(/show private key/i)).toHaveCount(0);
       expect(bunker.methods()).toEqual(expect.arrayContaining(['connect', 'get_public_key']));
 
       // No private key for the account is anywhere in what the background shows a page.

@@ -114,9 +114,12 @@ const refreshAuthChallenges = async (generation: number): Promise<void> => {
   const read = (challengeReads += 1);
   try {
     const challenges = await sendBexMessage('nip46.authChallenges');
+    // The background always answers with a list, so no answer is a failed read: the challenges
+    // shown stay up, as a signer may still be waiting on one.
+    if (!Array.isArray(challenges)) return;
     if (generation === panelGeneration && read > appliedChallengeRead) {
       appliedChallengeRead = read;
-      authChallenges.value = Array.isArray(challenges) ? challenges : [];
+      authChallenges.value = challenges;
     }
   } catch {
     /* the next push reads again */
