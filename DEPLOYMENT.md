@@ -98,11 +98,12 @@ Actions). The release workflow does not introduce any new secret names.
 - Finish the release's security review before approving, as the Diogel release process
   requires. Every release reviews what changed since the last tag against
   [the threat model](docs/threat-model.md), as the 0.1.0 and 0.3.0 reviews did. A minor release
-  (`0.Y.0`) also re-reads every control in the threat model's section 4 against the code at the
-  release commit, recording the line that enforces each one, what it covers and what it does not,
-  and the test that holds it, and moves the threat model's baseline to that commit. 0.4.0 is the
-  first minor release to do this; its review moves the baseline on from `8ad26d5`. The review is
-  recorded privately. A weakness it finds is reported and fixed as [SECURITY.md](SECURITY.md)
+  (`0.Y.0`) also re-reads every control in the threat model's section 4 against the release PR's
+  head commit, which is the code that ships, recording the line that enforces each one, what it
+  covers and what it does not, and the test that holds it. After the merge, a `docs:` PR moves the
+  threat model's baseline to the `v<version>` tag. 0.4.0 is the first minor release to do this;
+  it moves the baseline on from `8ad26d5`. The review is recorded privately, naming the head commit
+  it read. A weakness it finds is reported and fixed as [SECURITY.md](SECURITY.md)
   describes, and the release waits for the fix.
 
 ## Publishing
