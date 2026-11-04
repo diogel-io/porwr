@@ -269,12 +269,15 @@ export class Nip46Client {
       );
     });
 
+    // Locking the vault, or the timeout, can end `answer` while the publish is still pending, before
+    // it is awaited below. Mark it handled now, so that is never an unhandled rejection.
+    void answer.catch(() => undefined);
+
     try {
       await Promise.any(this.pool.publish(relays, event, { maxWait: PUBLISH_MAX_WAIT_MS }));
     } catch {
-      // No relay took the request: stop waiting for an answer to it, without an unhandled rejection.
+      // No relay took the request: stop waiting for an answer to it.
       cancel(new Nip46UnreachableError());
-      void answer.catch(() => undefined);
       logService.log(LogLevel.WARN, '[Nip46] Request could not be published', { method });
       throw new Nip46UnreachableError();
     }

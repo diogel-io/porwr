@@ -302,6 +302,21 @@ describe('Nip46Client.request', () => {
     expect(pool.subscriptions).toHaveLength(0);
   });
 
+  it('ends a request cleanly when the vault locks while it is still being published', async () => {
+    let published!: (relay: string) => void;
+    pool.publish.mockReturnValue([new Promise<string>((resolve) => (published = resolve))]);
+    const client = new Nip46Client();
+
+    const request = client.request(connection, 'sign_event', ['{}']);
+    await Promise.resolve();
+    // Ended before the publish settles: the test run fails on an unhandled rejection here.
+    client.close();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    published('ok');
+
+    await expect(request).rejects.toThrow('vault was locked');
+  });
+
   it('ends every waiting request when closed, as locking the vault does', async () => {
     pool.publish.mockReturnValue([Promise.resolve('ok')]);
     const client = new Nip46Client();
