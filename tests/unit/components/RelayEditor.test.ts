@@ -146,8 +146,10 @@ describe('RelayEditor.vue', () => {
     );
   });
 
-  it('still reads the list, ends the spinner and warns, when the settings cannot be read', async () => {
+  // The fallback relays are then the defaults, which may be ones the user chose not to use (#453).
+  it('reads and publishes to no fallback relay, and warns, when the settings cannot be read', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    poolPublish.mockReturnValue([Promise.resolve('ok')]);
     const pinia = createTestingPinia({ createSpy: vi.fn });
     const settingsStore = useSettingsStore(pinia);
     settingsStore.fallbackRelays = ['wss://fallback.example'];
@@ -158,11 +160,21 @@ describe('RelayEditor.vue', () => {
     });
     await vi.waitFor(() => expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true));
 
-    expect(poolGet).toHaveBeenCalled();
+    expect(poolGet).not.toHaveBeenCalled();
     expect(wrapper.find('q-spinner-stub').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true);
-    // The fallback relays read from may not be the user's, so an empty list is not the account's.
     expect(wrapper.text()).toContain('relays.loadError');
+
+    await wrapper.find('[data-testid="q-input"] input').setValue('wss://write.example');
+    await wrapper.find('[data-testid="q-checkbox"]').setValue(true);
+    await wrapper.find('button.diogel-btn-primary').trigger('click');
+    const save = wrapper
+      .findAll('button[data-testid="q-btn"]')
+      .filter((b) => !b.attributes('data-icon'));
+    await save[save.length - 1]!.trigger('click');
+    await vi.waitFor(() => expect(poolPublish).toHaveBeenCalled());
+    for (const [targets] of poolPublish.mock.calls) {
+      expect(targets).toEqual(['wss://write.example']);
+    }
   });
 
   it('warns that the list shown may not be current when reading it fails', async () => {
