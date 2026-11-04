@@ -22,7 +22,11 @@ const $t = useI18n().t;
 const settingsStore = useSettingsStore();
 
 const relays = ref<NostrRelay[]>([]);
-const loading = ref(false);
+/**
+ * Until the account's list has been read, the editor is not shown: text typed into it would be lost
+ * when the read starts, and Save would publish an empty list over the account's (#453).
+ */
+const loading = ref(true);
 const saving = ref(false);
 
 const fallbackRelays = computed(() => settingsStore.fallbackRelays);
@@ -35,10 +39,19 @@ const showRelayBrowser = ref(false);
  * and saving would replace whatever is published (#142).
  */
 const loadFailed = ref(false);
+/**
+ * The settings could not be read, so the fallback relays are the defaults, which may be ones the user
+ * chose not to use: they are neither read from nor published to (#453).
+ */
+let settingsUnread = false;
 
 async function fetchRelayList() {
   relays.value = [];
-  loadFailed.value = false;
+  loadFailed.value = settingsUnread;
+  if (settingsUnread) {
+    loading.value = false;
+    return;
+  }
   // `pool.get` over no relays never settles. With no usable fallback relay (#142) there is nothing
   // to read: the editor stays usable, but says the list shown may not be the account's.
   if (fallbackRelays.value.length === 0) {
@@ -122,7 +135,7 @@ function publishTargets(): string[] {
     .filter((relay) => relay.write)
     .map((relay) => normalizeRelayUrl(relay.url))
     .flatMap((result) => (result.valid && result.url ? [result.url] : []));
-  return [...new Set([...fallbackRelays.value, ...writeRelays])];
+  return [...new Set([...(settingsUnread ? [] : fallbackRelays.value), ...writeRelays])];
 }
 
 async function saveRelayList() {
@@ -167,7 +180,14 @@ async function saveRelayList() {
 }
 
 onMounted(async () => {
-  await settingsStore.getSettings();
+  // The spinner the editor starts with ends even when the settings cannot be read, and the editor
+  // then says the list shown may not be the account's.
+  try {
+    await settingsStore.getSettings();
+  } catch (error) {
+    settingsUnread = true;
+    console.error('Error loading settings:', error);
+  }
   void fetchRelayList();
 });
 
