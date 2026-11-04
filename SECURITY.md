@@ -174,7 +174,8 @@ A change to any of these needs the security review:
 
 - [ ] [docs/threat-model.md](docs/threat-model.md) is updated in the same pull request when the
       change adds or changes an asset, a trust boundary, or a control. An open, exploitable
-      weakness appears there only as a one-line summary with its tracking reference.
+      weakness does not appear there until its fix has shipped; until then it is reported
+      privately, as above.
 
 ### Recording the review
 
