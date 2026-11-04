@@ -290,7 +290,7 @@ exception history is capped and can be cleared. The background duration-limit te
 
 ### Open
 
-Open findings are tracked privately until they are fixed; see [SECURITY.md](../SECURITY.md). They
+Open findings are tracked privately until their fix has shipped; see [SECURITY.md](../SECURITY.md). They
 appear here once their fix has shipped.
 
 ## 7. Accepted risks

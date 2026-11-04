@@ -264,7 +264,9 @@ it on the tracking issue so the decision is revisited first.
 A change that adds an asset, a trust boundary, or a control, or changes one the threat model lists,
 updates `docs/threat-model.md` in the same pull request. The model is public: never describe an
 open, exploitable weakness there, or anywhere public, until its fix has shipped. Report it
-privately as [SECURITY.md](SECURITY.md) describes, as the model's disclosure rule says.
+privately as [SECURITY.md](SECURITY.md) describes, as the model's disclosure rule says. A fix
+updates the control's row to describe the control as it now works, without describing the
+weakness it removes; the weakness itself is added once the fix has shipped.
 
 A change to any path listed under "Sensitive paths" in [SECURITY.md](SECURITY.md) must pass its
 security review checklist before it merges. Work through the checklist, record it in the pull
