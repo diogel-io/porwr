@@ -22,7 +22,11 @@ const $t = useI18n().t;
 const settingsStore = useSettingsStore();
 
 const relays = ref<NostrRelay[]>([]);
-const loading = ref(false);
+/**
+ * Until the account's list has been read, the editor is not shown: text typed into it would be lost
+ * when the read starts, and Save would publish an empty list over the account's (#453).
+ */
+const loading = ref(true);
 const saving = ref(false);
 
 const fallbackRelays = computed(() => settingsStore.fallbackRelays);
@@ -167,7 +171,12 @@ async function saveRelayList() {
 }
 
 onMounted(async () => {
-  await settingsStore.getSettings();
+  // The list is read even when the settings are not, so the spinner the editor starts with ends.
+  try {
+    await settingsStore.getSettings();
+  } catch (error) {
+    console.error('Error loading settings:', error);
+  }
   void fetchRelayList();
 });
 

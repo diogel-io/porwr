@@ -4,6 +4,7 @@ import { createTestingPinia } from '@pinia/testing';
 import RelayEditor from '@/components/dashboard/RelayEditor.vue';
 import RelayBrowserModal from '@/components/dashboard/RelayBrowserModal.vue';
 import useSettingsStore from '@/stores/settings-store';
+import { signAsAccount } from '@/services/account-signing-client';
 
 // Mock chrome API
 const chromeMock = {
@@ -94,6 +95,72 @@ describe('RelayEditor.vue', () => {
     expect(wrapper.find('button[data-icon="explore"]').exists()).toBe(true);
     // An empty list here is not the account's: the editor says so before anything is saved.
     expect(wrapper.text()).toContain('relays.loadError');
+  });
+
+  // Until the account's list is read, nothing typed would survive and Save would publish an empty
+  // list over the account's (#453).
+  it('shows a spinner, and no editor, while the list is being read', async () => {
+    poolGet.mockReturnValue(new Promise(() => undefined));
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: {
+        plugins: [createTestingPinia({ createSpy: vi.fn, stubActions: false })],
+        stubs: globalStubs,
+      },
+    });
+
+    expect(wrapper.find('q-spinner-stub').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(poolGet).toHaveBeenCalled();
+    expect(wrapper.find('q-spinner-stub').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(false);
+    expect(wrapper.find('button.diogel-btn-primary').exists()).toBe(false);
+  });
+
+  it('shows the editor once the read finds no list, and saves only what is added', async () => {
+    poolPublish.mockReturnValue([Promise.resolve('ok')]);
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: {
+        plugins: [createTestingPinia({ createSpy: vi.fn, stubActions: false })],
+        stubs: globalStubs,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(wrapper.find('q-spinner-stub').exists()).toBe(false);
+    expect(wrapper.findAll('[data-testid="q-item"]')).toHaveLength(0);
+    await wrapper.find('[data-testid="q-input"] input').setValue('wss://added.example');
+    await wrapper.find('button.diogel-btn-primary').trigger('click');
+    const save = wrapper
+      .findAll('button[data-testid="q-btn"]')
+      .filter((b) => !b.attributes('data-icon'));
+    await save[save.length - 1]!.trigger('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(vi.mocked(signAsAccount)).toHaveBeenCalledWith(
+      'pubkey',
+      expect.objectContaining({ kind: 10002, tags: [['r', 'wss://added.example', 'read']] }),
+    );
+  });
+
+  it('still reads the list, and the spinner ends, when the settings cannot be read', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const pinia = createTestingPinia({ createSpy: vi.fn });
+    const settingsStore = useSettingsStore(pinia);
+    settingsStore.fallbackRelays = ['wss://fallback.example'];
+    vi.spyOn(settingsStore, 'getSettings').mockRejectedValue(new Error('storage unavailable'));
+    const wrapper = mount(RelayEditor, {
+      props,
+      global: { plugins: [pinia], stubs: globalStubs },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(poolGet).toHaveBeenCalled();
+    expect(wrapper.find('q-spinner-stub').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true);
   });
 
   it('warns that the list shown may not be current when reading it fails', async () => {
@@ -218,7 +285,7 @@ describe('RelayEditor.vue', () => {
     }
   });
 
-  it('renders Browse button', () => {
+  it('renders Browse button', async () => {
     const wrapper = mount(RelayEditor, {
       props,
       global: {
@@ -226,6 +293,7 @@ describe('RelayEditor.vue', () => {
         stubs: globalStubs,
       },
     });
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const browseBtn = wrapper.find('button[data-icon="explore"]');
     expect(browseBtn.exists()).toBe(true);
@@ -239,6 +307,7 @@ describe('RelayEditor.vue', () => {
         stubs: globalStubs,
       },
     });
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(wrapper.find('.mock-modal').exists()).toBe(false);
 
@@ -258,8 +327,7 @@ describe('RelayEditor.vue', () => {
     });
 
     // Wait for loading to finish
-    await wrapper.vm.$nextTick();
-    await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Open modal
     const browseBtn = wrapper.find('button[data-icon="explore"]');
@@ -297,8 +365,7 @@ describe('RelayEditor.vue', () => {
     });
 
     // Wait for initial fetch to finish
-    await wrapper.vm.$nextTick();
-    await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const urlInput = wrapper.find('[data-testid="q-input"] input');
     await urlInput.setValue('wss://manual-relay.com');
