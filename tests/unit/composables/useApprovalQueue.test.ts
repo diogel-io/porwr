@@ -429,6 +429,39 @@ describe('useApprovalQueue', () => {
   });
 
   describe('remote-signer challenges (#138)', () => {
+    it('applies an older read when the newer one fails', async () => {
+      const challenge = {
+        id: 'nip46-auth-2',
+        origin: 'https://site.example',
+        accountPubkey: 'a'.repeat(64),
+        url: 'https://signer.example/auth',
+        host: 'signer.example',
+      };
+      const answers: Array<{ resolve: (value: unknown) => void; reject: (e: Error) => void }> = [];
+      sendBexMessage.mockImplementation((event: string) => {
+        if (event === 'nip46.authChallenges') {
+          return new Promise((resolve, reject) => answers.push({ resolve, reject }));
+        }
+        if (event === 'nostr.requests.list') return Promise.resolve([]);
+        return Promise.resolve(null);
+      });
+
+      const wrapper = mount(Consumer);
+      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      portOptions.current?.onQueueChanged?.();
+      await vi.waitFor(() => expect(answers).toHaveLength(2));
+
+      // The newer read fails; the older one, still the freshest answer there is, is used.
+      answers[1]!.reject(new Error('background restarting'));
+      answers[0]!.resolve([challenge]);
+      await vi.waitFor(() =>
+        expect((wrapper.vm as unknown as { authChallenges: unknown[] }).authChallenges).toEqual([
+          challenge,
+        ]),
+      );
+      wrapper.unmount();
+    });
+
     it('applies only the latest read when reads finish out of order', async () => {
       const challenge = {
         id: 'nip46-auth-1',

@@ -105,14 +105,17 @@ const loadContent = async (id: string | undefined, generation: number): Promise<
  * never holds the queue back.
  */
 let challengeReads = 0;
+let appliedChallengeRead = 0;
 
 const refreshAuthChallenges = async (generation: number): Promise<void> => {
-  // Overlapping reads can finish out of order. Only the latest one is applied, so an older, empty
-  // answer cannot hide a challenge a newer read saw.
+  // Overlapping reads can finish out of order. A read is applied only when it is newer than the
+  // last one applied, so an older, empty answer cannot hide a challenge a newer read saw, and a
+  // newer read that failed does not stop an older one from refreshing a stale list.
   const read = (challengeReads += 1);
   try {
     const challenges = await sendBexMessage('nip46.authChallenges');
-    if (generation === panelGeneration && read === challengeReads) {
+    if (generation === panelGeneration && read > appliedChallengeRead) {
+      appliedChallengeRead = read;
       authChallenges.value = Array.isArray(challenges) ? challenges : [];
     }
   } catch {
