@@ -262,9 +262,9 @@ sidebar request lifecycle ADR. Do not change one in code. If a rule stops a chan
 it on the tracking issue so the decision is revisited first.
 
 A change that adds an asset, a trust boundary, or a control, or changes one the threat model lists,
-updates `docs/threat-model.md` in the same pull request. The model is public: describe an open,
-exploitable weakness there only as a one-line summary with its tracking reference, as its
-disclosure rule says.
+updates `docs/threat-model.md` in the same pull request. The model is public: never describe an
+open, exploitable weakness there, or anywhere public, until its fix has shipped. Report it
+privately as [SECURITY.md](SECURITY.md) describes, as the model's disclosure rule says.
 
 A change to any path listed under "Sensitive paths" in [SECURITY.md](SECURITY.md) must pass its
 security review checklist before it merges. Work through the checklist, record it in the pull
