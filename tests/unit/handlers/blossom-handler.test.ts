@@ -118,6 +118,43 @@ describe('BlossomHandler', () => {
     );
   });
 
+  it('refuses a remote-signer account, signing and sending nothing (#138)', async () => {
+    vi.mocked(handleVaultGetData).mockResolvedValue({
+      success: true,
+      data: {
+        vaultData: {
+          accounts: [
+            {
+              id: 'test-pubkey',
+              alias: 'test-alias',
+              createdAt: String(Date.now()),
+              account: {
+                type: 'remote',
+                nip46: {
+                  remoteSignerPubkey: 'cd'.repeat(32),
+                  relays: ['wss://relay.example.com'],
+                  clientSecret: '11'.repeat(32),
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const result = await handleBlossomUpload(payload);
+
+    expect(result.success).toBe(false);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(storageService.set).toHaveBeenLastCalledWith(
+      BLOSSOM_UPLOAD_STATUS,
+      expect.objectContaining({ uploading: false, error: 'failed' }),
+    );
+    // Neither the user's key nor the connection's client key signs an upload token.
+    expect(finalizeEvent).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('should return error when vault is locked', async () => {
     vi.mocked(handleVaultIsUnlocked).mockResolvedValue({ success: true, data: false });
 

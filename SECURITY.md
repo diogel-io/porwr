@@ -89,7 +89,8 @@ A change to any of these needs the security review:
   `page-origin-registry.ts`, `message-routing.ts`, `request-queue.ts`, `approval-flow.ts`,
   `signing-account.ts`, `site-account.ts`, `site-binding-store.ts`, `connected-sites.ts`,
   `auto-lock.ts`, `vault-mutation.ts`, `wallet-vault.ts`, `relay-auth.ts`, `nip17-messaging.ts`,
-  and the `nip47-*` stores
+  the `nip47-*` stores, and the NIP-46 remote-signer path: `nip46-client.ts`,
+  `nip46-auth-challenges.ts`, `account-signer.ts`, and `account-key.ts`
 - `src-bex/background.ts`, `src-bex/dispatcher.ts`, `src-bex/content-script.ts`,
   `src-bex/wallet-relay.ts`,
   `src-bex/page-port-client.ts`, `src-bex/window-message-handler.ts`,
@@ -102,6 +103,7 @@ A change to any of these needs the security review:
   `src/services/auto-lock-minutes.ts`, and the transport rules in `src/services/relay-url.ts`
   (which relays may be contacted) and `src/services/blossom-server.ts` (where uploads and their
   signed authorisation may go)
+- `src/services/nip46-uri.ts`, which decides which relays a `bunker://` URI may send requests to
 - `src/types/wallet-provider.ts`, which decides the addresses the wallet-connect popup may open and
   when plain `http:` is allowed (T35)
 - `src/components/sidebar/*` and `src/composables/useApprovalQueue.ts`, which present and decide

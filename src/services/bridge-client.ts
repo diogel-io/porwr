@@ -44,12 +44,25 @@ const WALLET_CALLS: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
   'nip47.authorization.probe',
 ]);
 
+/**
+ * Connecting a remote signer (#138) waits on it twice, for `connect` and `get_public_key`, up to
+ * 60 s each, then up to 5 s for `switch_relays`. A phone signer may ask its user in between. The
+ * rest is for saving the account to the vault, which may queue behind other vault writes, so a
+ * slow but successful connection is not reported here as a failure.
+ */
+const REMOTE_SIGNER_CALL_TIMEOUT_MS = 155_000;
+const REMOTE_SIGNER_CALLS: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
+  'accounts.addRemote',
+]);
+
 const timeoutFor = (type: BridgeAction): number =>
   SLOW_CALLS.has(type)
     ? SLOW_CALL_TIMEOUT_MS
     : WALLET_CALLS.has(type)
       ? WALLET_CALL_TIMEOUT_MS
-      : CALL_TIMEOUT_MS;
+      : REMOTE_SIGNER_CALLS.has(type)
+        ? REMOTE_SIGNER_CALL_TIMEOUT_MS
+        : CALL_TIMEOUT_MS;
 const RETRY_DELAYS_MS = [100, 400];
 
 /**
@@ -57,10 +70,13 @@ const RETRY_DELAYS_MS = [100, 400];
  * publishes a test gift wrap to every relay it checks. Importing an encrypted key adds an account:
  * a repeat would fail as a duplicate after the first had already succeeded (#141). Opening a
  * wallet authorization opens a wallet window in the background: a repeat would open another, with
- * its own client secret, for the same request (workspace#85).
+ * its own client secret, for the same request (workspace#85). Connecting a remote signer would
+ * connect it again with a new client key, and opening a signer's authorisation page would open a
+ * second tab (#138).
  */
 const NOT_REPEATED_AFTER_TIMEOUT: ReadonlySet<BridgeAction> = new Set<BridgeAction>([
   'account.signEvent',
+  'accounts.addRemote',
   'accounts.importEncrypted',
   'blossom.upload',
   'messaging.dmRelays.check',
@@ -68,6 +84,7 @@ const NOT_REPEATED_AFTER_TIMEOUT: ReadonlySet<BridgeAction> = new Set<BridgeActi
   'messaging.send',
   'nip47.authorization.open',
   'nip47.payInvoice',
+  'nip46.openAuthChallenge',
   'nostr.requests.respond',
 ]);
 

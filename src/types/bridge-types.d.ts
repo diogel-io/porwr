@@ -22,6 +22,7 @@ import type {
   SendMessageResult,
 } from './messaging';
 import type { AccountSignRequest } from './account-signing';
+import type { Nip46AuthChallengeView, Nip46OpenAuthChallengeRequest } from './nip46';
 import type { ContactRefreshRequest, ContactRefreshResult } from './contact-list';
 import type {
   AccountRequest,
@@ -30,6 +31,7 @@ import type {
   EncryptedKeyExport,
   ExportEncryptedRequest,
   ImportEncryptedRequest,
+  AddRemoteAccountRequest,
   RenameAccountRequest,
   RevealedSecret,
   RevealSecretRequest,
@@ -152,6 +154,9 @@ export type BridgeAction =
   | 'accounts.revealSecret'
   | 'accounts.exportEncrypted'
   | 'accounts.importEncrypted'
+  | 'accounts.addRemote'
+  | 'nip46.authChallenges'
+  | 'nip46.openAuthChallenge'
   | 'vault.setData'
   | 'vault.create'
   | 'vault.export'
@@ -324,6 +329,18 @@ export interface BridgeRequestMap {
     id: string;
     action: 'accounts.importEncrypted';
   } & ImportEncryptedRequest;
+  'accounts.addRemote': {
+    id: string;
+    action: 'accounts.addRemote';
+  } & AddRemoteAccountRequest;
+  'nip46.authChallenges': {
+    id: string;
+    action: 'nip46.authChallenges';
+  };
+  'nip46.openAuthChallenge': {
+    id: string;
+    action: 'nip46.openAuthChallenge';
+  } & Nip46OpenAuthChallengeRequest;
   'vault.setData': {
     id: string;
     action: 'vault.setData';
@@ -571,6 +588,9 @@ export interface BridgeResponseMap {
   'accounts.revealSecret': RevealedSecret | { success: false; error: string };
   'accounts.exportEncrypted': EncryptedKeyExport | { success: false; error: string };
   'accounts.importEncrypted': AccountSummary | { success: false; error: string };
+  'accounts.addRemote': AccountSummary | { success: false; error: string };
+  'nip46.authChallenges': Nip46AuthChallengeView[] | { success: false; error: string };
+  'nip46.openAuthChallenge': boolean | { success: false; error: string };
   'vault.setData': { success: boolean; error?: string };
   'vault.create': { success: boolean; encryptedVault?: string; error?: string };
   'vault.export': { success: boolean; encryptedData?: string; error?: string };

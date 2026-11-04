@@ -34,7 +34,9 @@ const globalStubs = {
   'q-table': {
     template: `<div class="q-table-stub">
       <div v-for="row in rows" :key="row.alias" class="row-item">
-        <span class="row-alias">{{ row.alias }}</span>
+        <slot name="body-cell-alias" :row="row" :props="{ row }">
+          <span class="row-alias">{{ row.alias }}</span>
+        </slot>
         <slot name="body-cell-npub" :row="row" :props="{ row }" />
         <slot name="body-cell-createdAt" :row="row" :props="{ row }" />
         <slot name="body-cell-action" :row="row" :props="{ row }" />
@@ -45,6 +47,10 @@ const globalStubs = {
   'q-td': {
     template: '<div class="q-td-stub"><slot /></div>',
     props: ['props'],
+  },
+  'q-badge': {
+    template: '<span class="q-badge-stub">{{ label }}</span>',
+    props: ['label'],
   },
   'q-btn': {
     template:
@@ -259,5 +265,25 @@ describe('KeyManagementTable.vue', () => {
     expect(viewButton.exists()).toBe(true);
     expect(viewButton.attributes('data-to-name')).toBe('view-key');
     expect(viewButton.attributes('data-to-alias')).toBe('alpha');
+  });
+
+  it('marks a remote-signer account with a badge, and only that one (#138)', () => {
+    const keys = [
+      { id: PUBKEY_A, alias: 'local', createdAt: '2026-01-01T00:00:00.000Z' },
+      { id: PUBKEY_B, alias: 'phone', createdAt: '2026-01-01T00:00:00.000Z', kind: 'remote' },
+    ] as unknown as StoredKey[];
+
+    const wrapper = mount(KeyManagementTable, {
+      props: { keys },
+      global: { stubs: globalStubs },
+    });
+
+    const [local, remote] = wrapper.findAll('.row-item');
+    expect(local!.text()).toContain('local');
+    expect(local!.find('[data-testid="remote-signer-badge"]').exists()).toBe(false);
+    expect(remote!.text()).toContain('phone');
+    expect(remote!.get('[data-testid="remote-signer-badge"]').text()).toBe(
+      'keyManagement.remoteSigner.badge',
+    );
   });
 });

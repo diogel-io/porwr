@@ -6,8 +6,19 @@
  * narrow `accounts.*` actions, which edit the decrypted vault inside the background.
  */
 
-/** An account as a page sees it: who it is, never its key. `id` is the hex public key. */
-export type AccountSummary = Readonly<{ id: string; alias: string; createdAt: string }>;
+/**
+ * An account as a page sees it: who it is, never its key. `id` is the hex public key. A
+ * remote-signer account (#138) also says which signer holds its key and where it is reached; its
+ * client secret and connect secret never leave the background.
+ */
+export type AccountSummary = Readonly<{
+  id: string;
+  alias: string;
+  createdAt: string;
+  /** Absent for an account whose key is in the vault. */
+  kind?: 'remote';
+  remoteSigner?: Readonly<{ pubkey: string; relays: readonly string[] }>;
+}>;
 
 /** The vault as a page sees it. */
 export interface VaultView {
@@ -21,6 +32,15 @@ export interface VaultView {
 export interface AddAccountRequest {
   alias: string;
   privkey?: string;
+}
+
+/**
+ * Connect an account held by a NIP-46 remote signer, from its `bunker://` URI (#138). The
+ * background generates the client key, connects, and asks the signer for the user's public key.
+ */
+export interface AddRemoteAccountRequest {
+  alias: string;
+  bunkerUri: string;
 }
 
 export interface RenameAccountRequest {

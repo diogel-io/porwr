@@ -107,6 +107,11 @@ vi.mock('@/../src-bex/handlers/accounts', () => ({
   handleAccountsRevealSecret: vi.fn(),
   handleAccountsExportEncrypted: vi.fn(),
   handleAccountsImportEncrypted: vi.fn(),
+  handleAccountsAddRemote: vi.fn(),
+}));
+vi.mock('@/../src-bex/handlers/nip46', () => ({
+  handleNip46AuthChallenges: vi.fn(),
+  handleNip46OpenAuthChallenge: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/webln', () => ({
   handleWebLnEnable: vi.fn(),
@@ -132,6 +137,7 @@ import * as webln from '@/../src-bex/handlers/webln';
 import * as messaging from '@/../src-bex/handlers/messaging';
 import * as accountSigning from '@/../src-bex/handlers/account-signing';
 import * as accounts from '@/../src-bex/handlers/accounts';
+import * as nip46 from '@/../src-bex/handlers/nip46';
 
 const ORIGIN = 'https://example.com';
 /** A real-shaped account: `sites.list` and `sites.revoke` refuse anything else (#309). */
@@ -442,6 +448,32 @@ const cases: Case[] = [
     resolves: ok({ id: 'a', alias: 'restored', createdAt: '' }),
     expected: { id: 'a', alias: 'restored', createdAt: '' },
     expectArgs: [expect.objectContaining({ ncryptsec: 'ncryptsec1x', alias: 'restored' })],
+  },
+  {
+    action: 'accounts.addRemote',
+    payload: { alias: 'phone', bunkerUri: 'bunker://x' },
+    handler: vi.mocked(accounts.handleAccountsAddRemote),
+    name: 'handleAccountsAddRemote',
+    resolves: ok({ id: 'a', alias: 'phone', createdAt: '', kind: 'remote' }),
+    expected: { id: 'a', alias: 'phone', createdAt: '', kind: 'remote' },
+    expectArgs: [expect.objectContaining({ alias: 'phone', bunkerUri: 'bunker://x' })],
+  },
+  {
+    action: 'nip46.authChallenges',
+    payload: {},
+    handler: vi.mocked(nip46.handleNip46AuthChallenges),
+    name: 'handleNip46AuthChallenges',
+    resolves: ok([]),
+    expected: [],
+  },
+  {
+    action: 'nip46.openAuthChallenge',
+    payload: { challengeId: 'nip46-auth-1' },
+    handler: vi.mocked(nip46.handleNip46OpenAuthChallenge),
+    name: 'handleNip46OpenAuthChallenge',
+    resolves: ok(true),
+    expected: true,
+    expectArgs: [expect.objectContaining({ challengeId: 'nip46-auth-1' })],
   },
   {
     action: 'vault.export',

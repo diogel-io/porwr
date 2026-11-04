@@ -53,6 +53,7 @@ const REQUEST = {
 
 vi.mock('@/composables/useApprovalQueue', () => ({
   useApprovalQueue: () => ({
+    authChallenges: ref([]),
     pending: ref([REQUEST]),
     current: ref(REQUEST),
     // The queue has been read; the panel is past its loading view (porwr#371).

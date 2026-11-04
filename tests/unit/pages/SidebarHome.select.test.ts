@@ -49,6 +49,7 @@ vi.mock('@/composables/useApprovalQueue', async () => {
   const { ref: vueRef } = await import('vue');
   return {
     useApprovalQueue: () => ({
+      authChallenges: vueRef([]),
       pending: vueRef(queue.pending),
       current: vueRef(queue.current),
       // The queue has been read; the panel is past its loading view (porwr#371).

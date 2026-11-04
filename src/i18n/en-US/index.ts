@@ -136,6 +136,26 @@ export default {
       'Import an existing key from an nsec private key. Your private key will not be stored on the server, it is stored in an encrypted vault within the browser.',
     addNewTitle: 'Add New Key',
     addNewCaption: 'Generate and register a new key in your vault.',
+    remoteSigner: {
+      title: 'Connect a remote signer',
+      caption:
+        'Use a key held by a NIP-46 remote signer, such as a bunker or a signer on your phone. The key stays with the signer: Porwr stores only its own connection key, and still asks you before anything is signed.',
+      uriLabel: 'Bunker URI',
+      uriHint: 'bunker://… from your remote signer',
+      connect: 'Connect',
+      connecting: 'Connecting to the remote signer… Approve the connection there if it asks.',
+      connected: 'Connected to the remote signer.',
+      failed: 'Could not connect: {error}',
+      authTitle: 'Your remote signer asks you to authorise Porwr',
+      authOpen: 'Open {host}',
+      badge: 'Remote signer',
+      viewCaption:
+        'Review this account. Its key is held by a remote signer, so only its alias can be edited.',
+      signerKey: 'Remote signer key',
+      relays: 'Relays',
+      noPrivateKey:
+        'The private key for this account is held by its remote signer. It cannot be shown or exported from Porwr.',
+    },
     keyNotFound: 'The selected key could not be found.',
     securityWarning: {
       title: 'Security Warning',
@@ -866,6 +886,14 @@ export default {
   },
   sidebar: {
     queueLoading: 'Checking for requests…',
+    remoteSignerAuth: {
+      title: 'Your remote signer asks you to authorise Porwr',
+      forSite: '{origin} is waiting for its answer.',
+      forConnect: 'An account is being connected.',
+      open: 'Open {host}',
+      hint: 'This opens in a new tab only when you click. Porwr loads nothing from it.',
+      openFailed: 'This authorisation request has ended, or could not be opened.',
+    },
     unlock: {
       ariaLabel: 'Unlock your vault',
       title: 'Unlock Vault',

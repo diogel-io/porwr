@@ -8,6 +8,7 @@ import ProfileView from '@/components/shared/ProfileView.vue';
 import RemoteImagesNotice from '@/components/shared/RemoteImagesNotice.vue';
 import CurrentRequest from '@/components/sidebar/CurrentRequest.vue';
 import PendingRequestList from '@/components/sidebar/PendingRequestList.vue';
+import RemoteSignerAuthNotice from '@/components/sidebar/RemoteSignerAuthNotice.vue';
 import SidebarSetup from '@/components/sidebar/SidebarSetup.vue';
 import SidebarUnlock from '@/components/sidebar/SidebarUnlock.vue';
 import SiteAccountNotice from '@/components/sidebar/SiteAccountNotice.vue';
@@ -26,7 +27,8 @@ const { t } = useI18n();
 const accountStore = useAccountStore();
 const { activeOrigin } = useActiveTab();
 const vaultStore = useVaultStore();
-const { pending, current, content, loading, decide, dismiss, present } = useApprovalQueue();
+const { pending, current, content, loading, authChallenges, decide, dismiss, present } =
+  useApprovalQueue();
 
 const busy = ref(false);
 
@@ -173,6 +175,15 @@ onMounted(async () => {
       behind a "Create vault" button, which traded a browser tab for a click in the flow that was
       reported as clunky to begin with (#198).
     -->
+    <!--
+      A remote signer waiting for the user to authorise Porwr (#138). It belongs to a request already
+      approved, so it sits above whatever the panel shows next, and loads nothing remote (D13).
+    -->
+    <RemoteSignerAuthNotice
+      v-if="!showSetup && !showUnlock && authChallenges.length > 0"
+      :challenges="authChallenges"
+    />
+
     <SidebarSetup v-if="showSetup" />
 
     <!-- Unlock takes precedence over everything else, and names any waiting request (S5, S15). -->

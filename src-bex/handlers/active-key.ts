@@ -1,9 +1,8 @@
-import { hexToBytes } from '@noble/hashes/utils.js';
-import { getPublicKey } from 'nostr-tools';
 import type { Pubkey } from '@/types/pubkey';
 import { NOSTR_ACTIVE, storageService } from '@/services/storage-service';
 import type { StoredKey, VaultData } from '@/types/bridge';
 import { handleVaultGetData, handleVaultIsUnlocked } from './vault-handler';
+import { accountPubkeyOf, localSecretKeyOf } from '../services/account-key';
 
 export async function getActiveStoredKey(): Promise<StoredKey> {
   const isUnlockedResult = await handleVaultIsUnlocked({}, '');
@@ -31,9 +30,9 @@ export async function getActiveStoredKey(): Promise<StoredKey> {
   return storedKey;
 }
 
+/** @throws For a remote-signer account, whose key is not in Porwr (#138). */
 export async function getActiveSecretKey(): Promise<Uint8Array> {
-  const storedKey = await getActiveStoredKey();
-  return hexToBytes(storedKey.account.privkey);
+  return localSecretKeyOf(await getActiveStoredKey());
 }
 
 /**
@@ -55,12 +54,9 @@ export async function getSecretKeyForAccount(pubkey: Pubkey): Promise<Uint8Array
   }
 
   for (const account of vaultRes.data.vaultData.accounts ?? []) {
-    try {
-      const secretKey = hexToBytes(account.account.privkey);
-      if (getPublicKey(secretKey) === pubkey) return secretKey;
-    } catch {
-      // A malformed stored key belongs to no one; keep looking.
-    }
+    // A malformed stored key belongs to no one, so `accountPubkeyOf` gives null and the search goes
+    // on. A remote-signer account has no key here to sign with, and says so (#138).
+    if (accountPubkeyOf(account) === pubkey) return localSecretKeyOf(account);
   }
   throw new Error('Account not found');
 }

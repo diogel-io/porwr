@@ -12,9 +12,33 @@ export interface DropdownItem<T = string | number> {
   value: T;
 }
 
-export type Account = {
+/** An account whose private key is held in the vault. Accounts saved before #138 have no `type`. */
+export type LocalAccount = {
+  type?: 'local';
   privkey: string;
 };
+
+/**
+ * A NIP-46 connection to a remote signer (diogel-io/workspace#138). The user's private key stays
+ * with the signer. Porwr keeps only its own client key for the connection, which signs and
+ * encrypts the requests it sends, and the secret the `bunker://` URI carried.
+ */
+export type RemoteSignerConnection = {
+  /** The key the remote signer answers as, which is not necessarily the user's key. */
+  remoteSignerPubkey: string;
+  relays: string[];
+  /** Hex secret key of Porwr's client keypair for this connection. */
+  clientSecret: string;
+  connectSecret?: string;
+};
+
+/** An account backed by a remote signer. No private key for it is stored anywhere in Porwr. */
+export type RemoteAccount = {
+  type: 'remote';
+  nip46: RemoteSignerConnection;
+};
+
+export type Account = LocalAccount | RemoteAccount;
 
 export interface NostrProfile {
   name?: string;
@@ -64,11 +88,7 @@ export interface QuickSignPublishInput {
 }
 
 export type QuickSignAvailabilityState =
-  | 'ready'
-  | 'locked'
-  | 'no-account'
-  | 'no-relay'
-  | 'invalid-account';
+  'ready' | 'locked' | 'no-account' | 'no-relay' | 'invalid-account';
 
 export interface QuickSignAvailabilityResult {
   state: QuickSignAvailabilityState;
@@ -77,8 +97,7 @@ export interface QuickSignAvailabilityResult {
 
 /** The account's publish relays, or that the fallback relays could not be reached to find them (#285). */
 export type QuickSignAccountRelays =
-  | { state: 'ready'; relayUrls: string[] }
-  | { state: 'unreachable' };
+  { state: 'ready'; relayUrls: string[] } | { state: 'unreachable' };
 
 export interface QuickSignValidationResult {
   valid: boolean;

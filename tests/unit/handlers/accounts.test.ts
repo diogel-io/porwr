@@ -16,7 +16,25 @@ const state = vi.hoisted(() => ({
   clearContactCache: vi.fn(),
   sweepSiteState: vi.fn().mockResolvedValue({ grants: 0, bindings: 0 }),
   interruptForAccount: vi.fn().mockResolvedValue([]),
+  nip46Request: vi.fn(),
+  nip46Locks: 0,
 }));
+
+// The remote signer (#138). Only the transport is replaced; the URI parsing, the checks on its
+// answers, and the vault write are the handler's own.
+vi.mock('@/../src-bex/services/nip46-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/../src-bex/services/nip46-client')>();
+  return {
+    ...actual,
+    nip46Client: {
+      request: state.nip46Request,
+      get lockGeneration() {
+        return state.nip46Locks;
+      },
+    },
+  };
+});
+vi.mock('@/../src-bex/services/panel-presence', () => ({ notifyPanelsOfQueueChange: vi.fn() }));
 
 vi.mock('@/services/contact-cache', () => ({ clearAccount: state.clearContactCache }));
 vi.mock('@/../src-bex/services/request-queue', () => ({
@@ -81,6 +99,7 @@ import {
   handleAccountsRevealSecret,
   handleAccountsExportEncrypted,
   handleAccountsImportEncrypted,
+  handleAccountsAddRemote,
   MAX_NCRYPTSEC_LOGN,
   ncryptsecCost,
   handleVaultGetView,
@@ -145,7 +164,7 @@ describe('accounts.add', () => {
 
     const stored = state.vault!.accounts.find((account) => account.alias === 'carol')!;
     expect(stored.id).toBe(result.data.id);
-    expect(stored.account.privkey).toMatch(/^[0-9a-f]{64}$/);
+    expect(stored.account).toEqual({ privkey: expect.stringMatching(/^[0-9a-f]{64}$/) });
   });
 
   it('imports a given key, storing it under its own public key', async () => {
@@ -515,7 +534,7 @@ describe('accounts.importEncrypted', () => {
       success: true,
       data: expect.objectContaining({ id: newPubkey, alias: 'restored' }),
     });
-    expect(state.vault!.accounts.at(-1)?.account.privkey).toBe(bytesToHex(newKey));
+    expect(state.vault!.accounts.at(-1)?.account).toEqual({ privkey: bytesToHex(newKey) });
   });
 
   it('round-trips an export into a vault that lacks the key', async () => {
@@ -641,5 +660,192 @@ describe('accounts.importEncrypted', () => {
         ),
       },
     });
+  });
+});
+
+describe('accounts.addRemote (#138)', () => {
+  const SIGNER = 'cd'.repeat(32);
+  const carolKey = generateSecretKey();
+  const CAROL = getPublicKey(carolKey);
+  const uri = (query = 'relay=wss://relay.example.com&secret=s3cret') =>
+    `bunker://${SIGNER}?${query}`;
+
+  /** A signer that accepts the connection and reports `userPubkey`. */
+  const signerReports = (userPubkey: string, ack = 'ack'): void => {
+    state.nip46Request.mockImplementation((_connection, method: string) => {
+      if (method === 'connect') return Promise.resolve(ack);
+      if (method === 'get_public_key') return Promise.resolve(userPubkey);
+      return Promise.reject(new Error('not supported'));
+    });
+  };
+
+  it('connects, asks for the user key, and stores no private key for it', async () => {
+    signerReports(CAROL);
+
+    const result = await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    expect(result).toEqual({
+      success: true,
+      data: {
+        id: CAROL,
+        alias: 'phone',
+        createdAt: expect.any(String),
+        kind: 'remote',
+        remoteSigner: { pubkey: SIGNER, relays: ['wss://relay.example.com'] },
+      },
+    });
+    const [connectCall, keyCall] = state.nip46Request.mock.calls;
+    expect(connectCall?.[1]).toBe('connect');
+    expect(connectCall?.[2]).toEqual([SIGNER, 's3cret']);
+    expect(keyCall?.[1]).toBe('get_public_key');
+
+    const stored = state.vault!.accounts.at(-1)!;
+    expect(stored.id).toBe(CAROL);
+    expect(stored.account).toEqual({
+      type: 'remote',
+      nip46: {
+        remoteSignerPubkey: SIGNER,
+        relays: ['wss://relay.example.com'],
+        clientSecret: expect.stringMatching(/^[0-9a-f]{64}$/),
+        connectSecret: 's3cret',
+      },
+    });
+    // The account's key is the signer's; Porwr holds only its own client key.
+    expect(stored.account).not.toHaveProperty('privkey');
+    // Pages see neither the client key nor the connect secret.
+    expect(JSON.stringify(result)).not.toMatch(/clientSecret|s3cret|privkey/);
+    const view = await handleVaultGetView();
+    expect(JSON.stringify(view)).not.toMatch(/clientSecret|s3cret|privkey/);
+  });
+
+  it('sends no secret when the URI has none, and accepts the secret echoed back', async () => {
+    signerReports(CAROL);
+    await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri('relay=wss://r.example') });
+    expect(state.nip46Request.mock.calls[0]?.[2]).toEqual([SIGNER]);
+
+    state.vault!.accounts = state.vault!.accounts.slice(0, 2);
+    signerReports(CAROL, 's3cret');
+    await expect(handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() })).resolves.toEqual(
+      expect.objectContaining({ success: true }),
+    );
+  });
+
+  it('saves nothing when the signer does not accept the connection', async () => {
+    signerReports(CAROL, 'wrong-secret');
+
+    const result = await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    expect(result).toEqual({ success: false, error: expect.stringContaining('did not accept') });
+    expect(state.writes).toBe(0);
+  });
+
+  it('saves nothing when the signer reports no valid key', async () => {
+    signerReports('npub1notahexkey');
+
+    const result = await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    expect(result).toEqual({ success: false, error: expect.stringContaining('valid public key') });
+    expect(state.writes).toBe(0);
+  });
+
+  it('refuses a key that is already in the vault', async () => {
+    signerReports(ALICE);
+
+    const result = await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    expect(result).toEqual({ success: false, error: 'Key with the same npub already exists.' });
+    expect(state.writes).toBe(0);
+  });
+
+  it('checks the alias and the URI before contacting the signer', async () => {
+    await expect(handleAccountsAddRemote({ alias: 'alice', bunkerUri: uri() })).resolves.toEqual({
+      success: false,
+      error: 'Key with the same alias already exists.',
+    });
+    await expect(
+      handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri('relay=ws://relay.example.com') }),
+    ).resolves.toEqual({ success: false, error: expect.stringContaining('no relay') });
+    expect(state.nip46Request).not.toHaveBeenCalled();
+  });
+
+  it('saves nothing when the vault locks while the signer is being asked', async () => {
+    state.nip46Request.mockImplementation((_connection, method: string) => {
+      if (method === 'connect') return Promise.resolve('ack');
+      if (method === 'get_public_key') {
+        // Locked, and a vault unlocked again, before the signer's answer is saved.
+        state.nip46Locks += 1;
+        return Promise.resolve(CAROL);
+      }
+      return Promise.reject(new Error('not supported'));
+    });
+
+    const result = await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    expect(result).toEqual({ success: false, error: expect.stringContaining('locked') });
+    expect(state.writes).toBe(0);
+  });
+
+  it('keeps the URI’s relays when the signer switches to more than Porwr allows', async () => {
+    const many = Array.from({ length: 17 }, (_, i) => `wss://r${i}.example`);
+    state.nip46Request.mockImplementation((_connection, method: string) => {
+      if (method === 'connect') return Promise.resolve('ack');
+      if (method === 'get_public_key') return Promise.resolve(CAROL);
+      return Promise.resolve(JSON.stringify(many));
+    });
+
+    await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    const stored = state.vault!.accounts.at(-1)!.account;
+    expect(stored.type === 'remote' && stored.nip46.relays).toEqual(['wss://relay.example.com']);
+  });
+
+  it('keeps only relays Porwr may use when the signer switches them', async () => {
+    state.nip46Request.mockImplementation((_connection, method: string) => {
+      if (method === 'connect') return Promise.resolve('ack');
+      if (method === 'get_public_key') return Promise.resolve(CAROL);
+      return Promise.resolve(JSON.stringify(['ws://plain.example', 'wss://new.example']));
+    });
+
+    await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    const stored = state.vault!.accounts.at(-1)!.account;
+    expect(stored.type === 'remote' && stored.nip46.relays).toEqual(['wss://new.example']);
+  });
+
+  it('cannot show or export a remote account’s key, which Porwr does not hold', async () => {
+    signerReports(CAROL);
+    await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    await expect(
+      handleAccountsRevealSecret({ accountPubkey: CAROL, password: 'vault-password' }),
+    ).resolves.toEqual({ success: false, error: expect.stringContaining('remote-signer account') });
+    await expect(
+      handleAccountsExportEncrypted({
+        accountPubkey: CAROL,
+        password: 'export-password',
+        vaultPassword: 'vault-password',
+      }),
+    ).resolves.toEqual({ success: false, error: expect.stringContaining('remote-signer account') });
+  });
+
+  it('can be removed like any account', async () => {
+    signerReports(CAROL);
+    await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    await expect(handleAccountsRemove({ accountPubkey: CAROL })).resolves.toEqual({
+      success: true,
+      data: true,
+    });
+    expect(state.vault!.accounts.map((account) => account.id)).toEqual([ALICE, BOB]);
+    expect(state.interruptForAccount).toHaveBeenCalledWith(CAROL);
+  });
+
+  it('does not let a local import take the remote account’s key', async () => {
+    signerReports(getPublicKey(carolKey));
+    await handleAccountsAddRemote({ alias: 'phone', bunkerUri: uri() });
+
+    await expect(
+      handleAccountsAdd({ alias: 'carol', privkey: bytesToHex(carolKey) }),
+    ).resolves.toEqual({ success: false, error: 'Key with the same npub already exists.' });
   });
 });

@@ -20,6 +20,21 @@ const FIXTURE = {
       account: { privkey: bytesToHex(accountKey) },
       createdAt: '2026-01-01',
     },
+    // A remote-signer account holds Porwr's client key and the URI's secret instead (#138).
+    {
+      id: 'c'.repeat(64),
+      alias: 'phone',
+      account: {
+        type: 'remote',
+        nip46: {
+          remoteSignerPubkey: 'd'.repeat(64),
+          relays: ['wss://relay.example.com'],
+          clientSecret: '9'.repeat(64),
+          connectSecret: 'fixture-connect-secret',
+        },
+      },
+      createdAt: '2026-01-03',
+    },
   ],
   nip47Connections: [
     { id: 'w', clientSecret: 'f'.repeat(64), relays: [], walletServicePubkey: 'e'.repeat(64) },
@@ -31,8 +46,18 @@ const SECRET_VALUES = [
   bytesToHex(accountKey),
   nip19.nsecEncode(accountKey),
   'f'.repeat(64),
+  '9'.repeat(64),
+  'fixture-connect-secret',
 ];
-const SECRET_KEYS = ['privkey', 'mnemonic', 'passphrase', 'clientSecret', 'nsec', 'vaultData'];
+const SECRET_KEYS = [
+  'privkey',
+  'mnemonic',
+  'passphrase',
+  'clientSecret',
+  'connectSecret',
+  'nsec',
+  'vaultData',
+];
 
 vi.mock('@/../src-bex/vault', () => ({
   getVaultData: vi.fn(() =>
@@ -90,14 +115,23 @@ const findSecrets = (value: unknown, path = '$'): string[] => {
 
 describe('vault responses to pages carry no secrets', () => {
   it('the scan finds secrets when they are there, so a clean result means something', () => {
-    expect(findSecrets(FIXTURE).length).toBeGreaterThanOrEqual(5);
+    expect(findSecrets(FIXTURE).length).toBeGreaterThanOrEqual(7);
   });
 
   it('vault.getView', async () => {
     const response = await dispatchMessage('vault.getView', {} as never, '');
 
     expect(response).toEqual({
-      accounts: [{ id: FIXTURE.accounts[0]!.id, alias: 'main', createdAt: '2026-01-01' }],
+      accounts: [
+        { id: FIXTURE.accounts[0]!.id, alias: 'main', createdAt: '2026-01-01' },
+        {
+          id: 'c'.repeat(64),
+          alias: 'phone',
+          createdAt: '2026-01-03',
+          kind: 'remote',
+          remoteSigner: { pubkey: 'd'.repeat(64), relays: ['wss://relay.example.com'] },
+        },
+      ],
     });
     expect(findSecrets(response)).toEqual([]);
   });
