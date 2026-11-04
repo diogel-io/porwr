@@ -86,23 +86,27 @@ interface DecodedRequest {
 const decode = (event: Event): DecodedRequest =>
   JSON.parse(nip44.decrypt(event.content, conversation)) as DecodedRequest;
 
-/** A response event as a signer sends it, with every field overridable to forge a bad one. */
+/**
+ * A response event as a signer sends it, with every field overridable to forge a bad one. The
+ * content is always encrypted under the genuine signer-client key, so a forgery is caught by the
+ * check it targets rather than by a failed decrypt.
+ */
 function response(
   body: Record<string, unknown>,
-  options: { secret?: Uint8Array; pTag?: string; tamper?: boolean } = {},
+  options: { signedBy?: Uint8Array; pTag?: string; tamper?: boolean } = {},
 ): Event {
-  const secret = options.secret ?? signerSecret;
-  const key = nip44.getConversationKey(secret, clientPubkey);
   const event = finalizeEvent(
     {
       kind: 24133,
       created_at: Math.floor(Date.now() / 1000),
       tags: [['p', options.pTag ?? clientPubkey]],
-      content: nip44.encrypt(JSON.stringify(body), key),
+      content: nip44.encrypt(JSON.stringify(body), conversation),
     },
-    secret,
+    options.signedBy ?? signerSecret,
   );
-  return options.tamper ? { ...event, pubkey: signerPubkey } : event;
+  if (!options.tamper) return event;
+  // Changed after signing. The JSON copy drops the verified mark finalizeEvent leaves on the event.
+  return JSON.parse(JSON.stringify({ ...event, created_at: event.created_at + 1 })) as Event;
 }
 
 /** Make the relay deliver what `answer` returns for each published request, after the publish. */
@@ -154,7 +158,7 @@ describe('Nip46Client.request', () => {
 
   it('ignores a response from the wrong pubkey and waits for the signer', async () => {
     signerAnswers((request) => [
-      response({ id: request.id, result: 'forged' }, { secret: strangerSecret }),
+      response({ id: request.id, result: 'forged' }, { signedBy: strangerSecret }),
       response({ id: request.id, result: 'genuine' }),
     ]);
 
@@ -165,7 +169,7 @@ describe('Nip46Client.request', () => {
 
   it('never settles on a response from the wrong pubkey alone', async () => {
     signerAnswers((request) => [
-      response({ id: request.id, result: 'forged' }, { secret: strangerSecret }),
+      response({ id: request.id, result: 'forged' }, { signedBy: strangerSecret }),
     ]);
 
     await expect(
@@ -173,9 +177,9 @@ describe('Nip46Client.request', () => {
     ).rejects.toBeInstanceOf(Nip46TimeoutError);
   });
 
-  it('ignores an event that claims the signer but is not signed by it', async () => {
+  it('ignores an event from the signer that was changed after it was signed', async () => {
     signerAnswers((request) => [
-      response({ id: request.id, result: 'forged' }, { secret: strangerSecret, tamper: true }),
+      response({ id: request.id, result: 'forged' }, { tamper: true }),
       response({ id: request.id, result: 'genuine' }),
     ]);
 
@@ -248,6 +252,18 @@ describe('Nip46Client.request', () => {
     // Shown once, however often the signer repeats it.
     expect(onAuthUrl).toHaveBeenCalledTimes(1);
     expect(onAuthUrl).toHaveBeenCalledWith('https://signer.example/auth/1');
+  });
+
+  it('returns a plain auth_url result that carries no URL as the answer', async () => {
+    const onAuthUrl = vi.fn();
+    signerAnswers((request) => [response({ id: request.id, result: 'auth_url' })]);
+
+    await expect(
+      new Nip46Client().request(connection, 'nip44_decrypt', ['peer', 'ciphertext'], {
+        onAuthUrl,
+      }),
+    ).resolves.toBe('auth_url');
+    expect(onAuthUrl).not.toHaveBeenCalled();
   });
 
   it('never shows an auth_url that is not https', async () => {

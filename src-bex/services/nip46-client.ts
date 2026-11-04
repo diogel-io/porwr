@@ -243,7 +243,8 @@ export class Nip46Client {
             }
             if (!response || response.id !== requestId) return;
 
-            if (response.result === 'auth_url') {
+            // A challenge carries its URL in `error`; a bare `auth_url` result is an ordinary answer.
+            if (response.result === 'auth_url' && typeof response.error === 'string') {
               const url = acceptableAuthUrl(response.error);
               if (url && !shownAuthUrls.has(url)) {
                 shownAuthUrls.add(url);
