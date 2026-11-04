@@ -105,6 +105,10 @@ Actions). The release workflow does not introduce any new secret names.
   it moves the baseline on from `8ad26d5`. The review is recorded privately, naming the head commit
   it read. A weakness it finds is reported and fixed as [SECURITY.md](SECURITY.md)
   describes, and the release waits for the fix.
+  If the release PR's head changes after the review, for example to fix what it found, review the
+  difference before merging and record the new head. The release PR's **Security review** section
+  says only that the review is complete, at which head commit, and its outcome; the details stay in
+  the private record.
 
 ## Publishing
 
