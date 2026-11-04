@@ -101,7 +101,9 @@ Actions). The release workflow does not introduce any new secret names.
   (`0.Y.0`) also re-reads every control in the threat model's section 4 against the release PR's
   head commit, which is the code that ships, and records the line that enforces each one, what it
   covers and what it does not, and the test that holds it. After the merge, a `docs:` PR moves the
-  threat model's baseline to the `v<version>` tag. 0.4.0 is the first minor release to do this;
+  threat model's baseline to the `v<version>` tag. The baseline moves only when the whole document has been re-checked, so that
+  review also re-reads the assets, boundaries, adversaries, accepted risks, findings and
+  verification hooks against the same head, and the `docs:` PR carries any row it corrected. 0.4.0 is the first minor release to do this;
   it moves the baseline on from `8ad26d5`. The review is recorded privately, naming the head commit
   it read. A weakness it finds is reported and fixed as [SECURITY.md](SECURITY.md)
   describes, and the release waits for the fix.
