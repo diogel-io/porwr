@@ -111,7 +111,7 @@ describe('RelayEditor.vue', () => {
 
     expect(wrapper.find('q-spinner-stub').exists()).toBe(true);
     expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(false);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(poolGet).toHaveBeenCalled());
 
     expect(poolGet).toHaveBeenCalled();
     expect(wrapper.find('q-spinner-stub').exists()).toBe(true);
@@ -128,7 +128,7 @@ describe('RelayEditor.vue', () => {
         stubs: globalStubs,
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true));
 
     expect(wrapper.find('q-spinner-stub').exists()).toBe(false);
     expect(wrapper.findAll('[data-testid="q-item"]')).toHaveLength(0);
@@ -138,7 +138,7 @@ describe('RelayEditor.vue', () => {
       .findAll('button[data-testid="q-btn"]')
       .filter((b) => !b.attributes('data-icon'));
     await save[save.length - 1]!.trigger('click');
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(vi.mocked(signAsAccount)).toHaveBeenCalled());
 
     expect(vi.mocked(signAsAccount)).toHaveBeenCalledWith(
       'pubkey',
@@ -146,7 +146,7 @@ describe('RelayEditor.vue', () => {
     );
   });
 
-  it('still reads the list, and the spinner ends, when the settings cannot be read', async () => {
+  it('still reads the list, ends the spinner and warns, when the settings cannot be read', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const pinia = createTestingPinia({ createSpy: vi.fn });
     const settingsStore = useSettingsStore(pinia);
@@ -156,11 +156,13 @@ describe('RelayEditor.vue', () => {
       props,
       global: { plugins: [pinia], stubs: globalStubs },
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true));
 
     expect(poolGet).toHaveBeenCalled();
     expect(wrapper.find('q-spinner-stub').exists()).toBe(false);
     expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true);
+    // The fallback relays read from may not be the user's, so an empty list is not the account's.
+    expect(wrapper.text()).toContain('relays.loadError');
   });
 
   it('warns that the list shown may not be current when reading it fails', async () => {
@@ -293,7 +295,7 @@ describe('RelayEditor.vue', () => {
         stubs: globalStubs,
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true));
 
     const browseBtn = wrapper.find('button[data-icon="explore"]');
     expect(browseBtn.exists()).toBe(true);
@@ -307,7 +309,7 @@ describe('RelayEditor.vue', () => {
         stubs: globalStubs,
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true));
 
     expect(wrapper.find('.mock-modal').exists()).toBe(false);
 
@@ -327,7 +329,7 @@ describe('RelayEditor.vue', () => {
     });
 
     // Wait for loading to finish
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true));
 
     // Open modal
     const browseBtn = wrapper.find('button[data-icon="explore"]');
@@ -365,7 +367,7 @@ describe('RelayEditor.vue', () => {
     });
 
     // Wait for initial fetch to finish
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => expect(wrapper.find('[data-testid="q-input"]').exists()).toBe(true));
 
     const urlInput = wrapper.find('[data-testid="q-input"] input');
     await urlInput.setValue('wss://manual-relay.com');
