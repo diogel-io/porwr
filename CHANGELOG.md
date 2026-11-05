@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/diogel-io/porwr/compare/v0.3.2...v0.4.0) (2026-11-04)
+
+
+### Features
+
+* add NIP-46 remote signer accounts ([#451](https://github.com/diogel-io/porwr/issues/451)) ([6fda17d](https://github.com/diogel-io/porwr/commit/6fda17d5271d8ba9d384d293fe794a97a2ff5a77))
+
+
+### Bug Fixes
+
+* **nip47:** check the wallet's key on every response ([#449](https://github.com/diogel-io/porwr/issues/449)) ([1166cbd](https://github.com/diogel-io/porwr/commit/1166cbd2d8deab4e31d6c64109acb70f9bceb6c5))
+* **relays:** show the relay list editor only once the account's list is read ([#455](https://github.com/diogel-io/porwr/issues/455)) ([478a1e4](https://github.com/diogel-io/porwr/commit/478a1e477cf62401a2d3ddd1ae3f5c650a2cabe8))
+
 ## [0.3.2](https://github.com/diogel-io/porwr/compare/v0.3.1...v0.3.2) (2026-11-03)
 
 
