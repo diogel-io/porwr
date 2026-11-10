@@ -132,6 +132,21 @@ export const isSelfDecrypt = (
   !!accountPubkey &&
   counterpartyPubkey === accountPubkey;
 
+/**
+ * Whether a decrypt may only be approved once: it is a self-decrypt, or its account is not known yet
+ * and so it may turn out to be one. A request can stay unnamed when the unlock scan ran before it
+ * was queued, and the account it is dispatched as is only resolved afterwards, so remembering it is
+ * refused rather than assumed safe (diogel-io/workspace#226).
+ */
+export const isDecryptOnceOnly = (
+  requestType: string,
+  counterpartyPubkey: string | null | undefined,
+  accountPubkey: string | null | undefined,
+): boolean =>
+  DECRYPT_REQUEST_TYPES.includes(requestType) &&
+  !!counterpartyPubkey &&
+  (!accountPubkey || counterpartyPubkey === accountPubkey);
+
 /** What the approval log records a self-decrypt as, so it is told apart from an ordinary one. */
 export const selfDecryptLogType = (requestType: string): string => `${requestType}_self`;
 

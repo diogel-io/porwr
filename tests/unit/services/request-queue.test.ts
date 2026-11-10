@@ -226,6 +226,14 @@ describe('request queue', () => {
         expect(result.applied).toBe(true);
       });
 
+      it('refuses 8h for a decrypt still waiting for its account, which may turn out to be self', async () => {
+        const { record } = await decrypt('nip44_decrypt', null, OWN);
+
+        const result = await submitDecision(record.id, { approved: true, duration: '8h' });
+
+        expect(result).toEqual({ applied: false, reason: 'duration-not-allowed' });
+      });
+
       it('still accepts 8h for a decrypt to another pubkey', async () => {
         const { record } = await decrypt('nip44_decrypt', OWN, OTHER);
 

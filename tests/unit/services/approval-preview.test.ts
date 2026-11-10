@@ -10,6 +10,7 @@ import {
   getEventKindLabel,
   getRequestTypeLabel,
   getRiskWarning,
+  isDecryptOnceOnly,
   isSelfDecrypt,
   SELF_DECRYPT_WARNING,
   selfDecryptLogType,
@@ -575,6 +576,17 @@ describe('decrypt of the account own data (diogel-io/workspace#226)', () => {
     ['sign_event', OWN, OWN, false],
   ] as const)('%s to %s as %s is self: %s', (requestType, counterparty, account, expected) => {
     expect(isSelfDecrypt(requestType, counterparty, account)).toBe(expected);
+  });
+
+  it.each([
+    ['nip44_decrypt', OWN, OWN, true],
+    ['nip04_decrypt', OWN, null, true],
+    ['nip44_decrypt', OWN, undefined, true],
+    ['nip44_decrypt', OTHER, OWN, false],
+    ['nip44_decrypt', undefined, null, false],
+    ['nip44_encrypt', OWN, null, false],
+  ] as const)('%s to %s as %s is once only: %s', (requestType, counterparty, account, expected) => {
+    expect(isDecryptOnceOnly(requestType, counterparty, account)).toBe(expected);
   });
 
   it('is logged under its own type', () => {

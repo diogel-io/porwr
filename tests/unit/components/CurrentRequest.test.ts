@@ -253,6 +253,13 @@ describe('a decrypt of the account own data', () => {
     expect(wrapper.find('.preview').attributes('data-self')).toBe('true');
   });
 
+  it('offers once only while the account is not known, without claiming it is self', () => {
+    const wrapper = mountDecrypt(OWN, null);
+
+    expect(wrapper.find('.bar').attributes('data-remember')).toBe('false');
+    expect(wrapper.find('.risk').attributes('data-self')).toBe('false');
+  });
+
   it('is unchanged for another counterparty', () => {
     const wrapper = mountDecrypt(OTHER);
 

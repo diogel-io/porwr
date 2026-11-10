@@ -11,6 +11,7 @@ import {
   getEventKindLabel,
   getRequestTypeLabel,
   httpAuthOtherOrigin,
+  isDecryptOnceOnly,
   isNotice,
   isSelfDecrypt,
 } from '@/services/approval-preview';
@@ -48,6 +49,15 @@ const riskClass = computed(() =>
  */
 const selfDecrypt = computed(() =>
   isSelfDecrypt(
+    props.request.requestType,
+    props.content?.counterpartyPubkey,
+    props.request.accountPubkey,
+  ),
+);
+
+/** Also once only while the account is unknown, matching the background (workspace#226). */
+const decryptOnceOnly = computed(() =>
+  isDecryptOnceOnly(
     props.request.requestType,
     props.content?.counterpartyPubkey,
     props.request.accountPubkey,
@@ -151,7 +161,7 @@ watch(
       />
       <RequestDecisionBar
         :risk-class="riskClass"
-        :allow-remember="(content?.allowRemember ?? false) && !selfDecrypt"
+        :allow-remember="(content?.allowRemember ?? false) && !decryptOnceOnly"
         :busy="busy"
         @decide="(approved, duration) => emit('decide', request.id, approved, duration)"
       />
