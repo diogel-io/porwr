@@ -16,6 +16,7 @@
  *    and log a request a grant answered as approved
  */
 
+import { isSelfDecrypt, selfDecryptLogType } from '@/services/approval-preview';
 import { LogLevel, logService } from '@/services/log-service';
 import { checkPermission, grantPermission } from '../handlers/permission-handler';
 import {
@@ -57,9 +58,20 @@ export const trimApprovalContentDescription = (content?: string): string | undef
 export const toPermissionKind = (eventKind: number): number | null =>
   eventKind < 0 ? null : eventKind;
 
-/** What the approval log records as the kind: the event kind, or the request type when it has none. */
-const approvalLogKind = (eventKind: number, details: ApprovalRequestDetails): number | string =>
-  eventKind === -1 ? details.requestType : eventKind;
+/**
+ * What the approval log records as the kind: the event kind, or the request type when it has none.
+ * A decrypt of the account's own data is logged as its own type (diogel-io/workspace#226).
+ */
+const approvalLogKind = (
+  eventKind: number,
+  details: ApprovalRequestDetails,
+  accountPubkey?: string | null,
+): number | string => {
+  if (eventKind !== -1) return eventKind;
+  return isSelfDecrypt(details.requestType, details.counterpartyPubkey, accountPubkey)
+    ? selfDecryptLogType(details.requestType)
+    : details.requestType;
+};
 
 /** What the user decided, and for how long. */
 export interface ApprovalOutcome {
@@ -86,7 +98,17 @@ export async function requestApprovalDecision(
   const resolved = await resolveSigningAccount(origin);
   const actingAccount = 'account' in resolved ? resolved.account : null;
 
-  if (!details.skipPermissionCheck && actingAccount) {
+  // A decrypt of data the acting account encrypted to itself is never answered by a grant and never
+  // remembered: a grant to read messages from others must not also read wallet backups or private
+  // lists (diogel-io/workspace#226). A request waiting out a locked vault has no account yet; it is
+  // checked again when it is decided and before any grant is written.
+  const selfDecrypt = isSelfDecrypt(
+    details.requestType,
+    details.counterpartyPubkey,
+    actingAccount?.id,
+  );
+
+  if (!details.skipPermissionCheck && !selfDecrypt && actingAccount) {
     const permission = await checkPermission(
       origin,
       actingAccount.id,
@@ -101,7 +123,7 @@ export async function requestApprovalDecision(
         return { approved: false, duration: 'once' };
       // Answered by a grant the user gave earlier, so still an approval, and logged as one (#37).
       void logService.logApproval(
-        approvalLogKind(eventKind, details),
+        approvalLogKind(eventKind, details, actingAccount.id),
         originHostname(origin),
         actingAccount.alias,
         'approved',
@@ -134,7 +156,7 @@ export async function requestApprovalDecision(
       ...(details.counterpartyPubkey !== undefined
         ? { counterpartyPubkey: details.counterpartyPubkey }
         : {}),
-      allowRemember: details.allowRemember !== false,
+      allowRemember: details.allowRemember !== false && !selfDecrypt,
     },
   );
 
@@ -175,7 +197,7 @@ export async function requestApprovalDecision(
         '[BEX] Refused an approval for an account the site is not bound to',
       );
       void logService.logApproval(
-        approvalLogKind(eventKind, details),
+        approvalLogKind(eventKind, details, decided.accountPubkey),
         originHostname(origin),
         decided.accountAlias,
         'rejected',
@@ -190,7 +212,9 @@ export async function requestApprovalDecision(
     details.allowRemember !== false &&
     !details.skipPermissionCheck &&
     // A grant for no account would answer for no one; the user is asked again next time instead.
-    decided.accountPubkey
+    decided.accountPubkey &&
+    // Named only on unlock for a request that waited out a locked vault, so checked again here.
+    !isSelfDecrypt(details.requestType, details.counterpartyPubkey, decided.accountPubkey)
   ) {
     try {
       await grantPermission(
@@ -210,7 +234,7 @@ export async function requestApprovalDecision(
   // Logged on the terminal transition rather than when the site asked, so a rejection is not
   // recorded as an approval. This is the only place a prompted request is logged (#37).
   void logService.logApproval(
-    approvalLogKind(eventKind, details),
+    approvalLogKind(eventKind, details, decided.accountPubkey),
     originHostname(origin),
     decided.accountAlias,
     outcome.ending ?? (approved ? 'approved' : 'rejected'),

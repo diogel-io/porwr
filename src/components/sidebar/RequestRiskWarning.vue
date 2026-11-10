@@ -8,9 +8,13 @@ defineOptions({ name: 'RequestRiskWarning' });
 const props = defineProps<{
   riskClass: RequestRiskClass;
   eventKind: number;
+  /** A decrypt of the account's own data, which has its own warning (diogel-io/workspace#226). */
+  selfDecrypt?: boolean;
 }>();
 
-const warning = computed(() => getRiskWarning(props.riskClass, props.eventKind));
+const warning = computed(() =>
+  getRiskWarning(props.riskClass, props.eventKind, props.selfDecrypt ?? false),
+);
 </script>
 
 <template>

@@ -36,6 +36,8 @@ export const REQUEST_TYPE_LABELS: Readonly<Record<string, string>> = {
   nip04_decrypt: 'NIP-04 decryption request',
   nip44_encrypt: 'NIP-44 encryption request',
   nip44_decrypt: 'NIP-44 decryption request',
+  nip04_decrypt_self: 'NIP-04 decryption of your own data',
+  nip44_decrypt_self: 'NIP-44 decryption of your own data',
   webln_enable: 'WebLN wallet access request',
   webln_send_payment: 'WebLN payment request',
 };
@@ -109,6 +111,48 @@ const ELEVATED_KIND_EFFECTS: Readonly<Record<number, string>> = {
   27235: "prove your identity to this site's server",
 };
 
+const DECRYPT_REQUEST_TYPES: readonly string[] = ['nip04_decrypt', 'nip44_decrypt'];
+
+/**
+ * A decrypt whose counterparty is the account the site acts as (diogel-io/workspace#226).
+ *
+ * It reads data that account encrypted to itself: NIP-78 app data and wallet backups, NIP-51
+ * private list items, NIP-60 wallet events. A grant the user gave for reading messages from others
+ * never answers it, and it is never remembered, because the user cannot see at grant time which of
+ * those the site will read. An account that is not known yet (a request waiting out a locked vault)
+ * is never self; the check runs again once the request is given its account.
+ */
+export const isSelfDecrypt = (
+  requestType: string,
+  counterpartyPubkey: string | null | undefined,
+  accountPubkey: string | null | undefined,
+): boolean =>
+  DECRYPT_REQUEST_TYPES.includes(requestType) &&
+  !!counterpartyPubkey &&
+  !!accountPubkey &&
+  counterpartyPubkey === accountPubkey;
+
+/**
+ * Whether a decrypt may only be approved once: it is a self-decrypt, or its account is not known yet
+ * and so it may turn out to be one. A request can stay unnamed when the unlock scan ran before it
+ * was queued, and the account it is dispatched as is only resolved afterwards, so remembering it is
+ * refused rather than assumed safe (diogel-io/workspace#226).
+ */
+export const isDecryptOnceOnly = (
+  requestType: string,
+  counterpartyPubkey: string | null | undefined,
+  accountPubkey: string | null | undefined,
+): boolean =>
+  DECRYPT_REQUEST_TYPES.includes(requestType) &&
+  !!counterpartyPubkey &&
+  (!accountPubkey || counterpartyPubkey === accountPubkey);
+
+/** What the approval log records a self-decrypt as, so it is told apart from an ordinary one. */
+export const selfDecryptLogType = (requestType: string): string => `${requestType}_self`;
+
+export const SELF_DECRYPT_WARNING =
+  'This site is asking to read data your account encrypted to itself, such as private lists, app settings or wallet backups.';
+
 export const isKnownEventKind = (kind: number): boolean =>
   Object.prototype.hasOwnProperty.call(NOSTR_KIND_LABELS, kind);
 
@@ -134,7 +178,9 @@ export const classifyRequest = (requestType: string, eventKind: number): Request
 export const getRiskWarning = (
   riskClass: RequestRiskClass,
   eventKind: number,
+  selfDecrypt = false,
 ): string | undefined => {
+  if (selfDecrypt) return SELF_DECRYPT_WARNING;
   if (riskClass === 'elevated') {
     if (eventKind < 0) return 'Approving this lets the site read private messages sent to you.';
     const effect = ELEVATED_KIND_EFFECTS[eventKind];

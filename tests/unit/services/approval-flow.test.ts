@@ -539,3 +539,121 @@ describe('the decision with its duration (porwr#369)', () => {
     await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(true);
   });
 });
+
+describe('a decrypt of the account own data (diogel-io/workspace#226)', () => {
+  const DECRYPTS = ['nip04_decrypt', 'nip44_decrypt'] as const;
+
+  describe.each(DECRYPTS)('%s', (requestType) => {
+    it('is answered by an existing grant when the counterparty is another pubkey', async () => {
+      mocks.checkPermission.mockResolvedValue({ granted: true });
+
+      await expect(
+        requestApproval(ORIGIN, -1, { requestType, counterpartyPubkey: BOB.id }),
+      ).resolves.toBe(true);
+
+      expect(mocks.checkPermission).toHaveBeenCalledWith(ORIGIN, ALICE.id, requestType, null);
+      expect(mocks.enqueueRequest).not.toHaveBeenCalled();
+    });
+
+    it('is never answered by a grant when the counterparty is the acting account', async () => {
+      mocks.checkPermission.mockResolvedValue({ granted: true });
+
+      await requestApproval(ORIGIN, -1, { requestType, counterpartyPubkey: ALICE.id });
+
+      expect(mocks.checkPermission).not.toHaveBeenCalled();
+      expect(mocks.enqueueRequest).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ counterpartyPubkey: ALICE.id, allowRemember: false }),
+      );
+    });
+
+    it('writes no grant, even if a remembered duration comes back', async () => {
+      enqueueResolving({ approved: true, duration: '8h' });
+
+      await expect(
+        requestApproval(ORIGIN, -1, { requestType, counterpartyPubkey: ALICE.id }),
+      ).resolves.toBe(true);
+
+      expect(mocks.grantPermission).not.toHaveBeenCalled();
+    });
+
+    it('asks again the next time', async () => {
+      mocks.checkPermission.mockResolvedValue({ granted: true });
+
+      await requestApproval(ORIGIN, -1, { requestType, counterpartyPubkey: ALICE.id });
+      await requestApproval(ORIGIN, -1, { requestType, counterpartyPubkey: ALICE.id });
+
+      expect(mocks.enqueueRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it('is logged as its own request type', async () => {
+      await requestApproval(ORIGIN, -1, { requestType, counterpartyPubkey: ALICE.id });
+
+      expect(mocks.logApproval).toHaveBeenCalledWith(
+        `${requestType}_self`,
+        'example.com',
+        'alice',
+        'approved',
+      );
+    });
+
+    it('keeps the ordinary request type in the log for another counterparty', async () => {
+      await requestApproval(ORIGIN, -1, { requestType, counterpartyPubkey: BOB.id });
+
+      expect(mocks.logApproval).toHaveBeenCalledWith(
+        requestType,
+        'example.com',
+        'alice',
+        'approved',
+      );
+    });
+
+    it('writes no grant for a request named only on unlock (porwr#320)', async () => {
+      mocks.resolveSigningAccount.mockResolvedValue({
+        error: 'Vault is locked',
+        code: 'VLT_LOCKED',
+      });
+      enqueueResolving({ approved: true, duration: '8h' }, null);
+      mocks.getRequestRecord.mockResolvedValue({
+        id: 'req-1',
+        accountAlias: 'alice',
+        accountPubkey: ALICE.id,
+      });
+
+      await requestApproval(ORIGIN, -1, { requestType, counterpartyPubkey: ALICE.id });
+
+      expect(mocks.grantPermission).not.toHaveBeenCalled();
+      expect(mocks.logApproval).toHaveBeenCalledWith(
+        `${requestType}_self`,
+        'example.com',
+        'alice',
+        'approved',
+      );
+    });
+  });
+
+  it('still remembers a grant for another counterparty', async () => {
+    enqueueResolving({ approved: true, duration: '8h' });
+
+    await requestApproval(ORIGIN, -1, { requestType: 'nip44_decrypt', counterpartyPubkey: BOB.id });
+
+    expect(mocks.grantPermission).toHaveBeenCalledWith(
+      ORIGIN,
+      ALICE.id,
+      'nip44_decrypt',
+      null,
+      '8h',
+    );
+  });
+
+  it('leaves encrypt to self unchanged', async () => {
+    mocks.checkPermission.mockResolvedValue({ granted: true });
+
+    await requestApproval(ORIGIN, -1, {
+      requestType: 'nip44_encrypt',
+      counterpartyPubkey: ALICE.id,
+    });
+
+    expect(mocks.enqueueRequest).not.toHaveBeenCalled();
+  });
+});

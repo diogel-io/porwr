@@ -18,6 +18,8 @@ const props = defineProps<{
   riskClass: RequestRiskClass;
   /** Open on the full event whatever the class: HTTP authentication for another site (#215). */
   openFull?: boolean;
+  /** The counterparty is the account the site acts as (diogel-io/workspace#226). */
+  selfCounterparty?: boolean;
 }>();
 
 const { t } = useI18n();
@@ -79,7 +81,12 @@ const fullEventJson = computed(() => (event.value ? JSON.stringify(event.value, 
       </div>
       <p v-if="shownContent" class="request-preview__content">{{ shownContent }}</p>
       <p v-else-if="content?.counterpartyPubkey" class="request-preview__content">
-        {{ t('request.preview.counterparty', { pubkey: content.counterpartyPubkey }) }}
+        {{
+          t(
+            selfCounterparty ? 'request.preview.counterpartySelf' : 'request.preview.counterparty',
+            { pubkey: content.counterpartyPubkey },
+          )
+        }}
       </p>
     </div>
 

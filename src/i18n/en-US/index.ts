@@ -326,6 +326,7 @@ export default {
             relays: 'Relays',
             encrypt: 'Encrypt (NIP-{nip})',
             decrypt: 'Decrypt (NIP-{nip})',
+            decryptSelf: 'Decrypt own data (NIP-{nip})',
           },
         },
         status: {
@@ -864,6 +865,7 @@ export default {
       raw: 'Raw',
       full: 'Full event',
       counterparty: 'Counterparty: {pubkey}',
+      counterpartySelf: 'Counterparty: this account ({pubkey})',
       expand: 'Show all {count} characters',
       collapse: 'Show less',
     },
