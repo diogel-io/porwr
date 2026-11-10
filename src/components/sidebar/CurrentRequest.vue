@@ -12,6 +12,7 @@ import {
   getRequestTypeLabel,
   httpAuthOtherOrigin,
   isNotice,
+  isSelfDecrypt,
 } from '@/services/approval-preview';
 import type {
   ApprovalDuration,
@@ -39,6 +40,18 @@ const heading = ref<HTMLElement | null>(null);
 
 const riskClass = computed(() =>
   classifyRequest(props.request.requestType, props.request.eventKind),
+);
+
+/**
+ * The site asks to read data the account it acts as encrypted to itself (diogel-io/workspace#226).
+ * Offered once only, with its own warning; the background enforces the same rule.
+ */
+const selfDecrypt = computed(() =>
+  isSelfDecrypt(
+    props.request.requestType,
+    props.content?.counterpartyPubkey,
+    props.request.accountPubkey,
+  ),
 );
 
 const requestTypeLabel = computed(() => getRequestTypeLabel(props.request.requestType));
@@ -94,7 +107,11 @@ watch(
       <span class="current-request__kind-value">{{ kindLabel }}</span>
     </div>
 
-    <RequestRiskWarning :risk-class="riskClass" :event-kind="request.eventKind" />
+    <RequestRiskWarning
+      :risk-class="riskClass"
+      :event-kind="request.eventKind"
+      :self-decrypt="selfDecrypt"
+    />
 
     <div v-if="otherOrigin" class="current-request__other-origin" role="alert">
       <q-icon name="gpp_maybe" size="sm" aria-hidden="true" />
@@ -126,10 +143,15 @@ watch(
     </template>
 
     <template v-else>
-      <RequestPreview :content="content" :risk-class="riskClass" :open-full="!!otherOrigin" />
+      <RequestPreview
+        :content="content"
+        :risk-class="riskClass"
+        :open-full="!!otherOrigin"
+        :self-counterparty="selfDecrypt"
+      />
       <RequestDecisionBar
         :risk-class="riskClass"
-        :allow-remember="content?.allowRemember ?? false"
+        :allow-remember="(content?.allowRemember ?? false) && !selfDecrypt"
         :busy="busy"
         @decide="(approved, duration) => emit('decide', request.id, approved, duration)"
       />

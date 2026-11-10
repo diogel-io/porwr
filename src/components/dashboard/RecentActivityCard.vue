@@ -108,6 +108,12 @@ function formatActivityEventLabel(activity: DashboardActivityItem): string {
     nip04_decrypt: t('dashboard.widgets.recentActivity.eventType.request.decrypt', { nip: '04' }),
     nip44_encrypt: t('dashboard.widgets.recentActivity.eventType.request.encrypt', { nip: '44' }),
     nip44_decrypt: t('dashboard.widgets.recentActivity.eventType.request.decrypt', { nip: '44' }),
+    nip04_decrypt_self: t('dashboard.widgets.recentActivity.eventType.request.decryptSelf', {
+      nip: '04',
+    }),
+    nip44_decrypt_self: t('dashboard.widgets.recentActivity.eventType.request.decryptSelf', {
+      nip: '44',
+    }),
   };
   const requestName = namedRequests[kind];
   if (requestName) {

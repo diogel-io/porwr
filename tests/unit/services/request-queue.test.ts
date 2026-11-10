@@ -193,6 +193,64 @@ describe('request queue', () => {
       await expect(decision).resolves.toEqual({ approved: true, duration: '8h' });
     });
 
+    describe('a decrypt of the account own data (diogel-io/workspace#226)', () => {
+      const OWN = 'a'.repeat(64);
+      const OTHER = 'b'.repeat(64);
+      const decrypt = async (
+        requestType: string,
+        accountPubkey: string | null,
+        counterpartyPubkey: string,
+      ) =>
+        enqueueRequest(
+          { ...baseInput, requestType, eventKind: -1, accountPubkey },
+          { allowRemember: true, counterpartyPubkey },
+        );
+
+      it.each(['nip04_decrypt', 'nip44_decrypt'])(
+        'refuses 8h for %s to the account own pubkey, even if the panel offered it',
+        async (requestType) => {
+          const { record } = await decrypt(requestType, OWN, OWN);
+
+          const result = await submitDecision(record.id, { approved: true, duration: '8h' });
+
+          expect(result).toEqual({ applied: false, reason: 'duration-not-allowed' });
+          expect((await getRequestRecord(record.id))?.state).toBe('queued');
+        },
+      );
+
+      it('accepts once for a decrypt to the account own pubkey', async () => {
+        const { record } = await decrypt('nip44_decrypt', OWN, OWN);
+
+        const result = await submitDecision(record.id, { approved: true, duration: 'once' });
+
+        expect(result.applied).toBe(true);
+      });
+
+      it('still accepts 8h for a decrypt to another pubkey', async () => {
+        const { record } = await decrypt('nip44_decrypt', OWN, OTHER);
+
+        const result = await submitDecision(record.id, { approved: true, duration: '8h' });
+
+        expect(result.applied).toBe(true);
+      });
+
+      it('refuses 8h once a request queued while locked is named as the counterparty (porwr#320)', async () => {
+        const { record } = await decrypt('nip44_decrypt', null, OWN);
+        await assignAccountsToWaitingRequests(() =>
+          Promise.resolve({
+            accountAlias: 'alice',
+            accountPubkey: OWN,
+            activeAccountAlias: 'alice',
+            activeAccountPubkey: OWN,
+          }),
+        );
+
+        const result = await submitDecision(record.id, { approved: true, duration: '8h' });
+
+        expect(result).toEqual({ applied: false, reason: 'duration-not-allowed' });
+      });
+    });
+
     it('accepts every duration a standard kind allows', async () => {
       const { result } = await decide({ eventKind: 1 }, 'always');
 

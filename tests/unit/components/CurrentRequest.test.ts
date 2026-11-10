@@ -212,3 +212,51 @@ describe('an HTTP authentication request', () => {
     expect(wrapper.find('.request-preview').attributes('data-open-full')).toBe('false');
   });
 });
+
+/** A decrypt of data the acting account encrypted to itself (diogel-io/workspace#226). */
+describe('a decrypt of the account own data', () => {
+  const OWN = 'a'.repeat(64);
+  const OTHER = 'b'.repeat(64);
+
+  const mountDecrypt = (counterpartyPubkey: string, accountPubkey: string | null = OWN) =>
+    mount(CurrentRequest, {
+      props: {
+        request: request({ requestType: 'nip44_decrypt', eventKind: -1, accountPubkey }),
+        content: { allowRemember: true, counterpartyPubkey },
+        busy: false,
+      },
+      global: {
+        stubs: {
+          RequestOriginHeader: true,
+          'q-btn': true,
+          RequestRiskWarning: {
+            template: '<div class="risk" :data-self="String(!!selfDecrypt)" />',
+            props: ['riskClass', 'eventKind', 'selfDecrypt'],
+          },
+          RequestPreview: {
+            template: '<div class="preview" :data-self="String(!!selfCounterparty)" />',
+            props: ['content', 'riskClass', 'openFull', 'selfCounterparty'],
+          },
+          RequestDecisionBar: {
+            template: '<div class="bar" :data-remember="String(allowRemember)" />',
+            props: ['riskClass', 'allowRemember', 'busy'],
+          },
+        },
+      },
+    });
+
+  it('offers once only, with the self-decrypt warning and counterparty label', () => {
+    const wrapper = mountDecrypt(OWN);
+
+    expect(wrapper.find('.bar').attributes('data-remember')).toBe('false');
+    expect(wrapper.find('.risk').attributes('data-self')).toBe('true');
+    expect(wrapper.find('.preview').attributes('data-self')).toBe('true');
+  });
+
+  it('is unchanged for another counterparty', () => {
+    const wrapper = mountDecrypt(OTHER);
+
+    expect(wrapper.find('.bar').attributes('data-remember')).toBe('true');
+    expect(wrapper.find('.risk').attributes('data-self')).toBe('false');
+  });
+});

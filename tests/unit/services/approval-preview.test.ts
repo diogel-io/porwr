@@ -10,6 +10,9 @@ import {
   getEventKindLabel,
   getRequestTypeLabel,
   getRiskWarning,
+  isSelfDecrypt,
+  SELF_DECRYPT_WARNING,
+  selfDecryptLogType,
   HTTP_AUTH_KIND,
   httpAuthOtherOrigin,
   httpAuthTarget,
@@ -554,5 +557,36 @@ describe('decrypt requests', () => {
 
   it('warns that approving lets the site read private messages', () => {
     expect(getRiskWarning('elevated', -1)).toMatch(/read private messages/);
+  });
+});
+
+describe('decrypt of the account own data (diogel-io/workspace#226)', () => {
+  const OWN = 'a'.repeat(64);
+  const OTHER = 'b'.repeat(64);
+
+  it.each([
+    ['nip04_decrypt', OWN, OWN, true],
+    ['nip44_decrypt', OWN, OWN, true],
+    ['nip44_decrypt', OTHER, OWN, false],
+    ['nip44_decrypt', OWN, null, false],
+    ['nip44_decrypt', undefined, OWN, false],
+    ['nip44_encrypt', OWN, OWN, false],
+    ['nip04_encrypt', OWN, OWN, false],
+    ['sign_event', OWN, OWN, false],
+  ] as const)('%s to %s as %s is self: %s', (requestType, counterparty, account, expected) => {
+    expect(isSelfDecrypt(requestType, counterparty, account)).toBe(expected);
+  });
+
+  it('is logged under its own type', () => {
+    expect(selfDecryptLogType('nip44_decrypt')).toBe('nip44_decrypt_self');
+    expect(getRequestTypeLabel('nip04_decrypt_self')).toBe('NIP-04 decryption of your own data');
+    expect(getRequestTypeLabel('nip44_decrypt_self')).toBe('NIP-44 decryption of your own data');
+  });
+
+  it('has its own warning in place of the private-messages one', () => {
+    expect(getRiskWarning('elevated', -1, true)).toBe(SELF_DECRYPT_WARNING);
+    expect(getRiskWarning('elevated', -1)).toBe(
+      'Approving this lets the site read private messages sent to you.',
+    );
   });
 });

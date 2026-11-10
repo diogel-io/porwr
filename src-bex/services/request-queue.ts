@@ -14,7 +14,7 @@ import { REQUEST_NOTICE_KEY, REQUEST_QUEUE_KEY, storageService } from '@/service
 import { clampRequestExpiryMinutes } from '@/services/request-expiry';
 import { REQUEST_EXPIRY_MINUTES } from '@/services/storage-service';
 import { LogLevel, logService } from '@/services/log-service';
-import { classifyRequest, getAllowedDurations } from '@/services/approval-preview';
+import { classifyRequest, getAllowedDurations, isSelfDecrypt } from '@/services/approval-preview';
 import { MAX_PENDING_PER_ORIGIN, MAX_PENDING_TOTAL, RequestQueueFullError } from './request-limits';
 import {
   TERMINAL_REQUEST_STATES,
@@ -525,7 +525,12 @@ const applyDecision = async (
   // The panel offers only the durations the risk class allows; the background enforces it, since
   // the panel is untrusted for lifecycle purposes (D1, D11, D12, #139).
   if (decision.approved) {
-    const allowRemember = requestContent.get(id)?.allowRemember !== false;
+    const content = requestContent.get(id);
+    // A decrypt of the account's own data is once only, whatever the panel offered. The account is
+    // the one on the record now, so a request named only on unlock is covered (workspace#226).
+    const allowRemember =
+      content?.allowRemember !== false &&
+      !isSelfDecrypt(target.requestType, content?.counterpartyPubkey, target.accountPubkey);
     const allowed = getAllowedDurations(
       classifyRequest(target.requestType, target.eventKind),
       allowRemember,
