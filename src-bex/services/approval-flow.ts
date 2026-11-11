@@ -168,6 +168,14 @@ export async function requestApprovalDecision(
     },
   );
 
+  // The page that asked may close while the request waits; it is then interrupted rather than
+  // left approvable for a tab that is gone (#139).
+  const interruptIfGone = (): void => {
+    void interruptRequest(record.id);
+  };
+  if (details.signal?.aborted) interruptIfGone();
+  details.signal?.addEventListener('abort', interruptIfGone, { once: true });
+
   // Resolved while the vault was locked, but queued after unlock had already named the waiting
   // requests: name it now, so it is never left without an account (diogel-io/workspace#227). A
   // failure to name it is logged, not thrown: the request is queued and waits for its decision,
@@ -179,14 +187,6 @@ export async function requestApprovalDecision(
       });
     });
   }
-
-  // The page that asked may close while the request waits; it is then interrupted rather than
-  // left approvable for a tab that is gone (#139).
-  const interruptIfGone = (): void => {
-    void interruptRequest(record.id);
-  };
-  if (details.signal?.aborted) interruptIfGone();
-  details.signal?.addEventListener('abort', interruptIfGone, { once: true });
 
   // A locked vault no longer opens its own window: the panel presents the unlock view with the
   // waiting request, and unlocking still requires an explicit decision afterwards (ADR D14).

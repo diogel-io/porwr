@@ -631,6 +631,22 @@ describe('naming a request that reached the queue after unlock (diogel-io/worksp
     expect(mocks.log).toHaveBeenCalled();
   });
 
+  // The page may go away while naming runs; its request is still interrupted, because the abort
+  // listener is in place before naming starts.
+  it('interrupts a request whose page goes away while it is being named', async () => {
+    mocks.resolveSigningAccount.mockResolvedValueOnce({ error: 'Vault is locked', code: 'x' });
+    enqueueResolving({ approved: false, duration: 'once' }, null);
+    const page = new AbortController();
+    mocks.assignAccountsToWaitingRequests.mockImplementation(() => {
+      page.abort();
+      return Promise.resolve([]);
+    });
+
+    await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event', signal: page.signal });
+
+    expect(mocks.interruptRequest).toHaveBeenCalledWith('req-1');
+  });
+
   it('leaves the queue alone for a request queued with its account', async () => {
     enqueueResolving({ approved: false, duration: 'once' });
 
