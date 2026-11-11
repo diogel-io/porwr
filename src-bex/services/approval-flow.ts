@@ -282,7 +282,7 @@ export async function requestApprovalDecision(
 /**
  * Name the acting account on requests that waited out a locked vault (porwr#320).
  *
- * Resolved exactly as `requestApproval` resolves it for a request made while unlocked, so the panel
+ * Resolved exactly as `requestApprovalDecision` resolves it for a request made while unlocked, so the panel
  * shows, and the grant records, the identity the site will actually act as.
  */
 export async function identifyWaitingRequests(): Promise<void> {

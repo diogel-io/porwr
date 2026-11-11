@@ -42,7 +42,7 @@ export async function getActiveAccount(): Promise<StoredKey | null> {
  * Resolves the account a site acts as: its bound account, or for an unbound site the active one.
  *
  * It never writes a binding. Asking is not consent, so a site is bound only once the user approves
- * one of its requests (`bindSiteToAccount`, called from `requestApproval`), and a rejected, expired
+ * one of its requests (`bindSiteToAccount`, called from `requestApprovalDecision`), and a rejected, expired
  * or interrupted request leaves no trace (#139). Once bound, the binding is fixed:
  * `bindOriginIfUnbound` never overwrites.
  */

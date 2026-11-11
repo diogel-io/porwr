@@ -106,13 +106,16 @@ test to get a pass.
    came from (#246).
 3. `background.ts`'s `pageActionHandlers` serve the page allowlist (`src-bex/page-actions.ts`),
    each given the sender's origin as an argument. They enforce approval/permission flow
-   (`requestApproval`, `handlers/permission-handler.ts`), log activity via
-   `src/services/log-service.ts`, then call `dispatchMessage` (`src-bex/dispatcher.ts`).
+   (`requestApprovalDecision`, `handlers/permission-handler.ts`), log activity via
+   `src/services/log-service.ts`, then call the handler directly with the account the approval
+   named (checked again by `accountForDispatch`, diogel-io/workspace#227). A site's own signing,
+   encryption, and payment requests never go through the dispatcher: no account may travel in a
+   bridge payload.
 4. `dispatcher.ts` is the single switch-statement router from `BridgeAction` →
-   handler in `src-bex/handlers/*` (vault, accounts, account-signing, active-key, nip04, nip07,
-   nip44, nip46, nip47, webln, messaging, contacts, blossom, relay-browser, permissions). It is shared by
-   the page handlers and the raw `chrome.runtime.onMessage` listener, which serves only Porwr's
-   own pages.
+   handler in `src-bex/handlers/*` (vault, accounts, account-signing, active-key, nip46, nip47,
+   webln `getInfo`, messaging, contacts, blossom, relay-browser, permissions). It serves the raw
+   `chrome.runtime.onMessage` listener, which only Porwr's own pages may use, plus the one page
+   action still dispatched (`webln.getInfo`, which a stored WebLN grant answers).
 5. Vault state itself (encryption, lock/unlock, account storage) lives in
    `src-bex/vault.ts`, with persistence through `src/services/storage-service.ts` /
    `dexie-storage.ts` / `database.ts` (Dexie/IndexedDB).
@@ -120,9 +123,11 @@ test to get a pass.
 When adding a new `window.nostr` capability: add the type to `BridgeRequestMap` in
 `src/types/bridge-types.d.ts`, add the method to `PAGE_METHOD_TO_ACTION` in
 `src-bex/page-actions.ts`, add its handler to `pageActionHandlers` in `background.ts` (typecheck
-requires one per allowlisted action), add a case in `dispatcher.ts`, implement the handler in
-`src-bex/handlers/`, and wire the provider-side call in `nostr-provider.js`. Never read the origin
-from the request.
+requires one per allowlisted action), implement the handler in `src-bex/handlers/` taking the
+account the approval named, and wire the provider-side call in `nostr-provider.js`. A site action
+gets no case in `dispatcher.ts`: `decideRouting` refuses origin-scoped actions from extension
+pages, and the handler is called with the account from the approval rather than resolving one
+itself (diogel-io/workspace#227). Never read the origin from the request.
 
 ### Wallet connection (NIP-47 one-click)
 
@@ -182,10 +187,13 @@ only, and `nostrconnect://` is not implemented.
 
 - Per-origin, per-event-kind permissions are checked via `checkPermission` /
   `grantPermission` in `src-bex/handlers/permission-handler.ts`.
-- If permission isn't already granted, `requestApproval` (in `background.ts`) enqueues the
+- If permission isn't already granted, `requestApprovalDecision` (in
+  `src-bex/services/approval-flow.ts`) enqueues the
   request on the background-owned queue (`src-bex/services/request-queue.ts`) and awaits
   its terminal outcome, with "once" / "8h" / "always" durations and an expiry measured
-  from creation.
+  from creation. The outcome names the account the request is carried out as, which
+  `background.ts` checks with `accountForDispatch` and hands to the handler
+  (diogel-io/workspace#227).
 - The sidebar panel presents the request and submits the decision against a request id.
   There is no popup fallback: when the panel is closed the toolbar badge shows the pending
   count and the user opens the panel themselves (ADR D4).
