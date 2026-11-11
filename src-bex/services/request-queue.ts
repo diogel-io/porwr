@@ -456,18 +456,22 @@ export const assignAccountsToWaitingRequests = async (
   for (const origin of origins) accounts.set(origin, await resolve(origin));
 
   // Read again before writing: resolving awaits storage, and a request enqueued or decided in the
-  // meantime must not be overwritten with the earlier snapshot.
-  const updated: ApprovalRequestRecord[] = [];
-  const next = (await loadQueue(now)).map((record) => {
-    const account = needsAccount(record) ? accounts.get(record.origin) : null;
-    if (!account) return record;
-    const named: ApprovalRequestRecord = { ...record, ...account };
-    updated.push(named);
-    return named;
-  });
+  // meantime must not be overwritten with the earlier snapshot. The read and the write run in the
+  // enqueue chain, so a request enqueued while this writes is not lost from the queue. Naming runs
+  // on every panel read of the queue, not only at unlock (diogel-io/workspace#227).
+  return serialiseEnqueue(async () => {
+    const updated: ApprovalRequestRecord[] = [];
+    const next = (await loadQueue(now)).map((record) => {
+      const account = needsAccount(record) ? accounts.get(record.origin) : null;
+      if (!account) return record;
+      const named: ApprovalRequestRecord = { ...record, ...account };
+      updated.push(named);
+      return named;
+    });
 
-  if (updated.length > 0) await writeRecords(next.map(toDurableRecord));
-  return updated;
+    if (updated.length > 0) await writeRecords(next.map(toDurableRecord));
+    return updated;
+  });
 };
 
 /** One request as it stands now, decided or not, or null once it has been pruned. */
@@ -500,6 +504,11 @@ export const submitDecision = async (
   }
 };
 
+/**
+ * Apply one decision, refusing an unknown, expired or already-decided request, an approval for a
+ * request that names no account (diogel-io/workspace#227), and a duration its risk class does not
+ * allow. Called only from `submitDecision`, which keeps decisions on one request from overlapping.
+ */
 const applyDecision = async (
   id: string,
   decision: ApprovalDecision,
@@ -524,6 +533,16 @@ const applyDecision = async (
       state: target.state,
     });
     return { applied: false, reason: 'already-resolved' };
+  }
+
+  // An approval is for the account named on the request, and is carried out as that account, so a
+  // request that names none cannot be approved. The panel does not offer Approve for one; this is
+  // the background's own check (diogel-io/workspace#227).
+  if (decision.approved && !target.accountPubkey) {
+    logService.log(LogLevel.WARN, '[Queue] Refused an approval for a request with no account', {
+      id,
+    });
+    return { applied: false, reason: 'no-account' };
   }
 
   // The panel offers only the durations the risk class allows; the background enforces it, since

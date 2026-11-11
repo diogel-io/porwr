@@ -169,7 +169,10 @@ export type DecisionRefusal =
   | 'expired'
   // A duration the request's risk class does not allow (D11, D12). The panel never offers one,
   // so this is a decision from something other than the panel's own controls (#139).
-  | 'duration-not-allowed';
+  | 'duration-not-allowed'
+  // An approval for a request that does not yet name the account it acts as. The panel offers no
+  // Approve until it does, so this too is a decision from outside the panel's controls (#227).
+  | 'no-account';
 
 export type DecisionResult =
   | { applied: true; record: ApprovalRequestRecord }

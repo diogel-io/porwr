@@ -26,6 +26,7 @@ import {
   interruptRequest,
 } from './request-queue';
 import { originHostname } from './origin';
+import { isVaultUnlocked } from '../vault';
 import { bindSiteToAccount, getActiveAccount, resolveSigningAccount } from './signing-account';
 import type { ApprovalDuration, UnsignedEvent } from '../types/background';
 
@@ -73,11 +74,19 @@ const approvalLogKind = (
     : details.requestType;
 };
 
-/** What the user decided, and for how long. */
+/** What the user decided, for how long, and as which account. */
 export interface ApprovalOutcome {
   approved: boolean;
   duration: ApprovalDuration;
+  /**
+   * The account the request is to be carried out as: the one named on the request the user
+   * approved, or the one an earlier grant belongs to. Null for every refusal. The caller hands it
+   * to the handler rather than resolving the site's account again (diogel-io/workspace#227).
+   */
+  accountPubkey: string | null;
 }
+
+const REFUSED: ApprovalOutcome = { approved: false, duration: 'once', accountPubkey: null };
 
 /**
  * Ask for approval and report the duration chosen with it.
@@ -119,8 +128,7 @@ export async function requestApprovalDecision(
       // A grant is an earlier approval for this account, so the site is bound to it if it is not
       // already (#139). A binding to another account means the grant is for an identity the site
       // no longer acts as, so it does not answer.
-      if ((await bindSiteToAccount(origin, actingAccount.id)) !== actingAccount.id)
-        return { approved: false, duration: 'once' };
+      if ((await bindSiteToAccount(origin, actingAccount.id)) !== actingAccount.id) return REFUSED;
       // Answered by a grant the user gave earlier, so still an approval, and logged as one (#37).
       void logService.logApproval(
         approvalLogKind(eventKind, details, actingAccount.id),
@@ -128,7 +136,7 @@ export async function requestApprovalDecision(
         actingAccount.alias,
         'approved',
       );
-      return { approved: true, duration: 'once' };
+      return { approved: true, duration: 'once', accountPubkey: actingAccount.id };
     }
   }
 
@@ -168,6 +176,18 @@ export async function requestApprovalDecision(
   if (details.signal?.aborted) interruptIfGone();
   details.signal?.addEventListener('abort', interruptIfGone, { once: true });
 
+  // Resolved while the vault was locked, but queued after unlock had already named the waiting
+  // requests: name it now, so it is never left without an account (diogel-io/workspace#227). A
+  // failure to name it is logged, not thrown: the request is queued and waits for its decision,
+  // and the panel's next read of the queue tries again.
+  if (!record.accountPubkey) {
+    await nameWaitingRequests().catch((error: unknown) => {
+      logService.log(LogLevel.ERROR, '[BEX] Failed to name the account on a queued request', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
+
   // A locked vault no longer opens its own window: the panel presents the unlock view with the
   // waiting request, and unlocking still requires an explicit decision afterwards (ADR D14).
   const outcome = await decision.finally(() => {
@@ -181,6 +201,20 @@ export async function requestApprovalDecision(
   // function enqueued it, so the record as it stands now is the one to grant and log against
   // (porwr#320).
   const decided = (await getRequestRecord(record.id)) ?? record;
+
+  // An approval is carried out as the account named on the request, so one that names none is
+  // refused. The queue refuses it too (`applyDecision`); this holds even if a decision arrives some
+  // other way (diogel-io/workspace#227).
+  if (approved && !decided.accountPubkey) {
+    logService.log(LogLevel.WARN, '[BEX] Refused an approval for a request with no account');
+    void logService.logApproval(
+      approvalLogKind(eventKind, details, null),
+      originHostname(origin),
+      decided.accountAlias,
+      'rejected',
+    );
+    return REFUSED;
+  }
 
   // Bound only now, to the account the user saw and approved. A request that was rejected,
   // expired, or interrupted binds nothing (#139).
@@ -202,7 +236,7 @@ export async function requestApprovalDecision(
         decided.accountAlias,
         'rejected',
       );
-      return { approved: false, duration: 'once' };
+      return REFUSED;
     }
   }
 
@@ -240,21 +274,15 @@ export async function requestApprovalDecision(
     outcome.ending ?? (approved ? 'approved' : 'rejected'),
   );
 
-  return { approved, duration: approved ? durationLabel : 'once' };
-}
-
-export async function requestApproval(
-  origin: string,
-  eventKind: number,
-  details: ApprovalRequestDetails,
-): Promise<boolean> {
-  return (await requestApprovalDecision(origin, eventKind, details)).approved;
+  return approved
+    ? { approved, duration: durationLabel, accountPubkey: decided.accountPubkey }
+    : REFUSED;
 }
 
 /**
  * Name the acting account on requests that waited out a locked vault (porwr#320).
  *
- * Resolved exactly as `requestApproval` resolves it for a request made while unlocked, so the panel
+ * Resolved exactly as `requestApprovalDecision` resolves it for a request made while unlocked, so the panel
  * shows, and the grant records, the identity the site will actually act as.
  */
 export async function identifyWaitingRequests(): Promise<void> {
@@ -270,4 +298,17 @@ export async function identifyWaitingRequests(): Promise<void> {
       activeAccountPubkey: active?.id ?? null,
     };
   });
+}
+
+/**
+ * Name the account on waiting requests, if the vault is unlocked (diogel-io/workspace#227).
+ *
+ * Run before the panel is given a request, and after one is queued. Unlock names the requests
+ * waiting at that moment, but a request can reach the queue just after; this way the panel never
+ * shows one with no account, whenever it arrived. With nothing to name, it reads the queue and
+ * stops.
+ */
+export async function nameWaitingRequests(): Promise<void> {
+  if (!isVaultUnlocked()) return;
+  await identifyWaitingRequests();
 }

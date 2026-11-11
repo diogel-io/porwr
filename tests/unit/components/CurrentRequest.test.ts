@@ -267,3 +267,43 @@ describe('a decrypt of the account own data', () => {
     expect(wrapper.find('.risk').attributes('data-self')).toBe('false');
   });
 });
+
+/** A request that does not name its account yet (diogel-io/workspace#227). */
+describe('a request with no account', () => {
+  const mountWithAccount = (accountPubkey: string | null) =>
+    mount(CurrentRequest, {
+      props: {
+        request: request({ accountAlias: accountPubkey ? 'alice' : null, accountPubkey }),
+        content: { allowRemember: true },
+        busy: false,
+      },
+      global: {
+        stubs: {
+          RequestOriginHeader: true,
+          'q-btn': true,
+          RequestRiskWarning: true,
+          RequestPreview: true,
+          RequestDecisionBar: {
+            template: '<div class="bar" :data-no-approve="String(!!noApprove)" />',
+            props: ['riskClass', 'allowRemember', 'busy', 'noApprove'],
+          },
+        },
+      },
+    });
+
+  it('offers no Approve, and says why', () => {
+    const wrapper = mountWithAccount(null);
+
+    expect(wrapper.find('.bar').attributes('data-no-approve')).toBe('true');
+    expect(wrapper.find('[data-testid="request-no-account"]').text()).toBe(
+      'request.account.notChosen',
+    );
+  });
+
+  it('offers Approve once the request names its account', () => {
+    const wrapper = mountWithAccount('a'.repeat(64));
+
+    expect(wrapper.find('.bar').attributes('data-no-approve')).toBe('false');
+    expect(wrapper.find('[data-testid="request-no-account"]').exists()).toBe(false);
+  });
+});

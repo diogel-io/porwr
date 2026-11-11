@@ -2,10 +2,10 @@
  * NIP-07 method handlers
  */
 
+import type { StoredKey } from '@/types';
 import type { HandlerResult, UnsignedEvent, SignedEvent } from '../types/background';
 import { isVaultUnlocked } from '../vault';
 import { checkPermission } from './permission-handler';
-import { resolveSigningAccount } from '../services/signing-account';
 import { signerFor } from '../services/account-signer';
 import {
   Nip46BadResponseError,
@@ -35,19 +35,20 @@ const signingErrorCode = (error: unknown): ErrorCode =>
           : ErrorCode.SIG_FAILED;
 
 export const handleGetPublicKey = logWrapper(
-  async (_payload: unknown, origin: string): Promise<HandlerResult<string>> => {
+  (_payload: unknown, origin: string, account: StoredKey): Promise<HandlerResult<string>> => {
     void _payload;
+    void origin;
     if (!isVaultUnlocked()) {
-      return { success: false, error: 'Vault is locked', code: ErrorCode.VLT_LOCKED };
+      return Promise.resolve({
+        success: false,
+        error: 'Vault is locked',
+        code: ErrorCode.VLT_LOCKED,
+      });
     }
 
-    // This is where a site's identity is established, and the answer a client will cache.
-    const resolved = await resolveSigningAccount(origin);
-    if ('error' in resolved) {
-      return { success: false, error: resolved.error, code: resolved.code };
-    }
-
-    return { success: true, data: resolved.account.id };
+    // This is where a site's identity is established, and the answer a client will cache: the
+    // account the user approved, passed in rather than resolved again (diogel-io/workspace#227).
+    return Promise.resolve({ success: true, data: account.id });
   },
   'getPublicKey',
 );
@@ -58,26 +59,32 @@ export const handleGetPublicKey = logWrapper(
  * with nowhere to go (#270).
  */
 export const handleGetRelays = logWrapper(
-  async (_payload: unknown, origin: string): Promise<HandlerResult<Nip07RelayMap>> => {
+  async (
+    _payload: unknown,
+    origin: string,
+    account: StoredKey,
+  ): Promise<HandlerResult<Nip07RelayMap>> => {
     void _payload;
+    void origin;
     if (!isVaultUnlocked()) {
       return { success: false, error: 'Vault is locked', code: ErrorCode.VLT_LOCKED };
     }
 
-    const resolved = await resolveSigningAccount(origin);
-    if ('error' in resolved) {
-      return { success: false, error: resolved.error, code: resolved.code };
-    }
-
-    return { success: true, data: await messagingRelays.loadRelayMap(resolved.account.id) };
+    return { success: true, data: await messagingRelays.loadRelayMap(account.id) };
   },
   'getRelays',
 );
 
+/**
+ * Sign a site's event as `account`, the account the request was approved as or the one an earlier
+ * grant belongs to (#116, diogel-io/workspace#227). Checks a grant first unless the caller has
+ * already had the request approved (`skipPermissionCheck`).
+ */
 export const handleSignEvent = logWrapper(
   async (
     payload: { event: UnsignedEvent },
     origin: string,
+    account: StoredKey,
     options: { skipPermissionCheck?: boolean } = {},
   ): Promise<HandlerResult<SignedEvent>> => {
     // Check vault
@@ -85,14 +92,9 @@ export const handleSignEvent = logWrapper(
       return { success: false, error: 'Vault is locked', code: ErrorCode.VLT_LOCKED };
     }
 
-    // Resolved before the permission check, not after: the check is against the account that will
-    // actually sign. The site's bound account, never the active one, so a signature comes from the
-    // identity the site was given at login (#116).
-    const resolved = await resolveSigningAccount(origin);
-    if ('error' in resolved) {
-      return { success: false, error: resolved.error, code: resolved.code };
-    }
-    const account = resolved.account;
+    // The account the request was approved as, or the one an earlier grant belongs to, never the
+    // active one, so a signature comes from the identity the user saw (#116,
+    // diogel-io/workspace#227). The permission check, when there is one, is against this account.
 
     // Check permission
     if (!options.skipPermissionCheck) {

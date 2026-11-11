@@ -30,12 +30,15 @@ import {
 import { refreshAttention } from './services/attention-badge';
 import {
   identifyWaitingRequests,
-  requestApproval,
   requestApprovalDecision,
   trimApprovalContentDescription,
 } from './services/approval-flow';
 import type { ApprovalRequestDetails } from './services/approval-flow';
-import { listAccounts } from './services/signing-account';
+import {
+  accountForDispatch,
+  listAccounts,
+  resolveSigningAccount,
+} from './services/signing-account';
 import { sweepSiteStateForRemovedAccounts } from './services/connected-sites';
 import { decideRouting, type RawMessage } from './services/message-routing';
 import { classifySender, originOf } from './services/sender-policy';
@@ -66,8 +69,11 @@ import {
 import { onVaultUnlocked } from './vault';
 import { refreshActiveAccountContacts } from './handlers/contacts';
 import {} from './handlers/permission-handler';
-import { handleGetPublicKey, handleSignEvent } from './handlers/nip07';
-import { handleWebLnEnable } from './handlers/webln';
+import { handleGetPublicKey, handleGetRelays, handleSignEvent } from './handlers/nip07';
+import { handleNip04Decrypt, handleNip04Encrypt } from './handlers/nip04';
+import { handleNip44Decrypt, handleNip44Encrypt } from './handlers/nip44';
+import { handleWebLnEnable, handleWebLnSendPayment } from './handlers/webln';
+import { ErrorCode } from '@/types/error-codes.d';
 import { loadSeedRelays } from '@/services/relay-catalog';
 import { parseBolt11AmountMsat, previewInvoice } from '@/services/nip47-invoice';
 import { dispatchMessage } from './dispatcher';
@@ -87,6 +93,31 @@ class BackgroundBridgeError extends Error implements BridgeError {
 function requireCounterpartyPubkey(pubkey: unknown): void {
   if (!isHexPubkey(pubkey))
     throw new BackgroundBridgeError('INVALID_PUBKEY', INVALID_PUBKEY_MESSAGE);
+}
+
+/**
+ * The account an approved request is carried out as: the one the approval named, checked again
+ * now rather than resolved again, so it cannot become whichever account is active by the time the
+ * handler runs (diogel-io/workspace#227). Fails closed if that account is gone or the site has
+ * since been bound to another.
+ */
+async function approvedAccount(origin: string, accountPubkey: string | null): Promise<StoredKey> {
+  const resolved = await accountForDispatch(origin, accountPubkey);
+  if ('error' in resolved) {
+    throw new BackgroundBridgeError(
+      resolved.code === ErrorCode.VLT_LOCKED ? 'VAULT_LOCKED' : 'NOT_FOUND',
+      resolved.error,
+    );
+  }
+  return resolved.account;
+}
+
+/** A handler's failure, as the page sees it. */
+function unwrapHandlerResult<T>(
+  result: { success: true; data: T } | { success: false; error: string },
+): T {
+  if (!result.success) throw new Error(result.error);
+  return result.data;
 }
 
 async function getActiveAlias(): Promise<string | null> {
@@ -398,21 +429,22 @@ const pageActionHandlers: PageActionHandlers = {
       new BackgroundBridgeError(error === 'Vault is locked' ? 'VAULT_LOCKED' : 'NOT_FOUND', error);
 
     // Refuse at once if no account could answer, rather than queueing a request nobody can approve.
-    const available = await handleGetPublicKey({}, origin);
-    if (!available.success) throw toBridgeError(available.error);
+    const available = await resolveSigningAccount(origin);
+    if ('error' in available) throw toBridgeError(available.error);
 
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, {
+    const outcome = await requestApprovalDecision(origin, -1, {
       requestType: 'get_public_key',
       signal: page.signal,
     });
-    if (!approved) {
+    if (!outcome.approved) {
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the request');
     }
 
-    // Read again after approval: that is when the site was bound, and the key it is given must be
-    // the account it is now bound to (#139).
-    const result = await handleGetPublicKey({}, origin);
+    // The account the user approved, which the site is now bound to (#139). Not resolved again: it
+    // could be another account by now (diogel-io/workspace#227).
+    const account = await approvedAccount(origin, outcome.accountPubkey);
+    const result = await handleGetPublicKey({}, origin, account);
     if (!result.success) throw toBridgeError(result.error);
     return result.data;
   },
@@ -429,11 +461,11 @@ const pageActionHandlers: PageActionHandlers = {
     const approvalDetails: ApprovalRequestDetails = contentDescription
       ? { requestType: 'sign_event', contentDescription, event }
       : { requestType: 'sign_event', event };
-    const approved = await requestApproval(origin, event.kind, {
+    const outcome = await requestApprovalDecision(origin, event.kind, {
       ...approvalDetails,
       signal: page.signal,
     });
-    if (!approved) {
+    if (!outcome.approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data) {
         throw new BackgroundBridgeError(
@@ -443,7 +475,8 @@ const pageActionHandlers: PageActionHandlers = {
       }
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the request');
     }
-    const result = await handleSignEvent({ event }, origin, { skipPermissionCheck: true });
+    const account = await approvedAccount(origin, outcome.accountPubkey);
+    const result = await handleSignEvent({ event }, origin, account, { skipPermissionCheck: true });
     if (!result.success) {
       throw new BackgroundBridgeError(
         result.error === 'Vault is locked'
@@ -459,119 +492,118 @@ const pageActionHandlers: PageActionHandlers = {
 
   'nostr.getRelays': async (_payload, origin, page) => {
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, {
+    const outcome = await requestApprovalDecision(origin, -1, {
       requestType: 'get_relays',
       signal: page.signal,
     });
-    if (!approved) {
+    if (!outcome.approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data)
         throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return (
-      (await dispatchMessage(
-        'nostr.getRelays',
-        createBridgeRequest('nostr.getRelays', { origin }),
-        origin,
-      )) ?? {}
-    );
+    const account = await approvedAccount(origin, outcome.accountPubkey);
+    return unwrapHandlerResult(await handleGetRelays({}, origin, account));
   },
 
   'nostr.nip04.encrypt': async (payload, origin, page) => {
     requireCounterpartyPubkey(payload?.pubkey);
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, {
+    const outcome = await requestApprovalDecision(origin, -1, {
       signal: page.signal,
       requestType: 'nip04_encrypt',
       counterpartyPubkey: payload.pubkey,
     });
-    if (!approved) {
+    if (!outcome.approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data)
         throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return (
-      (await dispatchMessage(
-        'nostr.nip04.encrypt',
-        createBridgeRequest('nostr.nip04.encrypt', { ...payload, origin }),
+    const account = await approvedAccount(origin, outcome.accountPubkey);
+    return unwrapHandlerResult(
+      await handleNip04Encrypt(
+        { pubkey: payload.pubkey, plaintext: payload.plaintext },
         origin,
-      )) ?? ''
+        account,
+      ),
     );
   },
 
   'nostr.nip04.decrypt': async (payload, origin, page) => {
     requireCounterpartyPubkey(payload?.pubkey);
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, {
+    const outcome = await requestApprovalDecision(origin, -1, {
       signal: page.signal,
       requestType: 'nip04_decrypt',
       counterpartyPubkey: payload.pubkey,
     });
-    if (!approved) {
+    if (!outcome.approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data)
         throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return (
-      (await dispatchMessage(
-        'nostr.nip04.decrypt',
-        createBridgeRequest('nostr.nip04.decrypt', { ...payload, origin }),
+    const account = await approvedAccount(origin, outcome.accountPubkey);
+    return unwrapHandlerResult(
+      await handleNip04Decrypt(
+        { pubkey: payload.pubkey, ciphertext: payload.ciphertext },
         origin,
-      )) ?? ''
+        account,
+      ),
     );
   },
 
   'nostr.nip44.encrypt': async (payload, origin, page) => {
     requireCounterpartyPubkey(payload?.pubkey);
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, {
+    const outcome = await requestApprovalDecision(origin, -1, {
       signal: page.signal,
       requestType: 'nip44_encrypt',
       counterpartyPubkey: payload.pubkey,
     });
-    if (!approved) {
+    if (!outcome.approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data)
         throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return (
-      (await dispatchMessage(
-        'nostr.nip44.encrypt',
-        createBridgeRequest('nostr.nip44.encrypt', { ...payload, origin }),
+    const account = await approvedAccount(origin, outcome.accountPubkey);
+    return unwrapHandlerResult(
+      await handleNip44Encrypt(
+        { pubkey: payload.pubkey, plaintext: payload.plaintext },
         origin,
-      )) ?? ''
+        account,
+      ),
     );
   },
 
   'nostr.nip44.decrypt': async (payload, origin, page) => {
     requireCounterpartyPubkey(payload?.pubkey);
     await getActiveStoredKey();
-    const approved = await requestApproval(origin, -1, {
+    const outcome = await requestApprovalDecision(origin, -1, {
       signal: page.signal,
       requestType: 'nip44_decrypt',
       counterpartyPubkey: payload.pubkey,
     });
-    if (!approved) {
+    if (!outcome.approved) {
       const unlockedStatus = await handleVaultIsUnlocked({}, '');
       if (!unlockedStatus.success || !unlockedStatus.data)
         throw new Error('Vault is locked. Open the extension to unlock.');
       throw new Error('User rejected the request');
     }
-    return (
-      (await dispatchMessage(
-        'nostr.nip44.decrypt',
-        createBridgeRequest('nostr.nip44.decrypt', { ...payload, origin }),
+    const account = await approvedAccount(origin, outcome.accountPubkey);
+    return unwrapHandlerResult(
+      await handleNip44Decrypt(
+        { pubkey: payload.pubkey, ciphertext: payload.ciphertext },
         origin,
-      )) ?? ''
+        account,
+      ),
     );
   },
 
   'webln.enable': async (_payload, origin, page) => {
-    const { approved, duration } = await requestApprovalDecision(origin, -1, {
+    const { approved, duration, accountPubkey } = await requestApprovalDecision(origin, -1, {
       signal: page.signal,
       requestType: 'webln_enable',
       contentDescription:
@@ -591,8 +623,11 @@ const pageActionHandlers: PageActionHandlers = {
     // and a site with no wallet behind it was told it had been enabled.
     let result: Awaited<ReturnType<typeof handleWebLnEnable>>;
     try {
+      // With the wallet of the account the user approved, not the one active by now
+      // (diogel-io/workspace#227). An approval always names one; the handler checks it again.
       result = await handleWebLnEnable(
         createBridgeRequest('webln.enable', { origin, approved: true, duration }),
+        accountPubkey ?? '',
         page.signal,
       );
     } catch (error: unknown) {
@@ -618,27 +653,36 @@ const pageActionHandlers: PageActionHandlers = {
     const amountMsat = parseBolt11AmountMsat(payload.paymentRequest);
     const amountDescription =
       amountMsat !== undefined ? `${amountMsat / 1000} sats` : 'unknown amount';
-    const approved = await requestApproval(origin, -1, {
+    const outcome = await requestApprovalDecision(origin, -1, {
       signal: page.signal,
       requestType: 'webln_send_payment',
       contentDescription: `Pay Lightning invoice for ${amountDescription}: ${previewInvoice(payload.paymentRequest)}`,
       allowRemember: false,
       skipPermissionCheck: true,
     });
-    if (!approved) {
+    if (!outcome.approved) {
       throw new BackgroundBridgeError('PERMISSION_DENIED', 'User rejected the WebLN payment');
     }
-    return rejectWebLnFailure(
-      await dispatchMessage(
-        'webln.sendPayment',
+    // From the wallet of the account the user approved the payment as (diogel-io/workspace#227).
+    // The handler's errors are already the fixed messages a site may see (porwr#370).
+    let result: Awaited<ReturnType<typeof handleWebLnSendPayment>>;
+    try {
+      result = await handleWebLnSendPayment(
         createBridgeRequest('webln.sendPayment', {
           origin,
           paymentRequest: payload.paymentRequest,
           approved: true,
         }),
-        origin,
-      ),
-    );
+        outcome.accountPubkey ?? '',
+      );
+    } catch (error: unknown) {
+      throw new BackgroundBridgeError(
+        'WEBLN_UNAVAILABLE',
+        error instanceof Error ? error.message : 'WebLN request failed',
+      );
+    }
+    if (!result.success) throw new BackgroundBridgeError('WEBLN_UNAVAILABLE', result.error);
+    return result.data;
   },
 };
 

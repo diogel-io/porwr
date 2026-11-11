@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   interruptRequest: vi.fn(),
   log: vi.fn(),
   logApproval: vi.fn(),
+  isVaultUnlocked: vi.fn(),
 }));
 
 vi.mock('@/../src-bex/handlers/permission-handler', () => ({
@@ -29,6 +30,7 @@ vi.mock('@/../src-bex/services/signing-account', () => ({
   getActiveAccount: mocks.getActiveAccount,
   bindSiteToAccount: mocks.bindSiteToAccount,
 }));
+vi.mock('@/../src-bex/vault', () => ({ isVaultUnlocked: mocks.isVaultUnlocked }));
 vi.mock('@/services/log-service', () => ({
   LogLevel: { ERROR: 'error' },
   logService: { log: mocks.log, logApproval: mocks.logApproval },
@@ -37,7 +39,7 @@ vi.mock('@/services/log-service', () => ({
 import { RequestQueueFullError } from '@/../src-bex/services/request-limits';
 import {
   identifyWaitingRequests,
-  requestApproval,
+  nameWaitingRequests,
   requestApprovalDecision,
   toPermissionKind,
   trimApprovalContentDescription,
@@ -46,6 +48,11 @@ import {
 const ALICE = { id: 'a'.repeat(64), alias: 'alice', account: { privkey: '11'.repeat(32) } };
 const BOB = { id: 'b'.repeat(64), alias: 'bob', account: { privkey: '22'.repeat(32) } };
 const ORIGIN = 'https://example.com';
+
+/** Whether the request was approved, for the many tests that ask only that. */
+const requestApproval = async (
+  ...args: Parameters<typeof requestApprovalDecision>
+): Promise<boolean> => (await requestApprovalDecision(...args)).approved;
 
 /** Enqueue returns the stored record plus a promise that settles on the user's decision. */
 const enqueueResolving = (
@@ -65,6 +72,7 @@ const enqueueResolving = (
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.resolveSigningAccount.mockResolvedValue({ account: ALICE });
+  mocks.isVaultUnlocked.mockReturnValue(true);
   mocks.getActiveAccount.mockResolvedValue(ALICE);
   mocks.checkPermission.mockResolvedValue({ granted: false });
   mocks.grantPermission.mockResolvedValue(undefined);
@@ -232,8 +240,9 @@ describe('deciding a site request', () => {
     it('writes nothing when the request still names no account (porwr#320)', async () => {
       enqueueResolving({ approved: true, duration: 'always' }, null);
 
-      // Before #320 this wrote a grant against an empty pubkey.
-      await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(true);
+      // Before #320 this wrote a grant against an empty pubkey. It is now no approval at all: there
+      // is no account to carry it out as (diogel-io/workspace#227).
+      await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(false);
       expect(mocks.grantPermission).not.toHaveBeenCalled();
     });
 
@@ -511,7 +520,7 @@ describe('the decision with its duration (porwr#369)', () => {
         requestType: 'webln_enable',
         skipPermissionCheck: true,
       }),
-    ).resolves.toEqual({ approved: true, duration: '8h' });
+    ).resolves.toEqual({ approved: true, duration: '8h', accountPubkey: ALICE.id });
   });
 
   it('reports "once" for a refusal, whatever was selected', async () => {
@@ -522,7 +531,7 @@ describe('the decision with its duration (porwr#369)', () => {
         requestType: 'webln_enable',
         skipPermissionCheck: true,
       }),
-    ).resolves.toEqual({ approved: false, duration: 'once' });
+    ).resolves.toEqual({ approved: false, duration: 'once', accountPubkey: null });
   });
 
   it('reports "once" for a request an earlier grant answered, since nobody was asked', async () => {
@@ -530,13 +539,134 @@ describe('the decision with its duration (porwr#369)', () => {
 
     await expect(
       requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' }),
-    ).resolves.toEqual({ approved: true, duration: 'once' });
+    ).resolves.toEqual({ approved: true, duration: 'once', accountPubkey: ALICE.id });
+  });
+});
+
+describe('the account an approval is carried out as (diogel-io/workspace#227)', () => {
+  it('is the account named on the decided request', async () => {
+    enqueueResolving({ approved: true, duration: 'once' });
+
+    const outcome = await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(outcome).toEqual({ approved: true, duration: 'once', accountPubkey: ALICE.id });
   });
 
-  it('still answers requestApproval with a plain yes or no', async () => {
-    enqueueResolving({ approved: true, duration: 'always' });
+  it('is the account a request named on unlock was given, not the one it was queued with', async () => {
+    mocks.resolveSigningAccount.mockResolvedValueOnce({ error: 'Vault is locked', code: 'x' });
+    mocks.isVaultUnlocked.mockReturnValue(false);
+    enqueueResolving({ approved: true, duration: 'once' }, null);
+    mocks.getRequestRecord.mockResolvedValue({
+      id: 'req-1',
+      accountAlias: 'bob',
+      accountPubkey: BOB.id,
+    });
 
-    await expect(requestApproval(ORIGIN, 1, { requestType: 'sign_event' })).resolves.toBe(true);
+    const outcome = await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(outcome.accountPubkey).toBe(BOB.id);
+    expect(mocks.bindSiteToAccount).toHaveBeenCalledWith(ORIGIN, BOB.id);
+  });
+
+  it('is the account an earlier grant belongs to', async () => {
+    mocks.checkPermission.mockResolvedValue({ granted: true });
+
+    const outcome = await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(outcome).toEqual({ approved: true, duration: 'once', accountPubkey: ALICE.id });
+    expect(mocks.enqueueRequest).not.toHaveBeenCalled();
+  });
+
+  // An unbound site whose active account changes between the approval and the handler running:
+  // the outcome still names the account the user approved.
+  it('does not follow the active account after the decision', async () => {
+    mocks.resolveSigningAccount.mockResolvedValueOnce({ account: ALICE });
+    mocks.resolveSigningAccount.mockResolvedValue({ account: BOB });
+    mocks.getActiveAccount.mockResolvedValue(BOB);
+
+    const outcome = await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(outcome.accountPubkey).toBe(ALICE.id);
+  });
+
+  it('is null for every refusal', async () => {
+    enqueueResolving({ approved: false, duration: 'once' });
+
+    const outcome = await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(outcome.accountPubkey).toBeNull();
+  });
+
+  it('refuses an approval for a request that names no account, and binds nothing', async () => {
+    mocks.resolveSigningAccount.mockResolvedValue({ error: 'No active account', code: 'x' });
+    enqueueResolving({ approved: true, duration: '8h' }, null);
+
+    const outcome = await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(outcome).toEqual({ approved: false, duration: 'once', accountPubkey: null });
+    expect(mocks.bindSiteToAccount).not.toHaveBeenCalled();
+    expect(mocks.grantPermission).not.toHaveBeenCalled();
+    expect(mocks.logApproval).toHaveBeenCalledWith(1, 'example.com', 'alice', 'rejected');
+  });
+});
+
+describe('naming a request that reached the queue after unlock (diogel-io/workspace#227)', () => {
+  it('names the queue straight after a request is queued without an account', async () => {
+    mocks.resolveSigningAccount.mockResolvedValueOnce({ error: 'Vault is locked', code: 'x' });
+    enqueueResolving({ approved: false, duration: 'once' }, null);
+
+    await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.assignAccountsToWaitingRequests).toHaveBeenCalledTimes(1);
+  });
+
+  it('still waits for the decision when naming fails', async () => {
+    mocks.resolveSigningAccount.mockResolvedValueOnce({ error: 'Vault is locked', code: 'x' });
+    enqueueResolving({ approved: false, duration: 'once' }, null);
+    mocks.assignAccountsToWaitingRequests.mockRejectedValue(new Error('storage gone'));
+
+    await expect(
+      requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' }),
+    ).resolves.toMatchObject({ approved: false });
+    expect(mocks.log).toHaveBeenCalled();
+  });
+
+  // The page may go away while naming runs; its request is still interrupted, because the abort
+  // listener is in place before naming starts.
+  it('interrupts a request whose page goes away while it is being named', async () => {
+    mocks.resolveSigningAccount.mockResolvedValueOnce({ error: 'Vault is locked', code: 'x' });
+    enqueueResolving({ approved: false, duration: 'once' }, null);
+    const page = new AbortController();
+    mocks.assignAccountsToWaitingRequests.mockImplementation(() => {
+      page.abort();
+      return Promise.resolve([]);
+    });
+
+    await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event', signal: page.signal });
+
+    expect(mocks.interruptRequest).toHaveBeenCalledWith('req-1');
+  });
+
+  it('leaves the queue alone for a request queued with its account', async () => {
+    enqueueResolving({ approved: false, duration: 'once' });
+
+    await requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' });
+
+    expect(mocks.assignAccountsToWaitingRequests).not.toHaveBeenCalled();
+  });
+
+  it('names nothing while the vault is locked', async () => {
+    mocks.isVaultUnlocked.mockReturnValue(false);
+
+    await nameWaitingRequests();
+
+    expect(mocks.assignAccountsToWaitingRequests).not.toHaveBeenCalled();
+  });
+
+  it('names waiting requests once the vault is unlocked', async () => {
+    await nameWaitingRequests();
+
+    expect(mocks.assignAccountsToWaitingRequests).toHaveBeenCalledTimes(1);
   });
 });
 

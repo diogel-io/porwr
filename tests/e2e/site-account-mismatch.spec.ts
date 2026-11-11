@@ -131,3 +131,47 @@ test.describe('a site connected as an account that is not the active one', () =>
     await site.close();
   });
 });
+
+/**
+ * An approval is carried out as the account its prompt named (diogel-io/workspace#227).
+ *
+ * The site is unbound, so the prompt names the account active when it asked. The user then selects
+ * another account before approving. The answer is still the account the prompt named, because the
+ * request is carried out as the account on its record, not one resolved again afterwards.
+ */
+test.describe('an approval is carried out as the account its prompt named', () => {
+  test('changing the active account before Approve does not change the answer', async ({
+    openPage,
+    context,
+  }) => {
+    const setup = await openPage('/login');
+    await createVault(setup);
+    await seedTwoAccounts(setup);
+
+    const site = await context.newPage();
+    await site.goto(SITE);
+    await askForPublicKey(site);
+
+    const panel = await openPage('/sidebar');
+    await panel.locator('.current-request').waitFor({ state: 'visible', timeout: 20_000 });
+
+    await setup.evaluate(
+      (alias) => chrome.storage.local.set({ 'nostr:active': alias }),
+      SECOND_ACCOUNT.alias,
+    );
+
+    await panel
+      .getByRole('button', { name: /approve/i })
+      .first()
+      .click();
+
+    expect(await publicKeyAnswer(site)).toBe(TEST_ACCOUNT.pubkey);
+    const binding = await setup.evaluate(
+      (origin) => chrome.runtime.sendMessage({ type: 'sites.binding', payload: { origin } }),
+      SITE,
+    );
+    expect(binding).toMatchObject({ boundPubkey: TEST_ACCOUNT.pubkey });
+
+    await site.close();
+  });
+});

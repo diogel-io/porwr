@@ -57,6 +57,8 @@ vi.mock('@/../src-bex/services/site-account', () => ({
   switchSiteToActiveAccount: vi.fn(),
 }));
 vi.mock('@/../src-bex/handlers/blossom-handler', () => ({ handleBlossomUpload: vi.fn() }));
+// Naming waiting requests is the approval flow's; here it is enough to see it run first.
+vi.mock('@/../src-bex/services/approval-flow', () => ({ nameWaitingRequests: vi.fn() }));
 vi.mock('@/../src-bex/handlers/nip04', () => ({
   handleNip04Encrypt: vi.fn(),
   handleNip04Decrypt: vi.fn(),
@@ -138,6 +140,7 @@ import * as messaging from '@/../src-bex/handlers/messaging';
 import * as accountSigning from '@/../src-bex/handlers/account-signing';
 import * as accounts from '@/../src-bex/handlers/accounts';
 import * as nip46 from '@/../src-bex/handlers/nip46';
+import * as approvalFlow from '@/../src-bex/services/approval-flow';
 
 const ORIGIN = 'https://example.com';
 /** A real-shaped account: `sites.list` and `sites.revoke` refuse anything else (#309). */
@@ -183,65 +186,6 @@ interface Case {
 }
 
 const cases: Case[] = [
-  {
-    action: 'nostr.getPublicKey',
-    payload: {},
-    handler: vi.mocked(nip07.handleGetPublicKey),
-    name: 'handleGetPublicKey',
-    resolves: ok('pubkey'),
-    expected: 'pubkey',
-    expectArgs: [{}, ORIGIN],
-  },
-  {
-    action: 'nostr.signEvent',
-    payload: { event: { kind: 1 } },
-    handler: vi.mocked(nip07.handleSignEvent),
-    name: 'handleSignEvent',
-    resolves: ok({ id: 'signed' }),
-    expected: { id: 'signed' },
-    expectArgs: [{ event: { kind: 1 } }, ORIGIN],
-  },
-  {
-    action: 'nostr.getRelays',
-    payload: {},
-    handler: vi.mocked(nip07.handleGetRelays),
-    name: 'handleGetRelays',
-    resolves: ok({ 'wss://relay.one/': { read: true, write: true } }),
-    expected: { 'wss://relay.one/': { read: true, write: true } },
-    expectArgs: [{}, ORIGIN],
-  },
-  {
-    action: 'nostr.nip04.encrypt',
-    payload: { pubkey: 'p', plaintext: 't' },
-    handler: vi.mocked(nip04.handleNip04Encrypt),
-    name: 'handleNip04Encrypt',
-    resolves: ok('cipher'),
-    expected: 'cipher',
-  },
-  {
-    action: 'nostr.nip04.decrypt',
-    payload: { pubkey: 'p', ciphertext: 'c' },
-    handler: vi.mocked(nip04.handleNip04Decrypt),
-    name: 'handleNip04Decrypt',
-    resolves: ok('plain'),
-    expected: 'plain',
-  },
-  {
-    action: 'nostr.nip44.encrypt',
-    payload: { pubkey: 'p', plaintext: 't' },
-    handler: vi.mocked(nip44.handleNip44Encrypt),
-    name: 'handleNip44Encrypt',
-    resolves: ok('cipher44'),
-    expected: 'cipher44',
-  },
-  {
-    action: 'nostr.nip44.decrypt',
-    payload: { pubkey: 'p', ciphertext: 'c' },
-    handler: vi.mocked(nip44.handleNip44Decrypt),
-    name: 'handleNip44Decrypt',
-    resolves: ok('plain44'),
-    expected: 'plain44',
-  },
   {
     action: 'vault.isUnlocked',
     payload: {},
@@ -727,28 +671,12 @@ const cases: Case[] = [
     expectArgs: [expect.objectContaining({ accountPubkey: 'a' })],
   },
   {
-    action: 'webln.enable',
-    payload: {},
-    handler: vi.mocked(webln.handleWebLnEnable),
-    name: 'handleWebLnEnable',
-    resolves: ok({ enabled: true }),
-    expected: { enabled: true },
-  },
-  {
     action: 'webln.getInfo',
     payload: {},
     handler: vi.mocked(webln.handleWebLnGetInfo),
     name: 'handleWebLnGetInfo',
     resolves: ok({ node: {} }),
     expected: { node: {} },
-  },
-  {
-    action: 'webln.sendPayment',
-    payload: { paymentRequest: 'lnbc' },
-    handler: vi.mocked(webln.handleWebLnSendPayment),
-    name: 'handleWebLnSendPayment',
-    resolves: ok({ preimage: 'p' }),
-    expected: { preimage: 'p' },
   },
 ];
 
@@ -839,20 +767,50 @@ describe('dispatcher decisions that are not pass-through', () => {
     expect(autoLock.startAutoLockTimer).not.toHaveBeenCalled();
   });
 
-  it('returns an error object when a signing handler refuses', async () => {
-    vi.mocked(nip07.handleSignEvent).mockResolvedValue({
-      success: false,
-      error: 'denied',
-      code: 'PER_DENIED',
-    } as never);
-
+  // A site's own requests are served by `background.ts` over the page channel, which calls each
+  // handler with the account the user approved. None of them is served here, where there is no
+  // approval to carry an account from (diogel-io/workspace#227).
+  it.each([
+    'nostr.getPublicKey',
+    'nostr.signEvent',
+    'nostr.getRelays',
+    'nostr.nip04.encrypt',
+    'nostr.nip04.decrypt',
+    'nostr.nip44.encrypt',
+    'nostr.nip44.decrypt',
+    'webln.enable',
+    'webln.sendPayment',
+  ] as const)('serves no site request %s, and calls no handler', async (action) => {
     await expect(
-      dispatchMessage('nostr.signEvent', { event: {} } as never, ORIGIN),
-    ).resolves.toEqual({
-      success: false,
-      error: 'denied',
-      code: 'PER_DENIED',
+      dispatchMessage(action, { event: { kind: 1 }, pubkey: 'p' } as never, ORIGIN),
+    ).resolves.toBeUndefined();
+
+    const called = allMocks()
+      .filter(([, fn]) => fn.mock.calls.length > 0)
+      .map(([name]) => name);
+    expect(called).toEqual([]);
+  });
+
+  // The panel is never given a request without its account when one can be named, whenever the
+  // request reached the queue (diogel-io/workspace#227).
+  it.each([
+    ['nostr.requests.current', {}, () => queue.getCurrentRequest],
+    ['nostr.requests.list', {}, () => queue.listPendingRequests],
+    ['nostr.requests.present', { requestId: 'r1' }, () => queue.markPresented],
+  ] as const)('names waiting requests before answering %s', async (action, payload, read) => {
+    const order: string[] = [];
+    vi.mocked(approvalFlow.nameWaitingRequests).mockImplementation(() => {
+      order.push('name');
+      return Promise.resolve();
     });
+    vi.mocked(read()).mockImplementation((() => {
+      order.push('read');
+      return Promise.resolve(null);
+    }) as never);
+
+    await dispatchMessage(action, payload as never, ORIGIN);
+
+    expect(order).toEqual(['name', 'read']);
   });
 
   it('refuses an import carrying no encrypted data, without calling the handler', async () => {

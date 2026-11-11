@@ -11,7 +11,7 @@ import type {
 import type { Nip47Connection } from '@/types/nip47';
 import { isVaultUnlocked } from '../vault';
 import { findActiveNip47Connection } from '../services/nip47-connection-store';
-import { resolveSigningAccount } from '../services/signing-account';
+import { accountForDispatch, resolveSigningAccount } from '../services/signing-account';
 import { mutateVault } from '../services/vault-mutation';
 import { handleNip47PayInvoice, LOCKED_BEFORE_PAYMENT } from './nip47';
 import { Nip47ResponseTimeoutError } from '../services/nip47-client';
@@ -60,11 +60,18 @@ function paymentFailureForSite(error: unknown): string {
  */
 async function resolveWebLnWallet(
   origin: string,
+  approvedAccountPubkey?: string,
 ): Promise<{ vaultData: VaultData; connection: Nip47Connection }> {
   if (!isVaultUnlocked()) {
     throw new Error('Vault is locked. Unlock Porwr before using WebLN.');
   }
-  const resolved = await resolveSigningAccount(origin);
+  // An approved request uses the wallet of the account the user approved it as, checked again
+  // rather than resolved again (diogel-io/workspace#227). `getInfo`, which no prompt approves and a
+  // stored WebLN grant answers, uses the site's account.
+  const resolved =
+    approvedAccountPubkey === undefined
+      ? await resolveSigningAccount(origin)
+      : await accountForDispatch(origin, approvedAccountPubkey);
   if ('error' in resolved) {
     throw new Error(resolved.error);
   }
@@ -127,12 +134,13 @@ function isWebLnAllowed(
  */
 export async function handleWebLnEnable(
   payload: WebLnEnableRequest,
+  accountPubkey: string,
   page?: AbortSignal,
 ): Promise<HandlerResult<true>> {
   if (!payload.approved) {
     throw new Error('WebLN access was rejected by the user.');
   }
-  const { connection } = await resolveWebLnWallet(payload.origin);
+  const { connection } = await resolveWebLnWallet(payload.origin, accountPubkey);
   assertPayInvoiceSupport(connection);
 
   const duration = payload.duration ?? 'once';
@@ -179,14 +187,20 @@ export async function handleWebLnGetInfo(
   };
 }
 
+/**
+ * Pay a BOLT11 invoice from the wallet of the account the payment was approved as
+ * (diogel-io/workspace#227), once WebLN is enabled for the site on that wallet. A failure reaches
+ * the site in Porwr's own words, never the wallet's (porwr#370).
+ */
 export async function handleWebLnSendPayment(
   payload: WebLnSendPaymentRequest,
+  accountPubkey: string,
 ): Promise<HandlerResult<WebLnSendPaymentResponse>> {
   if (!payload.approved) {
     throw new Error('WebLN payment was rejected by the user.');
   }
   const invoice = normalizeInvoice(payload.paymentRequest);
-  const { vaultData, connection } = await resolveWebLnWallet(payload.origin);
+  const { vaultData, connection } = await resolveWebLnWallet(payload.origin, accountPubkey);
   assertPayInvoiceSupport(connection);
   if (!isWebLnAllowed(vaultData, payload.origin, connection.id, 'enable')) {
     throw new Error('WebLN access has not been enabled for this site.');

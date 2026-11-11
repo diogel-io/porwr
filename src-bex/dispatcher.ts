@@ -8,7 +8,6 @@ import {
   handleVaultImport,
 } from './handlers/vault-handler';
 import { resetAutoLockTimer, startAutoLockTimer, stopAutoLockTimer } from './services/auto-lock';
-import { handleGetPublicKey, handleGetRelays, handleSignEvent } from './handlers/nip07';
 import {
   dismissNotice,
   getCurrentRequest,
@@ -29,8 +28,6 @@ import { getSiteAccount, switchSiteToActiveAccount } from './services/site-accou
 import { createPubkey } from '@/types/pubkey';
 import { ErrorCode } from '@/types/error-codes.d';
 import { handleBlossomUpload } from './handlers/blossom-handler';
-import { handleNip04Encrypt, handleNip04Decrypt } from './handlers/nip04';
-import { handleNip44Encrypt, handleNip44Decrypt } from './handlers/nip44';
 import {
   handleRelayBrowserList,
   handleRelayBrowserGetStatus,
@@ -76,7 +73,8 @@ import {
   handleNip47PayInvoice,
   handleNip47PaymentHistoryList,
 } from './handlers/nip47';
-import { handleWebLnEnable, handleWebLnGetInfo, handleWebLnSendPayment } from './handlers/webln';
+import { handleWebLnGetInfo } from './handlers/webln';
+import { nameWaitingRequests } from './services/approval-flow';
 
 /**
  * Dispatches messages to the appropriate handlers.
@@ -96,82 +94,10 @@ export async function dispatchMessage<K extends BridgeAction>(
     case 'ping':
       return 'pong' as BridgeResponsePayload<K>;
 
-    case 'nostr.getPublicKey': {
-      const result = await handleGetPublicKey(payload, origin);
-      if (result.success) {
-        return result.data as BridgeResponsePayload<K>;
-      }
-      return {
-        success: false,
-        error: result.error,
-        code: result.code,
-      } as unknown as BridgeResponsePayload<K>;
-    }
-
-    case 'nostr.signEvent': {
-      const signPayload = payload as BridgeRequestMap['nostr.signEvent'];
-      const result = await handleSignEvent({ event: signPayload.event }, origin);
-      if (result.success) {
-        return result.data as BridgeResponsePayload<K>;
-      }
-      return {
-        success: false,
-        error: result.error,
-        code: result.code,
-      } as unknown as BridgeResponsePayload<K>;
-    }
-
-    case 'nostr.getRelays': {
-      const result = await handleGetRelays(payload, origin);
-      if (result.success) {
-        return result.data as BridgeResponsePayload<K>;
-      }
-      throw new Error(result.error);
-    }
-
-    case 'nostr.nip04.encrypt': {
-      const result = await handleNip04Encrypt(
-        payload as BridgeRequestMap['nostr.nip04.encrypt'],
-        origin,
-      );
-      if (result.success) {
-        return result.data as BridgeResponsePayload<K>;
-      }
-      throw new Error(result.error);
-    }
-
-    case 'nostr.nip04.decrypt': {
-      const result = await handleNip04Decrypt(
-        payload as BridgeRequestMap['nostr.nip04.decrypt'],
-        origin,
-      );
-      if (result.success) {
-        return result.data as BridgeResponsePayload<K>;
-      }
-      throw new Error(result.error);
-    }
-
-    case 'nostr.nip44.encrypt': {
-      const result = await handleNip44Encrypt(
-        payload as BridgeRequestMap['nostr.nip44.encrypt'],
-        origin,
-      );
-      if (result.success) {
-        return result.data as BridgeResponsePayload<K>;
-      }
-      throw new Error(result.error);
-    }
-
-    case 'nostr.nip44.decrypt': {
-      const result = await handleNip44Decrypt(
-        payload as BridgeRequestMap['nostr.nip44.decrypt'],
-        origin,
-      );
-      if (result.success) {
-        return result.data as BridgeResponsePayload<K>;
-      }
-      throw new Error(result.error);
-    }
+    // A site's own requests (`nostr.getPublicKey`, `nostr.signEvent`, encryption, WebLN `enable`
+    // and `sendPayment`) have no case here. They are served over the page channel by
+    // `background.ts`, which asks for approval and then calls the handler with the account the user
+    // approved (diogel-io/workspace#227); `decideRouting` refuses them on this channel anyway.
 
     case 'vault.isUnlocked': {
       const result = await handleVaultIsUnlocked({}, origin);
@@ -229,9 +155,11 @@ export async function dispatchMessage<K extends BridgeAction>(
      * all while the queue held them and the toolbar badge counted them (#177).
      */
     case 'nostr.requests.list':
+      await nameWaitingRequests();
       return (await listPendingRequests()) as BridgeResponsePayload<K>;
 
     case 'nostr.requests.current':
+      await nameWaitingRequests();
       return (await getCurrentRequest()) as BridgeResponsePayload<K>;
 
     case 'nostr.requests.count':
@@ -244,6 +172,7 @@ export async function dispatchMessage<K extends BridgeAction>(
 
     case 'nostr.requests.present': {
       const presentPayload = payload as BridgeRequestMap['nostr.requests.present'];
+      await nameWaitingRequests();
       return (await markPresented(presentPayload.requestId)) as BridgeResponsePayload<K>;
     }
 
@@ -968,41 +897,9 @@ export async function dispatchMessage<K extends BridgeAction>(
       }
     }
 
-    case 'webln.enable': {
-      try {
-        const result = await handleWebLnEnable(payload as BridgeRequestMap['webln.enable']);
-        if (result.success) {
-          return result.data as BridgeResponsePayload<K>;
-        }
-        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
-      } catch (error: unknown) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        } as unknown as BridgeResponsePayload<K>;
-      }
-    }
-
     case 'webln.getInfo': {
       try {
         const result = await handleWebLnGetInfo(payload as BridgeRequestMap['webln.getInfo']);
-        if (result.success) {
-          return result.data as BridgeResponsePayload<K>;
-        }
-        return { success: false, error: result.error } as unknown as BridgeResponsePayload<K>;
-      } catch (error: unknown) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        } as unknown as BridgeResponsePayload<K>;
-      }
-    }
-
-    case 'webln.sendPayment': {
-      try {
-        const result = await handleWebLnSendPayment(
-          payload as BridgeRequestMap['webln.sendPayment'],
-        );
         if (result.success) {
           return result.data as BridgeResponsePayload<K>;
         }

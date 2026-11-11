@@ -22,7 +22,9 @@ import { clearSiteBindingCache, getBinding } from '@/../src-bex/services/site-bi
 import {
   bindSiteToAccount,
   resolveSigningAccount,
-  resolveSigningSigner,
+  accountForDispatch,
+  BOUND_ACCOUNT_GONE,
+  signingSignerFor,
 } from '@/../src-bex/services/signing-account';
 import { hexToBytes } from '@noble/hashes/utils.js';
 import { getPublicKey, nip44 } from 'nostr-tools';
@@ -107,12 +109,9 @@ describe('resolving the account that acts for a site', () => {
   });
 
   describe('the signer for encryption', () => {
-    it('is the bound account, never the active account', async () => {
-      withAccounts([alice, bob], 'alice');
-      await bindSiteToAccount(ORIGIN, alice.id);
-
+    it('is the account it is given, never the active account', async () => {
       withAccounts([alice, bob], 'bob');
-      const signer = await resolveSigningSigner(ORIGIN);
+      const signer = signingSignerFor(alice as never, ORIGIN);
       const peer = '33'.repeat(32);
       const ciphertext = await signer.nip44Encrypt(getPublicKey(hexToBytes(peer)), 'hello');
 
@@ -124,11 +123,64 @@ describe('resolving the account that acts for a site', () => {
       );
       expect(nip44.decrypt(ciphertext, fromAlice)).toBe('hello');
     });
+  });
+});
 
-    it('throws rather than returning a signer it could not resolve', async () => {
-      vi.mocked(isVaultUnlocked).mockReturnValue(false);
+/**
+ * The account an approved request runs as (diogel-io/workspace#227): the one the approval named,
+ * checked again rather than resolved again, failing closed rather than substituting another.
+ */
+describe('the account an approved request is carried out as', () => {
+  it('is the approved account, even when another is active and the site is unbound', async () => {
+    withAccounts([alice, bob], 'bob');
 
-      await expect(resolveSigningSigner(ORIGIN)).rejects.toThrow('Vault is locked');
+    const resolved = await accountForDispatch(ORIGIN, alice.id);
+
+    expect('account' in resolved && resolved.account.id).toBe(alice.id);
+  });
+
+  it('is the approved account for a site bound to it', async () => {
+    withAccounts([alice, bob], 'bob');
+    await bindSiteToAccount(ORIGIN, alice.id);
+
+    const resolved = await accountForDispatch(ORIGIN, alice.id);
+
+    expect('account' in resolved && resolved.account.id).toBe(alice.id);
+  });
+
+  it('refuses once the approved account has been removed', async () => {
+    withAccounts([bob], 'bob');
+
+    const resolved = await accountForDispatch(ORIGIN, alice.id);
+
+    expect(resolved).toEqual({ error: BOUND_ACCOUNT_GONE, code: ErrorCode.SIG_NO_ACTIVE_KEY });
+  });
+
+  it('refuses when the site has since been bound to another account', async () => {
+    withAccounts([alice, bob], 'alice');
+    await bindSiteToAccount(ORIGIN, bob.id);
+
+    const resolved = await accountForDispatch(ORIGIN, alice.id);
+
+    expect(resolved).toEqual({ error: BOUND_ACCOUNT_GONE, code: ErrorCode.SIG_NO_ACTIVE_KEY });
+  });
+
+  it('refuses a request that names no account', async () => {
+    withAccounts([alice, bob], 'alice');
+
+    expect(await accountForDispatch(ORIGIN, null)).toEqual({
+      error: 'No active account',
+      code: ErrorCode.SIG_NO_ACTIVE_KEY,
+    });
+  });
+
+  it('refuses while the vault is locked', async () => {
+    withAccounts([alice, bob], 'alice');
+    vi.mocked(isVaultUnlocked).mockReturnValue(false);
+
+    expect(await accountForDispatch(ORIGIN, alice.id)).toEqual({
+      error: 'Vault is locked',
+      code: ErrorCode.VLT_LOCKED,
     });
   });
 });

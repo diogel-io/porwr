@@ -66,7 +66,9 @@ const baseInput = {
   requestType: 'sign_event',
   eventKind: 1,
   accountAlias: 'alice',
-  accountPubkey: null,
+  // Named, as a request made while the vault is unlocked is; one with no account cannot be
+  // approved (diogel-io/workspace#227).
+  accountPubkey: 'a'.repeat(64) as string | null,
 };
 
 const readStored = (): ApprovalRequestRecord[] =>
@@ -226,12 +228,13 @@ describe('request queue', () => {
         expect(result.applied).toBe(true);
       });
 
-      it('refuses 8h for a decrypt still waiting for its account, which may turn out to be self', async () => {
+      // Refused whatever the duration now, since it names no account (diogel-io/workspace#227).
+      it('refuses to approve a decrypt still waiting for its account', async () => {
         const { record } = await decrypt('nip44_decrypt', null, OWN);
 
         const result = await submitDecision(record.id, { approved: true, duration: '8h' });
 
-        expect(result).toEqual({ applied: false, reason: 'duration-not-allowed' });
+        expect(result).toEqual({ applied: false, reason: 'no-account' });
       });
 
       it('still accepts 8h for a decrypt to another pubkey', async () => {
@@ -256,6 +259,70 @@ describe('request queue', () => {
         const result = await submitDecision(record.id, { approved: true, duration: '8h' });
 
         expect(result).toEqual({ applied: false, reason: 'duration-not-allowed' });
+      });
+    });
+
+    describe('a request that names no account (diogel-io/workspace#227)', () => {
+      const unnamed = { ...baseInput, accountAlias: null, accountPubkey: null };
+
+      it.each(['once', '8h', 'always'] as const)(
+        'refuses to approve it for %s, and leaves it open',
+        async (duration) => {
+          const { record } = await enqueueRequest(unnamed);
+
+          const result = await submitDecision(record.id, { approved: true, duration });
+
+          expect(result).toEqual({ applied: false, reason: 'no-account' });
+          expect((await getRequestRecord(record.id))?.state).toBe('queued');
+        },
+      );
+
+      it('still lets it be rejected', async () => {
+        const { record } = await enqueueRequest(unnamed);
+
+        const result = await submitDecision(record.id, { approved: false, duration: 'once' });
+
+        expect(result.applied).toBe(true);
+      });
+
+      it('keeps a request enqueued while waiting requests are being named', async () => {
+        const { record: waiting } = await enqueueRequest(unnamed);
+        let release: () => void = () => undefined;
+        const resolving = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+
+        const naming = assignAccountsToWaitingRequests(async () => {
+          await resolving;
+          return {
+            accountAlias: 'alice',
+            accountPubkey: 'a'.repeat(64),
+            activeAccountAlias: 'alice',
+            activeAccountPubkey: 'a'.repeat(64),
+          };
+        });
+        const arriving = enqueueRequest({ ...baseInput, origin: 'https://other.example' });
+        release();
+        const [, { record: arrived }] = await Promise.all([naming, arriving]);
+
+        expect((await getRequestRecord(waiting.id))?.accountPubkey).toBe('a'.repeat(64));
+        expect(await getRequestRecord(arrived.id)).not.toBeNull();
+      });
+
+      it('approves it once it has been named', async () => {
+        const { record } = await enqueueRequest(unnamed);
+        await assignAccountsToWaitingRequests(() =>
+          Promise.resolve({
+            accountAlias: 'alice',
+            accountPubkey: 'a'.repeat(64),
+            activeAccountAlias: 'alice',
+            activeAccountPubkey: 'a'.repeat(64),
+          }),
+        );
+
+        const result = await submitDecision(record.id, { approved: true, duration: 'once' });
+
+        expect(result.applied).toBe(true);
       });
     });
 

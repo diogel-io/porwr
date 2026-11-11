@@ -249,70 +249,25 @@ describe('Dispatcher', () => {
     });
   });
 
-  it('should route nostr.nip44.encrypt to handler', async () => {
-    vi.mocked(handleNip44Encrypt).mockResolvedValue({ success: true, data: 'nip44-ciphertext' });
-
-    const result = await dispatchMessage(
-      'nostr.nip44.encrypt',
-      createBridgeRequest('nostr.nip44.encrypt', {
-        origin: 'https://app.example',
-        pubkey: 'recipient-pubkey',
-        plaintext: 'hello',
-      }),
-      'https://app.example',
-    );
-
-    expect(result).toBe('nip44-ciphertext');
-    expect(handleNip44Encrypt).toHaveBeenCalledWith(
-      expect.objectContaining({ pubkey: 'recipient-pubkey', plaintext: 'hello' }),
-      'https://app.example',
-    );
-  });
-
-  it('should route nostr.nip44.decrypt to handler', async () => {
-    vi.mocked(handleNip44Decrypt).mockResolvedValue({ success: true, data: 'hello' });
-
-    const result = await dispatchMessage(
-      'nostr.nip44.decrypt',
-      createBridgeRequest('nostr.nip44.decrypt', {
-        origin: 'https://app.example',
-        pubkey: 'sender-pubkey',
-        ciphertext: 'nip44-ciphertext',
-      }),
-      'https://app.example',
-    );
-
-    expect(result).toBe('hello');
-    expect(handleNip44Decrypt).toHaveBeenCalledWith(
-      expect.objectContaining({ pubkey: 'sender-pubkey', ciphertext: 'nip44-ciphertext' }),
-      'https://app.example',
-    );
-  });
-
   /**
-   * Every action that acts on a site's behalf must reach its handler with the origin intact (#173).
-   *
-   * `message-routing` refuses to dispatch these without an origin; this is the other half — that the
-   * dispatcher then passes the one it was given through rather than dropping it. A handler that
-   * received an empty origin would check permissions for nowhere and sign for anyone.
+   * A site's own requests are not served here (diogel-io/workspace#227). `background.ts` serves
+   * them over the page channel and calls each handler with the account the user approved, and
+   * `message-routing` refuses them on this channel. A case here would have no approval to take an
+   * account from, so it could only resolve one again.
    */
-  describe('origin pass-through', () => {
+  describe('site requests', () => {
     const ORIGIN = 'https://example.com';
 
-    const cases = [
-      { action: 'nostr.getPublicKey', handler: () => handleGetPublicKey },
-      { action: 'nostr.signEvent', handler: () => handleSignEvent },
-      { action: 'nostr.nip04.encrypt', handler: () => handleNip04Encrypt },
-      { action: 'nostr.nip04.decrypt', handler: () => handleNip04Decrypt },
-      { action: 'nostr.nip44.encrypt', handler: () => handleNip44Encrypt },
-      { action: 'nostr.nip44.decrypt', handler: () => handleNip44Decrypt },
-    ] as const;
-
-    for (const { action, handler } of cases) {
-      it(`passes the origin to ${action}`, async () => {
-        vi.mocked(handler()).mockResolvedValue({ success: true, data: 'ok' } as never);
-
-        await dispatchMessage(
+    it.each([
+      ['nostr.getPublicKey', () => handleGetPublicKey],
+      ['nostr.signEvent', () => handleSignEvent],
+      ['nostr.nip04.encrypt', () => handleNip04Encrypt],
+      ['nostr.nip04.decrypt', () => handleNip04Decrypt],
+      ['nostr.nip44.encrypt', () => handleNip44Encrypt],
+      ['nostr.nip44.decrypt', () => handleNip44Decrypt],
+    ] as const)('does not dispatch %s', async (action, handler) => {
+      await expect(
+        dispatchMessage(
           action as 'nostr.getPublicKey',
           createBridgeRequest(
             action as 'nostr.getPublicKey',
@@ -324,28 +279,10 @@ describe('Dispatcher', () => {
             } as never,
           ),
           ORIGIN,
-        );
-
-        expect(handler()).toHaveBeenCalledWith(expect.anything(), ORIGIN);
-      });
-    }
-
-    it('rejects with the handler error rather than swallowing it', async () => {
-      vi.mocked(handleNip04Encrypt).mockResolvedValue({
-        success: false,
-        error: 'Vault is locked',
-      } as never);
-
-      await expect(
-        dispatchMessage(
-          'nostr.nip04.encrypt',
-          createBridgeRequest('nostr.nip04.encrypt', {
-            pubkey: 'p',
-            plaintext: 't',
-          } as never),
-          ORIGIN,
         ),
-      ).rejects.toThrow('Vault is locked');
+      ).resolves.toBeUndefined();
+
+      expect(handler()).not.toHaveBeenCalled();
     });
 
     it('returns undefined for an action it does not serve', async () => {
