@@ -169,8 +169,16 @@ export async function requestApprovalDecision(
   );
 
   // Resolved while the vault was locked, but queued after unlock had already named the waiting
-  // requests: name it now, so it is never left without an account (diogel-io/workspace#227).
-  if (!record.accountPubkey) await nameWaitingRequests();
+  // requests: name it now, so it is never left without an account (diogel-io/workspace#227). A
+  // failure to name it is logged, not thrown: the request is queued and waits for its decision,
+  // and the panel's next read of the queue tries again.
+  if (!record.accountPubkey) {
+    await nameWaitingRequests().catch((error: unknown) => {
+      logService.log(LogLevel.ERROR, '[BEX] Failed to name the account on a queued request', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
 
   // The page that asked may close while the request waits; it is then interrupted rather than
   // left approvable for a tab that is gone (#139).

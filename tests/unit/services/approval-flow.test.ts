@@ -620,6 +620,17 @@ describe('naming a request that reached the queue after unlock (diogel-io/worksp
     expect(mocks.assignAccountsToWaitingRequests).toHaveBeenCalledTimes(1);
   });
 
+  it('still waits for the decision when naming fails', async () => {
+    mocks.resolveSigningAccount.mockResolvedValueOnce({ error: 'Vault is locked', code: 'x' });
+    enqueueResolving({ approved: false, duration: 'once' }, null);
+    mocks.assignAccountsToWaitingRequests.mockRejectedValue(new Error('storage gone'));
+
+    await expect(
+      requestApprovalDecision(ORIGIN, 1, { requestType: 'sign_event' }),
+    ).resolves.toMatchObject({ approved: false });
+    expect(mocks.log).toHaveBeenCalled();
+  });
+
   it('leaves the queue alone for a request queued with its account', async () => {
     enqueueResolving({ approved: false, duration: 'once' });
 

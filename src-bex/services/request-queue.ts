@@ -456,18 +456,22 @@ export const assignAccountsToWaitingRequests = async (
   for (const origin of origins) accounts.set(origin, await resolve(origin));
 
   // Read again before writing: resolving awaits storage, and a request enqueued or decided in the
-  // meantime must not be overwritten with the earlier snapshot.
-  const updated: ApprovalRequestRecord[] = [];
-  const next = (await loadQueue(now)).map((record) => {
-    const account = needsAccount(record) ? accounts.get(record.origin) : null;
-    if (!account) return record;
-    const named: ApprovalRequestRecord = { ...record, ...account };
-    updated.push(named);
-    return named;
-  });
+  // meantime must not be overwritten with the earlier snapshot. The read and the write run in the
+  // enqueue chain, so a request enqueued while this writes is not lost from the queue. Naming runs
+  // on every panel read of the queue, not only at unlock (diogel-io/workspace#227).
+  return serialiseEnqueue(async () => {
+    const updated: ApprovalRequestRecord[] = [];
+    const next = (await loadQueue(now)).map((record) => {
+      const account = needsAccount(record) ? accounts.get(record.origin) : null;
+      if (!account) return record;
+      const named: ApprovalRequestRecord = { ...record, ...account };
+      updated.push(named);
+      return named;
+    });
 
-  if (updated.length > 0) await writeRecords(next.map(toDurableRecord));
-  return updated;
+    if (updated.length > 0) await writeRecords(next.map(toDurableRecord));
+    return updated;
+  });
 };
 
 /** One request as it stands now, decided or not, or null once it has been pruned. */

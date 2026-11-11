@@ -285,6 +285,30 @@ describe('request queue', () => {
         expect(result.applied).toBe(true);
       });
 
+      it('keeps a request enqueued while waiting requests are being named', async () => {
+        const { record: waiting } = await enqueueRequest(unnamed);
+        let release: () => void = () => undefined;
+        const resolving = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+
+        const naming = assignAccountsToWaitingRequests(async () => {
+          await resolving;
+          return {
+            accountAlias: 'alice',
+            accountPubkey: 'a'.repeat(64),
+            activeAccountAlias: 'alice',
+            activeAccountPubkey: 'a'.repeat(64),
+          };
+        });
+        const arriving = enqueueRequest({ ...baseInput, origin: 'https://other.example' });
+        release();
+        const [, { record: arrived }] = await Promise.all([naming, arriving]);
+
+        expect((await getRequestRecord(waiting.id))?.accountPubkey).toBe('a'.repeat(64));
+        expect(await getRequestRecord(arrived.id)).not.toBeNull();
+      });
+
       it('approves it once it has been named', async () => {
         const { record } = await enqueueRequest(unnamed);
         await assignAccountsToWaitingRequests(() =>
