@@ -322,7 +322,7 @@ jobs:
         run: echo "zip=$(ls diogel-firefox-*.zip)" >> "$GITHUB_OUTPUT"
 
       - name: Publish to AMO (Firefox Add-ons)
-        uses: browser-actions/release-firefox-addon@f8026bff59385bee825dbf33b0887570f196f804 # v0.2.1
+        uses: browser-actions/release-firefox-addon@726950ef9cc9906404b60f4fe39276d25fdaa530 # v0.2.2
         with:
           addon-id: ${{ secrets.AMO_ADDON_ID }}
           addon-path: ${{ steps.locate.outputs.zip }}
