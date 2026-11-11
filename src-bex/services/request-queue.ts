@@ -504,6 +504,11 @@ export const submitDecision = async (
   }
 };
 
+/**
+ * Apply one decision, refusing an unknown, expired or already-decided request, an approval for a
+ * request that names no account (diogel-io/workspace#227), and a duration its risk class does not
+ * allow. Called only from `submitDecision`, which keeps decisions on one request from overlapping.
+ */
 const applyDecision = async (
   id: string,
   decision: ApprovalDecision,

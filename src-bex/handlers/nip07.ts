@@ -75,6 +75,11 @@ export const handleGetRelays = logWrapper(
   'getRelays',
 );
 
+/**
+ * Sign a site's event as `account`, the account the request was approved as or the one an earlier
+ * grant belongs to (#116, diogel-io/workspace#227). Checks a grant first unless the caller has
+ * already had the request approved (`skipPermissionCheck`).
+ */
 export const handleSignEvent = logWrapper(
   async (
     payload: { event: UnsignedEvent },

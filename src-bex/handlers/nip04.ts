@@ -4,6 +4,10 @@ import { signingSignerFor } from '../services/signing-account';
 import { isVaultUnlocked } from '../vault';
 import { INVALID_PUBKEY_MESSAGE, isHexPubkey } from '../services/pubkey';
 
+/**
+ * NIP-04 encrypt to `payload.pubkey` as `account`, the account the request was approved as
+ * (diogel-io/workspace#227). Refuses a malformed counterparty or a locked vault.
+ */
 export async function handleNip04Encrypt(
   payload: { pubkey: string; plaintext: string },
   origin: string,
@@ -24,6 +28,10 @@ export async function handleNip04Encrypt(
   }
 }
 
+/**
+ * NIP-04 decrypt a message from `payload.pubkey` as `account`, the account the request was approved
+ * as (diogel-io/workspace#227). Refuses a malformed counterparty or a locked vault.
+ */
 export async function handleNip04Decrypt(
   payload: { pubkey: string; ciphertext: string },
   origin: string,

@@ -187,6 +187,11 @@ export async function handleWebLnGetInfo(
   };
 }
 
+/**
+ * Pay a BOLT11 invoice from the wallet of the account the payment was approved as
+ * (diogel-io/workspace#227), once WebLN is enabled for the site on that wallet. A failure reaches
+ * the site in Porwr's own words, never the wallet's (porwr#370).
+ */
 export async function handleWebLnSendPayment(
   payload: WebLnSendPaymentRequest,
   accountPubkey: string,
