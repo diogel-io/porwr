@@ -847,6 +847,8 @@ export default {
     account: {
       label: 'Signing account',
       none: 'No active account',
+      notChosen:
+        'Porwr has not chosen the account for this request yet, so it cannot be approved. Reject it and the site can ask again.',
       notActive: 'Not your active account ({active}). This site is connected as {bound}.',
       rejectAndSwitch: 'Reject and use {active}',
       rejectAndSwitchHint:

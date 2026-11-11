@@ -6,7 +6,7 @@ import { isVaultUnlocked, getVaultData } from '@/../src-bex/vault';
 import { storageService } from '@/services/storage-service';
 import { checkPermission } from '@/../src-bex/handlers/permission-handler';
 import { clearSiteBindingCache } from '@/../src-bex/services/site-binding-store';
-import { bindSiteToAccount } from '@/../src-bex/services/signing-account';
+import { accountForDispatch, bindSiteToAccount } from '@/../src-bex/services/signing-account';
 import { resetAutoLockTimer } from '@/../src-bex/services/auto-lock';
 import { finalizeEvent } from 'nostr-tools';
 import { ErrorCode } from '@/types/error-codes.d';
@@ -59,6 +59,7 @@ describe('Nip07Handler', () => {
   const mockAccount = {
     id: 'test-pubkey',
     alias: 'test-alias',
+    createdAt: '2026-01-01T00:00:00.000Z',
     account: {
       privkey: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
     },
@@ -79,16 +80,11 @@ describe('Nip07Handler', () => {
       'wss://relay.two/': { read: false, write: true },
     };
 
-    it("returns the site's account relay list", async () => {
+    it("returns the given account's relay list", async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
-      vi.mocked(storageService['get']).mockResolvedValue('test-alias');
-      vi.mocked(getVaultData).mockResolvedValue({
-        success: true,
-        vaultData: { accounts: [mockAccount] },
-      });
       vi.mocked(messagingRelays.loadRelayMap).mockResolvedValue(relayMap);
 
-      const result = await handleGetRelays({}, mockOrigin);
+      const result = await handleGetRelays({}, mockOrigin, mockAccount);
 
       expect(result).toEqual({ success: true, data: relayMap });
       expect(messagingRelays.loadRelayMap).toHaveBeenCalledWith('test-pubkey');
@@ -97,40 +93,33 @@ describe('Nip07Handler', () => {
     it('does not look relays up while the vault is locked', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(false);
 
-      const result = await handleGetRelays({}, mockOrigin);
+      const result = await handleGetRelays({}, mockOrigin, mockAccount);
 
       expect(result).toMatchObject({ success: false, code: ErrorCode.VLT_LOCKED });
       expect(messagingRelays.loadRelayMap).not.toHaveBeenCalled();
     });
 
-    it('returns an error when the site has no account', async () => {
+    // Not the active account, nor the site's binding: the handler never resolves one itself
+    // (diogel-io/workspace#227).
+    it('reads no account of its own', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
-      vi.mocked(storageService['get']).mockResolvedValue(null);
+      vi.mocked(messagingRelays.loadRelayMap).mockResolvedValue(relayMap);
 
-      const result = await handleGetRelays({}, mockOrigin);
+      await handleGetRelays({}, mockOrigin, mockAccount);
 
-      expect(result).toMatchObject({ success: false, code: ErrorCode.SIG_NO_ACTIVE_KEY });
-      expect(messagingRelays.loadRelayMap).not.toHaveBeenCalled();
+      expect(storageService['get']).not.toHaveBeenCalled();
+      expect(getVaultData).not.toHaveBeenCalled();
     });
   });
 
   describe('handleGetPublicKey', () => {
-    it('should return public key when vault is unlocked and active account exists', async () => {
+    it('returns the public key of the account it is given', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
-      vi.mocked(storageService['get']).mockResolvedValue('test-alias');
-      vi.mocked(getVaultData).mockResolvedValue({
-        success: true,
-        vaultData: {
-          accounts: [mockAccount],
-        },
-      });
 
-      const result = await handleGetPublicKey({}, mockOrigin);
+      const result = await handleGetPublicKey({}, mockOrigin, mockAccount);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data).toBe('test-pubkey');
-      }
+      expect(result).toEqual({ success: true, data: 'test-pubkey' });
+      expect(storageService['get']).not.toHaveBeenCalled();
       // ADR D15: site-initiated requests must not extend the unlocked window (finding F2).
       expect(resetAutoLockTimer).not.toHaveBeenCalled();
     });
@@ -138,43 +127,12 @@ describe('Nip07Handler', () => {
     it('should return error when vault is locked', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(false);
 
-      const result = await handleGetPublicKey({}, mockOrigin);
+      const result = await handleGetPublicKey({}, mockOrigin, mockAccount);
 
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.code).toBe(ErrorCode.VLT_LOCKED);
         expect(result.error).toBe('Vault is locked');
-      }
-    });
-
-    it('should return error when no active account is set', async () => {
-      vi.mocked(isVaultUnlocked).mockReturnValue(true);
-      vi.mocked(storageService['get']).mockResolvedValue(null);
-
-      const result = await handleGetPublicKey({}, mockOrigin);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.code).toBe(ErrorCode.SIG_NO_ACTIVE_KEY);
-        expect(result.error).toBe('No active account');
-      }
-    });
-
-    it('should return error when active account is not found in vault data', async () => {
-      vi.mocked(isVaultUnlocked).mockReturnValue(true);
-      vi.mocked(storageService['get']).mockResolvedValue('other-alias');
-      vi.mocked(getVaultData).mockResolvedValue({
-        success: true,
-        vaultData: {
-          accounts: [mockAccount],
-        },
-      });
-
-      const result = await handleGetPublicKey({}, mockOrigin);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.code).toBe(ErrorCode.SIG_NO_ACTIVE_KEY);
       }
     });
   });
@@ -190,13 +148,6 @@ describe('Nip07Handler', () => {
     it('should sign event when all conditions are met', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
       vi.mocked(checkPermission).mockResolvedValue({ granted: true });
-      vi.mocked(storageService['get']).mockResolvedValue('test-alias');
-      vi.mocked(getVaultData).mockResolvedValue({
-        success: true,
-        vaultData: {
-          accounts: [mockAccount],
-        },
-      });
       const signedEvent = { ...mockEvent, id: 'event-id', sig: 'event-sig', pubkey: 'test-pubkey' };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(finalizeEvent).mockReturnValue(signedEvent as any);
@@ -204,6 +155,7 @@ describe('Nip07Handler', () => {
       const result = await handleSignEvent(
         { event: { ...mockEvent } as UnsignedEvent },
         mockOrigin,
+        mockAccount,
       );
 
       expect(result.success).toBe(true);
@@ -211,6 +163,7 @@ describe('Nip07Handler', () => {
         expect(result.data).toEqual(signedEvent);
       }
       expect(finalizeEvent).toHaveBeenCalled();
+      expect(checkPermission).toHaveBeenCalledWith(mockOrigin, 'test-pubkey', 'sign_event', 1);
       // ADR D15: site-initiated requests must not extend the unlocked window (finding F2).
       expect(resetAutoLockTimer).not.toHaveBeenCalled();
     });
@@ -218,7 +171,11 @@ describe('Nip07Handler', () => {
     it('should return error when vault is locked', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(false);
 
-      const result = await handleSignEvent({ event: mockEvent as UnsignedEvent }, mockOrigin);
+      const result = await handleSignEvent(
+        { event: mockEvent as UnsignedEvent },
+        mockOrigin,
+        mockAccount,
+      );
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -230,7 +187,11 @@ describe('Nip07Handler', () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
       vi.mocked(checkPermission).mockResolvedValue({ granted: false });
 
-      const result = await handleSignEvent({ event: mockEvent as UnsignedEvent }, mockOrigin);
+      const result = await handleSignEvent(
+        { event: mockEvent as UnsignedEvent },
+        mockOrigin,
+        mockAccount,
+      );
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -241,13 +202,6 @@ describe('Nip07Handler', () => {
 
     it('should sign an explicitly approved one-shot request without stored permission', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
-      vi.mocked(storageService['get']).mockResolvedValue('test-alias');
-      vi.mocked(getVaultData).mockResolvedValue({
-        success: true,
-        vaultData: {
-          accounts: [mockAccount],
-        },
-      });
       const signedEvent = { ...mockEvent, id: 'event-id', sig: 'event-sig', pubkey: 'test-pubkey' };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(finalizeEvent).mockReturnValue(signedEvent as any);
@@ -255,6 +209,7 @@ describe('Nip07Handler', () => {
       const result = await handleSignEvent(
         { event: { ...mockEvent } as UnsignedEvent },
         mockOrigin,
+        mockAccount,
         { skipPermissionCheck: true },
       );
 
@@ -266,13 +221,6 @@ describe('Nip07Handler', () => {
     it('should return error when signing fails', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
       vi.mocked(checkPermission).mockResolvedValue({ granted: true });
-      vi.mocked(storageService['get']).mockResolvedValue('test-alias');
-      vi.mocked(getVaultData).mockResolvedValue({
-        success: true,
-        vaultData: {
-          accounts: [mockAccount],
-        },
-      });
       vi.mocked(finalizeEvent).mockImplementation(() => {
         throw new Error('Signing failed');
       });
@@ -280,6 +228,7 @@ describe('Nip07Handler', () => {
       const result = await handleSignEvent(
         { event: { ...mockEvent } as UnsignedEvent },
         mockOrigin,
+        mockAccount,
       );
 
       expect(result.success).toBe(false);
@@ -292,21 +241,24 @@ describe('Nip07Handler', () => {
 });
 
 /**
- * Site-to-account binding (#116).
+ * The approved account, all the way to the signature (#116, diogel-io/workspace#227).
  *
  * A NIP-07 client caches the public key it received at login and assumes every later signature
- * comes from that identity. Porwr signs as the account the site is bound to, never as whichever
- * account happens to be active.
+ * comes from that identity. The handler signs as the account the request was approved as, which
+ * the background checks with `accountForDispatch` and hands over; it never looks at whichever
+ * account happens to be active by then.
  */
-describe('signing identity is bound to the site', () => {
+describe('a request runs as the account it was approved as', () => {
   const alice = {
     id: 'a'.repeat(64),
     alias: 'alice',
+    createdAt: '2026-01-01T00:00:00.000Z',
     account: { privkey: '11'.repeat(32) },
   };
   const bob = {
     id: 'b'.repeat(64),
     alias: 'bob',
+    createdAt: '2026-01-01T00:00:00.000Z',
     account: { privkey: '22'.repeat(32) },
   };
 
@@ -319,6 +271,12 @@ describe('signing identity is bound to the site', () => {
     vi.mocked(getVaultData).mockResolvedValue({ success: true, vaultData: { accounts } });
   };
 
+  const dispatchAs = async (accountPubkey: string) => {
+    const resolved = await accountForDispatch(origin, accountPubkey);
+    if ('error' in resolved) throw new Error(resolved.error);
+    return resolved.account;
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     clearSiteBindingCache();
@@ -326,65 +284,34 @@ describe('signing identity is bound to the site', () => {
     vi.mocked(checkPermission).mockResolvedValue({ granted: true });
   });
 
-  it('answers with the active account for an unbound site', async () => {
+  it('answers with the approved key after the active account changes', async () => {
     setAccounts([alice, bob], 'alice');
-
-    const result = await handleGetPublicKey({}, origin);
-
-    expect(result.success && result.data).toBe(alice.id);
-  });
-
-  it('keeps returning the bound key after the active account changes', async () => {
-    setAccounts([alice, bob], 'alice');
-    // Bound as an approval binds it (#139).
     await bindSiteToAccount(origin, alice.id);
 
     setAccounts([alice, bob], 'bob');
-    const result = await handleGetPublicKey({}, origin);
+    const result = await handleGetPublicKey({}, origin, await dispatchAs(alice.id));
 
     expect(result.success && result.data).toBe(alice.id);
   });
 
-  it('signs as the bound account after the active account changes', async () => {
-    setAccounts([alice, bob], 'alice');
-    // Bound as an approval binds it (#139).
-    await bindSiteToAccount(origin, alice.id);
-
+  // The case the approval flow cannot bind for: an unbound site whose active account changes
+  // between approval and dispatch.
+  it('signs as the approved account for an unbound site whose active account changed', async () => {
     setAccounts([alice, bob], 'bob');
     vi.mocked(finalizeEvent).mockReturnValue({ id: 'signed' } as never);
 
     const event = { kind: 1, content: 'hi', tags: [], created_at: 1 } as unknown as UnsignedEvent;
-    const result = await handleSignEvent({ event }, origin);
+    const result = await handleSignEvent({ event }, origin, await dispatchAs(alice.id), {
+      skipPermissionCheck: true,
+    });
 
-    // The signature must come from the identity the site was given at login.
     expect(result.success).toBe(true);
     expect(event.pubkey).toBe(alice.id);
   });
 
-  it('gives different sites their own identities', async () => {
-    setAccounts([alice, bob], 'alice');
-    await bindSiteToAccount('https://one.example', alice.id);
-
-    setAccounts([alice, bob], 'bob');
-    const second = await handleGetPublicKey({}, 'https://two.example');
-
-    expect(second.success && second.data).toBe(bob.id);
-  });
-
-  it('refuses rather than substituting when the bound account is gone', async () => {
-    setAccounts([alice, bob], 'alice');
-    // Bound as an approval binds it (#139).
-    await bindSiteToAccount(origin, alice.id);
-
-    // Alice removed from the vault; bob is active and available.
+  it('refuses rather than substituting when the approved account is gone', async () => {
     setAccounts([bob], 'bob');
-    const result = await handleSignEvent(
-      { event: { kind: 1, content: 'hi', tags: [], created_at: 1 } as unknown as UnsignedEvent },
-      origin,
-    );
 
-    // Falling back to bob is exactly the substitution this prevents.
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toMatch(/no longer available/);
+    await expect(dispatchAs(alice.id)).rejects.toThrow(/no longer available/);
   });
 });

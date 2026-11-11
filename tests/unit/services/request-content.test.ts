@@ -38,7 +38,9 @@ const input = {
   requestType: 'sign_event',
   eventKind: 1,
   accountAlias: 'alice',
-  accountPubkey: null,
+  // Named, as a request made while the vault is unlocked is; one with no account cannot be
+  // approved (diogel-io/workspace#227).
+  accountPubkey: 'a'.repeat(64) as string | null,
 };
 
 const content = {

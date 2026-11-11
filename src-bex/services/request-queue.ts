@@ -526,6 +526,16 @@ const applyDecision = async (
     return { applied: false, reason: 'already-resolved' };
   }
 
+  // An approval is for the account named on the request, and is carried out as that account, so a
+  // request that names none cannot be approved. The panel does not offer Approve for one; this is
+  // the background's own check (diogel-io/workspace#227).
+  if (decision.approved && !target.accountPubkey) {
+    logService.log(LogLevel.WARN, '[Queue] Refused an approval for a request with no account', {
+      id,
+    });
+    return { applied: false, reason: 'no-account' };
+  }
+
   // The panel offers only the durations the risk class allows; the background enforces it, since
   // the panel is untrusted for lifecycle purposes (D1, D11, D12, #139).
   if (decision.approved) {

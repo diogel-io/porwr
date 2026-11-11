@@ -89,6 +89,13 @@ const notActiveAlias = computed(() => {
 
 const isTerminal = computed(() => isNotice(props.request));
 
+/**
+ * The request does not name the account it acts as yet. It cannot be approved until it does: an
+ * approval is carried out as the account named on the request, and the background refuses one
+ * that names none (diogel-io/workspace#227). Porwr names it before showing it, so this is rare.
+ */
+const noAccount = computed(() => !props.request.accountPubkey);
+
 // Focus lands on the heading, never on an approve control (NFR-2).
 watch(
   () => props.request.id,
@@ -159,9 +166,18 @@ watch(
         :open-full="!!otherOrigin"
         :self-counterparty="selfDecrypt"
       />
+      <div
+        v-if="noAccount"
+        class="current-request__no-account"
+        role="status"
+        data-testid="request-no-account"
+      >
+        {{ t('request.account.notChosen') }}
+      </div>
       <RequestDecisionBar
         :risk-class="riskClass"
         :allow-remember="(content?.allowRemember ?? false) && !decryptOnceOnly"
+        :no-approve="noAccount"
         :busy="busy"
         @decide="(approved, duration) => emit('decide', request.id, approved, duration)"
       />
@@ -196,6 +212,11 @@ watch(
 
 .current-request__switch-hint {
   font-size: 0.75rem;
+  color: var(--text-muted, #888);
+}
+
+.current-request__no-account {
+  font-size: 0.8rem;
   color: var(--text-muted, #888);
 }
 

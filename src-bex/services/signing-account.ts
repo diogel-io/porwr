@@ -83,15 +83,38 @@ export async function bindSiteToAccount(
 }
 
 /**
- * A signer for the bound account, for the encryption handlers: its key in the vault, or its remote
- * signer (#138).
+ * The account an approved request is carried out as: the one named on the request the user
+ * decided, or the account an earlier grant belongs to (diogel-io/workspace#227).
  *
- * Throws rather than returning a result, because those handlers already turn a thrown error into
- * their failure shape and there is nothing useful to add on the way through.
+ * The handler is given this rather than resolving the site's account again when it runs, which
+ * could land on whichever account is active by then. It is checked once more, here, and fails
+ * closed rather than substituting another account: the vault must be unlocked, the account must
+ * still be in it, and a site bound since must be bound to this account.
  */
-export async function resolveSigningSigner(origin: string): Promise<AccountSigner> {
-  const resolved = await resolveSigningAccount(origin);
-  if ('error' in resolved) throw new Error(resolved.error);
+export async function accountForDispatch(
+  origin: string,
+  accountPubkey: string | null | undefined,
+): Promise<SigningAccountResult> {
+  if (!isVaultUnlocked()) {
+    return { error: 'Vault is locked', code: ErrorCode.VLT_LOCKED };
+  }
+  if (!accountPubkey) return { error: 'No active account', code: ErrorCode.SIG_NO_ACTIVE_KEY };
 
-  return signerFor(resolved.account, { origin });
+  const account = (await listAccounts()).find((acc) => acc.id === accountPubkey);
+  if (!account) return { error: BOUND_ACCOUNT_GONE, code: ErrorCode.SIG_NO_ACTIVE_KEY };
+
+  const binding = await getBinding(origin);
+  if (binding && binding.pubkey !== accountPubkey) {
+    return { error: BOUND_ACCOUNT_GONE, code: ErrorCode.SIG_NO_ACTIVE_KEY };
+  }
+
+  return { account };
+}
+
+/**
+ * A signer for the account a request was approved as, for the encryption handlers: its key in the
+ * vault, or its remote signer (#138). The caller passes the account; nothing here resolves one.
+ */
+export function signingSignerFor(account: StoredKey, origin: string): AccountSigner {
+  return signerFor(account, { origin });
 }

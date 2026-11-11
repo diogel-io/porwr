@@ -1,3 +1,4 @@
+import { hexToBytes } from '@noble/hashes/utils.js';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleNip04Encrypt, handleNip04Decrypt } from '@/../src-bex/handlers/nip04';
 import { handleVaultGetData, handleVaultIsUnlocked } from '@/../src-bex/handlers/vault-handler';
@@ -47,16 +48,27 @@ const ORIGIN = 'https://example.com';
 const RECIPIENT = 'b'.repeat(64);
 const SENDER = 'c'.repeat(64);
 
-describe('Nip04Handler', () => {
-  const mockAccount = {
-    id: 'test-pubkey',
-    alias: 'test-alias',
-    createdAt: String(Date.now()),
-    account: {
-      privkey: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-    },
-  };
+const ACCOUNT = {
+  id: 'test-pubkey',
+  alias: 'test-alias',
+  createdAt: String(Date.now()),
+  account: {
+    privkey: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+  },
+};
+const mockAccount = ACCOUNT;
 
+/** Active, and in the vault, but not the account a request was approved as (workspace#227). */
+const OTHER_ACCOUNT = {
+  id: 'other-pubkey',
+  alias: 'other-alias',
+  createdAt: String(Date.now()),
+  account: {
+    privkey: 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
+  },
+};
+
+describe('Nip04Handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Bindings are cached in module scope, so one test's binding would decide the next one's key.
@@ -73,7 +85,11 @@ describe('Nip04Handler', () => {
       });
       vi.mocked(nip04.encrypt).mockReturnValue('ciphertext');
 
-      const result = await handleNip04Encrypt({ pubkey: RECIPIENT, plaintext: 'hello' }, ORIGIN);
+      const result = await handleNip04Encrypt(
+        { pubkey: RECIPIENT, plaintext: 'hello' },
+        ORIGIN,
+        ACCOUNT,
+      );
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -85,7 +101,11 @@ describe('Nip04Handler', () => {
     it('should return error when vault is locked', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(false);
 
-      const result = await handleNip04Encrypt({ pubkey: RECIPIENT, plaintext: 'hello' }, ORIGIN);
+      const result = await handleNip04Encrypt(
+        { pubkey: RECIPIENT, plaintext: 'hello' },
+        ORIGIN,
+        ACCOUNT,
+      );
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -93,16 +113,25 @@ describe('Nip04Handler', () => {
       }
     });
 
-    it('should return error when no active account', async () => {
+    // The account a request was approved as, never the active one (diogel-io/workspace#227).
+    it('uses the key of the account it is given, whichever account is active', async () => {
       vi.mocked(isVaultUnlocked).mockReturnValue(true);
-      vi.mocked(storageService['get']).mockResolvedValue(null);
+      vi.mocked(storageService['get']).mockResolvedValue(OTHER_ACCOUNT.alias);
+      vi.mocked(getVaultData).mockResolvedValue({
+        success: true,
+        vaultData: { accounts: [ACCOUNT, OTHER_ACCOUNT] },
+      });
+      vi.mocked(nip04.encrypt).mockReturnValue('ciphertext');
 
-      const result = await handleNip04Encrypt({ pubkey: RECIPIENT, plaintext: 'hello' }, ORIGIN);
+      const result = await handleNip04Encrypt(
+        { pubkey: RECIPIENT, plaintext: 'hello' },
+        ORIGIN,
+        ACCOUNT,
+      );
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toBe('No active account');
-      }
+      expect(result).toEqual({ success: true, data: 'ciphertext' });
+      expect(hexToBytes).toHaveBeenCalledWith(ACCOUNT.account.privkey);
+      expect(hexToBytes).not.toHaveBeenCalledWith(OTHER_ACCOUNT.account.privkey);
     });
   });
 
@@ -116,7 +145,11 @@ describe('Nip04Handler', () => {
       });
       vi.mocked(nip04.decrypt).mockReturnValue('plaintext');
 
-      const result = await handleNip04Decrypt({ pubkey: SENDER, ciphertext: 'ciphertext' }, ORIGIN);
+      const result = await handleNip04Decrypt(
+        { pubkey: SENDER, ciphertext: 'ciphertext' },
+        ORIGIN,
+        ACCOUNT,
+      );
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -136,7 +169,11 @@ describe('Nip04Handler', () => {
         throw new Error('Decryption failed');
       });
 
-      const result = await handleNip04Decrypt({ pubkey: SENDER, ciphertext: 'ciphertext' }, ORIGIN);
+      const result = await handleNip04Decrypt(
+        { pubkey: SENDER, ciphertext: 'ciphertext' },
+        ORIGIN,
+        ACCOUNT,
+      );
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -155,8 +192,8 @@ describe('nip04 counterparty public key', () => {
   it.each(['not-hex', 'B'.repeat(64), 'b'.repeat(63), 'b'.repeat(66), ''])(
     'refuses %j without touching the key',
     async (pubkey) => {
-      const encrypted = await handleNip04Encrypt({ pubkey, plaintext: 'hello' }, ORIGIN);
-      const decrypted = await handleNip04Decrypt({ pubkey, ciphertext: 'x' }, ORIGIN);
+      const encrypted = await handleNip04Encrypt({ pubkey, plaintext: 'hello' }, ORIGIN, ACCOUNT);
+      const decrypted = await handleNip04Decrypt({ pubkey, ciphertext: 'x' }, ORIGIN, ACCOUNT);
 
       expect(encrypted).toEqual({
         success: false,

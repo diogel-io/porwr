@@ -11,6 +11,11 @@ const props = defineProps<{
   riskClass: RequestRiskClass;
   allowRemember: boolean;
   busy?: boolean;
+  /**
+   * No Approve control, only Reject: the request does not name an account yet, and an approval is
+   * carried out as the account it names (diogel-io/workspace#227).
+   */
+  noApprove?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -47,7 +52,7 @@ const durationOptions = computed(() =>
 
 <template>
   <div class="decision-bar">
-    <div v-if="allowed.length > 1" class="decision-bar__duration">
+    <div v-if="allowed.length > 1 && !noApprove" class="decision-bar__duration">
       <label class="decision-bar__label" for="approval-duration">
         {{ t('request.durations.label') }}
       </label>
@@ -62,7 +67,7 @@ const durationOptions = computed(() =>
         options-dense
       />
     </div>
-    <p v-else class="decision-bar__single">{{ t('request.durations.onceOnly') }}</p>
+    <p v-else-if="!noApprove" class="decision-bar__single">{{ t('request.durations.onceOnly') }}</p>
 
     <div class="decision-bar__actions">
       <q-btn
@@ -73,6 +78,7 @@ const durationOptions = computed(() =>
         @click="emit('decide', false, 'once')"
       />
       <q-btn
+        v-if="!noApprove"
         no-caps
         class="diogel-btn-primary"
         :disable="busy"

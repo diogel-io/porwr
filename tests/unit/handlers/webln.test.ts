@@ -13,7 +13,7 @@ import {
 import { NO_INVOICE_MESSAGE } from '@/../src-bex/services/request-limits';
 import { getVaultData, isVaultUnlocked, updateVaultData } from '@/../src-bex/vault';
 import { handleNip47PayInvoice } from '@/../src-bex/handlers/nip47';
-import { resolveSigningAccount } from '@/../src-bex/services/signing-account';
+import { accountForDispatch, resolveSigningAccount } from '@/../src-bex/services/signing-account';
 import type { StoredKey, VaultData } from '@/types/bridge';
 import type { Nip47Connection } from '@/types/nip47';
 import type { WebLnMethod } from '@/types/webln';
@@ -29,6 +29,7 @@ vi.mock('@/../src-bex/vault', () => ({
 
 vi.mock('@/../src-bex/services/signing-account', () => ({
   resolveSigningAccount: vi.fn(),
+  accountForDispatch: vi.fn(),
 }));
 
 const ALICE = 'a'.repeat(64);
@@ -41,9 +42,17 @@ const account = (id: string, alias: string): StoredKey => ({
 });
 const ACCOUNTS = [account(ALICE, 'Main Account'), account(BOB, 'work')];
 
+/**
+ * The account an approved request names, which these tests also make the site's account. The
+ * background checks it (`accountForDispatch`) before the handler runs; here that check answers as
+ * the site's account does, so a site whose account is gone fails either way.
+ */
+let connectedAs = ALICE;
+
 /** The account the requesting site is connected as. */
 function siteConnectedAs(pubkey: string): void {
   const found = ACCOUNTS.find((item) => item.id === pubkey)!;
+  connectedAs = pubkey;
   vi.mocked(resolveSigningAccount).mockResolvedValue({ account: found });
 }
 
@@ -78,17 +87,21 @@ describe('WebLN handlers', () => {
     vi.clearAllMocks();
     vi.mocked(updateVaultData).mockResolvedValue({ success: true });
     vi.mocked(isVaultUnlocked).mockReturnValue(true);
+    vi.mocked(accountForDispatch).mockImplementation((origin) => resolveSigningAccount(origin));
     siteConnectedAs(ALICE);
   });
 
   it('enables WebLN access for the active NIP-47 connection', async () => {
     mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
-    const result = await handleWebLnEnable({
-      origin: 'https://jumble.social',
-      approved: true,
-      duration: 'always',
-    });
+    const result = await handleWebLnEnable(
+      {
+        origin: 'https://jumble.social',
+        approved: true,
+        duration: 'always',
+      },
+      connectedAs,
+    );
 
     expect(result).toEqual({ success: true, data: true });
     expect(updateVaultData).toHaveBeenCalledTimes(1);
@@ -140,11 +153,14 @@ describe('WebLN handlers', () => {
       data: { preimage: 'preimage', raw: {} },
     });
 
-    const result = await handleWebLnSendPayment({
-      origin: 'https://jumble.social',
-      paymentRequest: 'lnbc1u1pjqxyz',
-      approved: true,
-    });
+    const result = await handleWebLnSendPayment(
+      {
+        origin: 'https://jumble.social',
+        paymentRequest: 'lnbc1u1pjqxyz',
+        approved: true,
+      },
+      connectedAs,
+    );
 
     expect(result).toEqual({ success: true, data: { preimage: 'preimage' } });
     expect(handleNip47PayInvoice).toHaveBeenCalledWith({
@@ -156,7 +172,10 @@ describe('WebLN handlers', () => {
 
   it.each(['', '   '])('tells the site no invoice was given for %j', async (paymentRequest) => {
     await expect(
-      handleWebLnSendPayment({ origin: 'https://jumble.social', paymentRequest, approved: true }),
+      handleWebLnSendPayment(
+        { origin: 'https://jumble.social', paymentRequest, approved: true },
+        connectedAs,
+      ),
     ).rejects.toThrow(NO_INVOICE_MESSAGE);
     expect(handleNip47PayInvoice).not.toHaveBeenCalled();
   });
@@ -165,7 +184,10 @@ describe('WebLN handlers', () => {
     'tells the site %j is not a BOLT11 invoice',
     async (paymentRequest) => {
       await expect(
-        handleWebLnSendPayment({ origin: 'https://jumble.social', paymentRequest, approved: true }),
+        handleWebLnSendPayment(
+          { origin: 'https://jumble.social', paymentRequest, approved: true },
+          connectedAs,
+        ),
       ).rejects.toThrow(NOT_A_BOLT11_INVOICE);
       expect(handleNip47PayInvoice).not.toHaveBeenCalled();
     },
@@ -175,11 +197,14 @@ describe('WebLN handlers', () => {
     mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
     await expect(
-      handleWebLnSendPayment({
-        origin: 'https://jumble.social',
-        paymentRequest: 'lnbc1u1pjqxyz',
-        approved: true,
-      }),
+      handleWebLnSendPayment(
+        {
+          origin: 'https://jumble.social',
+          paymentRequest: 'lnbc1u1pjqxyz',
+          approved: true,
+        },
+        connectedAs,
+      ),
     ).rejects.toThrow('has not been enabled');
   });
 
@@ -190,7 +215,7 @@ describe('WebLN handlers', () => {
     });
 
     await expect(
-      handleWebLnEnable({ origin: 'https://jumble.social', approved: true }),
+      handleWebLnEnable({ origin: 'https://jumble.social', approved: true }, connectedAs),
     ).rejects.toThrow('does not advertise pay_invoice support');
   });
 
@@ -205,7 +230,7 @@ describe('WebLN handlers', () => {
     });
 
     await expect(
-      handleWebLnEnable({ origin: 'https://jumble.social', approved: true }),
+      handleWebLnEnable({ origin: 'https://jumble.social', approved: true }, connectedAs),
     ).rejects.toThrow('does not advertise pay_invoice support');
   });
 
@@ -213,7 +238,7 @@ describe('WebLN handlers', () => {
     mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection({ capabilities: [] })] });
 
     await expect(
-      handleWebLnEnable({ origin: 'https://jumble.social', approved: true }),
+      handleWebLnEnable({ origin: 'https://jumble.social', approved: true }, connectedAs),
     ).resolves.toMatchObject({ success: true });
   });
 
@@ -240,14 +265,14 @@ describe('WebLN handlers', () => {
         paymentRequest: 'lnbc1u1pjqxyz',
         approved: true,
       };
-      await expect(handleWebLnSendPayment(request)).rejects.toThrow(
+      await expect(handleWebLnSendPayment(request, connectedAs)).rejects.toThrow(
         'No wallet is configured for this account.',
       );
       await expect(handleWebLnGetInfo({ origin: 'https://jumble.social' })).rejects.toThrow(
         'No wallet is configured',
       );
       await expect(
-        handleWebLnEnable({ origin: 'https://jumble.social', approved: true }),
+        handleWebLnEnable({ origin: 'https://jumble.social', approved: true }, connectedAs),
       ).rejects.toThrow('No wallet is configured');
       expect(handleNip47PayInvoice).not.toHaveBeenCalled();
     });
@@ -260,18 +285,24 @@ describe('WebLN handlers', () => {
 
       // Alice's grant was on Alice's wallet; Bob's wallet has none yet.
       await expect(
-        handleWebLnSendPayment({
-          origin: 'https://jumble.social',
-          paymentRequest: 'lnbc1u1pjqxyz',
-          approved: true,
-        }),
+        handleWebLnSendPayment(
+          {
+            origin: 'https://jumble.social',
+            paymentRequest: 'lnbc1u1pjqxyz',
+            approved: true,
+          },
+          connectedAs,
+        ),
       ).rejects.toThrow('has not been enabled');
 
-      await handleWebLnEnable({
-        origin: 'https://jumble.social',
-        approved: true,
-        duration: 'always',
-      });
+      await handleWebLnEnable(
+        {
+          origin: 'https://jumble.social',
+          approved: true,
+          duration: 'always',
+        },
+        connectedAs,
+      );
       const saved = vi.mocked(updateVaultData).mock.calls.at(-1)?.[0] as VaultData;
       expect(saved.webLnPermissions?.map((grant) => grant.connectionId)).toEqual([
         'alice-wallet',
@@ -287,13 +318,39 @@ describe('WebLN handlers', () => {
       });
 
       await expect(
-        handleWebLnSendPayment({
-          origin: 'https://jumble.social',
-          paymentRequest: 'lnbc1u1pjqxyz',
-          approved: true,
-        }),
+        handleWebLnSendPayment(
+          {
+            origin: 'https://jumble.social',
+            paymentRequest: 'lnbc1u1pjqxyz',
+            approved: true,
+          },
+          connectedAs,
+        ),
       ).rejects.toThrow('no longer available');
       expect(handleNip47PayInvoice).not.toHaveBeenCalled();
+    });
+
+    // The wallet of the account the user approved, checked again rather than resolved again, so a
+    // change of active account between approval and payment cannot move it (workspace#227).
+    it('pays from the approved account’s wallet, whatever the site would resolve to now', async () => {
+      mockVault(vault());
+      vi.mocked(accountForDispatch).mockResolvedValue({ account: ACCOUNTS[0]! });
+      vi.mocked(resolveSigningAccount).mockResolvedValue({ account: ACCOUNTS[1]! });
+      vi.mocked(handleNip47PayInvoice).mockResolvedValue({
+        success: true,
+        data: { preimage: 'preimage' },
+      } as never);
+
+      await handleWebLnSendPayment(
+        { origin: 'https://jumble.social', paymentRequest: 'lnbc1u1pjqxyz', approved: true },
+        ALICE,
+      );
+
+      expect(accountForDispatch).toHaveBeenCalledWith('https://jumble.social', ALICE);
+      expect(resolveSigningAccount).not.toHaveBeenCalled();
+      expect(handleNip47PayInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({ accountPubkey: ALICE }),
+      );
     });
 
     it('resolves the site’s account with the same rule as NIP-07', async () => {
@@ -332,7 +389,7 @@ describe('WebLN handlers', () => {
     it('stores an "always" grant with no expiry', async () => {
       mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
-      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'always' });
+      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'always' }, connectedAs);
 
       expect(lastSaved()?.webLnPermissions?.[0]?.expiresAt).toBeUndefined();
     });
@@ -343,7 +400,7 @@ describe('WebLN handlers', () => {
       try {
         mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
-        await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: '8h' });
+        await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: '8h' }, connectedAs);
 
         expect(lastSaved()?.webLnPermissions?.[0]?.expiresAt).toBe('2026-10-25T20:00:00.000Z');
       } finally {
@@ -360,6 +417,7 @@ describe('WebLN handlers', () => {
 
       await handleWebLnEnable(
         { origin: ORIGIN, approved: true, duration: 'once' },
+        connectedAs,
         new AbortController().signal,
       );
 
@@ -369,7 +427,7 @@ describe('WebLN handlers', () => {
     it('treats a missing duration as "once"', async () => {
       mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
-      await handleWebLnEnable({ origin: ORIGIN, approved: true });
+      await handleWebLnEnable({ origin: ORIGIN, approved: true }, connectedAs);
 
       expect(lastSaved()?.webLnPermissions ?? []).toEqual([]);
     });
@@ -382,27 +440,37 @@ describe('WebLN handlers', () => {
       } as never);
       const page = new AbortController();
 
-      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'once' }, page.signal);
+      await handleWebLnEnable(
+        { origin: ORIGIN, approved: true, duration: 'once' },
+        connectedAs,
+        page.signal,
+      );
 
       await expect(handleWebLnGetInfo({ origin: ORIGIN })).resolves.toMatchObject({
         success: true,
       });
       await expect(
-        handleWebLnSendPayment({ origin: ORIGIN, paymentRequest: 'lnbc1u1pjqxyz', approved: true }),
+        handleWebLnSendPayment(
+          { origin: ORIGIN, paymentRequest: 'lnbc1u1pjqxyz', approved: true },
+          connectedAs,
+        ),
       ).resolves.toMatchObject({ success: true });
 
       page.abort();
 
       await expect(handleWebLnGetInfo({ origin: ORIGIN })).rejects.toThrow('has not been enabled');
       await expect(
-        handleWebLnSendPayment({ origin: ORIGIN, paymentRequest: 'lnbc1u1pjqxyz', approved: true }),
+        handleWebLnSendPayment(
+          { origin: ORIGIN, paymentRequest: 'lnbc1u1pjqxyz', approved: true },
+          connectedAs,
+        ),
       ).rejects.toThrow('has not been enabled');
     });
 
     it('grants nothing for "once" when there is no page to tie it to', async () => {
       mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
-      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'once' });
+      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'once' }, connectedAs);
 
       await expect(handleWebLnGetInfo({ origin: ORIGIN })).rejects.toThrow('has not been enabled');
     });
@@ -410,9 +478,13 @@ describe('WebLN handlers', () => {
     it('ends a visit grant when the site is later allowed for longer and then disconnected', async () => {
       mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
       const page = new AbortController();
-      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'once' }, page.signal);
+      await handleWebLnEnable(
+        { origin: ORIGIN, approved: true, duration: 'once' },
+        connectedAs,
+        page.signal,
+      );
 
-      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'always' });
+      await handleWebLnEnable({ origin: ORIGIN, approved: true, duration: 'always' }, connectedAs);
       // The stored grant is what now answers, so disconnecting the site, which removes it, ends access.
       mockVault({ accounts: ACCOUNTS, nip47Connections: [buildConnection()] });
 
@@ -423,7 +495,10 @@ describe('WebLN handlers', () => {
   describe('what a site is told when a payment does not complete (porwr#370)', () => {
     const ORIGIN = 'https://jumble.social';
     const pay = () =>
-      handleWebLnSendPayment({ origin: ORIGIN, paymentRequest: 'lnbc1u1pjqxyz', approved: true });
+      handleWebLnSendPayment(
+        { origin: ORIGIN, paymentRequest: 'lnbc1u1pjqxyz', approved: true },
+        connectedAs,
+      );
 
     beforeEach(() => {
       mockVault({
